@@ -80,7 +80,7 @@ class ScanJob(db.Model):
     nmap_grep_path = db.Column(db.String(500))
     nmap_normal_path = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -105,7 +105,7 @@ class ScanResult(db.Model):
     services = db.Column(db.Text)
     os_detection = db.Column(db.String(255))
     scanned_at = db.Column(db.DateTime, default=datetime.utcnow)
-
+    
     job = db.relationship('ScanJob', backref='results')
     asset = db.relationship('Asset', backref='scan_results')
 
@@ -121,10 +121,10 @@ class AssetChangeLog(db.Model):
     new_value = db.Column(db.Text)
     scan_job_id = db.Column(db.Integer, db.ForeignKey('scan_job.id'))
     notes = db.Column(db.Text)
-
+    
     asset = db.relationship('Asset', backref='change_log')
     scan_job = db.relationship('ScanJob', backref='change_logs')
-
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -154,9 +154,9 @@ class ServiceInventory(db.Model):
     first_seen = db.Column(db.DateTime, default=datetime.utcnow)
     last_seen = db.Column(db.DateTime, default=datetime.utcnow)
     is_active = db.Column(db.Boolean, default=True)
-
+    
     asset = db.relationship('Asset', backref='service_inventory')
-
+    
     def to_dict(self):
         return {
             'id': self.id,
@@ -182,29 +182,29 @@ def parse_nmap_xml(filepath):
     tree = ET.parse(filepath)
     root = tree.getroot()
     assets = []
-
+    
     for host in root.findall('host'):
         status = host.find('status')
         if status is None or status.get('state') != 'up':
             continue
-
+        
         addr = host.find('address')
         ip = addr.get('addr') if addr is not None else 'Unknown'
-
+        
         hostnames = host.find('hostnames')
         hostname = 'Unknown'
         if hostnames is not None:
             name_elem = hostnames.find('hostname')
             if name_elem is not None:
                 hostname = name_elem.get('name')
-
+         
         os_info = 'Unknown'
         os_elem = host.find('os')
         if os_elem is not None:
             os_match = os_elem.find('osmatch')
             if os_match is not None:
                 os_info = os_match.get('name')
-
+        
         ports = []
         ports_elem = host.find('ports')
         if ports_elem is not None:
@@ -215,7 +215,7 @@ def parse_nmap_xml(filepath):
                     service = port.find('service')
                     service_name = service.get('name') if service is not None else ''
                     ports.append(f"{port_id}/{service_name}")
-
+        
         assets.append({
             'ip_address': ip,
             'hostname': hostname,
@@ -223,7 +223,7 @@ def parse_nmap_xml(filepath):
             'status': 'up',
             'open_ports': ', '.join(ports)
         })
-
+    
     return assets
 
 
@@ -232,7 +232,7 @@ def build_group_tree(groups, parent_id=None):
     for group in groups:
         if group.parent_id == parent_id:
             children = build_group_tree(groups, group.id)
-
+            
             if group.is_dynamic and group.filter_query:
                 try:
                     filter_struct = json.loads(group.filter_query)
@@ -242,7 +242,7 @@ def build_group_tree(groups, parent_id=None):
                     count = 0
             else:
                 count = len(group.assets)
-
+            
             tree.append({
                 'id': group.id,
                 'name': group.name,
@@ -256,7 +256,7 @@ def build_group_tree(groups, parent_id=None):
 def build_complex_query(model, filters_structure, base_query=None):
     if base_query is None:
         base_query = model.query
-
+    
     if not filters_structure or 'conditions' not in filters_structure:
         return base_query
 
@@ -299,7 +299,7 @@ def build_complex_query(model, filters_structure, base_query=None):
             base_query = base_query.filter(and_(*sqlalchemy_filters))
         else:
             base_query = base_query.filter(or_(*sqlalchemy_filters))
-
+            
     return base_query
 
 
@@ -317,6 +317,333 @@ def log_asset_change(asset_id, change_type, field_name, old_value, new_value, sc
 
 
 # ═══════════════════════════════════════════════════════════════
+# ФУНКЦИИ СКАНИРОВАНИЯ
+# ═══════════════════════════════════════════════════════════════
+
+def run_rustscan_scan(scan_job_id, target, custom_args=''):
+    """Фоновое выполнение rustscan с кастомными аргументами"""
+    scan_job = ScanJob.query.get(scan_job_id)
+    if not scan_job:
+        return
+    
+    try:
+        scan_job.status = 'running'
+        scan_job.started_at = datetime.utcnow()
+        scan_job.progress = 10
+        db.session.commit()
+        
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        result_dir = os.path.join(app.config['SCAN_RESULTS_FOLDER'], f'rustscan_{timestamp}')
+        os.makedirs(result_dir, exist_ok=True)
+        
+        output_file = os.path.join(result_dir, 'output.txt')
+        cmd = ['rustscan', '-a', target, '--greppable', '-o', output_file]
+        
+        if custom_args:
+            custom_args_list = custom_args.split()
+            cmd.extend(custom_args_list)
+        
+        if '--batch-size' not in custom_args:
+            cmd.extend(['--batch-size', '1000'])
+        if '--timeout' not in custom_args:
+            cmd.extend(['--timeout', '1500'])
+        
+        print(f"🔍 Запуск rustscan: {' '.join(cmd)}")
+        
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        scan_job.progress = 50
+        db.session.commit()
+        
+        stdout, stderr = process.communicate()
+        
+        if process.returncode == 0:
+            scan_job.progress = 90
+            if os.path.exists(output_file):
+                with open(output_file, 'r') as f:
+                    scan_job.rustscan_output = f.read()
+            
+            parse_rustscan_results(scan_job_id, scan_job.rustscan_output, target)
+            scan_job.status = 'completed'
+            scan_job.progress = 100
+        else:
+            scan_job.status = 'failed'
+            scan_job.error_message = stderr or f"Exit code: {process.returncode}"
+        
+        scan_job.completed_at = datetime.utcnow()
+        db.session.commit()
+        
+    except Exception as e:
+        scan_job.status = 'failed'
+        scan_job.error_message = str(e)
+        scan_job.completed_at = datetime.utcnow()
+        db.session.commit()
+
+
+def run_nmap_scan(scan_job_id, target, ports=None, custom_args=''):
+    """Фоновое выполнение nmap с кастомными аргументами"""
+    scan_job = ScanJob.query.get(scan_job_id)
+    if not scan_job:
+        return
+    
+    try:
+        scan_job.status = 'running'
+        scan_job.started_at = datetime.utcnow()
+        scan_job.progress = 10
+        db.session.commit()
+        
+        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        result_dir = os.path.join(app.config['SCAN_RESULTS_FOLDER'], f'nmap_{timestamp}')
+        os.makedirs(result_dir, exist_ok=True)
+        
+        base_filename = os.path.join(result_dir, 'scan')
+        cmd = ['nmap', target, '-oA', base_filename]
+        
+        if custom_args:
+            custom_args_list = custom_args.split()
+            cmd = ['nmap'] + custom_args_list + [target, '-oA', base_filename]
+        
+        if ports and '-p' not in custom_args:
+            cmd.extend(['-p', ports])
+        if '-sV' not in custom_args:
+            cmd.extend(['-sV'])
+        if '-sC' not in custom_args:
+            cmd.extend(['-sC'])
+        if '-O' not in custom_args:
+            cmd.extend(['-O'])
+        
+        print(f"🔍 Запуск nmap: {' '.join(cmd)}")
+        
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        scan_job.progress = 50
+        db.session.commit()
+        
+        stdout, stderr = process.communicate()
+        
+        if process.returncode == 0:
+            scan_job.progress = 90
+            scan_job.nmap_xml_path = f'{base_filename}.xml'
+            scan_job.nmap_grep_path = f'{base_filename}.gnmap'
+            scan_job.nmap_normal_path = f'{base_filename}.nmap'
+            
+            if os.path.exists(scan_job.nmap_xml_path):
+                parse_nmap_results(scan_job_id, scan_job.nmap_xml_path)
+            
+            scan_job.status = 'completed'
+            scan_job.progress = 100
+        else:
+            scan_job.status = 'failed'
+            scan_job.error_message = stderr or f"Exit code: {process.returncode}"
+        
+        scan_job.completed_at = datetime.utcnow()
+        db.session.commit()
+        
+    except Exception as e:
+        scan_job.status = 'failed'
+        scan_job.error_message = str(e)
+        scan_job.completed_at = datetime.utcnow()
+        db.session.commit()
+
+
+def parse_rustscan_results(scan_job_id, output, target):
+    if not output:
+        return
+    
+    lines = output.strip().split('\n')
+    scan_job = ScanJob.query.get(scan_job_id)
+    
+    for line in lines:
+        if '->' in line:
+            try:
+                parts = line.split('->')
+                ip = parts[0].strip()
+                ports_str = parts[1].strip() if len(parts) > 1 else ''
+                new_ports = [p.strip() for p in ports_str.split(',') if p.strip()]
+                
+                asset = Asset.query.filter_by(ip_address=ip).first() 
+                if not asset:
+                    asset = Asset(ip_address=ip, status='up')
+                    db.session.add(asset)
+                    db.session.flush()
+                    log_asset_change(asset.id, 'asset_created', 'ip_address', None, ip, scan_job_id, 'Создан через rustscan')
+                else:
+                    existing_ports = set(asset.open_ports.split(', ')) if asset.open_ports else set()
+                    new_ports_set = set(new_ports)
+                    
+                    added_ports = new_ports_set - existing_ports
+                    removed_ports = existing_ports - new_ports_set
+                    
+                    for port in added_ports:
+                        log_asset_change(asset.id, 'port_added', 'open_ports', None, port, scan_job_id)
+                    
+                    for port in removed_ports:
+                        log_asset_change(asset.id, 'port_removed', 'open_ports', port, None, scan_job_id)
+                
+                if new_ports:
+                    all_ports = existing_ports.union(new_ports_set) if asset.open_ports else new_ports_set
+                    asset.open_ports = ', '.join(sorted(all_ports, key=lambda x: int(x.split('/')[0]) if '/' in x else int(x)))
+                 
+                asset.last_scanned = datetime.utcnow()
+                
+                scan_result = ScanResult(
+                    asset_id=asset.id,
+                    ip_address=ip,
+                    scan_job_id=scan_job_id,
+                    ports=json.dumps(new_ports),
+                    scanned_at=datetime.utcnow()
+                )
+                db.session.add(scan_result)
+                
+            except Exception as e:
+                print(f"⚠️ Ошибка парсинга строки: {line} - {e}")
+    
+    db.session.commit()
+
+
+def parse_nmap_results(scan_job_id, xml_path):
+    try:
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        scan_job = ScanJob.query.get(scan_job_id)
+        
+        for host in root.findall('host'):
+            status = host.find('status')
+            if status is None or status.get('state') != 'up':
+                continue
+            
+            addr = host.find('address')
+            ip = addr.get('addr') if addr is not None else None
+            if not ip:
+                continue
+            
+            hostname = 'Unknown'
+            hostnames = host.find('hostnames')
+            if hostnames is not None:
+                name_elem = hostnames.find('hostname')
+                if name_elem is not None:
+                    hostname = name_elem.get('name')
+            
+            os_info = 'Unknown'
+            os_elem = host.find('os')
+            if os_elem is not None:
+                os_match = os_elem.find('osmatch')
+                if os_match is not None:
+                    os_info = os_match.get('name')
+            
+            ports = []
+            services = []
+            ports_elem = host.find('ports')
+            
+            if ports_elem is not None:
+                for port in ports_elem.findall('port'):
+                    state = port.find('state')
+                    if state is not None and state.get('state') == 'open':
+                        port_id = port.get('portid')
+                        protocol = port.get('protocol')
+                        service = port.find('service')
+                        
+                        service_name = service.get('name') if service is not None else ''
+                        service_product = service.get('product') if service is not None else ''
+                        service_version = service.get('version') if service is not None else ''
+                        service_extrainfo = service.get('extrainfo') if service is not None else ''
+                        service_cpe = service.get('cpe') if service is not None else ''
+                        
+                        port_str = f"{port_id}/{protocol}"
+                        ports.append(port_str)
+                        
+                        script_output = []
+                        for script in port.findall('script'):
+                            script_output.append({
+                                'id': script.get('id'),
+                                'output': script.get('output')
+                            })
+                        
+                        service_info = {
+                            'port': port_str,
+                            'name': service_name,
+                            'product': service_product,
+                            'version': service_version,
+                            'extrainfo': service_extrainfo,
+                            'cpe': service_cpe,
+                            'scripts': script_output
+                        }
+                        services.append(service_info)
+                        
+                        asset = Asset.query.filter_by(ip_address=ip).first()
+                        if asset:
+                            existing_service = ServiceInventory.query.filter_by(
+                                asset_id=asset.id,
+                                port=port_str
+                            ).first()
+                            
+                            if existing_service:
+                                changes = []
+                                if existing_service.service_name != service_name:
+                                    changes.append(('service_name', existing_service.service_name, service_name))
+                                if existing_service.product != service_product:
+                                    changes.append(('product', existing_service.product, service_product))
+                                if existing_service.version != service_version:
+                                    changes.append(('version', existing_service.version, service_version))
+                                
+                                for field, old, new in changes:
+                                    log_asset_change(asset.id, 'service_updated', field, old, new, scan_job_id, f'Порт {port_str}')
+                                
+                                existing_service.service_name = service_name
+                                existing_service.product = service_product
+                                existing_service.version = service_version
+                                existing_service.extrainfo = service_extrainfo
+                                existing_service.cpe = service_cpe
+                                existing_service.script_output = json.dumps(script_output)
+                                existing_service.last_seen = datetime.utcnow()
+                                existing_service.is_active = True
+                            else:
+                                new_service = ServiceInventory(
+                                    asset_id=asset.id,
+                                    port=port_str,
+                                    protocol=protocol,
+                                    service_name=service_name,
+                                    product=service_product,
+                                    version=service_version,
+                                    extrainfo=service_extrainfo,
+                                    cpe=service_cpe,
+                                    script_output=json.dumps(script_output)
+                                )
+                                db.session.add(new_service)
+                                log_asset_change(asset.id, 'service_detected', 'service_inventory', None, service_name, scan_job_id, f'Новый сервис на порту {port_str}')
+            
+            asset = Asset.query.filter_by(ip_address=ip).first()
+            if not asset:
+                asset = Asset(ip_address=ip, status='up')
+                db.session.add(asset)
+                db.session.flush()
+                log_asset_change(asset.id, 'asset_created', 'ip_address', None, ip, scan_job_id, 'Создан через nmap')
+            
+            if asset.os_info != os_info and os_info != 'Unknown':
+                log_asset_change(asset.id, 'os_changed', 'os_info', asset.os_info, os_info, scan_job_id)
+            
+            asset.hostname = hostname if hostname != 'Unknown' else asset.hostname
+            asset.os_info = os_info if os_info != 'Unknown' else asset.os_info
+            if ports:
+                asset.open_ports = ', '.join(ports)
+            asset.last_scanned = datetime.utcnow()
+            
+            scan_result = ScanResult(
+                asset_id=asset.id,
+                ip_address=ip,
+                scan_job_id=scan_job_id,
+                ports=json.dumps(ports),
+                services=json.dumps(services),
+                os_detection=os_info,
+                scanned_at=datetime.utcnow()
+            )
+            db.session.add(scan_result)
+        
+        db.session.commit()
+        
+    except Exception as e:
+        print(f"❌ Ошибка парсинга nmap XML: {e}")
+
+
+# ═══════════════════════════════════════════════════════════════
 # МАРШРУТЫ
 # ═══════════════════════════════════════════════════════════════
 
@@ -325,18 +652,18 @@ def index():
     all_groups = Group.query.all()
     group_tree = build_group_tree(all_groups)
     assets = Asset.query.all()
-
+    
     ungrouped_count = Asset.query.filter(Asset.group_id.is_(None)).count()
-
+    
     current_filter = request.args.get('group_id')
     if request.args.get('ungrouped') == 'true':
         current_filter = 'ungrouped'
     elif not current_filter or current_filter == 'all':
         current_filter = 'ungrouped'
-
-    return render_template('index.html',
-                         assets=assets,
-                         group_tree=group_tree,
+    
+    return render_template('index.html', 
+                         assets=assets, 
+                         group_tree=group_tree, 
                          all_groups=all_groups,
                          ungrouped_count=ungrouped_count,
                          current_filter=current_filter)
@@ -346,15 +673,15 @@ def index():
 def get_assets_api():
     """API для получения активов с фильтрацией"""
     query = Asset.query
-
+    
     print(f"🔍 API /api/assets called")
     print(f"   - ungrouped: {request.args.get('ungrouped')}")
     print(f"   - group_id: {request.args.get('group_id')}")
     print(f"   - filters: {request.args.get('filters')}")
-
+    
     filters_raw = request.args.get('filters')
-
     ungrouped = request.args.get('ungrouped')
+    
     if ungrouped and ungrouped.lower() == 'true':
         print(f"   ✅ Filtering UNGROUPED assets (group_id IS NULL)")
         query = query.filter(Asset.group_id.is_(None))
@@ -377,7 +704,7 @@ def get_assets_api():
             except ValueError:
                 print(f"   ❌ Invalid group_id: {group_id}")
                 return jsonify({'error': 'Invalid group_id'}), 400
-
+    
     if filters_raw:
         try:
             filters_structure = json.loads(filters_raw)
@@ -387,7 +714,7 @@ def get_assets_api():
 
     assets = query.all()
     print(f"   ✅ Found {len(assets)} assets")
-
+    
     data = [{
         'id': a.id,
         'ip': a.ip_address,
@@ -397,7 +724,7 @@ def get_assets_api():
         'group': a.group.name if a.group else 'Без группы',
         'last_scan': a.last_scanned.strftime('%Y-%m-%d %H:%M')
     } for a in assets]
-
+    
     return jsonify(data)
 
 
@@ -405,7 +732,7 @@ def get_assets_api():
 def get_analytics():
     filters_raw = request.args.get('filters')
     group_by_field = request.args.get('group_by', 'os_info')
-
+    
     query = Asset.query
     if filters_raw:
         try:
@@ -427,12 +754,12 @@ def api_create_group():
     parent_id = data.get('parent_id')
     filter_query = data.get('filter_query')
     is_dynamic = True if filter_query else False
-
+    
     if parent_id == '':
         parent_id = None
     if not name:
         return jsonify({'error': 'Имя обязательно'}), 400
-
+        
     new_group = Group(name=name, parent_id=parent_id, filter_query=filter_query, is_dynamic=is_dynamic)
     db.session.add(new_group)
     db.session.commit()
@@ -443,7 +770,7 @@ def api_create_group():
 def api_update_group(id):
     group = Group.query.get_or_404(id)
     data = request.json
-
+    
     if 'name' in data:
         group.name = data['name']
     if 'parent_id' in data:
@@ -456,7 +783,7 @@ def api_update_group(id):
     if 'filter_query' in data:
         group.filter_query = data['filter_query'] if data['filter_query'] else None
         group.is_dynamic = bool(data['filter_query'])
-
+        
     db.session.commit()
     return jsonify({'success': True})
 
@@ -465,10 +792,10 @@ def api_update_group(id):
 def api_delete_group(id):
     group = Group.query.get_or_404(id)
     move_to_id = request.args.get('move_to')
-
+    
     if move_to_id:
         Asset.query.filter_by(group_id=id).update({'group_id': move_to_id})
-
+    
     db.session.delete(group)
     db.session.commit()
     return jsonify({'success': True})
@@ -478,7 +805,7 @@ def api_delete_group(id):
 def api_get_tree():
     all_groups = Group.query.all()
     tree = build_group_tree(all_groups)
-
+    
     flat_list = []
     def flatten(nodes, level=0):
         for node in nodes:
@@ -489,7 +816,7 @@ def api_get_tree():
             })
             flatten(node['children'], level + 1)
     flatten(tree)
-
+    
     return jsonify({'tree': tree, 'flat': flat_list})
 
 
@@ -508,7 +835,7 @@ def manage_groups():
 def asset_detail(id):
     asset = Asset.query.get_or_404(id)
     all_groups = Group.query.all()
-
+    
     ports_detail = []
     if asset.open_ports:
         for port_str in asset.open_ports.split(', '):
@@ -518,18 +845,18 @@ def asset_detail(id):
                     'port': port_id,
                     'service': service if service else 'unknown'
                 })
-
+    
     scan_history = [{
         'date': asset.last_scanned,
         'status': asset.status,
         'ports_count': len(asset.open_ports.split(', ')) if asset.open_ports else 0
     }]
-
-    return render_template('asset_detail.html',
-                          asset=asset,
-                          ports_detail=ports_detail,
-                          scan_history=scan_history,
-                          all_groups=all_groups)
+    
+    return render_template('asset_detail.html', 
+                          asset=asset, 
+                         ports_detail=ports_detail,
+                         scan_history=scan_history,
+                         all_groups=all_groups)
 
 
 @app.route('/asset/<int:id>/history')
@@ -537,13 +864,13 @@ def asset_history(id):
     asset = Asset.query.get_or_404(id)
     all_groups = Group.query.all()
     group_tree = build_group_tree(all_groups)
-
+    
     changes = AssetChangeLog.query.filter_by(asset_id=id).order_by(AssetChangeLog.changed_at.desc()).all()
     services = ServiceInventory.query.filter_by(asset_id=id, is_active=True).all()
-
-    return render_template('asset_history.html',
-                         asset=asset,
-                         changes=changes,
+    
+    return render_template('asset_history.html', 
+                         asset=asset, 
+                         changes=changes, 
                          services=services,
                          group_tree=group_tree,
                          all_groups=all_groups)
@@ -552,7 +879,7 @@ def asset_history(id):
 @app.route('/api/asset/<int:id>/history')
 def api_asset_history(id):
     changes = AssetChangeLog.query.filter_by(asset_id=id).order_by(AssetChangeLog.changed_at.desc()).limit(100).all()
-
+    
     return jsonify({
         'asset_id': id,
         'total_changes': len(changes),
@@ -563,7 +890,7 @@ def api_asset_history(id):
 @app.route('/api/asset/<int:id>/services')
 def api_asset_services(id):
     services = ServiceInventory.query.filter_by(asset_id=id).all()
-
+    
     return jsonify({
         'asset_id': id,
         'total_services': len(services),
@@ -575,13 +902,13 @@ def api_asset_services(id):
 @app.route('/asset/<int:id>/service/<int:service_id>/toggle', methods=['POST'])
 def toggle_service_status(id, service_id):
     service = ServiceInventory.query.get_or_404(service_id)
-
+    
     if service.asset_id != id:
         return jsonify({'error': 'Service does not belong to this asset'}), 400
-
+    
     service.is_active = not service.is_active
     db.session.commit()
-
+    
     return jsonify({
         'success': True,
         'is_active': service.is_active
@@ -620,7 +947,7 @@ def delete_asset(id):
 @app.route('/asset/<int:id>/scan-nmap', methods=['POST'])
 def scan_asset_nmap(id):
     asset = Asset.query.get_or_404(id)
-
+    
     scan_job = ScanJob(
         scan_type='nmap',
         target=asset.ip_address,
@@ -628,11 +955,11 @@ def scan_asset_nmap(id):
     )
     db.session.add(scan_job)
     db.session.commit()
-
+    
     thread = threading.Thread(target=run_nmap_scan, args=(scan_job.id, asset.ip_address, None))
     thread.daemon = True
     thread.start()
-
+    
     flash(f'Nmap сканирование запущено для {asset.ip_address}', 'info')
     return redirect(url_for('asset_detail', id=id))
 
@@ -641,13 +968,13 @@ def scan_asset_nmap(id):
 def bulk_delete_assets():
     data = request.json
     asset_ids = data.get('ids', [])
-
+    
     if not asset_ids:
         return jsonify({'error': 'No IDs provided'}), 400
-
+    
     deleted_count = Asset.query.filter(Asset.id.in_(asset_ids)).delete(synchronize_session=False)
     db.session.commit()
-
+     
     return jsonify({
         'success': True,
         'deleted': deleted_count,
@@ -655,8 +982,35 @@ def bulk_delete_assets():
     })
 
 
+@app.route('/api/assets/bulk-move', methods=['POST'])
+def bulk_move_assets():
+    """Массовое перемещение активов между группами"""
+    data = request.json
+    asset_ids = data.get('ids', [])
+    group_id = data.get('group_id')
+    
+    if group_id == '':
+        group_id = None
+    elif group_id:
+        group_id = int(group_id)
+    
+    if not asset_ids:
+        return jsonify({'error': 'No IDs provided'}), 400
+    
+    moved_count = Asset.query.filter(Asset.id.in_(asset_ids)).update(
+        {'group_id': group_id}, synchronize_session=False
+    )
+    db.session.commit()
+    
+    return jsonify({
+        'success': True,
+        'moved': moved_count,
+        'message': f'Перемещено активов: {moved_count}'
+    })
+
+
 # ═══════════════════════════════════════════════════════════════
-# МАРШРУТЫ - СКАНИРОВАНИЕ (ОБНОВЛЁННЫЕ)
+# МАРШРУТЫ - СКАНИРОВАНИЕ
 # ═══════════════════════════════════════════════════════════════
 
 @app.route('/scans')
@@ -665,10 +1019,10 @@ def scans_page():
     all_groups = Group.query.all()
     group_tree = build_group_tree(all_groups)
     scan_jobs = ScanJob.query.order_by(ScanJob.created_at.desc()).limit(50).all()
-
-    return render_template('scans.html',
-                         scan_jobs=scan_jobs,
-                         group_tree=group_tree,
+    
+    return render_template('scans.html', 
+                         scan_jobs=scan_jobs, 
+                         group_tree=group_tree, 
                          all_groups=all_groups)
 
 
@@ -679,36 +1033,36 @@ def start_rustscan():
     target = data.get('target', '')
     group_id = data.get('group_id')
     custom_args = data.get('custom_args', '')
-
+    
     if group_id:
         if group_id == 'ungrouped':
             assets = Asset.query.filter(Asset.group_id.is_(None)).all()
-        else:
+        else: 
             group = Group.query.get(group_id)
             if not group:
                 return jsonify({'error': 'Группа не найдена'}), 404
-
+            
             def get_child_group_ids(parent_id, all_groups, result=[]):
                 children = [g for g in all_groups if g.parent_id == parent_id]
                 for child in children:
                     result.append(child.id)
                     get_child_group_ids(child.id, all_groups, result)
                 return result
-
+            
             all_groups = Group.query.all()
             group_ids = [group_id] + get_child_group_ids(group_id, all_groups)
             assets = Asset.query.filter(Asset.group_id.in_(group_ids)).all()
-
+        
         if not assets:
             return jsonify({'error': 'В группе нет активов'}), 400
-
+        
         target = ' '.join([a.ip_address for a in assets])
         target_description = f"Группа: {group.name if group_id != 'ungrouped' else 'Без группы'} ({len(assets)} активов)"
     else:
         if not target:
             return jsonify({'error': 'Цель сканирования не указана'}), 400
         target_description = target
-
+    
     scan_job = ScanJob(
         scan_type='rustscan',
         target=target_description,
@@ -717,14 +1071,14 @@ def start_rustscan():
     )
     db.session.add(scan_job)
     db.session.commit()
-
+    
     thread = threading.Thread(
-        target=run_rustscan_scan,
+        target=run_rustscan_scan, 
         args=(scan_job.id, target, custom_args)
     )
     thread.daemon = True
     thread.start()
-
+    
     return jsonify({
         'success': True,
         'job_id': scan_job.id,
@@ -740,7 +1094,7 @@ def start_nmap():
     group_id = data.get('group_id')
     ports = data.get('ports', '')
     custom_args = data.get('custom_args', '')
-
+     
     if group_id:
         if group_id == 'ungrouped':
             assets = Asset.query.filter(Asset.group_id.is_(None)).all()
@@ -748,28 +1102,28 @@ def start_nmap():
             group = Group.query.get(group_id)
             if not group:
                 return jsonify({'error': 'Группа не найдена'}), 404
-
+            
             def get_child_group_ids(parent_id, all_groups, result=[]):
                 children = [g for g in all_groups if g.parent_id == parent_id]
                 for child in children:
                     result.append(child.id)
                     get_child_group_ids(child.id, all_groups, result)
                 return result
-
+            
             all_groups = Group.query.all()
             group_ids = [group_id] + get_child_group_ids(group_id, all_groups)
             assets = Asset.query.filter(Asset.group_id.in_(group_ids)).all()
-
+        
         if not assets:
             return jsonify({'error': 'В группе нет активов'}), 400
-
+        
         target = ' '.join([a.ip_address for a in assets])
         target_description = f"Группа: {group.name if group_id != 'ungrouped' else 'Без группы'} ({len(assets)} активов)"
     else:
         if not target:
             return jsonify({'error': 'Цель сканирования не указана'}), 400
         target_description = target
-
+    
     scan_job = ScanJob(
         scan_type='nmap',
         target=target_description,
@@ -778,17 +1132,17 @@ def start_nmap():
     )
     if custom_args:
         scan_job.error_message = f'Custom args: {custom_args}'
-
+    
     db.session.add(scan_job)
     db.session.commit()
-
+     
     thread = threading.Thread(
-        target=run_nmap_scan,
+        target=run_nmap_scan, 
         args=(scan_job.id, target, ports, custom_args)
     )
     thread.daemon = True
     thread.start()
-
+    
     return jsonify({
         'success': True,
         'job_id': scan_job.id,
@@ -805,17 +1159,17 @@ def get_scan_status(job_id):
 @app.route('/api/scans/<int:job_id>/results')
 def get_scan_results(job_id):
     scan_job = ScanJob.query.get_or_404(job_id)
-
+    
     results = []
     for result in scan_job.results:
         results.append({
             'ip': result.ip_address,
             'ports': json.loads(result.ports) if result.ports else [],
-            'services': json.loads(result.services) if result.services else [],
+            'services': json.loads(result.services) if result.services else [], 
             'os': result.os_detection,
             'scanned_at': result.scanned_at.strftime('%Y-%m-%d %H:%M:%S')
         })
-
+    
     return jsonify({
         'job': scan_job.to_dict(),
         'results': results
@@ -825,16 +1179,16 @@ def get_scan_results(job_id):
 @app.route('/scans/<int:job_id>/download/<format_type>')
 def download_scan_results(job_id, format_type):
     scan_job = ScanJob.query.get_or_404(job_id)
-
+    
     if scan_job.scan_type == 'rustscan':
         if format_type == 'greppable':
             if not scan_job.rustscan_output:
                 flash('Результаты недоступны', 'danger')
                 return redirect(url_for('scans_page'))
-
+            
             timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
             filename = f'rustscan_{timestamp}.txt'
-
+            
             return Response(
                 scan_job.rustscan_output,
                 mimetype='text/plain',
@@ -842,12 +1196,12 @@ def download_scan_results(job_id, format_type):
                     'Content-Disposition': f'attachment; filename={filename}'
                 }
             )
-
+    
     elif scan_job.scan_type == 'nmap':
         file_path = None
         mimetype = 'text/plain'
         filename = ''
-
+        
         if format_type == 'xml':
             file_path = scan_job.nmap_xml_path
             mimetype = 'application/xml'
@@ -860,7 +1214,7 @@ def download_scan_results(job_id, format_type):
             file_path = scan_job.nmap_normal_path
             mimetype = 'text/plain'
             filename = 'nmap_results.txt'
-
+        
         if file_path and os.path.exists(file_path):
             return send_file(
                 file_path,
@@ -871,13 +1225,10 @@ def download_scan_results(job_id, format_type):
         else:
             flash('Файл результатов не найден', 'danger')
             return redirect(url_for('scans_page'))
-
+    
     flash('Неподдерживаемый формат', 'danger')
     return redirect(url_for('scans_page'))
 
-# ═══════════════════════════════════════════════════════════════
-# API УПРАВЛЕНИЯ СКАНИРОВАНИЯМИ
-# ═══════════════════════════════════════════════════════════════
 
 @app.route('/api/scans/<int:job_id>/control', methods=['POST'])
 def control_scan_job(job_id):
@@ -887,36 +1238,12 @@ def control_scan_job(job_id):
     scan_job = ScanJob.query.get_or_404(job_id)
     
     try:
-        # 🔥 НОВАЯ ПРОВЕРКА ДЛЯ DELETE С pending ЗАДАЧ
-        if action == 'delete':
-            if scan_job.status in ['pending', 'completed', 'failed', 'stopped']:
-                # Удаляем файлы результатов если есть
-                files_to_delete = [
-                    scan_job.nmap_xml_path, 
-                    scan_job.nmap_grep_path, 
-                    scan_job.nmap_normal_path
-                ]
-                for f in files_to_delete:
-                    if f and os.path.exists(f):
-                        try:
-                            os.remove(f)
-                        except:
-                            pass
-                
-                db.session.delete(scan_job)
-                db.session.commit()
-                return jsonify({'success': True, 'message': 'Задание удалено'})
-            else:
-                return jsonify({'error': 'Нельзя удалить активное задание. Сначала остановите его.'}), 400
-        
-        elif action == 'stop':
+        if action == 'stop':
             if scan_job.status in ['running', 'paused']:
                 scan_job.status = 'stopped'
                 scan_job.error_message = "Сканирование остановлено пользователем."
                 scan_job.completed_at = datetime.utcnow()
                 db.session.commit()
-                
-                # Процесс сам завершится в цикле while в фоновой задаче
                 return jsonify({'success': True, 'message': 'Команда остановки отправлена'})
             else:
                 return jsonify({'error': 'Нельзя остановить задание в статусе: ' + scan_job.status}), 400
@@ -937,12 +1264,33 @@ def control_scan_job(job_id):
             else:
                 return jsonify({'error': 'Нельзя возобновить задание в статусе: ' + scan_job.status}), 400
         
+        elif action == 'delete':
+            if scan_job.status in ['pending', 'completed', 'failed', 'stopped']:
+                files_to_delete = [
+                    scan_job.nmap_xml_path, 
+                    scan_job.nmap_grep_path, 
+                    scan_job.nmap_normal_path
+                ]
+                for f in files_to_delete:
+                    if f and os.path.exists(f):
+                        try:
+                            os.remove(f)
+                        except:
+                            pass
+                
+                db.session.delete(scan_job)
+                db.session.commit()
+                return jsonify({'success': True, 'message': 'Задание удалено'})
+            else:
+                return jsonify({'error': 'Нельзя удалить активное задание. Сначала остановите его.'}), 400
+        
         else:
             return jsonify({'error': 'Неизвестная команда'}), 400
         
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
 
 @app.route('/utilities')
 def utilities():
@@ -953,20 +1301,20 @@ def utilities():
 
 @app.route('/utilities/nmap-to-rustscan', methods=['POST'])
 def nmap_to_rustscan():
-    if 'file' not in request.files:
+    if 'file' not in request.files: 
         return jsonify({'error': 'Файл не найден'}), 400
-
+    
     file = request.files['file']
     if file.filename == '':
-        return jsonify({'error': 'Файл не выбран'}), 400
-
+        return jsonify({'error': 'Файл не выбран'}), 400 
+    
     if not file.filename.endswith('.xml'):
         return jsonify({'error': 'Требуется XML файл'}), 400
-
+    
     try:
         tree = ET.parse(file.stream)
         root = tree.getroot()
-
+        
         ips = []
         for host in root.findall('host'):
             status = host.find('status')
@@ -976,14 +1324,14 @@ def nmap_to_rustscan():
                     ip = addr.get('addr')
                     if ip:
                         ips.append(ip)
-
+        
         if not ips:
             return jsonify({'error': 'Не найдено активных хостов'}), 400
-
+        
         content = '\n'.join(ips)
         timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
         filename = f'rustscan_targets_{timestamp}.txt'
-
+        
         return Response(
             content,
             mimetype='text/plain',
@@ -991,7 +1339,7 @@ def nmap_to_rustscan():
                 'Content-Disposition': f'attachment; filename={filename}'
             }
         )
-
+        
     except Exception as e:
         return jsonify({'error': f'Ошибка обработки: {str(e)}'}), 500
 
@@ -1000,24 +1348,24 @@ def nmap_to_rustscan():
 def extract_ports():
     if 'file' not in request.files:
         return jsonify({'error': 'Файл не найден'}), 400
-
+    
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'Файл не выбран'}), 400
-
+    
     try:
         tree = ET.parse(file.stream)
         root = tree.getroot()
-
+        
         all_ports = set()
         host_ports = {}
-
+        
         for host in root.findall('host'):
             status = host.find('status')
             if status is not None and status.get('state') == 'up':
                 addr = host.find('address')
                 ip = addr.get('addr') if addr is not None else 'unknown'
-
+                
                 ports = []
                 ports_elem = host.find('ports')
                 if ports_elem is not None:
@@ -1028,30 +1376,30 @@ def extract_ports():
                             protocol = port.get('protocol')
                             service = port.find('service')
                             service_name = service.get('name') if service is not None else ''
-
+                            
                             port_str = f"{port_id}/{protocol}"
                             if service_name:
                                 port_str += f" ({service_name})"
-
+                            
                             ports.append(port_str)
                             all_ports.add(port_id)
-
+                
                 if ports:
                     host_ports[ip] = ports
-
+        
         content = "=" * 60 + "\n"
         content += "NMAP PORTS EXTRACTION REPORT\n"
         content += f"Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}\n"
         content += "=" * 60 + "\n\n"
-
+        
         content += f"Total hosts: {len(host_ports)}\n"
         content += f"Unique ports: {len(all_ports)}\n\n"
-
+        
         content += "-" * 60 + "\n"
         content += "UNIQUE PORTS (for rustscan -p):\n"
         content += "-" * 60 + "\n"
         content += ','.join(sorted(all_ports, key=int)) + "\n\n"
-
+        
         content += "-" * 60 + "\n"
         content += "HOSTS WITH PORTS:\n"
         content += "-" * 60 + "\n"
@@ -1059,10 +1407,10 @@ def extract_ports():
             content += f"\n{ip}:\n"
             for port in ports:
                 content += f"  - {port}\n"
-
+        
         timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
         filename = f'nmap_ports_report_{timestamp}.txt'
-
+        
         return Response(
             content,
             mimetype='text/plain',
@@ -1070,32 +1418,32 @@ def extract_ports():
                 'Content-Disposition': f'attachment; filename={filename}'
             }
         )
-
+        
     except Exception as e:
         return jsonify({'error': f'Ошибка обработки: {str(e)}'}), 500
 
 
 @app.route('/scan', methods=['POST'])
 def import_scan():
-    if 'file' not in request.files:
+    if 'file' not in request.files: 
         flash('Файл не найден', 'danger')
         return redirect(url_for('index'))
-
+    
     file = request.files['file']
     group_id = request.form.get('group_id')
     if group_id == '':
         group_id = None
-
+    
     if file and file.filename:
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
-
+        
         try:
             parsed_assets = parse_nmap_xml(filepath)
             updated_count = 0
             created_count = 0
-
+            
             for data in parsed_assets:
                 existing = Asset.query.filter_by(ip_address=data['ip_address']).first()
                 if existing:
@@ -1111,14 +1459,14 @@ def import_scan():
                     new_asset = Asset(**data, group_id=group_id)
                     db.session.add(new_asset)
                     created_count += 1
-
+            
             db.session.commit()
             flash(f'Успех! Создано: {created_count}, Обновлено: {updated_count}', 'success')
         except Exception as e:
             flash(f'Ошибка парсинга: {str(e)}', 'danger')
         finally:
             os.remove(filepath)
-
+    
     return redirect(url_for('index'))
 
 
@@ -1128,10 +1476,11 @@ def import_scan():
 
 @app.route('/api/scans/status')
 def get_active_scans_status():
+    """Получение статуса активных сканирований для polling"""
     active_jobs = ScanJob.query.filter(
         ScanJob.status.in_(['pending', 'running'])
     ).order_by(ScanJob.created_at.desc()).limit(10).all()
-
+    
     return jsonify({
         'active': [job.to_dict() for job in active_jobs],
         'total_active': len(active_jobs)
@@ -1142,12 +1491,12 @@ if __name__ == '__main__':
     with app.app_context():
         print("📁 Текущая директория:", os.getcwd())
         print("🔍 Путь к БД:", app.config['SQLALCHEMY_DATABASE_URI'])
-
+        
         try:
             print("🔄 Инициализация базы данных...")
             db.create_all()
             print("✅ База данных создана/проверена")
-
+            
             if not Group.query.first():
                 print("📦 Создаём тестовую группу...")
                 db.session.add(Group(name="Сеть"))
@@ -1155,6 +1504,6 @@ if __name__ == '__main__':
                 print("✅ Тестовая группа создана")
         except Exception as e:
             print(f"⚠️ Предупреждение при инициализации БД: {e}")
-
+    
     print("🚀 Запуск сервера...")
-    app.run(debug=True, host='127.0.0.1', port=5000)
+    app.run(debug=True, host='10.250.95.39', port=5000)

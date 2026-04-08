@@ -1,0 +1,5 @@
+# Web Framework
+flask>=2.3.0
+
+# ORM и работа с БД
+flask-sqlalchemy>=3.0.0
