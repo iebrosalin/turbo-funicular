@@ -1,10 +1,11 @@
 # routes/main.py
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from extensions import db
-from models import Group, Asset, AssetChangeLog, ServiceInventory
+from models import Group, Asset, AssetChangeLog, ServiceInventory, ScanJob
 from utils import build_group_tree, build_complex_query
-from sqlalchemy import func, or_
+from sqlalchemy import func
 import json
+import threading
 
 main_bp = Blueprint('main', __name__)
 
@@ -81,15 +82,19 @@ def api_create_group():
 def api_update_group(id):
     group = Group.query.get_or_404(id)
     data = request.json
-    if 'name' in  group.name = data['name']
-    if 'parent_id' in 
+    
+    # 🔥 ИСПРАВЛЕННЫЙ БЛОК 🔥
+    if 'name' in data:
+        group.name = data['name']
+    if 'parent_id' in data:
         new_parent_id = data['parent_id']
         if new_parent_id == '': new_parent_id = None
         if new_parent_id and int(new_parent_id) == group.id: return jsonify({'error': 'Группа не может быть родителем самой себя'}), 400
         group.parent_id = new_parent_id
-    if 'filter_query' in 
+    if 'filter_query' in data:
         group.filter_query = data['filter_query'] if data['filter_query'] else None
         group.is_dynamic = bool(data['filter_query'])
+        
     db.session.commit()
     return jsonify({'success': True})
 
@@ -192,11 +197,7 @@ def delete_asset(id):
 @main_bp.route('/asset/<int:id>/scan-nmap', methods=['POST'])
 def scan_asset_nmap(id):
     from scanner import run_nmap_scan
-    import threading
     asset = Asset.query.get_or_404(id)
-    scan_job = ScanJob(scan_type='nmap', target=asset.ip_address, status='pending') # Note: ScanJob import needed or passed
-    # To avoid circular import, we handle it locally or import inside func
-    from models import ScanJob
     scan_job = ScanJob(scan_type='nmap', target=asset.ip_address, status='pending')
     db.session.add(scan_job)
     db.session.commit()
