@@ -22,7 +22,7 @@
             <div class="col-md-9 col-lg-10 p-4">
                 <nav class="navbar navbar-light mb-4 px-3">
                     <div class="d-flex align-items-center">
-                        <a href="{{ url_for('index') }}" class="btn btn-outline-dark me-3"><i class="bi bi-arrow-left"></i> Назад</a>
+                        <a href="{{ url_for('main.index') }}" class="btn btn-outline-dark me-3"><i class="bi bi-arrow-left"></i> Назад</a>
                         <span class="navbar-brand mb-0 h1"><i class="bi bi-pencil"></i> Редактировать актив</span>
                     </div>
                     <button class="theme-toggle" onclick="toggleTheme()"><i class="bi bi-moon"></i><i class="bi bi-sun"></i></button>
@@ -70,7 +70,7 @@
                             
                             <div class="d-flex gap-2">
                                 <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Сохранить</button>
-                                <a href="{{ url_for('index') }}" class="btn btn-secondary">Отмена</a>
+                                <a href="{{ url_for('main.index') }}" class="btn btn-secondary">Отмена</a>
                             </div>
                         </form>
                     </div>

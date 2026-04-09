@@ -1,206 +1,213 @@
 # scanner.py
-import os
-import subprocess
-import json
-import xml.etree.ElementTree as ET
-from datetime import datetime
+
 from extensions import db
 from models import ScanJob, Asset, ScanResult, ServiceInventory
 from utils import log_asset_change
+from app import app  # 🔥 Импортируем app для app_context() 🔥
 
 def run_rustscan_scan(scan_job_id, target, custom_args=''):
-    scan_job = ScanJob.query.get(scan_job_id)
-    if not scan_job: return
-    try:
-        scan_job.status = 'running'
-        scan_job.started_at = datetime.utcnow()
-        scan_job.progress = 10
-        db.session.commit()
+    # 🔥 Входим в app_context для доступа к db 🔥
+    with app.app_context():
+        # 🔥 Очищаем сессию для безопасной работы в потоке 🔥
+        db.session.remove()
         
-        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-        result_dir = os.path.join('scan_results', f'rustscan_{timestamp}')
-        os.makedirs(result_dir, exist_ok=True)
-        output_file = os.path.join(result_dir, 'output.txt')
-        cmd = ['rustscan', '-a', target, '--greppable', '-o', output_file]
-        if custom_args: cmd.extend(custom_args.split())
-        if '--batch-size' not in custom_args: cmd.extend(['--batch-size', '1000'])
-        if '--timeout' not in custom_args: cmd.extend(['--timeout', '1500'])
+        scan_job = ScanJob.query.get(scan_job_id)
+        if not scan_job:
+            print(f"❌ ScanJob {scan_job_id} not found")
+            return
         
-        print(f"🔍 Запуск rustscan: {' '.join(cmd)}")
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        scan_job.progress = 50
-        db.session.commit()
-        stdout, stderr = process.communicate()
-        
-        if process.returncode == 0:
-            scan_job.progress = 90
-            if os.path.exists(output_file):
-                with open(output_file, 'r') as f: scan_job.rustscan_output = f.read()
-            parse_rustscan_results(scan_job_id, scan_job.rustscan_output, target)
-            scan_job.status = 'completed'
-            scan_job.progress = 100
-        else:
-            scan_job.status = 'failed'
-            scan_job.error_message = stderr or f"Exit code: {process.returncode}"
-        scan_job.completed_at = datetime.utcnow()
-        db.session.commit()
-    except Exception as e:
-        scan_job.status = 'failed'
-        scan_job.error_message = str(e)
-        scan_job.completed_at = datetime.utcnow()
-        db.session.commit()
+        try:
+            scan_job.status = 'running'
+            scan_job.started_at = datetime.utcnow()
+            scan_job.progress = 10
+            db.session.commit()
+            
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            result_dir = os.path.join('scan_results', f'rustscan_{timestamp}')
+            os.makedirs(result_dir, exist_ok=True)
+            output_file = os.path.join(result_dir, 'output.txt')
+            
+            cmd = ['rustscan', '-a', target, '--greppable', '-o', output_file]
+            if custom_args: cmd.extend(custom_args.split())
+            if '--batch-size' not in custom_args: cmd.extend(['--batch-size', '1000'])
+            if '--timeout' not in custom_args: cmd.extend(['--timeout', '1500'])
+            
+            print(f"🔍 Запуск rustscan: {' '.join(cmd)}")
+            
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+            scan_job.progress = 50
+            db.session.commit()
+            
+            last_commit = time.time()
+            last_progress = 50
+            start_time = time.time()
+            
+            for line in iter(process.stdout.readline, ''):
+                db.session.remove()  # 🔥 Очищаем сессию перед каждым запросом 🔥
+                
+                # Проверка статуса
+                job = ScanJob.query.get(scan_job_id)
+                if not job: break
+                if job.status == 'stopped':
+                    process.terminate()
+                    try: process.wait(timeout=5)
+                    except: process.kill()
+                    job.status = 'stopped'
+                    job.error_message = 'Остановлено пользователем'
+                    job.completed_at = datetime.utcnow()
+                    db.session.commit()
+                    return
+                if job.status == 'paused':
+                    while ScanJob.query.get(scan_job_id).status == 'paused':
+                        time.sleep(0.5)
+                    continue
+                
+                # Прогресс (аппроксимация для rustscan)
+                elapsed = time.time() - start_time
+                estimated = min(90, 15 + (elapsed / 200) * 75)
+                if estimated > last_progress + 0.5 and (time.time() - last_commit) > 1.0:
+                    last_progress = estimated
+                    job = ScanJob.query.get(scan_job_id)
+                    if job:
+                        job.progress = int(last_progress)
+                        db.session.commit()
+                        last_commit = time.time()
+            
+            process.wait()
+            job = ScanJob.query.get(scan_job_id)
+            if not job: return
+            
+            if process.returncode == 0 and job.status not in ['stopped', 'failed']:
+                if os.path.exists(output_file):
+                    with open(output_file, 'r') as f:
+                        job.rustscan_output = f.read()
+                job.progress = 95
+                db.session.commit()
+                parse_rustscan_results(scan_job_id, job.rustscan_output, target)
+                job.status = 'completed'
+                job.progress = 100
+            elif job.status not in ['stopped']:
+                job.status = 'failed'
+                job.error_message = f'Exit code: {process.returncode}'
+            
+            job.completed_at = datetime.utcnow()
+            db.session.commit()
+            print(f"✅ Rustscan job {scan_job_id} completed: {job.status}")
+            
+        except Exception as e:
+            db.session.rollback()
+            job = ScanJob.query.get(scan_job_id)
+            if job:
+                job.status = 'failed'
+                job.error_message = str(e)
+                job.completed_at = datetime.utcnow()
+                db.session.commit()
+            print(f"❌ Error in rustscan job {scan_job_id}: {e}")
+
 
 def run_nmap_scan(scan_job_id, target, ports=None, custom_args=''):
-    scan_job = ScanJob.query.get(scan_job_id)
-    if not scan_job: return
-    try:
-        scan_job.status = 'running'
-        scan_job.started_at = datetime.utcnow()
-        scan_job.progress = 10
-        db.session.commit()
+    with app.app_context():
+        db.session.remove()
         
-        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-        result_dir = os.path.join('scan_results', f'nmap_{timestamp}')
-        os.makedirs(result_dir, exist_ok=True)
-        base_filename = os.path.join(result_dir, 'scan')
-        cmd = ['nmap', target, '-oA', base_filename]
-        if custom_args: cmd = ['nmap'] + custom_args.split() + [target, '-oA', base_filename]
-        if ports and '-p' not in custom_args: cmd.extend(['-p', ports])
-        if '-sV' not in custom_args: cmd.extend(['-sV'])
-        if '-sC' not in custom_args: cmd.extend(['-sC'])
-        if '-O' not in custom_args: cmd.extend(['-O'])
-        
-        print(f"🔍 Запуск nmap: {' '.join(cmd)}")
-        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        scan_job.progress = 50
-        db.session.commit()
-        stdout, stderr = process.communicate()
-        
-        if process.returncode == 0:
-            scan_job.progress = 90
-            scan_job.nmap_xml_path = f'{base_filename}.xml'
-            scan_job.nmap_grep_path = f'{base_filename}.gnmap'
-            scan_job.nmap_normal_path = f'{base_filename}.nmap'
-            if os.path.exists(scan_job.nmap_xml_path):
-                parse_nmap_results(scan_job_id, scan_job.nmap_xml_path)
-            scan_job.status = 'completed'
-            scan_job.progress = 100
-        else:
-            scan_job.status = 'failed'
-            scan_job.error_message = stderr or f"Exit code: {process.returncode}"
-        scan_job.completed_at = datetime.utcnow()
-        db.session.commit()
-    except Exception as e:
-        scan_job.status = 'failed'
-        scan_job.error_message = str(e)
-        scan_job.completed_at = datetime.utcnow()
-        db.session.commit()
-
-def parse_rustscan_results(scan_job_id, output, target):
-    if not output: return
-    lines = output.strip().split('\n')
-    scan_job = ScanJob.query.get(scan_job_id)
-    for line in lines:
-        if '->' in line:
-            try:
-                parts = line.split('->')
-                ip = parts[0].strip()
-                ports_str = parts[1].strip() if len(parts) > 1 else ''
-                new_ports = [p.strip() for p in ports_str.split(',') if p.strip()]
-                asset = Asset.query.filter_by(ip_address=ip).first() 
-                if not asset:
-                    asset = Asset(ip_address=ip, status='up')
-                    db.session.add(asset)
-                    db.session.flush()
-                    log_asset_change(asset.id, 'asset_created', 'ip_address', None, ip, scan_job_id, 'Создан через rustscan')
-                else:
-                    existing_ports = set(asset.open_ports.split(', ')) if asset.open_ports else set()
-                    new_ports_set = set(new_ports)
-                    added_ports = new_ports_set - existing_ports
-                    removed_ports = existing_ports - new_ports_set
-                    for port in added_ports: log_asset_change(asset.id, 'port_added', 'open_ports', None, port, scan_job_id)
-                    for port in removed_ports: log_asset_change(asset.id, 'port_removed', 'open_ports', port, None, scan_job_id)
-                    if new_ports:
-                        all_ports = existing_ports.union(new_ports_set) if asset.open_ports else new_ports_set
-                        asset.open_ports = ', '.join(sorted(all_ports, key=lambda x: int(x.split('/')[0]) if '/' in x else int(x)))
-                asset.last_scanned = datetime.utcnow()
-                scan_result = ScanResult(asset_id=asset.id, ip_address=ip, scan_job_id=scan_job_id, ports=json.dumps(new_ports), scanned_at=datetime.utcnow())
-                db.session.add(scan_result)
-            except Exception as e: print(f"⚠️ Ошибка парсинга строки: {line} - {e}")
-    db.session.commit()
-
-def parse_nmap_results(scan_job_id, xml_path):
-    try:
-        tree = ET.parse(xml_path)
-        root = tree.getroot()
         scan_job = ScanJob.query.get(scan_job_id)
-        for host in root.findall('host'):
-            status = host.find('status')
-            if status is None or status.get('state') != 'up': continue
-            addr = host.find('address')
-            ip = addr.get('addr') if addr is not None else None
-            if not ip: continue
-            hostname = 'Unknown'
-            hostnames = host.find('hostnames')
-            if hostnames is not None:
-                name_elem = hostnames.find('hostname')
-                if name_elem is not None: hostname = name_elem.get('name')
-            os_info = 'Unknown'
-            os_elem = host.find('os')
-            if os_elem is not None:
-                os_match = os_elem.find('osmatch')
-                if os_match is not None: os_info = os_match.get('name')
-            ports, services = [], []
-            ports_elem = host.find('ports')
-            if ports_elem is not None:
-                for port in ports_elem.findall('port'):
-                    state = port.find('state')
-                    if state is not None and state.get('state') == 'open':
-                        port_id = port.get('portid')
-                        protocol = port.get('protocol')
-                        service = port.find('service')
-                        service_name = service.get('name') if service is not None else ''
-                        service_product = service.get('product') if service is not None else ''
-                        service_version = service.get('version') if service is not None else ''
-                        service_extrainfo = service.get('extrainfo') if service is not None else ''
-                        service_cpe = service.get('cpe') if service is not None else ''
-                        port_str = f"{port_id}/{protocol}"
-                        ports.append(port_str)
-                        script_output = [{'id': s.get('id'), 'output': s.get('output')} for s in port.findall('script')]
-                        services.append({'port': port_str, 'name': service_name, 'product': service_product, 'version': service_version, 'extrainfo': service_extrainfo, 'cpe': service_cpe, 'scripts': script_output})
-                        asset = Asset.query.filter_by(ip_address=ip).first()
-                        if asset:
-                            existing_service = ServiceInventory.query.filter_by(asset_id=asset.id, port=port_str).first()
-                            if existing_service:
-                                changes = []
-                                if existing_service.service_name != service_name: changes.append(('service_name', existing_service.service_name, service_name))
-                                if existing_service.product != service_product: changes.append(('product', existing_service.product, service_product))
-                                if existing_service.version != service_version: changes.append(('version', existing_service.version, service_version))
-                                for field, old, new in changes: log_asset_change(asset.id, 'service_updated', field, old, new, scan_job_id, f'Порт {port_str}')
-                                existing_service.service_name = service_name
-                                existing_service.product = service_product
-                                existing_service.version = service_version
-                                existing_service.extrainfo = service_extrainfo
-                                existing_service.cpe = service_cpe
-                                existing_service.script_output = json.dumps(script_output)
-                                existing_service.last_seen = datetime.utcnow()
-                                existing_service.is_active = True
-                            else:
-                                new_service = ServiceInventory(asset_id=asset.id, port=port_str, protocol=protocol, service_name=service_name, product=service_product, version=service_version, extrainfo=service_extrainfo, cpe=service_cpe, script_output=json.dumps(script_output))
-                                db.session.add(new_service)
-                                log_asset_change(asset.id, 'service_detected', 'service_inventory', None, service_name, scan_job_id, f'Новый сервис на порту {port_str}')
-            asset = Asset.query.filter_by(ip_address=ip).first()
-            if not asset:
-                asset = Asset(ip_address=ip, status='up')
-                db.session.add(asset)
-                db.session.flush()
-                log_asset_change(asset.id, 'asset_created', 'ip_address', None, ip, scan_job_id, 'Создан через nmap')
-            if asset.os_info != os_info and os_info != 'Unknown': log_asset_change(asset.id, 'os_changed', 'os_info', asset.os_info, os_info, scan_job_id)
-            asset.hostname = hostname if hostname != 'Unknown' else asset.hostname
-            asset.os_info = os_info if os_info != 'Unknown' else asset.os_info
-            if ports: asset.open_ports = ', '.join(ports)
-            asset.last_scanned = datetime.utcnow()
-            scan_result = ScanResult(asset_id=asset.id, ip_address=ip, scan_job_id=scan_job_id, ports=json.dumps(ports), services=json.dumps(services), os_detection=os_info, scanned_at=datetime.utcnow())
-            db.session.add(scan_result)
-        db.session.commit()
-    except Exception as e: print(f"❌ Ошибка парсинга nmap XML: {e}")
+        if not scan_job:
+            print(f"❌ ScanJob {scan_job_id} not found")
+            return
+        
+        try:
+            scan_job.status = 'running'
+            scan_job.started_at = datetime.utcnow()
+            scan_job.progress = 10
+            db.session.commit()
+            
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            result_dir = os.path.join('scan_results', f'nmap_{timestamp}')
+            os.makedirs(result_dir, exist_ok=True)
+            base_filename = os.path.join(result_dir, 'scan')
+            
+            cmd = ['nmap', target, '-oA', base_filename]
+            if custom_args: cmd = ['nmap'] + custom_args.split() + [target, '-oA', base_filename]
+            if ports and '-p' not in custom_args: cmd.extend(['-p', ports])
+            if '-sV' not in custom_args: cmd.extend(['-sV'])
+            if '-sC' not in custom_args: cmd.extend(['-sC'])
+            if '-O' not in custom_args: cmd.extend(['-O'])
+            
+            print(f"🔍 Запуск nmap: {' '.join(cmd)}")
+            
+            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+            scan_job.progress = 50
+            db.session.commit()
+            
+            last_commit = time.time()
+            last_progress = 50
+            
+            for line in iter(process.stdout.readline, ''):
+                db.session.remove()
+                
+                job = ScanJob.query.get(scan_job_id)
+                if not job: break
+                if job.status == 'stopped':
+                    process.terminate()
+                    try: process.wait(timeout=5)
+                    except: process.kill()
+                    job.status = 'stopped'
+                    job.error_message = 'Остановлено пользователем'
+                    job.completed_at = datetime.utcnow()
+                    db.session.commit()
+                    return
+                if job.status == 'paused':
+                    if os.name != 'nt':
+                        os.kill(process.pid, 19)  # SIGSTOP
+                        while ScanJob.query.get(scan_job_id).status == 'paused':
+                            time.sleep(0.5)
+                        os.kill(process.pid, 18)  # SIGCONT
+                    else:
+                        while ScanJob.query.get(scan_job_id).status == 'paused':
+                            time.sleep(0.5)
+                    continue
+                
+                # Парсинг прогресса из вывода nmap
+                match = re.search(r'(\d+(?:\.\d+)?)%', line)
+                if match:
+                    prog = float(match.group(1))
+                    if prog > last_progress and (time.time() - last_commit) > 1.0:
+                        last_progress = prog
+                        job = ScanJob.query.get(scan_job_id)
+                        if job:
+                            job.progress = int(last_progress)
+                            db.session.commit()
+                            last_commit = time.time()
+            
+            process.wait()
+            job = ScanJob.query.get(scan_job_id)
+            if not job: return
+            
+            if process.returncode == 0 and job.status not in ['stopped', 'failed']:
+                job.progress = 95
+                job.nmap_xml_path = f'{base_filename}.xml'
+                job.nmap_grep_path = f'{base_filename}.gnmap'
+                job.nmap_normal_path = f'{base_filename}.nmap'
+                db.session.commit()
+                
+                if os.path.exists(job.nmap_xml_path):
+                    parse_nmap_results(scan_job_id, job.nmap_xml_path)
+                
+                job.status = 'completed'
+                job.progress = 100
+            elif job.status not in ['stopped']:
+                job.status = 'failed'
+                job.error_message = f'Exit code: {process.returncode}'
+            
+            job.completed_at = datetime.utcnow()
+            db.session.commit()
+            print(f"✅ Nmap job {scan_job_id} completed: {job.status}")
+            
+        except Exception as e:
+            db.session.rollback()
+            job = ScanJob.query.get(scan_job_id)
+            if job:
+                job.status = 'failed'
+                job.error_message = str(e)
+                job.completed_at = datetime.utcnow()
+                db.session.commit()
+            print(f"❌ Error in nmap job {scan_job_id}: {e}")

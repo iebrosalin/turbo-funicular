@@ -24,7 +24,8 @@
                     <div class="d-flex align-items-center">
                         <button class="theme-toggle me-2" onclick="toggleTheme()"> <i class="bi bi-moon"> </i> <i
                                 class="bi bi-sun"> </i> </button>
-                        <a href="{{ url_for('index') }}" class="btn btn-outline-dark"> <i class="bi bi-arrow-left"> </i>
+                        <a href="{{ url_for('main.index') }}" class="btn btn-outline-dark"> <i class="bi bi-arrow-left">
+                            </i>
                             На главную</a>
                     </div>
                 </nav>
@@ -593,13 +594,12 @@
                 const result = await response.json();
 
                 if (response.ok) {
-                    // Удаляем строчку из таблицы или обновляем статус
                     if (action === 'delete') {
-                        event.target.closest('tr').remove();
+                        // 🔥 Обновляем только таблицу истории вместо полной перезагрузки 🔥
+                        await refreshScanHistory();
                     } else {
-                        location.reload(); // Перезагрузка для обновления статуса
+                        location.reload(); // Для pause/resume/stop нужна перезагрузка для прогресса
                     }
-
                     alert(`✅ ${result.message}`);
                 } else {
                     alert(`❌ Ошибка: ${result.error}`);
@@ -607,7 +607,115 @@
             } catch (error) {
                 alert(`❌ Ошибка сети: ${error.message}`);
             }
-        }
+
+            async function refreshScanHistory() {
+                try {
+                    const response = await fetch('/api/scans/history');
+                    if (!response.ok) throw new Error('Failed to fetch history');
+
+                    const jobs = await response.json();
+                    const tbody = document.querySelector('#scan-history tbody');
+                    if (!tbody) return;
+
+                    if (jobs.length === 0) {
+                        tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-4 text-muted">
+                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                        Нет сканирований
+                    </td>
+                </tr>
+            `;
+                        return;
+                    }
+
+                    tbody.innerHTML = jobs.map(job => {
+                        const badgeClass = {
+                            'pending': 'bg-secondary',
+                            'running': 'bg-warning text-dark',
+                            'completed': 'bg-success',
+                            'failed': 'bg-danger',
+                            'stopped': 'bg-danger',
+                            'paused': 'bg-info text-dark'
+                        }[job.status] || 'bg-secondary';
+
+                        const typeBadge = job.scan_type === 'rustscan'
+                            ? '<span class="badge bg-danger">🚀 Rustscan</span>'
+                            : '<span class="badge bg-info text-dark">🔍 Nmap</span>';
+
+                        // Кнопки управления
+                        let actions = '';
+                        if (job.status === 'running') {
+                            actions = `
+                    <button class="btn btn-sm btn-outline-warning" onclick="controlScan(${job.id}, 'pause')" title="Приостановить">
+                        <i class="bi bi-pause-fill"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="controlScan(${job.id}, 'stop')" title="Остановить">
+                        <i class="bi bi-stop-fill"></i>
+                    </button>
+                `;
+                        } else if (job.status === 'paused') {
+                            actions = `
+                    <button class="btn btn-sm btn-outline-success" onclick="controlScan(${job.id}, 'resume')" title="Продолжить">
+                        <i class="bi bi-play-fill"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="controlScan(${job.id}, 'stop')" title="Остановить">
+                        <i class="bi bi-stop-fill"></i>
+                    </button>
+                `;
+                        } else if (['completed', 'failed', 'stopped', 'pending'].includes(job.status)) {
+                            actions = `
+                    <button class="btn btn-sm btn-outline-danger" onclick="controlScan(${job.id}, 'delete')" title="Удалить">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                `;
+                        }
+
+                        if (job.status !== 'pending') {
+                            actions += `
+                    <button class="btn btn-sm btn-outline-info" onclick="viewScanResults(${job.id})" title="Результаты">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                `;
+                        }
+
+                        if (job.status === 'completed') {
+                            if (job.scan_type === 'rustscan') {
+                                actions += `<a href="/scans/${job.id}/download/greppable" class="btn btn-sm btn-outline-primary" title="Скачать"><i class="bi bi-download"></i></a>`;
+                            } else {
+                                actions += `
+                        <div class="btn-group">
+                            <a href="/scans/${job.id}/download/xml" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-xml"></i></a>
+                            <a href="/scans/${job.id}/download/greppable" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-text"></i></a>
+                        </div>
+                    `;
+                            }
+                        }
+
+                        return `
+                <tr>
+                    <td>${job.id}</td>
+                    <td>${typeBadge}</td>
+                    <td><code>${job.target}</code></td>
+                    <td><span class="badge ${badgeClass}">${job.status}</span></td>
+                    <td>
+                        <div class="progress" style="width: 100px;">
+                            <div class="progress-bar" role="progressbar" style="width: ${job.progress}%" 
+                                 aria-valuenow="${job.progress}" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <small>${job.progress}%</small>
+                    </td>
+                    <td>${job.started_at}</td>
+                    <td>${job.completed_at}</td>
+                    <td>${actions}</td>
+                </tr>
+            `;
+                    }).join('');
+
+                } catch (error) {
+                    console.error('Error refreshing history:', error);
+                }
+            }
     </script>
 </body>
 

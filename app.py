@@ -1,10 +1,10 @@
-
 # app.py
 import os
 from flask import Flask
 from config import Config
 from extensions import db
 from routes import register_blueprints
+from app import app 
 
 def create_app():
     app = Flask(__name__)
