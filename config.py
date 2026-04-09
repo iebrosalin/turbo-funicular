@@ -1,6 +1,4 @@
-# config.py
 import os
-
 class Config:
     SECRET_KEY = 'super-secret-key-change-me'
     SQLALCHEMY_DATABASE_URI = 'sqlite:///assets.db'

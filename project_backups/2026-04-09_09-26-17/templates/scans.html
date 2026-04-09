@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сканирования</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-3 col-lg-2 sidebar p-3 d-none d-md-block">
+                <h5 class="mb-3"> <i class="bi bi-folder-tree"> </i> Группы</h5>
+                <div id="group-tree">{% include 'components/group_tree.html' %} </div>
+            </div>
+
+            <div class="col-md-9 col-lg-10 p-4">
+                <nav class="navbar navbar-light mb-4 px-3">
+                    <span class="navbar-brand mb-0 h1"> <i class="bi bi-wifi"> </i> Сканирования</span>
+                    <div class="d-flex align-items-center">
+                        <button class="theme-toggle me-2" onclick="toggleTheme()"> <i class="bi bi-moon"> </i> <i
+                                class="bi bi-sun"> </i> </button>
+                        <a href="{{ url_for('main.index') }}" class="btn btn-outline-dark"> <i class="bi bi-arrow-left">
+                            </i>
+                            На главную</a>
+                    </div>
+                </nav>
+
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show">{{ message}}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"> </button>
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+
+                <!-- New Scan Form -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-plus-circle"> </i> Новое сканирование
+                    </div>
+                    <div class="card-body">
+                        <form id="scanForm">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">Тип сканирования</label>
+                                    <select id="scan-type" class="form-select" onchange="toggleScanOptions()">
+                                        <option value="rustscan">🚀 Rustscan (быстрое обнаружение портов)</option>
+                                        <option value="nmap">🔍 Nmap (детальное сканирование)</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Метод выбора цели</label>
+                                    <select id="target-method" class="form-select" onchange="toggleTargetInput()">
+                                        <option value="ip">IP / CIDR / Диапазон</option>
+                                        <option value="group">Группа активов</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- 🔥 Ввод IP/CIDR 🔥 -->
+                            <div class="mb-3" id="target-ip-section">
+                                <label class="form-label">Цель сканирования</label>
+                                <input type="text" id="scan-target" class="form-control"
+                                    placeholder="192.168.1.0/24 или 192.168.1.1,192.168.1.2">
+                                <small class="text-muted">Поддерживаются: одиночные IP, CIDR, списки через
+                                    запятую</small>
+                            </div>
+
+                            <!-- 🔥 Выбор группы 🔥 -->
+                            <div class="mb-3" id="target-group-section" style="display: none;">
+                                <label class="form-label">Группа активов</label>
+                                <select id="scan-group" class="form-select">
+                                    <option value="">-- Выберите группу --</option>
+                                    <option value="ungrouped">📂 Без группы</option>
+                                    {% for g in all_groups %}
+                                    <option value="{{ g.id}}">{{ g.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Будут просканированы все активы из группы (включая
+                                    вложенные)</small>
+                            </div>
+
+                            <!-- 🔥 Порты для Nmap 🔥 -->
+                            <div class="mb-3" id="ports-section" style="display: none;">
+                                <label class="form-label">Порты (для Nmap)</label>
+                                <input type="text" id="scan-ports" class="form-control"
+                                    placeholder="22,80,443 или оставить пустым для всех">
+                                <small class="text-muted">Формат: 22,80,443 или 1-1000</small>
+                            </div>
+
+                            <!-- 🔥 Кастомные аргументы 🔥 -->
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    <i class="bi bi-sliders"> </i> Кастомные аргументы
+                                    <button type="button" class="btn btn-sm btn-link p-0 ms-2" data-bs-toggle="collapse"
+                                        data-bs-target="#customArgsHelp">
+                                        <i class="bi bi-question-circle"> </i> Помощь
+                                    </button>
+                                </label>
+                                <div class="collapse mb-2" id="customArgsHelp">
+                                    <div class="card card-body bg-light">
+                                        <h6>Rustscan примеры:</h6>
+                                        <code class="d-block mb-2">--batch-size 500 --timeout 2000</code>
+                                        <h6>Nmap примеры:</h6>
+                                        <code class="d-block mb-2">-sS -T4 --min-rate 1000</code>
+                                        <small class="text-muted">⚠️ Аргументы вставляются в команду. Используйте с
+                                            осторожностью!</small>
+                                    </div>
+                                </div>
+                                <input type="text" id="scan-custom-args" class="form-control"
+                                    placeholder="--batch-size 500 (для Rustscan) или -sS -T4 (для Nmap)">
+                            </div>
+
+                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                <button type="button" class="btn btn-secondary" onclick="resetScanForm()">
+                                    <i class="bi bi-arrow-counterclockwise"> </i> Сброс
+                                </button>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-play-fill"> </i> Запустить сканирование
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Active Scans -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-activity"> </i> Активные сканирования
+                    </div>
+                    <div class="card-body">
+                        <div id="active-scans">
+                            <p class="text-muted mb-0"> <i class="bi bi-check-circle"> </i> Нет активных сканирований
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scan History -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-clock-history"> </i> История сканирований
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Тип</th>
+                                    <th>Цель</th>
+                                    <th>Статус</th>
+                                    <th>Прогресс</th>
+                                    <th>Начало</th>
+                                    <th>Завершение</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for job in scan_jobs %}
+                                <tr>
+                                    <td>{{ job.id}}</td>
+                                    <td>
+                                        {% if job.scan_type == 'rustscan' %}
+                                        <span class="badge bg-danger">🚀 Rustscan</span>
+                                        {% else %}
+                                        <span class="badge bg-info text-dark">🔍 Nmap</span>
+                                        {% endif %}
+                                    </td>
+                                    <td> <code>{{ job.target}}</code> </td>
+                                    <td>
+                                        {% if job.status == 'pending' %}
+                                        <span class="badge bg-secondary">Ожидание</span>
+                                        {% elif job.status == 'running' %}
+                                        <span class="badge bg-warning text-dark">В процессе</span>
+                                        {% elif job.status == 'completed' %}
+                                        <span class="badge bg-success">Завершено</span>
+                                        {% else %}
+                                        <span class="badge bg-danger">Ошибка</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="progress" style="width: 100px;">
+                                            <div class="progress-bar" role="progressbar"
+                                                style="width: {{ job.progress }}%" aria-valuenow="{{ job.progress }}"
+                                                aria-valuemin="0" aria-valuemax="100">
+                                            </div>
+                                        </div>
+                                        <small>{{ job.progress }}%</small>
+                                    </td>
+                                    <td>{{ job.started_at.strftime('%Y-%m-%d %H:%M') if job.started_at else '-'}}</td>
+                                    <td>{{ job.completed_at.strftime('%Y-%m-%d %H:%M') if job.completed_at else '-'}}
+                                    </td>
+                                    <<td>
+                                        <!-- Кнопки управления -->
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            {% if job.status == 'pending' %}
+                                            <!-- Для pending задач показываем только удаление -->
+                                            <button class="btn btn-outline-danger"
+                                                onclick="controlScan('{{ job.id }}', 'delete')" title="Удалить задание"
+                                                data-bs-toggle="tooltip">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                            {% elif job.status == 'running' %}
+                                            <!-- Приостановить / Остановить -->
+                                            <button class="btn btn-outline-warning"
+                                                onclick="controlScan('{{ job.id }}', 'pause')" title="Приостановить"
+                                                data-bs-toggle="tooltip">
+                                                <i class="bi bi-pause-fill"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger"
+                                                onclick="controlScan('{{ job.id }}', 'stop')" title="Остановить"
+                                                data-bs-toggle="tooltip">
+                                                <i class="bi bi-stop-fill"></i>
+                                            </button>
+                                            {% elif job.status == 'paused' %}
+                                            <!-- Продолжить / Остановить -->
+                                            <button class="btn btn-outline-success"
+                                                onclick="controlScan('{{ job.id }}', 'resume')" title="Продолжить"
+                                                data-bs-toggle="tooltip">
+                                                <i class="bi bi-play-fill"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger"
+                                                onclick="controlScan('{{ job.id }}', 'stop')" title="Остановить"
+                                                data-bs-toggle="tooltip">
+                                                <i class="bi bi-stop-fill"></i>
+                                            </button>
+                                            {% elif job.status in ['completed', 'failed', 'stopped'] %}
+                                            <!-- Удалить запись -->
+                                            <button class="btn btn-outline-danger"
+                                                onclick="controlScan('{{ job.id }}', 'delete')" title="Удалить запись"
+                                                data-bs-toggle="tooltip">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                            {% endif %}
+
+                                            <!-- Просмотр результатов -->
+                                            {% if job.status != 'pending' %}
+                                            <button class="btn btn-outline-info"
+                                                onclick="viewScanResults('{{ job.id }}')" title="Результаты"
+                                                data-bs-toggle="tooltip">
+                                                <i class="bi bi-eye"></i>
+                                            </button>
+                                            {% endif %}
+
+                                            <!-- Скачивание (только для завершенных) -->
+                                            {% if job.status == 'completed' %}
+                                            {% if job.scan_type == 'rustscan' %}
+                                            <a href="/scans/{{ job.id }}/download/greppable"
+                                                class="btn btn-outline-primary" title="Скачать"
+                                                data-bs-toggle="tooltip">
+                                                <i class="bi bi-download"></i>
+                                            </a>
+                                            {% else %}
+                                            <div class="btn-group">
+                                                <a href="/scans/{{ job.id }}/download/xml"
+                                                    class="btn btn-outline-primary" title="XML"
+                                                    data-bs-toggle="tooltip">
+                                                    <i class="bi bi-file-xml"></i>
+                                                </a>
+                                                <a href="/scans/{{ job.id }}/download/greppable"
+                                                    class="btn btn-outline-primary" title="Grepable"
+                                                    data-bs-toggle="tooltip">
+                                                    <i class="bi bi-file-text"></i>
+                                                </a>
+                                                <a href="/scans/{{ job.id }}/download/normal"
+                                                    class="btn btn-outline-primary" title="Normal"
+                                                    data-bs-toggle="tooltip">
+                                                    <i class="bi bi-file-earmark"></i>
+                                                </a>
+                                            </div>
+                                            {% endif %}
+                                            {% elif job.status == 'failed' %}
+                                            <!-- Показ ошибки при неудаче -->
+                                            {% if job.error_message %}
+                                            <span class="badge bg-danger" data-bs-toggle="tooltip"
+                                                title="{{ job.error_message }}">
+                                                <i class="bi bi-exclamation-circle"></i>
+                                            </span>
+                                            {% endif %}
+                                            {% endif %}
+                                        </div>
+                                        </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="8" class="text-center py-4 text-muted">
+                                        <i class="bi bi-inbox fs-1 d-block mb-2"> </i>
+                                        Нет сканирований
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Scan Results -->
+    <div class="modal fade" id="scanResultsModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Результаты сканирования</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"> </button>
+                </div>
+                <div class="modal-body">
+                    <div id="scan-results-content">
+                        <div class="text-center">
+                            <div class="spinner-border" role="status"> </div>
+                            <p class="mt-2">Загрузка... </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"> </script>
+    <script>
+        // === THEME TOGGLE ===
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-bs-theme', savedTheme === 'dark' ? 'dark' : 'light');
+            updateThemeIcon(savedTheme);
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const newTheme = html.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+            document.body.classList.add('theme-transition');
+            html.setAttribute('data-bs-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+            setTimeout(() => {
+                document.body.classList.remove('theme-transition');
+            }, 300);
+        }
+
+        function updateThemeIcon(theme) {
+            const toggle = document.querySelector('.theme-toggle');
+            if (!toggle) return;
+            const moonIcon = toggle.querySelector('.bi-moon');
+            const sunIcon = toggle.querySelector('.bi-sun');
+            if (theme === 'dark') {
+                moonIcon.style.display = 'none';
+                sunIcon.style.display = 'block';
+            } else {
+                moonIcon.style.display = 'block';
+                sunIcon.style.display = 'none';
+            }
+        }
+
+        // === SCAN FORM TOGGLES ===
+        function toggleTargetInput() {
+            const method = document.getElementById('target-method').value;
+            const ipSection = document.getElementById('target-ip-section');
+            const groupSection = document.getElementById('target-group-section');
+
+            if (method === 'group') {
+                ipSection.style.display = 'none';
+                groupSection.style.display = 'block';
+            } else {
+                ipSection.style.display = 'block';
+                groupSection.style.display = 'none';
+            }
+        }
+
+        function toggleScanOptions() {
+            const scanType = document.getElementById('scan-type').value;
+            const portsSection = document.getElementById('ports-section');
+            const customArgsInput = document.getElementById('scan-custom-args');
+
+            if (scanType === 'nmap') {
+                portsSection.style.display = 'block';
+                customArgsInput.placeholder = '-sS -T4 --min-rate 1000 (для Nmap)';
+            } else {
+                portsSection.style.display = 'none';
+                customArgsInput.placeholder = '--batch-size 500 --timeout 2000 (для Rustscan)';
+            }
+        }
+
+        function resetScanForm() {
+            document.getElementById('scanForm').reset();
+            toggleTargetInput();
+            toggleScanOptions();
+        }
+
+        // === SCAN SUBMISSION ===
+        document.getElementById('scanForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const scanType = document.getElementById('scan-type').value;
+            const targetMethod = document.getElementById('target-method').value;
+            const target = document.getElementById('scan-target').value;
+            const groupId = document.getElementById('scan-group').value;
+            const ports = document.getElementById('scan-ports').value;
+            const customArgs = document.getElementById('scan-custom-args').value;
+
+            // Валидация
+            if (targetMethod === 'ip' && !target) {
+                alert('⚠️ Укажите цель сканирования');
+                return;
+            }
+            if (targetMethod === 'group' && !groupId) {
+                alert('⚠️ Выберите группу');
+                return;
+            }
+
+            const endpoint = scanType === 'rustscan' ? '/api/scans/rustscan' : '/api/scans/nmap';
+            const body = {};
+
+            if (targetMethod === 'group') {
+                body.group_id = groupId;
+            } else {
+                body.target = target;
+            }
+
+            if (scanType === 'nmap' && ports) {
+                body.ports = ports;
+            }
+
+            if (customArgs) {
+                body.custom_args = customArgs;
+            }
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert(`✅ ${result.message}`);
+                    location.reload();
+                } else {
+                    alert(`❌ Ошибка: ${result.error}`);
+                }
+            } catch (error) {
+                alert(`❌ Ошибка: ${error.message}`);
+            }
+        });
+
+        // === VIEW SCAN RESULTS ===
+        async function viewScanResults(jobId) {
+            const modal = new bootstrap.Modal(document.getElementById('scanResultsModal'));
+            const content = document.getElementById('scan-results-content');
+
+            content.innerHTML = '<div class="text-center"><div class="spinner-border"></div><p class="mt-2">Загрузка...</p></div>';
+            modal.show();
+
+            try {
+                const response = await fetch(`/api/scans/${jobId}/results`);
+                const data = await response.json();
+
+                let html = `<h6>Задание #${data.job.id} - ${data.job.scan_type.toUpperCase()}</h6>`;
+                html += `<p><strong>Цель:</strong> ${data.job.target}</p>`;
+                html += `<p><strong>Статус:</strong> ${data.job.status}</p>`;
+                if (data.job.error_message && data.job.scan_type === 'nmap') {
+                    html += `<p><small class="text-muted">Аргументы: ${data.job.error_message}</small></p>`;
+                }
+                html += `<hr>`;
+
+                if (data.results.length === 0) {
+                    html += '<p class="text-muted">Нет результатов</p>';
+                } else {
+                    html += `<p><strong>Найдено хостов:</strong> ${data.results.length}</p>`;
+                    html += '<div class="list-group">';
+                    data.results.forEach(result => {
+                        html += `
+                             <div class="list-group-item">
+                                 <div class="d-flex w-100 justify-content-between">
+                                     <h6 class="mb-1">${result.ip}</h6>
+                                     <small>${result.scanned_at}</small>
+                                 </div>
+                                 <p class="mb-1">
+                                     <strong>Порты:</strong> ${result.ports.join(', ') || 'Нет'}
+                                 </p>
+                                ${result.os ? `<p class="mb-1"><strong>ОС:</strong> ${result.os}</p>` : ''}
+                                ${result.services && result.services.length > 0 ? `
+                                     <p class="mb-1"><strong>Сервисы:</strong></p>
+                                     <ul class="small">
+                                        ${result.services.map(s => `<li>${s.port}: ${s.name} ${s.product} ${s.version}</li>`).join('')}
+                                     </ul>
+                                ` : ''}
+                             </div>
+                        `;
+                    });
+                    html += '</div>';
+                }
+
+                content.innerHTML = html;
+            } catch (error) {
+                content.innerHTML = `<div class="alert alert-danger">❌ Ошибка: ${error.message}</div>`;
+            }
+        }
+
+        // === POLLING FOR ACTIVE SCANS ===
+        function pollActiveScans() {
+            fetch('/api/scans/status')
+                .then(r => {
+                    const contentType = r.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        throw new Error('Expected JSON response');
+                    }
+                    return r.json();
+                })
+                .then(data => {
+                    const container = document.getElementById('active-scans');
+                    if (data.active && data.active.length > 0) {
+                        let html = '<div class="row">';
+                        data.active.forEach(job => {
+                            const progressBarClass = job.status === 'running' ? 'progress-bar-striped progress-bar-animated' : '';
+                            const badgeClass = job.scan_type === 'rustscan' ? 'bg-danger' : 'bg-info text-dark';
+                            const statusClass = job.status === 'running' ? 'bg-warning text-dark' : 'bg-secondary';
+
+                            html += `
+                                 <div class="col-md-6 mb-3">
+                                     <div class="card">
+                                         <div class="card-body">
+                                             <div class="d-flex justify-content-between align-items-center mb-2">
+                                                 <h6 class="mb-0">
+                                                     <span class="badge ${badgeClass} me-2">${job.scan_type.toUpperCase()}</span>
+                                                    ${job.target}
+                                                 </h6>
+                                                 <span class="badge ${statusClass}">${job.status}</span>
+                                             </div>
+                                             <div class="progress mb-2" style="height: 6px;">
+                                                 <div class="progress-bar ${progressBarClass}" role="progressbar" style="width: ${job.progress}%"></div>
+                                             </div>
+                                             <div class="d-flex justify-content-between small text-muted">
+                                                 <span>Прогресс: ${job.progress}%</span>
+                                                 <span>${job.started_at ? 'Started: ' + job.started_at : 'Pending...'}</span>
+                                             </div>
+                                         </div>
+                                     </div>
+                                 </div>
+                            `;
+                        });
+                        html += '</div>';
+                        container.innerHTML = html;
+                    } else {
+                        container.innerHTML = '<p class="text-muted mb-0"><i class="bi bi-check-circle"></i> Нет активных сканирований</p>';
+                    }
+                })
+                .catch(err => {
+                    console.warn('⚠️ Polling error:', err.message);
+                });
+        }
+
+        // === INITIALIZATION ===
+        document.addEventListener('DOMContentLoaded', () => {
+            initTheme();
+            toggleTargetInput();
+            toggleScanOptions();
+            pollActiveScans();
+            setInterval(pollActiveScans, 5000);
+        });
+
+        // === CONTROL SCAN ACTIONS ===
+        async function controlScan(jobId, action) {
+            let confirmMsg = '';
+
+            if (action === 'stop') {
+                confirmMsg = 'Вы уверены, что хотите остановить сканирование?';
+            } else if (action === 'delete') {
+                confirmMsg = 'Вы уверены, что хотите удалить запись о сканировании?';
+            }
+
+            if (confirmMsg && !confirm(confirmMsg)) return;
+
+            try {
+                const response = await fetch(`/api/scans/${jobId}/control`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: action })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    if (action === 'delete') {
+                        // 🔥 Обновляем только таблицу истории вместо полной перезагрузки 🔥
+                        await refreshScanHistory();
+                    } else {
+                        location.reload(); // Для pause/resume/stop нужна перезагрузка для прогресса
+                    }
+                    alert(`✅ ${result.message}`);
+                } else {
+                    alert(`❌ Ошибка: ${result.error}`);
+                }
+            } catch (error) {
+                alert(`❌ Ошибка сети: ${error.message}`);
+            }
+
+            async function refreshScanHistory() {
+                try {
+                    const response = await fetch('/api/scans/history');
+                    if (!response.ok) throw new Error('Failed to fetch history');
+
+                    const jobs = await response.json();
+                    const tbody = document.querySelector('#scan-history tbody');
+                    if (!tbody) return;
+
+                    if (jobs.length === 0) {
+                        tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-4 text-muted">
+                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                        Нет сканирований
+                    </td>
+                </tr>
+            `;
+                        return;
+                    }
+
+                    tbody.innerHTML = jobs.map(job => {
+                        const badgeClass = {
+                            'pending': 'bg-secondary',
+                            'running': 'bg-warning text-dark',
+                            'completed': 'bg-success',
+                            'failed': 'bg-danger',
+                            'stopped': 'bg-danger',
+                            'paused': 'bg-info text-dark'
+                        }[job.status] || 'bg-secondary';
+
+                        const typeBadge = job.scan_type === 'rustscan'
+                            ? '<span class="badge bg-danger">🚀 Rustscan</span>'
+                            : '<span class="badge bg-info text-dark">🔍 Nmap</span>';
+
+                        // Кнопки управления
+                        let actions = '';
+                        if (job.status === 'running') {
+                            actions = `
+                    <button class="btn btn-sm btn-outline-warning" onclick="controlScan(${job.id}, 'pause')" title="Приостановить">
+                        <i class="bi bi-pause-fill"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="controlScan(${job.id}, 'stop')" title="Остановить">
+                        <i class="bi bi-stop-fill"></i>
+                    </button>
+                `;
+                        } else if (job.status === 'paused') {
+                            actions = `
+                    <button class="btn btn-sm btn-outline-success" onclick="controlScan(${job.id}, 'resume')" title="Продолжить">
+                        <i class="bi bi-play-fill"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="controlScan(${job.id}, 'stop')" title="Остановить">
+                        <i class="bi bi-stop-fill"></i>
+                    </button>
+                `;
+                        } else if (['completed', 'failed', 'stopped', 'pending'].includes(job.status)) {
+                            actions = `
+                    <button class="btn btn-sm btn-outline-danger" onclick="controlScan(${job.id}, 'delete')" title="Удалить">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                `;
+                        }
+
+                        if (job.status !== 'pending') {
+                            actions += `
+                    <button class="btn btn-sm btn-outline-info" onclick="viewScanResults(${job.id})" title="Результаты">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                `;
+                        }
+
+                        if (job.status === 'completed') {
+                            if (job.scan_type === 'rustscan') {
+                                actions += `<a href="/scans/${job.id}/download/greppable" class="btn btn-sm btn-outline-primary" title="Скачать"><i class="bi bi-download"></i></a>`;
+                            } else {
+                                actions += `
+                        <div class="btn-group">
+                            <a href="/scans/${job.id}/download/xml" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-xml"></i></a>
+                            <a href="/scans/${job.id}/download/greppable" class="btn btn-sm btn-outline-primary"><i class="bi bi-file-text"></i></a>
+                        </div>
+                    `;
+                            }
+                        }
+
+                        return `
+                <tr>
+                    <td>${job.id}</td>
+                    <td>${typeBadge}</td>
+                    <td><code>${job.target}</code></td>
+                    <td><span class="badge ${badgeClass}">${job.status}</span></td>
+                    <td>
+                        <div class="progress" style="width: 100px;">
+                            <div class="progress-bar" role="progressbar" style="width: ${job.progress}%" 
+                                 aria-valuenow="${job.progress}" aria-valuemin="0" aria-valuemax="100"></div>
+                        </div>
+                        <small>${job.progress}%</small>
+                    </td>
+                    <td>${job.started_at}</td>
+                    <td>${job.completed_at}</td>
+                    <td>${actions}</td>
+                </tr>
+            `;
+                    }).join('');
+
+                } catch (error) {
+                    console.error('Error refreshing history:', error);
+                }
+            }
+    </script>
+</body>
+
+</html>

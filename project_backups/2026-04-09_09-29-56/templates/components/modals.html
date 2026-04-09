@@ -1,0 +1,147 @@
+<div class="modal fade" id="scanModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('main.import_scan') }}" method="post" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title">Импорт Nmap</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">XML файл</label>
+                        <input type="file" name="file" class="form-control" accept=".xml" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Группа</label>
+                        <select name="group_id" class="form-select">
+                            <option value="">Без группы</option>
+                            {% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Загрузить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="groupEditModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="groupEditForm">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="groupEditTitle">Группа</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="edit-group-id">
+                    <div class="mb-3">
+                        <label class="form-label">Название</label>
+                        <input type="text" id="edit-group-name" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Родитель</label>
+                        <select id="edit-group-parent" class="form-select">
+                            <option value="">-- Корень --</option>
+                            {% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="edit-group-dynamic">
+                            <label class="form-check-label" for="edit-group-dynamic">Динамическая группа</label>
+                        </div>
+                    </div>
+                    <div id="dynamic-filter-section" class="mb-3" style="display: none;">
+                        <label class="form-label">Фильтр</label>
+                        <div id="group-filter-root" class="filter-group"></div>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="addGroupFilterCondition()">+ Условие</button>
+                            <button type="button" class="btn btn-sm btn-outline-success" onclick="addGroupFilterGroup()">+ Группа</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="previewGroupFilter()">Предпросмотр</button>
+                        </div>
+                    </div>
+                    <div id="filter-preview-section" class="mb-3" style="display: none;">
+                        <div class="card border-info">
+                            <div class="card-body" id="filter-preview-content"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="groupMoveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="groupMoveForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Переместить</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="move-group-id">
+                    <div class="mb-3">
+                        <label class="form-label">Новый родитель</label>
+                        <select id="move-group-parent" class="form-select">
+                            <option value="">-- Корень --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Переместить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="groupDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger">Удаление</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="delete-group-id">
+                <p class="text-warning"><i class="bi bi-exclamation-triangle"></i> Вы уверены?</p>
+                <div class="mb-3">
+                    <label class="form-label">Перенести активы:</label>
+                    <select id="delete-move-assets" class="form-select">
+                        <option value="">-- Не переносить --</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteGroup()">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title text-danger">Удаление активов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Удалить <strong id="bulk-delete-count">0</strong> активов?</p>
+                <div id="bulk-delete-preview" class="small text-muted"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" onclick="executeBulkDelete()">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>История - {{ asset.ip_address }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-3 col-lg-2 sidebar p-3 d-none d-md-block">
+                <h5 class="mb-3"><i class="bi bi-folder-tree"></i> Группы</h5>
+                <div id="group-tree">{% include 'components/group_tree.html' %}</div>
+            </div>
+
+            <div class="col-md-9 col-lg-10 p-4">
+                <nav class="navbar navbar-light mb-4 px-3">
+                    <div class="d-flex align-items-center">
+                        <a href="{{ url_for('asset_detail', id=asset.id) }}" class="btn btn-outline-dark me-3"><i class="bi bi-arrow-left"></i> Назад</a>
+                        <span class="navbar-brand mb-0 h1"><i class="bi bi-clock-history"></i> История: {{ asset.ip_address }}</span>
+                    </div>
+                    <button class="theme-toggle" onclick="toggleTheme()"><i class="bi bi-moon"></i><i class="bi bi-sun"></i></button>
+                </nav>
+
+                <div class="row">
+                    <div class="col-lg-8">
+                        <div class="card mb-4">
+                            <div class="card-header"><i class="bi bi-activity"></i> Таймлайн <span class="badge bg-primary float-end">{{ changes|length }}</span></div>
+                            <div class="card-body">
+                                {% if changes %}
+                                    <div class="timeline">
+                                        {% for change in changes %}
+                                        <div class="timeline-item">
+                                            <div class="timeline-marker">{{ change.changed_at.strftime('%Y-%m-%d %H:%M') }}</div>
+                                            <div class="timeline-dot {{ change.change_type|replace('_', '-') }}"></div>
+                                            <div class="timeline-content">
+                                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                                    <h6 class="mb-0">
+                                                        {% if change.change_type == 'port_added' %}<span class="text-success">➕ Порт</span>
+                                                        {% elif change.change_type == 'port_removed' %}<span class="text-danger">➖ Порт</span>
+                                                        {% elif change.change_type == 'service_detected' %}<span class="text-info">🔍 Сервис</span>
+                                                        {% elif change.change_type == 'os_changed' %}<span class="text-warning">💻 ОС</span>
+                                                        {% elif change.change_type == 'asset_created' %}<span class="text-primary">🆕 Актив</span>
+                                                        {% else %}{{ change.change_type }}{% endif %}
+                                                    </h6>
+                                                    <span class="badge bg-secondary">{{ change.field_name or '-' }}</span>
+                                                </div>
+                                                {% if change.old_value %}<div class="mb-1"><small class="text-muted">Было:</small> <code>{{ change.old_value }}</code></div>{% endif %}
+                                                {% if change.new_value %}<div class="mb-1"><small class="text-muted">Стало:</small> <code>{{ change.new_value }}</code></div>{% endif %}
+                                                {% if change.notes %}<div class="mt-2"><small class="text-muted"><i class="bi bi-chat-left-text"></i> {{ change.notes }}</small></div>{% endif %}
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted text-center py-4"><i class="bi bi-inbox fs-1 d-block mb-2"></i>История пуста</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-4">
+                        <div class="card mb-4">
+                            <div class="card-header"><i class="bi bi-hdd-network"></i> Сервисы <span class="badge bg-success float-end">{{ services|length }}</span></div>
+                            <div class="card-body">
+                                {% if services %}
+                                    <div class="list-group list-group-flush">
+                                        {% for service in services %}
+                                        <div class="list-group-item">
+                                            <div class="d-flex justify-content-between align-items-start">
+                                                <div>
+                                                    <h6 class="mb-1"><i class="bi bi-door-open"></i> {{ service.port }}</h6>
+                                                    <p class="mb-1"><strong>{{ service.service_name or 'unknown' }}</strong>
+                                                        {% if service.product %}<br><small class="text-muted">{{ service.product }} {{ service.version }}</small>{% endif %}
+                                                    </p>
+                                                    {% if service.cpe %}<span class="cpe-badge">{{ service.cpe }}</span>{% endif %}
+                                                </div>
+                                                <div class="form-check form-switch">
+                                                    <input class="form-check-input" type="checkbox" {% if service.is_active %}checked{% endif %} onchange="toggleServiceStatus({{ service.id }})">
+                                                </div>
+                                            </div>
+                                            {% if service.script_output %}
+                                                <button class="btn btn-sm btn-outline-secondary mt-2" type="button" data-bs-toggle="collapse" data-bs-target="#script-{{ service.id }}"><i class="bi bi-terminal"></i> Скрипты</button>
+                                                <div class="collapse" id="script-{{ service.id }}"><div class="script-output"><pre>{{ service.script_output }}</pre></div></div>
+                                            {% endif %}
+                                            <div class="mt-2"><small class="text-muted"><i class="bi bi-calendar-check"></i> {{ service.first_seen[:10] }}</small></div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted text-center py-4"><i class="bi bi-inbox fs-1 d-block mb-2"></i>Сервисы не найдены</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-bs-theme', savedTheme === 'dark' ? 'dark' : 'light');
+        }
+        function toggleTheme() {
+            const html = document.documentElement;
+            const newTheme = html.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-bs-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+        }
+        async function toggleServiceStatus(serviceId) {
+            const assetId = {{ asset.id }};
+            try {
+                await fetch(`/asset/${assetId}/service/${serviceId}/toggle`, { method: 'POST' });
+            } catch (error) {
+                alert('Ошибка');
+            }
+        }
+        document.addEventListener('DOMContentLoaded', initTheme);
+    </script>
+</body>
+</html>

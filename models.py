@@ -1,4 +1,3 @@
-# models.py
 import json
 from datetime import datetime
 from extensions import db
@@ -25,6 +24,21 @@ class Asset(db.Model):
     last_scanned = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text)
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=True)
+    device_role = db.Column(db.String(100), nullable=True)
+    device_tags = db.Column(db.Text, nullable=True)
+    scanners_used = db.Column(db.Text, nullable=True)
+    data_source = db.Column(db.String(20), default='manual')
+    wazuh_agent_id = db.Column(db.String(50), nullable=True, unique=True)
+    osquery_status = db.Column(db.String(20), default='offline')
+    osquery_last_seen = db.Column(db.DateTime, nullable=True)
+    osquery_cpu = db.Column(db.String(255))
+    osquery_ram = db.Column(db.String(50))
+    osquery_disk = db.Column(db.String(50))
+    osquery_os = db.Column(db.String(255))
+    osquery_kernel = db.Column(db.String(255))
+    osquery_uptime = db.Column(db.BigInteger)
+    osquery_node_key = db.Column(db.String(100), nullable=True, unique=True)
+    osquery_version = db.Column(db.String(50), nullable=True)
     def __repr__(self): return f'<Asset {self.ip_address}>'
 
 class ScanJob(db.Model):
@@ -42,6 +56,9 @@ class ScanJob(db.Model):
     nmap_grep_path = db.Column(db.String(500))
     nmap_normal_path = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    current_target = db.Column(db.String(500), nullable=True)
+    hosts_processed = db.Column(db.Integer, default=0)
+    total_hosts = db.Column(db.Integer, default=0)
     def to_dict(self):
         return {
             'id': self.id, 'scan_type': self.scan_type, 'target': self.target,
@@ -49,7 +66,9 @@ class ScanJob(db.Model):
             'started_at': self.started_at.strftime('%Y-%m-%d %H:%M:%S') if self.started_at else None,
             'completed_at': self.completed_at.strftime('%Y-%m-%d %H:%M:%S') if self.completed_at else None,
             'error_message': self.error_message,
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S')
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'current_target': self.current_target,
+            'hosts_processed': self.hosts_processed, 'total_hosts': self.total_hosts
         }
 
 class ScanResult(db.Model):
@@ -112,3 +131,29 @@ class ServiceInventory(db.Model):
             'first_seen': self.first_seen.strftime('%Y-%m-%d %H:%M:%S'),
             'last_seen': self.last_seen.strftime('%Y-%m-%d %H:%M:%S'), 'is_active': self.is_active
         }
+
+class ScanProfile(db.Model):
+    __tablename__ = 'scan_profile'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    scan_type = db.Column(db.String(20), nullable=False)
+    target_method = db.Column(db.String(10), default='ip')
+    ports = db.Column(db.String(500))
+    custom_args = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    def to_dict(self):
+        return {
+            'id': self.id, 'name': self.name, 'scan_type': self.scan_type,
+            'target_method': self.target_method or 'ip', 'ports': self.ports or '',
+            'custom_args': self.custom_args or '',
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M')
+        }
+
+class WazuhConfig(db.Model):
+    __tablename__ = 'wazuh_config'
+    id = db.Column(db.Integer, primary_key=True)
+    url = db.Column(db.String(255), nullable=False, default='https://localhost:55000')
+    username = db.Column(db.String(100), nullable=False, default='wazuh')
+    password = db.Column(db.String(255), nullable=False, default='wazuh')
+    verify_ssl = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=False)

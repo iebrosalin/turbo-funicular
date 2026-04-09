@@ -1,0 +1,22 @@
+{% for asset in assets %}
+<tr data-asset-id="{{ asset.id }}" class="asset-row">
+    <td><input type="checkbox" class="form-check-input asset-checkbox" value="{{ asset.id }}"></td>
+    <td><a href="/asset/{{ asset.id }}" class="text-decoration-none"><strong>{{ asset.ip_address }}</strong></a></td>
+    <td>{{ asset.hostname }}</td>
+    <td><span class="badge bg-info text-dark">{{ asset.os_info }}</span></td>
+    <td><small class="text-muted">{{ asset.open_ports }}</small></td>
+    <td>
+        {% if asset.group %}
+            <span class="badge bg-secondary">{{ asset.group.name }}</span>
+        {% else %}
+            <span class="badge bg-light text-muted border">—</span>
+        {% endif %}
+    </td>
+    <td>
+        <a href="/asset/{{ asset.id }}" class="btn btn-sm btn-outline-info" title="Подробно"><i class="bi bi-eye"></i></a>
+        <a href="/asset/{{ asset.id }}/delete" class="btn btn-sm btn-outline-danger" onclick="return confirm('Удалить?')"><i class="bi bi-trash"></i></a>
+    </td>
+</tr>
+{% else %}
+<tr><td colspan="7" class="text-center py-4 text-muted">Нет данных</td></tr>
+{% endfor %}

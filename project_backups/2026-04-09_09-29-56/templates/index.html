@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asset Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 sidebar p-3 d-none d-md-block">
+                {% include 'components/group_tree.html' %}
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-9 col-lg-10 p-4">
+                <!-- Navbar -->
+                <nav class="navbar navbar-light mb-4 px-3">
+                    <span class="navbar-brand mb-0 h1">
+                        <i class="bi bi-shield-check"></i> Asset Manager
+                    </span>
+                    <div class="d-flex align-items-center">
+                        <button class="theme-toggle me-2" onclick="toggleTheme()" title="Переключить тему">
+                            <i class="bi bi-moon"></i>
+                            <i class="bi bi-sun"></i>
+                        </button>
+                        <a href="{{ url_for('scans.scans_page') }}" class="btn btn-outline-dark me-2">
+                            <i class="bi bi-wifi"></i> Сканирования
+                        </a>
+                        <a href="{{ url_for('utilities.utilities_page') }}" class="btn btn-outline-dark me-2">
+                            <i class="bi bi-tools"></i> Утилиты
+                        </a>
+                        <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#scanModal">
+                            <i class="bi bi-upload"></i> Импорт
+                        </button>
+                        <button class="btn btn-outline-dark me-2" data-bs-toggle="collapse" data-bs-target="#filterPanel">
+                            <i class="bi bi-funnel"></i> Фильтры
+                        </button>
+                        <button class="btn btn-outline-info" data-bs-toggle="collapse" data-bs-target="#analyticsPanel">
+                            <i class="bi bi-bar-chart"></i> Аналитика
+                        </button>
+                    </div>
+                </nav>
+
+                <!-- Filter Builder Panel -->
+                <div class="collapse mb-4" id="filterPanel">
+                    <div class="card card-body">
+                        <div class="d-flex justify-content-between mb-3">
+                            <h6 class="mb-0">Конструктор запросов</h6>
+                            <div>
+                                <button class="btn btn-sm btn-primary" onclick="applyFilters()">Применить</button>
+                                <button class="btn btn-sm btn-secondary" onclick="resetFilters()">Сброс</button>
+                            </div>
+                        </div>
+                        <div id="filter-root" class="filter-group"></div>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-outline-primary" onclick="addConditionToRoot()">
+                                <i class="bi bi-plus"></i> Условие
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="addGroupToRoot()">
+                                <i class="bi bi-plus-circle"></i> Группа
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Analytics Panel -->
+                <div class="collapse mb-4" id="analyticsPanel">
+                    <div class="card card-body bg-light">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label>Группировать по:</label>
+                                <select id="analytics-group-by" class="form-select">
+                                    <option value="os_info">ОС</option>
+                                    <option value="status">Статус</option>
+                                    <option value="group_id">Группа</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button class="btn btn-info text-white w-100" onclick="loadAnalytics()">
+                                    Построить отчёт
+                                </button>
+                            </div>
+                        </div>
+                        <div id="analytics-results" class="mt-3"></div>
+                    </div>
+                </div>
+
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
+
+                <!-- Assets Table -->
+                <div class="card">
+                    <!-- Bulk Actions Toolbar -->
+                    <div class="card-header d-flex justify-content-between align-items-center" 
+                         id="bulk-toolbar" style="display: none;">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-primary" id="selected-count">0</span>
+                            <span class="text-muted small">выбрано</span>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+                                <i class="bi bi-x-lg"></i> Снять
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="confirmBulkDelete()">
+                                <i class="bi bi-trash"></i> Удалить
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body p-0">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width: 40px;">
+                                        <input type="checkbox" class="form-check-input" id="select-all" title="Выделить все (Ctrl+A)">
+                                    </th>
+                                    <th>IP</th>
+                                    <th>Hostname</th>
+                                    <th>OS</th>
+                                    <th>Порты</th>
+                                    <th>Группа</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="assets-body">
+                                {% include 'components/assets_rows.html' %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Empty State -->
+                    <div id="empty-state" class="text-center p-4 text-muted" style="display: none;">
+                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                        <p class="mb-0">Нет активов для отображения</p>
+                        <small class="text-muted">Импортируйте Nmap XML или добавьте актив вручную</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="group-context-menu" class="context-menu">
+        <button class="context-menu-item" onclick="showCreateGroupModal(currentGroupId)">
+            <i class="bi bi-folder-plus"></i> Создать подгруппу
+        </button>
+        <button class="context-menu-item" onclick="showRenameModal(currentGroupId)">
+            <i class="bi bi-pencil"></i> Переименовать
+        </button>
+        <button class="context-menu-item" onclick="showMoveModal(currentGroupId)">
+            <i class="bi bi-arrow-left-right"></i> Переместить
+        </button>
+        <div class="context-menu-divider"></div>
+        <button class="context-menu-item text-danger" onclick="showDeleteModal(currentGroupId)">
+            <i class="bi bi-trash"></i> Удалить
+        </button>
+    </div>
+
+    <!-- Modals -->
+    {% include 'components/modals.html' %}
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    <!-- Page-specific scripts -->
+    <script>
+        // === THEME TOGGLE ===
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-bs-theme', savedTheme === 'dark' ? 'dark' : 'light');
+            updateThemeIcon(savedTheme);
+        }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-bs-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            document.body.classList.add('theme-transition');
+            html.setAttribute('data-bs-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+            setTimeout(() => {
+                document.body.classList.remove('theme-transition');
+            }, 300);
+        }
+
+        function updateThemeIcon(theme) {
+            const toggle = document.querySelector('.theme-toggle');
+            if (!toggle) return;
+            const moonIcon = toggle.querySelector('.bi-moon');
+            const sunIcon = toggle.querySelector('.bi-sun');
+            if (theme === 'dark') {
+                moonIcon.style.display = 'none';
+                sunIcon.style.display = 'block';
+            } else {
+                moonIcon.style.display = 'block';
+                sunIcon.style.display = 'none';
+            }
+        }
+
+        // === URL PARAMS HANDLING ===
+        function handleUrlParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const ungroupedParam = urlParams.get('ungrouped');
+            const groupIdParam = urlParams.get('group_id');
+            
+            if (ungroupedParam === 'true') {
+                console.log('📁 Loading ungrouped assets from URL');
+                if (typeof filterByGroup === 'function') {
+                    filterByGroup('ungrouped');
+                }
+            } else if (groupIdParam) {
+                console.log('📁 Loading group assets from URL:', groupIdParam);
+                if (typeof filterByGroup === 'function') {
+                    filterByGroup(groupIdParam);
+                }
+            }
+        }
+
+        // === INITIALIZATION ===
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Index page loaded');
+            initTheme();
+            handleUrlParams();
+        });
+    </script>
+</body>
+</html>
