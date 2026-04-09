@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 from extensions import db
-from models import Asset, OSqueryInventory
+from models import Asset, OsqueryInventory
 from utils.osquery_validator import validate_osquery_config
 import os, json
 from datetime import datetime

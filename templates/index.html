@@ -1,52 +1,117 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Asset Manager</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
-</head>
-<body>
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-md-3 col-lg-2 sidebar p-3 d-none d-md-block">{% include 'components/group_tree.html' %}</div>
-            <div class="col-md-9 col-lg-10 p-4">
-                <nav class="navbar navbar-light mb-4 px-3">
-                    <span class="navbar-brand mb-0 h1"><i class="bi bi-shield-check"></i> Asset Manager</span>
-                    <div class="d-flex align-items-center">
-                        <button class="theme-toggle me-2" onclick="toggleTheme()"><i class="bi bi-moon"></i><i class="bi bi-sun"></i></button>
-                        <a href="{{ url_for('scans.scans_page') }}" class="btn btn-outline-dark me-2"><i class="bi bi-wifi"></i> Сканирования</a>
-                        <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#scanModal"><i class="bi bi-upload"></i> Импорт</button>
-                        <button class="btn btn-outline-dark me-2" data-bs-toggle="collapse" data-bs-target="#filterPanel"><i class="bi bi-funnel"></i> Фильтры</button>
-                        <select id="data-source-filter" class="form-select form-select-sm" style="width: 160px;">
-                            <option value="all">Все источники</option><option value="wazuh">🛡️ Wazuh</option><option value="osquery">📦 OSquery</option><option value="scanning">🔍 Сканирование</option><option value="manual">✏️ Ручной</option>
-                        </select>
+{% extends "base.html" %}
+
+{% block title %}Asset Manager{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Боковая панель с деревом групп -->
+        <div class="col-md-3 col-lg-2 sidebar p-3 d-none d-md-block">
+            {% include 'components/group_tree.html' %}
+        </div>
+
+        <!-- Основной контент -->
+        <div class="col-md-9 col-lg-10 p-4">
+            <nav class="navbar navbar-light mb-4 px-3">
+                <span class="navbar-brand mb-0 h1"><i class="bi bi-shield-check"></i> Asset Manager</span>
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                    <button class="theme-toggle me-2" onclick="toggleTheme()" aria-label="Переключить тему">
+                        <i class="bi bi-moon"></i><i class="bi bi-sun"></i>
+                    </button>
+                    <a href="{{ url_for('scans.scans_page') }}" class="btn btn-outline-dark me-2">
+                        <i class="bi bi-wifi"></i> Сканирования
+                    </a>
+                    <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#scanModal">
+                        <i class="bi bi-upload"></i> Импорт
+                    </button>
+                    <button class="btn btn-outline-dark me-2" data-bs-toggle="collapse" data-bs-target="#filterPanel">
+                        <i class="bi bi-funnel"></i> Фильтры
+                    </button>
+                    <select id="data-source-filter" class="form-select form-select-sm" style="width: 160px;" aria-label="Фильтр по источнику">
+                        <option value="all">Все источники</option>
+                        <option value="wazuh">🛡️ Wazuh</option>
+                        <option value="osquery">📦 OSquery</option>
+                        <option value="scanning">🔍 Сканирование</option>
+                        <option value="manual">✏️ Ручной</option>
+                    </select>
+                </div>
+            </nav>
+
+            <!-- Панель фильтров -->
+            <div class="collapse mb-4" id="filterPanel">
+                <div class="card card-body">
+                    <div class="d-flex justify-content-between mb-3">
+                        <h6 class="mb-0">Конструктор запросов</h6>
+                        <div>
+                            <button class="btn btn-sm btn-primary" onclick="applyFilters()">Применить</button>
+                            <button class="btn btn-sm btn-secondary" onclick="resetFilters()">Сброс</button>
+                        </div>
                     </div>
-                </nav>
-                <div class="collapse mb-4" id="filterPanel">
-                    <div class="card card-body">
-                        <div class="d-flex justify-content-between mb-3"><h6 class="mb-0">Конструктор запросов</h6><div><button class="btn btn-sm btn-primary" onclick="applyFilters()">Применить</button><button class="btn btn-sm btn-secondary" onclick="resetFilters()">Сброс</button></div></div>
-                        <div id="filter-root" class="filter-group"></div>
+                    <div id="filter-root" class="filter-group"></div>
+                </div>
+            </div>
+
+            <!-- Flash-сообщения -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for c, m in messages %}
+                    <div class="alert alert-{{ c }} alert-dismissible fade show" role="alert">
+                        {{ m }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрыть"></button>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Таблица активов -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center" id="bulk-toolbar" style="display: none;">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge bg-primary" id="selected-count">0</span>
+                        <span class="text-muted small">выбрано</span>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm btn-outline-secondary" onclick="clearSelection()"><i class="bi bi-x-lg"></i> Снять</button>
+                        <button class="btn btn-sm btn-danger" onclick="confirmBulkDelete()"><i class="bi bi-trash"></i> Удалить</button>
                     </div>
                 </div>
-                {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for c, m in messages %}<div class="alert alert-{{ c }} alert-dismissible fade show">{{ m }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>{% endfor %}{% endif %}{% endwith %}
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center" id="bulk-toolbar" style="display: none;">
-                        <div class="d-flex align-items-center gap-2"><span class="badge bg-primary" id="selected-count">0</span><span class="text-muted small">выбрано</span></div>
-                        <div class="d-flex gap-2"><button class="btn btn-sm btn-outline-secondary" onclick="clearSelection()"><i class="bi bi-x-lg"></i> Снять</button><button class="btn btn-sm btn-danger" onclick="confirmBulkDelete()"><i class="bi bi-trash"></i> Удалить</button></div>
-                    </div>
-                    <div class="card-body p-0">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light"><tr><th style="width:40px"><input type="checkbox" class="form-check-input" id="select-all"></th><th>IP</th><th>Hostname</th><th>OS</th><th>Порты</th><th>Группа</th><th>Действия</th></tr></thead>
-                            <tbody id="assets-body">{% include 'components/assets_rows.html' %}</tbody>
-                        </table>
-                    </div>
+                <div class="card-body p-0">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:40px"><input type="checkbox" class="form-check-input" id="select-all"></th>
+                                <th>IP</th>
+                                <th>Hostname</th>
+                                <th>OS</th>
+                                <th>Порты</th>
+                                <th>Группа</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="assets-body">
+                            {% include 'components/assets_rows.html' %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
-    {% include 'components/modals.html' %}
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+</div>
+
+<!-- Модальные окна -->
+{% include 'components/modals.html' %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Инициализация при загрузке страницы
+    document.addEventListener('DOMContentLoaded', () => {
+        // Убедимся, что функции из main.js доступны глобально
+        if (typeof window.initTheme === 'function') window.initTheme();
+        if (typeof window.initFilterRoot === 'function') window.initFilterRoot();
+        if (typeof window.initTreeTogglers === 'function') window.initTreeTogglers();
+        if (typeof window.initAssetSelection === 'function') window.initAssetSelection();
+        if (typeof window.initFilterFieldDatalist === 'function') window.initFilterFieldDatalist();
+    });
+</script>
+{% endblock %}

@@ -1,10 +1,12 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response, send_file
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response, send_file, current_app
+import threading
 from extensions import db
 from models import Group, Asset, ScanJob, ScanProfile
 from utils import build_group_tree
-from scanner import run_rustscan_scan, run_nmap_scan
+from scanner import run_rustscan_scan, run_nmap_scan, check_scan_conflicts
 from datetime import datetime
 import os, threading, json
+from utils import format_moscow_time
 
 scans_bp = Blueprint('scans', __name__)
 
@@ -26,35 +28,6 @@ def get_assets_for_group(group_id):
     all_groups = Group.query.all(); group_ids = [group_id] + get_child_group_ids(group_id, all_groups)
     return Asset.query.filter(Asset.group_id.in_(group_ids)).all(), group.name
 
-@scans_bp.route('/api/scans/rustscan', methods=['POST'])
-def start_rustscan():
-    data = request.json; target = data.get('target', ''); group_id = data.get('group_id'); custom_args = data.get('custom_args', '')
-    if group_id:
-        assets, group_name = get_assets_for_group(group_id)
-        if not assets: return jsonify({'error': 'В группе нет активов'}), 400
-        target = ' '.join([a.ip_address for a in assets]); target_description = f"Группа: {group_name} ({len(assets)} активов)"
-    else:
-        if not target: return jsonify({'error': 'Цель сканирования не указана'}), 400
-        target_description = target
-    scan_job = ScanJob(scan_type='rustscan', target=target_description, status='pending', rustscan_output=custom_args if custom_args else None)
-    db.session.add(scan_job); db.session.commit()
-    thread = threading.Thread(target=run_rustscan_scan, args=(scan_job.id, target, custom_args)); thread.daemon = True; thread.start()
-    return jsonify({'success': True, 'job_id': scan_job.id, 'message': f'Rustscan запущен для {target_description}'})
-
-@scans_bp.route('/api/scans/nmap', methods=['POST'])
-def start_nmap():
-    data = request.json; target = data.get('target', ''); group_id = data.get('group_id'); ports = data.get('ports', ''); custom_args = data.get('custom_args', '')
-    if group_id:
-        assets, group_name = get_assets_for_group(group_id)
-        if not assets: return jsonify({'error': 'В группе нет активов'}), 400
-        target = ' '.join([a.ip_address for a in assets]); target_description = f"Группа: {group_name} ({len(assets)} активов)"
-    else:
-        if not target: return jsonify({'error': 'Цель сканирования не указана'}), 400
-        target_description = target
-    scan_job = ScanJob(scan_type='nmap', target=target_description, status='pending', rustscan_output=f'Ports: {ports}' if ports else None)
-    db.session.add(scan_job); db.session.commit()
-    thread = threading.Thread(target=run_nmap_scan, args=(scan_job.id, target, ports, custom_args)); thread.daemon = True; thread.start()
-    return jsonify({'success': True, 'job_id': scan_job.id, 'message': f'Nmap запущен для {target_description}'})
 
 @scans_bp.route('/api/scans/<int:job_id>')
 def get_scan_status(job_id): return jsonify(ScanJob.query.get_or_404(job_id).to_dict())
@@ -108,7 +81,10 @@ def control_scan_job(job_id):
 @scans_bp.route('/api/scans/status')
 def get_active_scans_status():
     active_jobs = ScanJob.query.filter(ScanJob.status.in_(['pending', 'running'])).order_by(ScanJob.created_at.desc()).limit(10).all()
-    return jsonify({'active': [job.to_dict() for job in active_jobs], 'total_active': len(active_jobs)})
+    return jsonify({'active': [{
+        **job.to_dict(),
+        'started_at': format_moscow_time(job.started_at, '%H:%M')  # 🔥 Москва
+    } for job in active_jobs], 'total_active': len(active_jobs)})
 
 @scans_bp.route('/api/scans/profiles', methods=['GET'])
 def get_scan_profiles(): return jsonify([p.to_dict() for p in ScanProfile.query.order_by(ScanProfile.name).all()])
@@ -126,3 +102,108 @@ def save_scan_profile():
 def delete_scan_profile(id):
     profile = ScanProfile.query.get_or_404(id); db.session.delete(profile); db.session.commit()
     return jsonify({'success': True})
+
+@scans_bp.route('/api/scans/history')
+def get_scan_history():
+    jobs = ScanJob.query.order_by(ScanJob.created_at.desc()).limit(50).all()
+    return jsonify([{
+        'id': j.id, 
+        'scan_type': j.scan_type, 
+        'target': j.target,
+        'status': j.status, 
+        'progress': j.progress,
+        'started_at': format_moscow_time(j.started_at, '%H:%M'),  # 🔥 Москва
+        'completed_at': format_moscow_time(j.completed_at, '%H:%M'),  # 🔥 Москва
+        'error_message': j.error_message
+    } for j in jobs])
+
+@scans_bp.route('/api/scans/rustscan', methods=['POST'])
+def start_rustscan():
+    data = request.json
+    target = data.get('target', '')
+    group_id = data.get('group_id')
+    custom_args = data.get('custom_args', '')
+    
+    if group_id:
+        assets, group_name = get_assets_for_group(group_id)
+        if not assets: 
+            return jsonify({'error': 'В группе нет активов'}), 400
+        target = ' '.join([a.ip_address for a in assets])
+        target_description = f"Группа: {group_name} ({len(assets)} активов)"
+    else:
+        if not target: 
+            return jsonify({'error': 'Цель сканирования не указана'}), 400
+        target_description = target
+    
+    # 🔥 ПРОВЕРКА НА КОНФЛИКТЫ ДО СОЗДАНИЯ ЗАДАНИЯ
+    is_blocked, error_msg = check_scan_conflicts(target, 'rustscan')
+    if is_blocked:
+        return jsonify({'error': error_msg}), 409
+    
+    # Создаём задание только после успешной проверки
+    scan_job = ScanJob(
+        scan_type='rustscan', 
+        target=target_description, 
+        status='pending', 
+        rustscan_output=custom_args if custom_args else None
+    )
+    db.session.add(scan_job)
+    db.session.commit()
+    
+    app_obj = current_app._get_current_object()
+    thread = threading.Thread(target=run_rustscan_scan, args=(app_obj, scan_job.id, target, custom_args))
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({
+        'success': True, 
+        'job_id': scan_job.id, 
+        'message': f'Rustscan запущен для {target_description}'
+    })
+
+@scans_bp.route('/api/scans/nmap', methods=['POST'])
+def start_nmap():
+    data = request.json
+    target = data.get('target', '')
+    group_id = data.get('group_id')
+    ports = data.get('ports', '')
+    custom_args = data.get('custom_args', '')
+    
+    if group_id:
+        assets, group_name = get_assets_for_group(group_id)
+        if not assets: 
+            return jsonify({'error': 'В группе нет активов'}), 400
+        target = ' '.join([a.ip_address for a in assets])
+        target_description = f"Группа: {group_name} ({len(assets)} активов)"
+    else:
+        if not target: 
+            return jsonify({'error': 'Цель сканирования не указана'}), 400
+        target_description = target
+    
+    # 🔥 ПРОВЕРКА НА КОНФЛИКТЫ ДО СОЗДАНИЯ ЗАДАНИЯ
+    is_blocked, error_msg = check_scan_conflicts(target, 'nmap')
+    if is_blocked:
+        return jsonify({'error': error_msg}), 409
+    
+    scan_job = ScanJob(
+        scan_type='nmap', 
+        target=target_description, 
+        status='pending', 
+        rustscan_output=f'Ports: {ports}' if ports else None
+    )
+    if custom_args: 
+        scan_job.error_message = f'Custom args: {custom_args}'
+    
+    db.session.add(scan_job)
+    db.session.commit()
+    
+    app_obj = current_app._get_current_object()
+    thread = threading.Thread(target=run_nmap_scan, args=(app_obj, scan_job.id, target, ports, custom_args))
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({
+        'success': True, 
+        'job_id': scan_job.id, 
+        'message': f'Nmap запущен для {target_description}'
+    })
