@@ -12,6 +12,9 @@ class Group(db.Model):
     parent_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=True)
     is_dynamic = db.Column(db.Boolean, default=False)
     filter_query = db.Column(db.Text, nullable=True)  # JSON-структура фильтра для динамических групп
+    # Поля для CIDR-групп
+    cidr_network = db.Column(db.String(50), nullable=True)  # Сеть CIDR (напр. 192.168.0.0/16)
+    cidr_mask = db.Column(db.Integer, nullable=True)  # Маска подгрупп (напр. 24)
     
     # 🔹 Отношения (без backref='assets' — он определён в Asset!)
     parent = db.relationship('Group', remote_side=[id], backref='children')
@@ -25,7 +28,10 @@ class Group(db.Model):
             'name': self.name,
             'parent_id': self.parent_id,
             'is_dynamic': self.is_dynamic,
-            'filter_query': self.filter_query
+            'filter_query': self.filter_query,
+            'cidr_network': self.cidr_network,
+            'cidr_mask': self.cidr_mask,
+            'filter_rules': json.loads(self.filter_query) if self.filter_query else []
         }
 
 

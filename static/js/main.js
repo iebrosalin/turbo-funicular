@@ -292,11 +292,57 @@ document.addEventListener('DOMContentLoaded', () => {
 // ЭКСПОРТ ФУНКЦИЙ В ГЛОБАЛЬНУЮ ОБЛАСТЬ (для inline onclick)
 // ═══════════════════════════════════════════════════════════════
 
+// Переключение режимов создания/редактирования группы
+function toggleGroupMode() {
+    const mode = document.querySelector('input[name="groupMode"]:checked')?.value || 'manual';
+    const secManual = document.getElementById('sectionManual');
+    const secCidr = document.getElementById('sectionCidr');
+    const secDynamic = document.getElementById('sectionDynamic');
+    const nameInput = document.getElementById('edit-group-name');
+
+    if (!secManual || !secCidr || !secDynamic) return;
+
+    // Сброс видимости
+    secManual.style.display = 'none';
+    secCidr.style.display = 'none';
+    secDynamic.style.display = 'none';
+    
+    // Логика отображения
+    if (mode === 'manual') {
+        secManual.style.display = 'block';
+        if (nameInput) nameInput.required = true;
+    } else if (mode === 'cidr') {
+        secCidr.style.display = 'block';
+        if (nameInput) nameInput.required = false;
+    } else if (mode === 'dynamic') {
+        secDynamic.style.display = 'block';
+        secManual.style.display = 'block';
+        if (nameInput) nameInput.required = true;
+    }
+}
+
+// Добавление правила для динамической группы
+function addDynamicRule(field = '', op = 'eq', value = '') {
+    const container = document.getElementById('group-filter-rules');
+    if (!container) return;
+    
+    const div = document.createElement('div');
+    div.className = 'filter-condition mb-2';
+    div.innerHTML = `
+        <div class="input-group input-group-sm">
+            <select class="form-select rule-field">${FILTER_FIELDS.map(f => `<option value="${f.value}" ${f.value===field?'selected':''}>${f.text}</option>`).join('')}</select>
+            <select class="form-select rule-op" style="max-width:100px">${FILTER_OPS.map(o => `<option value="${o.value}" ${o.value===op?'selected':''}>${o.text}</option>`).join('')}</select>
+            <input type="text" class="form-control rule-val" value="${value}" placeholder="Значение">
+            <button class="btn btn-outline-danger" type="button" onclick="this.parentElement.parentElement.remove()">×</button>
+        </div>
+    `;
+    container.appendChild(div);
+}
+
 function showCreateGroupModal(parentId = null) {
     const modalEl = document.getElementById('groupCreateModal');
     if (!modalEl) {
-        console.warn('⚠️ #groupCreateModal не найден. Создаем группу без модального окна?');
-        // Если модального окна нет, можно попробовать создать группу по умолчанию или просто выйти
+        console.warn('⚠️ #groupCreateModal не найден.');
         return;
     }
 
@@ -305,7 +351,6 @@ function showCreateGroupModal(parentId = null) {
         parentIdInput.value = parentId || '';
     }
     
-    // Сброс имени группы
     const nameInput = document.getElementById('create-group-name');
     if (nameInput) nameInput.value = '';
 
@@ -323,11 +368,33 @@ function showRenameModal(id) {
     const nameInput = document.getElementById('edit-group-name');
     if (nameInput && nameEl) nameInput.value = nameEl.textContent.trim();
 
-    const dynCheck = document.getElementById('edit-group-dynamic');
-    if (dynCheck) dynCheck.checked = false;
-
-    const filterSection = document.getElementById('dynamic-filter-section');
-    if (filterSection) filterSection.style.display = 'none';
+    // Загрузка данных группы для определения режима
+    fetch(`/api/groups/${id}`)
+        .then(r => r.json())
+        .then(group => {
+            let mode = 'manual';
+            
+            // Определение режима
+            if (group.cidr_network) {
+                mode = 'cidr';
+                document.getElementById('cidr-network').value = group.cidr_network || '';
+                document.getElementById('cidr-mask').value = group.cidr_mask || '24';
+            } else if (group.is_dynamic || group.filter_rules) {
+                mode = 'dynamic';
+                // Загрузка правил
+                const rulesContainer = document.getElementById('group-filter-rules');
+                if (rulesContainer) rulesContainer.innerHTML = '';
+                const rules = typeof group.filter_rules === 'string' ? JSON.parse(group.filter_rules || '[]') : (group.filter_rules || []);
+                rules.forEach(rule => addDynamicRule(rule.field, rule.op, rule.value));
+            }
+            
+            // Переключение радио-кнопки
+            const modeRadio = document.querySelector(`input[name="groupMode"][value="${mode}"]`);
+            if (modeRadio) modeRadio.checked = true;
+            
+            toggleGroupMode();
+        })
+        .catch(e => console.error('Ошибка загрузки данных группы:', e));
 
     new bootstrap.Modal(modalEl).show();
 }
@@ -638,6 +705,8 @@ window.refreshGroupTree = refreshGroupTree;
 window.filterByGroup = filterByGroup;
 window.toggleNested = toggleNested;
 window.confirmDeleteGroup = confirmDeleteGroup;
+window.toggleGroupMode = toggleGroupMode;
+window.addDynamicRule = addDynamicRule;
 // ═══════════════════════════════════════════════════════════════
 // ОБРАБОТЧИКИ ФОРМ ГРУПП
 // ═══════════════════════════════════════════════════════════════
@@ -684,27 +753,42 @@ if (groupEditForm) {
         e.preventDefault();
         try {
             const id = document.getElementById('edit-group-id').value;
+            const mode = document.querySelector('input[name="groupMode"]:checked')?.value || 'manual';
             const name = document.getElementById('edit-group-name').value;
             const parentId = document.getElementById('edit-group-parent').value;
-            const isDynamic = document.getElementById('edit-group-dynamic').checked;
 
-            let filterQuery = null;
-            if (isDynamic) {
-                // Здесь должна быть функция buildGroupFilterJSON, если она есть
-                // Пока оставляем null
+            let payload = {
+                name: name,
+                parent_id: parentId || null
+            };
+
+            if (mode === 'cidr') {
+                const network = document.getElementById('cidr-network').value;
+                const mask = document.getElementById('cidr-mask').value;
+                if (!network) return alert('Введите сеть CIDR');
+                payload.cidr_network = network;
+                payload.cidr_mask = mask;
+            } else if (mode === 'dynamic') {
+                payload.is_dynamic = true;
+                payload.filter_rules = [];
+                document.querySelectorAll('.filter-condition').forEach(row => {
+                    payload.filter_rules.push({
+                        field: row.querySelector('.rule-field').value,
+                        op: row.querySelector('.rule-op').value,
+                        value: row.querySelector('.rule-val').value
+                    });
+                });
+                if (payload.filter_rules.length === 0) return alert('Добавьте хотя бы одно правило');
             }
 
             await fetch(`/api/groups/${id}`, {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    name: name,
-                    parent_id: parentId || null,
-                    filter_query: filterQuery
-                })
+                body: JSON.stringify(payload)
             });
             
             if (editModal) editModal.hide();
+            await refreshGroupTree();
             location.reload();
         } catch (error) {
             alert(`Ошибка: ${error.message}`);

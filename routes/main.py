@@ -66,24 +66,76 @@ def get_analytics():
 
 @main_bp.route('/api/groups', methods=['POST'])
 def api_create_group():
-    data = request.json; name = data.get('name'); parent_id = data.get('parent_id'); filter_query = data.get('filter_query')
-    is_dynamic = True if filter_query else False
-    if parent_id == '': parent_id = None
-    if not name: return jsonify({'error': 'Имя обязательно'}), 400
-    new_group = Group(name=name, parent_id=parent_id, filter_query=filter_query, is_dynamic=is_dynamic)
-    db.session.add(new_group); db.session.commit()
+    data = request.json
+    name = data.get('name')
+    parent_id = data.get('parent_id')
+    is_dynamic = data.get('is_dynamic', False)
+    filter_rules = data.get('filter_rules', [])
+    cidr_network = data.get('cidr_network')
+    cidr_mask = data.get('cidr_mask')
+    
+    if parent_id == '':
+        parent_id = None
+    
+    # Обработка CIDR-группы
+    if cidr_network:
+        from utils import create_cidr_groups  # Импорт функции для создания CIDR-групп
+        try:
+            created_count = create_cidr_groups(cidr_network, int(cidr_mask or 24), parent_id)
+            return jsonify({'success': True, 'message': f'Создано {created_count} групп', 'count': created_count}), 201
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+    
+    # Обработка динамической группы
+    filter_query = None
+    if is_dynamic and filter_rules:
+        filter_query = json.dumps(filter_rules)
+    
+    if not name and not cidr_network:
+        return jsonify({'error': 'Имя обязательно'}), 400
+    
+    new_group = Group(
+        name=name,
+        parent_id=parent_id,
+        filter_query=filter_query,
+        is_dynamic=is_dynamic,
+        cidr_network=cidr_network,
+        cidr_mask=int(cidr_mask) if cidr_mask else None
+    )
+    db.session.add(new_group)
+    db.session.commit()
     return jsonify({'id': new_group.id, 'name': new_group.name, 'is_dynamic': is_dynamic}), 201
 
 @main_bp.route('/api/groups/<int:id>', methods=['PUT'])
 def api_update_group(id):
-    group = Group.query.get_or_404(id); data = request.json
-    if 'name' in data: group.name = data['name']
+    group = Group.query.get_or_404(id)
+    data = request.json
+    
+    if 'name' in data:
+        group.name = data['name']
     if 'parent_id' in data:
         new_parent_id = data['parent_id']
-        if new_parent_id == '': new_parent_id = None
-        if new_parent_id and int(new_parent_id) == group.id: return jsonify({'error': 'Группа не может быть родителем самой себя'}), 400
+        if new_parent_id == '':
+            new_parent_id = None
+        if new_parent_id and int(new_parent_id) == group.id:
+            return jsonify({'error': 'Группа не может быть родителем самой себя'}), 400
         group.parent_id = new_parent_id
-    if 'filter_query' in data: group.filter_query = data['filter_query'] if data['filter_query'] else None; group.is_dynamic = bool(data['filter_query'])
+    
+    # Обработка CIDR-полей
+    if 'cidr_network' in data:
+        group.cidr_network = data['cidr_network']
+    if 'cidr_mask' in data:
+        group.cidr_mask = int(data['cidr_mask']) if data['cidr_mask'] else None
+    
+    # Обработка динамической группы
+    if 'filter_rules' in data:
+        group.filter_query = json.dumps(data['filter_rules']) if data['filter_rules'] else None
+        group.is_dynamic = bool(data['filter_rules'])
+    elif 'is_dynamic' in data:
+        group.is_dynamic = data['is_dynamic']
+        if not data['is_dynamic']:
+            group.filter_query = None
+    
     db.session.commit()
     return jsonify({'success': True})
 

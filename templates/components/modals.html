@@ -10,25 +10,67 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" id="edit-group-id">
-                    <div class="mb-3">
-                        <label>Название</label>
-                        <input type="text" id="edit-group-name" class="form-control" required>
+                    
+                    <!-- 🔥 Переключатель режимов -->
+                    <div class="btn-group w-100 mb-3" role="group">
+                        <input type="radio" class="btn-check" name="groupMode" id="modeManual" value="manual" checked onchange="toggleGroupMode()">
+                        <label class="btn btn-outline-primary" for="modeManual">📝 Ручная</label>
+
+                        <input type="radio" class="btn-check" name="groupMode" id="modeCidr" value="cidr" onchange="toggleGroupMode()">
+                        <label class="btn btn-outline-primary" for="modeCidr">🌐 По CIDR</label>
+
+                        <input type="radio" class="btn-check" name="groupMode" id="modeDynamic" value="dynamic" onchange="toggleGroupMode()">
+                        <label class="btn btn-outline-primary" for="modeDynamic">⚡ Динамическая</label>
                     </div>
-                    <div class="mb-3">
-                        <label>Родитель</label>
-                        <select id="edit-group-parent" class="form-select">
-                            <option value="">-- Корень --</option>
-                            {% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
-                        </select>
+                    
+                    <!-- Секция: Ручная -->
+                    <div id="sectionManual">
+                        <div class="mb-3">
+                            <label>Название</label>
+                            <input type="text" id="edit-group-name" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label>Родитель</label>
+                            <select id="edit-group-parent" class="form-select">
+                                <option value="">-- Корень --</option>
+                                {% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+                            </select>
+                        </div>
                     </div>
-                    <!-- 🔥 ДОБАВЛЕНО: Переключатель динамической группы -->
-                    <div class="mb-3 form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="edit-group-dynamic">
-                        <label class="form-check-label" for="edit-group-dynamic">Динамическая группа (по фильтру)</label>
+                    
+                    <!-- Секция: CIDR -->
+                    <div id="sectionCidr" style="display:none;">
+                        <div class="alert alert-info small">
+                            Будут созданы подгруппы для каждой подсети указанного диапазона.
+                        </div>
+                        <div class="mb-3">
+                            <label>Сеть (CIDR)</label>
+                            <input type="text" id="cidr-network" class="form-control" placeholder="192.168.0.0/16">
+                        </div>
+                        <div class="mb-3">
+                            <label>Маска подгрупп</label>
+                            <select id="cidr-mask" class="form-select">
+                                <option value="24">/24 (256 хостов)</option>
+                                <option value="25">/25 (128 хостов)</option>
+                                <option value="26">/26 (64 хоста)</option>
+                            </select>
+                        </div>
                     </div>
-                    <div id="dynamic-filter-section" class="mb-3" style="display:none">
-                        <label>Правила фильтра</label>
-                        <div id="group-filter-root" class="filter-group"></div>
+                    
+                    <!-- Секция: Динамическая -->
+                    <div id="sectionDynamic" style="display:none;">
+                        <div class="alert alert-warning small">
+                            Активы будут добавляться автоматически при совпадении с правилами.
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold">Правила фильтра:</label>
+                            <div id="group-filter-rules" class="border rounded p-2 bg-light" style="min-height:60px;">
+                                <!-- Правила добавляются через JS -->
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-success mt-2" onclick="addDynamicRule()">
+                                + Добавить правило
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">

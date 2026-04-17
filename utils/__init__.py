@@ -129,9 +129,50 @@ def build_group_tree(groups, parent_id=None):
                 'name': group.name, 
                 'children': children, 
                 'count': count, 
-                'is_dynamic': group.is_dynamic
+                'is_dynamic': group.is_dynamic,
+                'cidr_network': group.cidr_network,
+                'cidr_mask': group.cidr_mask
             })
     return tree
+
+
+def create_cidr_groups(network_str, mask, parent_id=None):
+    """Создание групп на основе CIDR-диапазона"""
+    import ipaddress
+    from models import Group
+    from extensions import db
+    
+    try:
+        network = ipaddress.ip_network(network_str, strict=False)
+    except ValueError as e:
+        raise ValueError(f"Неверный формат CIDR: {e}")
+    
+    # Создаем родительскую группу для диапазона
+    parent_group = Group(
+        name=f"{network_str} (CIDR)",
+        parent_id=parent_id,
+        cidr_network=network_str,
+        cidr_mask=mask,
+        is_dynamic=False
+    )
+    db.session.add(parent_group)
+    db.session.flush()  # Получаем ID
+    
+    # Генерируем подсети
+    subnets = list(network.subnets(new_prefix=mask))
+    created_count = 0
+    
+    for subnet in subnets:
+        subgroup = Group(
+            name=str(subnet),
+            parent_id=parent_group.id,
+            is_dynamic=False
+        )
+        db.session.add(subgroup)
+        created_count += 1
+    
+    db.session.commit()
+    return created_count + 1  # +1 для родительской группы
 
 def build_complex_query(model, filters_structure, base_query=None):
     if base_query is None: base_query = model.query
