@@ -77,6 +77,9 @@ class Asset(db.Model):
     osquery_node_key = db.Column(db.String(100), nullable=True, unique=True)
     osquery_version = db.Column(db.String(50), nullable=True)
     
+    # 🔹 DNS-имена (список доменных имён, связанных с IP)
+    dns_names = db.Column(db.Text, nullable=True, default='[]')
+    
     # 🔹 Внешние ключи
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=True, index=True)
     
@@ -110,6 +113,7 @@ class Asset(db.Model):
             'group_name': self.group.name if self.group else None,
             'osquery_status': self.osquery_status,
             'osquery_last_seen': self.osquery_last_seen.strftime('%Y-%m-%d %H:%M') if self.osquery_last_seen else None,
+            'dns_names': json.loads(self.dns_names) if self.dns_names else [],
         }
     
     def __repr__(self):
@@ -129,6 +133,10 @@ class ScanJob(db.Model):
     total_hosts = db.Column(db.Integer, default=0)
     hosts_processed = db.Column(db.Integer, default=0)
     error_message = db.Column(db.Text, nullable=True)
+    # Параметры сканирования для повторного запуска
+    ports = db.Column(db.String(255), nullable=True)  # Порты для nmap/rustscan
+    dns_server = db.Column(db.String(50), nullable=True)  # DNS-сервер для nslookup
+    custom_args = db.Column(db.Text, nullable=True)  # Кастомные аргументы
     rustscan_output = db.Column(db.Text, nullable=True)  # 🔥 Содержимое вывода rustscan
     rustscan_text_path = db.Column(db.String(500), nullable=True)  # Путь к текстовому файлу rustscan
     nmap_xml_path = db.Column(db.String(500), nullable=True)  # Путь к XML файлу nmap
@@ -157,6 +165,9 @@ class ScanJob(db.Model):
             'total_hosts': self.total_hosts,
             'hosts_processed': self.hosts_processed,
             'error_message': self.error_message,
+            'ports': self.ports,
+            'dns_server': self.dns_server,
+            'custom_args': self.custom_args,
             'rustscan_output': self.rustscan_output,
             'rustscan_text_path': self.rustscan_text_path,
             'nmap_xml_path': self.nmap_xml_path,

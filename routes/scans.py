@@ -74,6 +74,26 @@ def control_scan_job(job_id):
         elif action == 'resume':
             if scan_job.status == 'paused': scan_job.status = 'running'; db.session.commit(); return jsonify({'success': True})
             return jsonify({'error': f'Нельзя возобновить задание в статусе: {scan_job.status}'}), 400
+        elif action == 'rerun':
+            # Повторный запуск сканирования с теми же параметрами
+            from scanner import run_rustscan_scan, run_nmap_scan, run_nslookup_scan
+            if scan_job.scan_type == 'rustscan':
+                new_job = run_rustscan_scan(scan_job.target, custom_args=scan_job.custom_args)
+            elif scan_job.scan_type == 'nmap':
+                new_job = run_nmap_scan(scan_job.target, ports=scan_job.ports, custom_args=scan_job.custom_args)
+            elif scan_job.scan_type == 'nslookup':
+                # Для nslookup извлекаем список доменов и DNS-сервер из сохранённых параметров
+                target_text = scan_job.custom_args or ''
+                dns_server = scan_job.dns_server or '77.88.8.8'
+                if not target_text:
+                    return jsonify({'error': 'Не удалось получить список доменов для повторного запуска'}), 400
+                new_job = run_nslookup_scan(target_text, dns_server=dns_server)
+            else:
+                return jsonify({'error': f'Неизвестный тип сканирования: {scan_job.scan_type}'}), 400
+            
+            if new_job:
+                return jsonify({'success': True, 'new_job_id': new_job.id})
+            return jsonify({'error': 'Не удалось создать новое задание'}), 500
         elif action == 'delete':
             if scan_job.status in ['pending', 'completed', 'failed', 'stopped']:
                 for f in [scan_job.nmap_xml_path, scan_job.nmap_grep_path, scan_job.nmap_normal_path, scan_job.nslookup_file_path]:
@@ -147,11 +167,12 @@ def start_rustscan():
     if is_blocked:
         return jsonify({'error': error_msg}), 409
     
-    # Создаём задание только после успешной проверки
+    # Создаём задание только после успешной проверки с сохранением параметров для повторного запуска
     scan_job = ScanJob(
         scan_type='rustscan', 
         target=target_description, 
         status='pending', 
+        custom_args=custom_args if custom_args else None,
         rustscan_output=custom_args if custom_args else None
     )
     db.session.add(scan_job)
@@ -196,10 +217,9 @@ def start_nmap():
         scan_type='nmap', 
         target=target_description, 
         status='pending', 
-        rustscan_output=f'Ports: {ports}' if ports else None
+        ports=ports if ports else None,
+        custom_args=custom_args if custom_args else None
     )
-    if custom_args: 
-        scan_job.error_message = f'Custom args: {custom_args}'
     
     db.session.add(scan_job)
     db.session.commit()
@@ -219,21 +239,30 @@ def start_nmap():
 def start_nslookup():
     data = request.json
     target_text = data.get('target_text', '')  # Список доменов, разделённых переносом строки
+    dns_server = data.get('dns_server', '77.88.8.8')  # DNS-сервер, по умолчанию Яндекс
+    nslookup_args = data.get('nslookup_args', '')  # Кастомные аргументы nslookup
     
     if not target_text or not target_text.strip():
         return jsonify({'error': 'Список доменов пуст'}), 400
     
-    # Создаём задание
+    # Создаём задание с сохранением параметров для повторного запуска
     scan_job = ScanJob(
         scan_type='nslookup', 
         target=f"Домены ({len([d for d in target_text.split('\\n') if d.strip()])} шт.)", 
-        status='pending'
+        status='pending',
+        dns_server=dns_server,
+        custom_args=nslookup_args,  # Сохраняем аргументы nslookup
+        scan_parameters={  # Сохраняем все параметры для rerun
+            'target_text': target_text,
+            'dns_server': dns_server,
+            'nslookup_args': nslookup_args
+        }
     )
     db.session.add(scan_job)
     db.session.commit()
     
     app_obj = current_app._get_current_object()
-    thread = threading.Thread(target=run_nslookup_scan, args=(app_obj, scan_job.id, target_text))
+    thread = threading.Thread(target=run_nslookup_scan, args=(app_obj, scan_job.id, target_text, dns_server, nslookup_args))
     thread.daemon = True
     thread.start()
     

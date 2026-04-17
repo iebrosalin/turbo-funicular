@@ -35,20 +35,31 @@ function updateThemeIcon(theme) {
     toggle.querySelector('.bi-sun').style.display = theme === 'dark' ? 'block' : 'none';
 }
 function initTreeTogglers() {
-    const groupTree = document.getElementById('group-tree'); if (!groupTree) return;
-    const newGroupTree = groupTree.cloneNode(true); groupTree.parentNode.replaceChild(newGroupTree, groupTree);
-    newGroupTree.addEventListener('click', function(e) {
-        const treeNode = e.target.closest('.tree-node'); if (!treeNode) return;
+    const groupTree = document.getElementById('group-tree'); 
+    if (!groupTree) return;
+    
+    // Не клонируем, а позволяем refreshGroupTree полностью перерисовать дерево
+    // Просто вызываем обновление дерева при инициализации
+    refreshGroupTree();
+    
+    // Обработчик кликов делегируем на контейнер, даже если содержимое изменится
+    groupTree.addEventListener('click', function(e) {
+        const treeNode = e.target.closest('.tree-node'); 
+        if (!treeNode) return;
+        
+        // Если клик по caret (стрелочке), переключаем видимость вложенных
         if (e.target.classList.contains('caret') || e.target.closest('.caret')) {
-            e.preventDefault(); e.stopPropagation();
-            const nested = treeNode.querySelector(".nested");
-            if (nested) { nested.classList.toggle("active"); const caret = treeNode.querySelector('.caret'); if (caret) caret.classList.toggle("caret-down"); }
+            e.preventDefault(); 
+            e.stopPropagation();
+            // Логика теперь в toggleNested, который вызывается из onclick в HTML
             return;
         }
-        filterByGroup(treeNode.dataset.id);
+        
+        // Клик по самой группе - фильтруем
+        // filterByGroup вызывается напрямую из onclick в HTML генерируемого дерева
     });
-    
-    // 🔥 Подсветка активной группы при загрузке страницы на основе URL
+
+    // Выделяем активную группу после загрузки
     highlightActiveGroupFromUrl();
 }
 
@@ -281,6 +292,26 @@ document.addEventListener('DOMContentLoaded', () => {
 // ЭКСПОРТ ФУНКЦИЙ В ГЛОБАЛЬНУЮ ОБЛАСТЬ (для inline onclick)
 // ═══════════════════════════════════════════════════════════════
 
+function showCreateGroupModal(parentId = null) {
+    const modalEl = document.getElementById('groupCreateModal');
+    if (!modalEl) {
+        console.warn('⚠️ #groupCreateModal не найден. Создаем группу без модального окна?');
+        // Если модального окна нет, можно попробовать создать группу по умолчанию или просто выйти
+        return;
+    }
+
+    const parentIdInput = document.getElementById('create-group-parent-id');
+    if (parentIdInput) {
+        parentIdInput.value = parentId || '';
+    }
+    
+    // Сброс имени группы
+    const nameInput = document.getElementById('create-group-name');
+    if (nameInput) nameInput.value = '';
+
+    new bootstrap.Modal(modalEl).show();
+}
+
 function showRenameModal(id) {
     const modalEl = document.getElementById('groupEditModal');
     if (!modalEl) return console.warn('⚠️ #groupEditModal не найден');
@@ -314,6 +345,54 @@ function showDeleteModal(id) {
     document.getElementById('delete-group-id').value = id;
     new bootstrap.Modal(modalEl).show();
 }
+
+// Рекурсивная функция для построения HTML дерева
+function buildTreeHtml(nodes, parentId = null) {
+    const children = nodes.filter(n => n.parent_id == parentId);
+    if (children.length === 0) return '';
+
+    let html = '<ul class="nested" style="display:none;">';
+    children.forEach(node => {
+        const hasChildren = nodes.some(n => n.parent_id == node.id);
+        const caretClass = hasChildren ? 'caret' : '';
+        const caretIcon = hasChildren ? '<i class="bi bi-caret-right-fill me-1"></i>' : '<i class="bi bi-folder me-1"></i>';
+        
+        html += `
+            <li>
+                <div class="tree-node d-flex justify-content-between align-items-center" data-id="${node.id}" ${hasChildren ? '' : ''}>
+                    <div class="d-flex align-items-center" style="cursor:pointer;" onclick="filterByGroup('${node.id}')">
+                        ${hasChildren ? `<span class="${caretClass}" onclick="event.stopPropagation(); toggleNested(this)">${caretIcon}</span>` : caretIcon}
+                        <span class="group-name">${node.name}</span>
+                    </div>
+                    <div class="d-flex gap-1">
+                        <span class="badge bg-secondary rounded-pill">${node.count || 0}</span>
+                        <button class="btn btn-sm btn-link text-muted p-0" onclick="event.stopPropagation(); showRenameModal(${node.id})"><i class="bi bi-pencil"></i></button>
+                        <button class="btn btn-sm btn-link text-muted p-0" onclick="event.stopPropagation(); showMoveModal(${node.id})"><i class="bi bi-arrow-left-right"></i></button>
+                        <button class="btn btn-sm btn-link text-danger p-0" onclick="event.stopPropagation(); showDeleteModal(${node.id})"><i class="bi bi-trash"></i></button>
+                    </div>
+                </div>
+                ${buildTreeHtml(nodes, node.id)}
+            </li>
+        `;
+    });
+    html += '</ul>';
+    return html;
+}
+
+// Функция для переключения видимости вложенных элементов
+window.toggleNested = function(caretSpan) {
+    const li = caretSpan.closest('li');
+    const nestedUl = li.querySelector('.nested');
+    if (nestedUl) {
+        const isHidden = nestedUl.style.display === 'none' || nestedUl.style.display === '';
+        nestedUl.style.display = isHidden ? 'block' : 'none';
+        const icon = caretSpan.querySelector('i');
+        if (icon) {
+            icon.classList.toggle('bi-caret-right-fill');
+            icon.classList.toggle('bi-caret-down-fill');
+        }
+    }
+};
 
 // 🔥 Просмотр результатов с отображением ошибок
 async function viewScanResults(id){
@@ -430,13 +509,46 @@ async function refreshGroupTree() {
         const ungroupedEl = document.getElementById('ungrouped-count');
         if (ungroupedEl) ungroupedEl.textContent = ungroupedAssets.length;
         
-        // Обновляем счётчики у каждой группы в дереве
+        // Рендерим дерево с помощью рекурсивной функции
+        const groupTreeContainer = document.getElementById('group-tree');
+        if (groupTreeContainer && data.flat) {
+            // Сохраняем корневой элемент, но обновляем содержимое
+            // Предполагаем, что API возвращает { flat: [...] } или просто массив
+            const nodes = Array.isArray(data) ? data : (data.flat || []);
+            
+            // Генерируем HTML для корневых элементов (parent_id === null)
+            const treeHtml = buildTreeHtml(nodes, null);
+            
+            // Если есть корневые элементы, вставляем их
+            if (treeHtml) {
+                // Создаем временный контейнер для парсинга HTML
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = treeHtml;
+                
+                // Очищаем текущее дерево и добавляем новые элементы
+                // Оставляем только ul.nested на верхнем уровне, если они есть, или заменяем всё
+                groupTreeContainer.innerHTML = '';
+                
+                // Переносим сгенерированные ul внутрь контейнера
+                while (tempDiv.firstChild) {
+                    groupTreeContainer.appendChild(tempDiv.firstChild);
+                }
+            } else {
+                groupTreeContainer.innerHTML = '<div class="text-muted small">Нет групп</div>';
+            }
+            
+            // Восстанавливаем выделение активной группы после перерисовки
+            highlightActiveGroupFromUrl();
+        }
+        
+        // Обновляем счётчики у каждой группы в дереве (если они не обновились при рендере)
+        // В новой реализации счётчики уже встроены в HTML, но можно оставить для динамики
+        /*
         data.flat.forEach(g => {
             const node = document.querySelector(`.tree-node[data-id="${g.id}"]`);
             if (node) {
                 const badge = node.querySelector('.badge');
                 if (badge) {
-                    // Плавное обновление числа
                     const oldCount = parseInt(badge.textContent) || 0;
                     const newCount = g.count || 0;
                     if (oldCount !== newCount) {
@@ -449,6 +561,7 @@ async function refreshGroupTree() {
                 }
             }
         });
+        */
         
         console.log('✅ Дерево групп обновлено');
     } catch (e) {
@@ -517,8 +630,123 @@ function pollActiveScans(){
 }
 
 // 🔥 Экспорт в глобальную область
+window.showCreateGroupModal = showCreateGroupModal;
 window.showRenameModal = showRenameModal;
 window.showMoveModal = showMoveModal;
 window.showDeleteModal = showDeleteModal;
 window.refreshGroupTree = refreshGroupTree;
 window.filterByGroup = filterByGroup;
+window.toggleNested = toggleNested;
+window.confirmDeleteGroup = confirmDeleteGroup;
+// ═══════════════════════════════════════════════════════════════
+// ОБРАБОТЧИКИ ФОРМ ГРУПП
+// ═══════════════════════════════════════════════════════════════
+
+// Создание группы
+const groupCreateForm = document.getElementById('groupCreateForm');
+if (groupCreateForm) {
+    groupCreateForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+            const name = document.getElementById('create-group-name').value;
+            const parentId = document.getElementById('create-group-parent-id').value;
+            
+            await fetch('/api/groups', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: name,
+                    parent_id: parentId || null,
+                    filter_query: null
+                })
+            });
+            
+            // Закрываем модальное окно
+            const modalEl = document.getElementById('groupCreateModal');
+            if (modalEl) {
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+            }
+            
+            // Обновляем дерево и перезагружаем
+            await refreshGroupTree();
+            location.reload();
+        } catch (error) {
+            alert(`Ошибка: ${error.message}`);
+        }
+    });
+}
+
+// Редактирование группы
+const groupEditForm = document.getElementById('groupEditForm');
+if (groupEditForm) {
+    groupEditForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+            const id = document.getElementById('edit-group-id').value;
+            const name = document.getElementById('edit-group-name').value;
+            const parentId = document.getElementById('edit-group-parent').value;
+            const isDynamic = document.getElementById('edit-group-dynamic').checked;
+
+            let filterQuery = null;
+            if (isDynamic) {
+                // Здесь должна быть функция buildGroupFilterJSON, если она есть
+                // Пока оставляем null
+            }
+
+            await fetch(`/api/groups/${id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: name,
+                    parent_id: parentId || null,
+                    filter_query: filterQuery
+                })
+            });
+            
+            if (editModal) editModal.hide();
+            location.reload();
+        } catch (error) {
+            alert(`Ошибка: ${error.message}`);
+        }
+    });
+}
+
+// Перемещение группы
+const groupMoveForm = document.getElementById('groupMoveForm');
+if (groupMoveForm) {
+    groupMoveForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+            const id = document.getElementById('move-group-id').value;
+            const parentId = document.getElementById('move-group-parent').value;
+            
+            await fetch(`/api/groups/${id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({parent_id: parentId || null})
+            });
+            
+            if (moveModal) moveModal.hide();
+            location.reload();
+        } catch (error) {
+            alert('Ошибка: ' + error.message);
+        }
+    });
+}
+
+// Подтверждение удаления группы
+window.confirmDeleteGroup = async function() {
+    const id = document.getElementById('delete-group-id').value;
+    const moveToId = document.getElementById('delete-move-assets').value;
+    
+    try {
+        const url = moveToId ? `/api/groups/${id}?move_to=${moveToId}` : `/api/groups/${id}`;
+        await fetch(url, { method: 'DELETE' });
+        
+        if (deleteModal) deleteModal.hide();
+        location.reload();
+    } catch (error) {
+        alert('Ошибка: ' + error.message);
+    }
+};

@@ -99,9 +99,17 @@
                                 <label class="form-label">Список доменов (каждый с новой строки)</label>
                                 <textarea id="scan-target-text" class="form-control" rows="6" placeholder="example.com&#10;google.com&#10;github.com"></textarea>
                             </div>
+                            <div class="mb-3" id="dns-server-section" style="display: none;">
+                                <label class="form-label">DNS-сервер</label>
+                                <input type="text" id="scan-dns-server" class="form-control" value="77.88.8.8" placeholder="77.88.8.8 (Яндекс DNS)">
+                            </div>
                             <div class="mb-3" id="ports-section" style="display: none;">
                                 <label class="form-label">Порты (для Nmap)</label>
                                 <input type="text" id="scan-ports" class="form-control" placeholder="22,80,443 или 1-1000">
+                            </div>
+                            <div class="mb-3" id="nslookup-args-section" style="display: none;">
+                                <label class="form-label">Аргументы nslookup</label>
+                                <input type="text" id="scan-nslookup-args" class="form-control" placeholder="-querytype=A -timeout=5">
                             </div>
                             <div class="mb-3">
                                 <label class="form-label"><i class="bi bi-sliders"></i> Кастомные аргументы</label>
@@ -156,11 +164,13 @@
                                         {% elif job.status=='running' %}
                                             <button class="btn btn-sm btn-outline-warning" onclick="controlScan('{{ job.id }}', 'pause')"><i class="bi bi-pause-fill"></i></button>
                                             <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'stop')"><i class="bi bi-stop-fill"></i></button>
+                                            <button class="btn btn-sm btn-outline-success" onclick="controlScan('{{ job.id }}', 'rerun')"><i class="bi bi-arrow-clockwise"></i></button>
                                         {% elif job.status=='paused' %}
                                             <button class="btn btn-sm btn-outline-success" onclick="controlScan('{{ job.id }}', 'resume')"><i class="bi bi-play-fill"></i></button>
                                             <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'stop')"><i class="bi bi-stop-fill"></i></button>
                                         {% elif job.status in ['completed','failed','stopped'] %}
                                             <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'delete')"><i class="bi bi-trash"></i></button>
+                                            <button class="btn btn-sm btn-outline-success" onclick="controlScan('{{ job.id }}', 'rerun')"><i class="bi bi-arrow-clockwise"></i></button>
                                         {% endif %}
                                         {% if job.status!='pending' %}
                                             <button class="btn btn-sm btn-outline-info" onclick="viewScanResults('{{ job.id }}')"><i class="bi bi-eye"></i></button>
@@ -202,6 +212,8 @@
         function toggleScanOptions(){
             const t=document.getElementById('scan-type').value;
             document.getElementById('ports-section').style.display=t==='nmap'?'block':'none';
+            document.getElementById('dns-server-section').style.display=t==='nslookup'?'block':'none';
+            document.getElementById('nslookup-args-section').style.display=t==='nslookup'?'block':'none';
             // Для nslookup всегда показываем текстовое поле
             if(t==='nslookup'){
                 document.getElementById('target-method').value='text';
@@ -222,9 +234,11 @@
             // Обработка nslookup
             if(t==='nslookup'){
                 const targetText=document.getElementById('scan-target-text').value;
+                const dnsServer=document.getElementById('scan-dns-server').value||'77.88.8.8';
+                const nslookupArgs=document.getElementById('scan-nslookup-args').value||'';
                 if(!targetText||!targetText.trim()){alert('⚠️ Введите список доменов');return;}
                 try{
-                    const res=await fetch(`/api/scans/nslookup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_text:targetText})});
+                    const res=await fetch(`/api/scans/nslookup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_text:targetText,dns_server:dnsServer,nslookup_args:nslookupArgs})});
                     const d=await res.json();
                     if(res.ok){ alert(`✅ ${d.message}`); location.reload(); } else alert(`❌ ${d.error}`);
                 }catch(err){ alert(`❌ Ошибка сети: ${err.message}`); }
@@ -285,6 +299,7 @@
         async function controlScan(id, action){
             if(action==='delete' && !confirm('Удалить запись?')) return;
             if(action==='stop' && !confirm('Остановить сканирование?')) return;
+            if(action==='rerun' && !confirm('Повторить сканирование с теми же параметрами?')) return;
             try{
                 const r=await fetch(`/api/scans/${id}/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action})});
                 const d=await r.json();

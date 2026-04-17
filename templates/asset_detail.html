@@ -103,7 +103,7 @@
                         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-ports">🔌 Порты</button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-osquery">📦 OSquery</button>
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-inventory">📦 Инвентаризация</button>
                     </li>
                     <li class="nav-item">
                         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-scans">🔍 Сканирования</button>
@@ -182,46 +182,16 @@
 
                             <div class="col-lg-4">
                                 <div class="card mb-4">
-                                    <div class="card-header"><i class="bi bi-lightning"></i> Действия</div>
+                                    <div class="card-header"><i class="bi bi-info-circle"></i> Дополнительная информация</div>
                                     <div class="card-body">
-                                        <div class="d-grid gap-2">
-                                            <button class="btn btn-outline-primary" onclick="navigator.clipboard.writeText('{{ asset.ip_address }}'); alert('IP скопирован в буфер')">
-                                                <i class="bi bi-clipboard"></i> Копировать IP
-                                            </button>
-                                            <a href="ssh://{{ asset.ip_address }}" class="btn btn-outline-dark" target="_blank" rel="noopener">
-                                                <i class="bi bi-terminal"></i> SSH
-                                            </a>
-                                            <a href="http://{{ asset.ip_address }}" class="btn btn-outline-info" target="_blank" rel="noopener">
-                                                <i class="bi bi-globe"></i> Браузер (HTTP)
-                                            </a>
-                                            <a href="https://{{ asset.ip_address }}" class="btn btn-outline-info" target="_blank" rel="noopener">
-                                                <i class="bi bi-globe"></i> Браузер (HTTPS)
-                                            </a>
-                                            <a href="{{ url_for('scans.scans_page') }}" class="btn btn-outline-danger">
-                                                <i class="bi bi-radar"></i> Запустить сканирование
-                                            </a>
-                                            <a href="{{ url_for('scans.scans_page') }}" class="btn btn-outline-secondary">
-                                                <i class="bi bi-list-task"></i> Все сканирования
-                                            </a>
+                                        <div class="mb-3">
+                                            <small class="text-muted">DNS имена</small>
+                                            <div class="fw-medium">{{ asset.dns_names or '—' }}</div>
                                         </div>
-                                    </div>
-                                </div>
-
-                                <div class="card mb-4">
-                                    <div class="card-header"><i class="bi bi-hdd-network"></i> Сканеры</div>
-                                    <div class="card-body">
-                                        {% if asset.scanners_used %}
-                                            {% set scanners = asset.scanners_used | fromjson %}
-                                            <div class="d-flex flex-wrap gap-2">
-                                                {% for scanner in scanners %}
-                                                    <span class="badge bg-{{ 'danger' if scanner == 'rustscan' else 'info' }} fs-6">
-                                                        {{ '🚀' if scanner == 'rustscan' else '🔍' }} {{ scanner.upper() }}
-                                                    </span>
-                                                {% endfor %}
-                                            </div>
-                                        {% else %}
-                                            <p class="text-muted mb-0 small">Нет данных о сканерах</p>
-                                        {% endif %}
+                                        <div class="mb-3">
+                                            <small class="text-muted">Последнее сканирование</small>
+                                            <div class="fw-medium">{{ asset.last_scanned.strftime('%Y-%m-%d %H:%M') if asset.last_scanned else '—' }}</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -362,8 +332,8 @@
                         {% endif %}
                     </div>
 
-                    <!-- Tab: OSquery -->
-                    <div class="tab-pane fade" id="tab-osquery">
+                    <!-- Tab: Инвентаризация -->
+                    <div class="tab-pane fade" id="tab-inventory">
                         <div class="card {% if asset.osquery_status == 'online' %}border-success{% else %}border-secondary{% endif %}">
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <span><i class="bi bi-hdd-stack"></i> Инвентаризация OSquery</span>
@@ -446,8 +416,6 @@
                                             <th>Дата</th>
                                             <th>Тип</th>
                                             <th>Статус</th>
-                                            <th>Порты</th>
-                                            <th>ОС</th>
                                             <th>Действия</th>
                                         </tr>
                                     </thead>
@@ -474,8 +442,6 @@
                                                         <span class="badge bg-success">completed</span>
                                                     {% endif %}
                                                 </td>
-                                                <td><small>{{ (result.ports | fromjson | join(', ')) if result.ports else '—' }}</small></td>
-                                                <td><small>{{ result.os_detection or '—' }}</small></td>
                                                 <td>
                                                     <button class="btn btn-sm btn-outline-primary" onclick="alert('Порты: {{ (result.ports | fromjson | join(', ')) if result.ports else 'Нет' }}\nОС: {{ result.os_detection or '—' }}')">
                                                         <i class="bi bi-eye"></i>
@@ -485,7 +451,7 @@
                                             {% endfor %}
                                         {% else %}
                                             <tr>
-                                                <td colspan="6" class="text-center py-4 text-muted">
+                                                <td colspan="4" class="text-center py-4 text-muted">
                                                     <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                                                     Нет результатов сканирований
                                                 </td>

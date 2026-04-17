@@ -366,7 +366,7 @@ def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
         finally:
             db.session.remove()
 
-def run_nslookup_scan(app, scan_job_id, target_list):
+def run_nslookup_scan(app, scan_job_id, target_list, dns_server='77.88.8.8', nslookup_args=''):
     """Фоновое выполнение nslookup для списка доменных имён"""
     with app.app_context():
         try:
@@ -411,24 +411,75 @@ def run_nslookup_scan(app, scan_job_id, target_list):
                 update_job(scan_job_id, current_target=domain, hosts_processed=processed)
                 
                 try:
-                    # Выполняем nslookup
-                    process = subprocess.Popen(['nslookup', domain], 
+                    # Формируем команду nslookup с кастомными аргументами
+                    cmd = ['nslookup']
+                    if nslookup_args:
+                        # Разбиваем аргументы на отдельные элементы
+                        cmd.extend(nslookup_args.split())
+                    cmd.extend([domain, dns_server])
+                    
+                    process = subprocess.Popen(cmd,
                                              stdout=subprocess.PIPE, 
                                              stderr=subprocess.PIPE, 
                                              text=True)
                     stdout, stderr = process.communicate(timeout=30)
                     
-                    result_entry = f"\n{'='*60}\nДомен: {domain}\n{'='*60}\n"
+                    result_entry = f"\n{'='*60}\nДомен: {domain}\nDNS-сервер: {dns_server}\n{'='*60}\n"
+                    ip_address = None
+                    
                     if process.returncode == 0:
                         result_entry += stdout
-                        results.append({'domain': domain, 'status': 'success', 'output': stdout})
+                        results.append({'domain': domain, 'status': 'success', 'output': stdout, 'dns_server': dns_server})
+                        
+                        # 🔥 Извлекаем IP-адрес из вывода nslookup
+                        # Ищем строки вида "Address: 1.2.3.4" или "Addresses: 1.2.3.4"
+                        for line in stdout.split('\n'):
+                            line = line.strip()
+                            if line.startswith('Address:') or line.startswith('Addresses:'):
+                                # Извлекаем IP после двоеточия
+                                parts = line.split(':', 1)
+                                if len(parts) > 1:
+                                    ip_candidate = parts[1].strip()
+                                    # Пропускаем IPv6 адреса в скобках и служебные записи
+                                    if ip_candidate and not ip_candidate.startswith('#') and '.' in ip_candidate:
+                                        ip_address = ip_candidate.split()[0]  # Берём первый IP если их несколько
+                                        break
                     else:
                         result_entry += f"Ошибка: {stderr}\n"
-                        results.append({'domain': domain, 'status': 'failed', 'error': stderr})
+                        results.append({'domain': domain, 'status': 'failed', 'error': stderr, 'dns_server': dns_server})
                     
                     # Записываем в файл
                     with open(output_file, 'a', encoding='utf-8') as f:
                         f.write(result_entry)
+                    
+                    # 🔥 Создаём или обновляем актив если найден IP
+                    if ip_address:
+                        try:
+                            # Проверяем существует ли актив с таким IP
+                            asset = Asset.query.filter_by(ip_address=ip_address).first()
+                            
+                            if not asset:
+                                # Создаём новый актив
+                                asset = Asset(
+                                    ip_address=ip_address,
+                                    hostname=domain,
+                                    notes=f"Создан автоматически через nslookup (DNS: {dns_server})"
+                                )
+                                db.session.add(asset)
+                                print(f"✅ Создан новый актив: {ip_address} ({domain})")
+                            else:
+                                # Обновляем DNS-имена актива
+                                dns_names = asset.dns_names or []
+                                if domain not in dns_names:
+                                    dns_names.append(domain)
+                                    asset.dns_names = dns_names
+                                    print(f"🔄 Обновлены DNS-имена для {ip_address}: {dns_names}")
+                            
+                            db.session.commit()
+                            
+                        except Exception as e:
+                            db.session.rollback()
+                            print(f"⚠️ Ошибка при создании/обновлении актива {ip_address}: {e}")
                     
                     processed += 1
                     prog = min(95, 10 + (processed / len(domains)) * 85)
@@ -436,7 +487,7 @@ def run_nslookup_scan(app, scan_job_id, target_list):
                     
                 except subprocess.TimeoutExpired:
                     error_msg = f"Превышено время ожидания для {domain}"
-                    results.append({'domain': domain, 'status': 'timeout', 'error': error_msg})
+                    results.append({'domain': domain, 'status': 'timeout', 'error': error_msg, 'dns_server': dns_server})
                     with open(output_file, 'a', encoding='utf-8') as f:
                         f.write(f"\n{'='*60}\nДомен: {domain}\n{'='*60}\nОшибка: {error_msg}\n")
                 except FileNotFoundError:
@@ -445,7 +496,7 @@ def run_nslookup_scan(app, scan_job_id, target_list):
                               completed_at=datetime.now(MOSCOW_TZ))
                     return
                 except Exception as e:
-                    results.append({'domain': domain, 'status': 'error', 'error': str(e)})
+                    results.append({'domain': domain, 'status': 'error', 'error': str(e), 'dns_server': dns_server})
                     with open(output_file, 'a', encoding='utf-8') as f:
                         f.write(f"\n{'='*60}\nДомен: {domain}\n{'='*60}\nОшибка: {str(e)}\n")
             

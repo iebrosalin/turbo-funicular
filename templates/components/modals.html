@@ -37,7 +37,33 @@
             </form>
         </div>
     </div>
-</div><div class="modal fade" id="groupMoveModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><form id="groupMoveForm"><div class="modal-header"><h5>Переместить</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" id="move-group-id"><div class="mb-3"><label>Новый родитель</label><select id="move-group-parent" class="form-select"></select></div></div><div class="modal-footer"><button type="submit" class="btn btn-primary">Переместить</button></div></form></div></div></div>
+</div>
+
+<!-- 🔹 Модальное окно создания группы -->
+<div class="modal fade" id="groupCreateModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="groupCreateForm">
+                <div class="modal-header">
+                    <h5>Новая группа</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="create-group-parent-id">
+                    <div class="mb-3">
+                        <label>Название</label>
+                        <input type="text" id="create-group-name" class="form-control" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Создать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="groupMoveModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><form id="groupMoveForm"><div class="modal-header"><h5>Переместить</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" id="move-group-id"><div class="mb-3"><label>Новый родитель</label><select id="move-group-parent" class="form-select"></select></div></div><div class="modal-footer"><button type="submit" class="btn btn-primary">Переместить</button></div></form></div></div></div>
 <div class="modal fade" id="groupDeleteModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="text-danger">Удаление</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" id="delete-group-id"><p class="text-warning"><i class="bi bi-exclamation-triangle"></i> Вы уверены?</p><div class="mb-3"><label>Перенести активы:</label><select id="delete-move-assets" class="form-select"></select></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button><button type="button" class="btn btn-danger" onclick="confirmDeleteGroup()">Удалить</button></div></div></div></div>
 <div class="modal fade" id="bulkDeleteModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="text-danger">Удаление активов</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p>Удалить <strong id="bulk-delete-count">0</strong> активов?</p></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button><button type="button" class="btn btn-danger" onclick="executeBulkDelete()">Удалить</button></div></div></div></div>
 <div class="modal fade" id="wazuhModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h6>⚙️ Настройка Wazuh API</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="mb-2"><label>URL API</label><input type="text" id="waz-url" class="form-control form-control-sm" placeholder="https://manager:55000"></div><div class="mb-2"><label>Логин</label><input type="text" id="waz-user" class="form-control form-control-sm" placeholder="wazuh"></div><div class="mb-2"><label>Пароль</label><input type="password" id="waz-pass" class="form-control form-control-sm" placeholder="••••••"></div><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="waz-ssl"><label class="form-check-label small">Проверять SSL</label></div><div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="waz-active" checked><label class="form-check-label small">Включить интеграцию</label></div><button class="btn btn-sm btn-success w-100" onclick="saveWazuhConfig()">💾 Сохранить и синхронизировать</button><div id="waz-status" class="mt-2 small text-center text-muted"></div></div></div></div></div>
