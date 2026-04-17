@@ -195,10 +195,25 @@ def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
                 print(f"❌ Ошибка rustscan: {err_msg}")
                 return
 
-            # 🔥 Сохраняем вывод ДВУМЯ способами
+            # 🔥 Сохраняем вывод ДВУМЯ способами: в БД и в файл
             job.rustscan_output = '\n'.join(output_lines) if output_lines else stdout_data
+            
+            # 🔥 Сохраняем результат в текстовый файл
+            ts = datetime.now(MOSCOW_TZ).strftime('%Y%m%d_%H%M%S')
+            res_dir = os.path.join('scan_results', f'rustscan_{ts}')
+            os.makedirs(res_dir, exist_ok=True)
+            text_path = os.path.join(res_dir, 'scan.txt')
+            with open(text_path, 'w', encoding='utf-8') as f:
+                f.write(job.rustscan_output)
+            job.rustscan_text_path = text_path
+            
             print(f"📝 Сохранён вывод: {len(job.rustscan_output)} символов")
+            print(f"📁 Файл сохранён: {text_path}")
             print(f"📝 Первые 500 символов: {job.rustscan_output[:500]}")
+            
+            # 🔥 Читаем содержимое файла и сохраняем в БД
+            with open(text_path, 'r', encoding='utf-8') as f:
+                job.rustscan_output = f.read()
             
             update_job(scan_job_id, progress=98, current_target='Парсинг результатов...')
             
@@ -316,7 +331,20 @@ def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
             job.nmap_xml_path = f'{base}.xml'
             job.nmap_grep_path = f'{base}.gnmap'
             job.nmap_normal_path = f'{base}.nmap'
-            if os.path.exists(job.nmap_xml_path): parse_nmap_results(scan_job_id, job.nmap_xml_path)
+            
+            # 🔥 Читаем содержимое файлов и сохраняем в БД
+            if os.path.exists(job.nmap_xml_path):
+                with open(job.nmap_xml_path, 'r', encoding='utf-8') as f:
+                    job.nmap_xml_content = f.read()
+                parse_nmap_results(scan_job_id, job.nmap_xml_path)
+            
+            if os.path.exists(job.nmap_grep_path):
+                with open(job.nmap_grep_path, 'r', encoding='utf-8') as f:
+                    job.nmap_grep_content = f.read()
+            
+            if os.path.exists(job.nmap_normal_path):
+                with open(job.nmap_normal_path, 'r', encoding='utf-8') as f:
+                    job.nmap_normal_content = f.read()
             update_job(scan_job_id, progress=100, status='completed', current_target='Готово', 
                       completed_at=datetime.now(MOSCOW_TZ))
             print(f"✅ Job {scan_job_id} завершён успешно")
@@ -333,6 +361,112 @@ def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
             update_job(scan_job_id, status='failed', progress=100, 
                       error_message=f"Критическая ошибка: {str(e)}", completed_at=datetime.now(MOSCOW_TZ))
             print(f"❌ Критическая ошибка nmap job {scan_job_id}: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            db.session.remove()
+
+def run_nslookup_scan(app, scan_job_id, target_list):
+    """Фоновое выполнение nslookup для списка доменных имён"""
+    with app.app_context():
+        try:
+            db.session.remove()
+            
+            # Парсим список доменов (разделённые переносом строки)
+            if isinstance(target_list, str):
+                domains = [d.strip() for d in target_list.split('\n') if d.strip()]
+            else:
+                domains = target_list
+            
+            if not domains:
+                update_job(scan_job_id, status='failed', progress=100,
+                          error_message="Список доменов пуст", 
+                          completed_at=datetime.now(MOSCOW_TZ))
+                return
+            
+            update_job(scan_job_id, status='running', progress=5, total_hosts=len(domains), 
+                      hosts_processed=0, current_target='Инициализация...')
+            
+            # Сохраняем результаты
+            ts = datetime.now(MOSCOW_TZ).strftime('%Y%m%d_%H%M%S')
+            res_dir = os.path.join('scan_results', f'nslookup_{ts}')
+            os.makedirs(res_dir, exist_ok=True)
+            output_file = os.path.join(res_dir, 'results.txt')
+            
+            results = []
+            processed = 0
+            
+            for domain in domains:
+                job = ScanJob.query.get(scan_job_id)
+                if not job:
+                    break
+                if job.status == 'stopped':
+                    update_job(scan_job_id, status='stopped', progress=100, 
+                              error_message='Остановлено пользователем', completed_at=datetime.now(MOSCOW_TZ))
+                    return
+                if job.status == 'paused':
+                    time.sleep(0.5)
+                    continue
+                
+                update_job(scan_job_id, current_target=domain, hosts_processed=processed)
+                
+                try:
+                    # Выполняем nslookup
+                    process = subprocess.Popen(['nslookup', domain], 
+                                             stdout=subprocess.PIPE, 
+                                             stderr=subprocess.PIPE, 
+                                             text=True)
+                    stdout, stderr = process.communicate(timeout=30)
+                    
+                    result_entry = f"\n{'='*60}\nДомен: {domain}\n{'='*60}\n"
+                    if process.returncode == 0:
+                        result_entry += stdout
+                        results.append({'domain': domain, 'status': 'success', 'output': stdout})
+                    else:
+                        result_entry += f"Ошибка: {stderr}\n"
+                        results.append({'domain': domain, 'status': 'failed', 'error': stderr})
+                    
+                    # Записываем в файл
+                    with open(output_file, 'a', encoding='utf-8') as f:
+                        f.write(result_entry)
+                    
+                    processed += 1
+                    prog = min(95, 10 + (processed / len(domains)) * 85)
+                    update_job(scan_job_id, progress=int(prog))
+                    
+                except subprocess.TimeoutExpired:
+                    error_msg = f"Превышено время ожидания для {domain}"
+                    results.append({'domain': domain, 'status': 'timeout', 'error': error_msg})
+                    with open(output_file, 'a', encoding='utf-8') as f:
+                        f.write(f"\n{'='*60}\nДомен: {domain}\n{'='*60}\nОшибка: {error_msg}\n")
+                except FileNotFoundError:
+                    update_job(scan_job_id, status='failed', progress=100,
+                              error_message="Утилита nslookup не найдена в PATH.", 
+                              completed_at=datetime.now(MOSCOW_TZ))
+                    return
+                except Exception as e:
+                    results.append({'domain': domain, 'status': 'error', 'error': str(e)})
+                    with open(output_file, 'a', encoding='utf-8') as f:
+                        f.write(f"\n{'='*60}\nДомен: {domain}\n{'='*60}\nОшибка: {str(e)}\n")
+            
+            # Читаем содержимое файла и сохраняем в БД
+            with open(output_file, 'r', encoding='utf-8') as f:
+                nslookup_output = f.read()
+            
+            job = ScanJob.query.get(scan_job_id)
+            if job:
+                job.nslookup_output = nslookup_output
+                job.nslookup_file_path = output_file
+                update_job(scan_job_id, progress=100, status='completed', current_target='Готово', 
+                          completed_at=datetime.now(MOSCOW_TZ))
+                print(f"✅ Job {scan_job_id} nslookup завершён успешно")
+                print(f"📁 Файл сохранён: {output_file}")
+                print(f"📊 Обработано доменов: {processed}/{len(domains)}")
+            
+        except Exception as e:
+            update_job(scan_job_id, status='failed', progress=100, 
+                      error_message=f"Критическая ошибка: {str(e)}", completed_at=datetime.now(MOSCOW_TZ))
+            print(f"❌ Критическая ошибка nslookup job {scan_job_id}: {e}")
             import traceback
             traceback.print_exc()
         finally:

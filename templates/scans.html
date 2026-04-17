@@ -71,6 +71,7 @@
                                     <select id="scan-type" class="form-select" onchange="toggleScanOptions()">
                                         <option value="rustscan">🚀 Rustscan</option>
                                         <option value="nmap">🔍 Nmap</option>
+                                        <option value="nslookup">🌐 Nslookup (DNS)</option>
                                     </select>
                                 </div>
                                 <div class="col-md-6">
@@ -78,6 +79,7 @@
                                     <select id="target-method" class="form-select" onchange="toggleTargetInput()">
                                         <option value="ip">IP / CIDR</option>
                                         <option value="group">Группа активов</option>
+                                        <option value="text">Список доменов</option>
                                     </select>
                                 </div>
                             </div>
@@ -92,6 +94,10 @@
                                     <option value="ungrouped">📂 Без группы</option>
                                     {% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
                                 </select>
+                            </div>
+                            <div class="mb-3" id="target-text-section" style="display: none;">
+                                <label class="form-label">Список доменов (каждый с новой строки)</label>
+                                <textarea id="scan-target-text" class="form-control" rows="6" placeholder="example.com&#10;google.com&#10;github.com"></textarea>
                             </div>
                             <div class="mb-3" id="ports-section" style="display: none;">
                                 <label class="form-label">Порты (для Nmap)</label>
@@ -189,12 +195,18 @@
         // === УПРАВЛЕНИЕ ФОРМОЙ ===
         function toggleTargetInput(){
             const m=document.getElementById('target-method').value;
-            document.getElementById('target-ip-section').style.display=m==='group'?'none':'block';
+            document.getElementById('target-ip-section').style.display=m==='text'||m==='group'?'none':'block';
             document.getElementById('target-group-section').style.display=m==='group'?'block':'none';
+            document.getElementById('target-text-section').style.display=m==='text'?'block':'none';
         }
         function toggleScanOptions(){
             const t=document.getElementById('scan-type').value;
             document.getElementById('ports-section').style.display=t==='nmap'?'block':'none';
+            // Для nslookup всегда показываем текстовое поле
+            if(t==='nslookup'){
+                document.getElementById('target-method').value='text';
+                toggleTargetInput();
+            }
         }
         function resetScanForm(){
             document.getElementById('scanForm').reset();
@@ -206,6 +218,19 @@
             e.preventDefault();
             const t=document.getElementById('scan-type').value;
             const m=document.getElementById('target-method').value;
+            
+            // Обработка nslookup
+            if(t==='nslookup'){
+                const targetText=document.getElementById('scan-target-text').value;
+                if(!targetText||!targetText.trim()){alert('⚠️ Введите список доменов');return;}
+                try{
+                    const res=await fetch(`/api/scans/nslookup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_text:targetText})});
+                    const d=await res.json();
+                    if(res.ok){ alert(`✅ ${d.message}`); location.reload(); } else alert(`❌ ${d.error}`);
+                }catch(err){ alert(`❌ Ошибка сети: ${err.message}`); }
+                return;
+            }
+            
             const tg=m==='ip'?document.getElementById('scan-target').value:null;
             const gr=m==='group'?document.getElementById('scan-group').value:null;
             if(m==='ip'&&!tg){alert('⚠️ Укажите цель');return;}
@@ -232,7 +257,19 @@
                 const r=await fetch(`/api/scans/${id}/results`);
                 const d=await r.json();
                 let h=`<h6>#${d.job.id} - ${d.job.scan_type.toUpperCase()}</h6><p><strong>Цель:</strong> ${d.job.target}</p><p><strong>Статус:</strong> ${d.job.status}</p><hr>`;
-                if(d.results.length===0) h+='<p class="text-muted">Нет результатов</p>';
+                
+                // Обработка nslookup
+                if(d.job.scan_type==='nslookup'){
+                    if(d.job.nslookup_output){
+                        h+=`<pre class="bg-light p-3" style="max-height:400px;overflow:auto;">${d.job.nslookup_output.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`;
+                        h+=`<a href="/scans/${id}/download/text" class="btn btn-outline-primary mt-2"><i class="bi bi-download"></i> Скачать результаты</a>`;
+                    } else {
+                        h+='<p class="text-muted">Нет результатов</p>';
+                    }
+                }
+                else if(d.results.length===0) {
+                    h+='<p class="text-muted">Нет результатов</p>';
+                }
                 else{
                     h+=`<p><strong>Хостов:</strong> ${d.results.length}</p><div class="list-group">`;
                     d.results.forEach(x=>{

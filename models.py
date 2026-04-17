@@ -117,11 +117,11 @@ class Asset(db.Model):
 
 
 class ScanJob(db.Model):
-    """Модель задания сканирования (Nmap/Rustscan)"""
+    """Модель задания сканирования (Nmap/Rustscan/Nslookup)"""
     __tablename__ = 'scan_job'
     
     id = db.Column(db.Integer, primary_key=True)
-    scan_type = db.Column(db.String(20), nullable=False)  # 'nmap', 'rustscan'
+    scan_type = db.Column(db.String(20), nullable=False)  # 'nmap', 'rustscan', 'nslookup'
     target = db.Column(db.Text, nullable=False)
     status = db.Column(db.String(20), default='pending')  # pending, running, paused, completed, failed, stopped
     progress = db.Column(db.Integer, default=0)
@@ -129,10 +129,16 @@ class ScanJob(db.Model):
     total_hosts = db.Column(db.Integer, default=0)
     hosts_processed = db.Column(db.Integer, default=0)
     error_message = db.Column(db.Text, nullable=True)
-    rustscan_output = db.Column(db.Text, nullable=True)
-    nmap_xml_path = db.Column(db.String(500), nullable=True)
-    nmap_grep_path = db.Column(db.String(500), nullable=True)
-    nmap_normal_path = db.Column(db.String(500), nullable=True)
+    rustscan_output = db.Column(db.Text, nullable=True)  # 🔥 Содержимое вывода rustscan
+    rustscan_text_path = db.Column(db.String(500), nullable=True)  # Путь к текстовому файлу rustscan
+    nmap_xml_path = db.Column(db.String(500), nullable=True)  # Путь к XML файлу nmap
+    nmap_grep_path = db.Column(db.String(500), nullable=True)  # Путь к grepable файлу nmap
+    nmap_normal_path = db.Column(db.String(500), nullable=True)  # Путь к normal файлу nmap
+    nmap_xml_content = db.Column(db.Text, nullable=True)  # 🔥 Содержимое XML файла nmap
+    nmap_grep_content = db.Column(db.Text, nullable=True)  # 🔥 Содержимое grepable файла nmap
+    nmap_normal_content = db.Column(db.Text, nullable=True)  # 🔥 Содержимое normal файла nmap
+    nslookup_output = db.Column(db.Text, nullable=True)  # 🔥 Содержимое вывода nslookup
+    nslookup_file_path = db.Column(db.String(500), nullable=True)  # Путь к файлу nslookup
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     started_at = db.Column(db.DateTime, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
@@ -151,6 +157,16 @@ class ScanJob(db.Model):
             'total_hosts': self.total_hosts,
             'hosts_processed': self.hosts_processed,
             'error_message': self.error_message,
+            'rustscan_output': self.rustscan_output,
+            'rustscan_text_path': self.rustscan_text_path,
+            'nmap_xml_path': self.nmap_xml_path,
+            'nmap_grep_path': self.nmap_grep_path,
+            'nmap_normal_path': self.nmap_normal_path,
+            'nmap_xml_content': self.nmap_xml_content,
+            'nmap_grep_content': self.nmap_grep_content,
+            'nmap_normal_content': self.nmap_normal_content,
+            'nslookup_output': self.nslookup_output,
+            'nslookup_file_path': self.nslookup_file_path,
             'created_at': self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else None,
             'started_at': self.started_at.strftime('%Y-%m-%d %H:%M') if self.started_at else None,
             'completed_at': self.completed_at.strftime('%Y-%m-%d %H:%M') if self.completed_at else None,

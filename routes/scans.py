@@ -3,7 +3,7 @@ import threading
 from extensions import db
 from models import Group, Asset, ScanJob, ScanProfile
 from utils import build_group_tree
-from scanner import run_rustscan_scan, run_nmap_scan, check_scan_conflicts
+from scanner import run_rustscan_scan, run_nmap_scan, check_scan_conflicts, run_nslookup_scan
 from datetime import datetime
 import os, threading, json
 from utils import format_moscow_time
@@ -52,6 +52,13 @@ def download_scan_results(job_id, format_type):
         elif format_type == 'normal': file_path, filename = scan_job.nmap_normal_path, 'nmap_results.txt'
         if file_path and os.path.exists(file_path): return send_file(file_path, mimetype=mimetype, as_attachment=True, download_name=filename)
         else: flash('Файл результатов не найден', 'danger'); return redirect(url_for('scans.scans_page'))
+    elif scan_job.scan_type == 'nslookup':
+        if format_type == 'text':
+            if not scan_job.nslookup_output: flash('Результаты недоступны', 'danger'); return redirect(url_for('scans.scans_page'))
+            return Response(scan_job.nslookup_output, mimetype='text/plain', headers={'Content-Disposition': f'attachment; filename=nslookup_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}.txt'})
+        if scan_job.nslookup_file_path and os.path.exists(scan_job.nslookup_file_path):
+            return send_file(scan_job.nslookup_file_path, mimetype='text/plain', as_attachment=True, download_name='nslookup_results.txt')
+        else: flash('Файл результатов не найден', 'danger'); return redirect(url_for('scans.scans_page'))
     flash('Неподдерживаемый формат', 'danger'); return redirect(url_for('scans.scans_page'))
 
 @scans_bp.route('/api/scans/<int:job_id>/control', methods=['POST'])
@@ -69,7 +76,7 @@ def control_scan_job(job_id):
             return jsonify({'error': f'Нельзя возобновить задание в статусе: {scan_job.status}'}), 400
         elif action == 'delete':
             if scan_job.status in ['pending', 'completed', 'failed', 'stopped']:
-                for f in [scan_job.nmap_xml_path, scan_job.nmap_grep_path, scan_job.nmap_normal_path]:
+                for f in [scan_job.nmap_xml_path, scan_job.nmap_grep_path, scan_job.nmap_normal_path, scan_job.nslookup_file_path]:
                     if f and os.path.exists(f):
                         try: os.remove(f)
                         except: pass
@@ -206,4 +213,32 @@ def start_nmap():
         'success': True, 
         'job_id': scan_job.id, 
         'message': f'Nmap запущен для {target_description}'
+    })
+
+@scans_bp.route('/api/scans/nslookup', methods=['POST'])
+def start_nslookup():
+    data = request.json
+    target_text = data.get('target_text', '')  # Список доменов, разделённых переносом строки
+    
+    if not target_text or not target_text.strip():
+        return jsonify({'error': 'Список доменов пуст'}), 400
+    
+    # Создаём задание
+    scan_job = ScanJob(
+        scan_type='nslookup', 
+        target=f"Домены ({len([d for d in target_text.split('\\n') if d.strip()])} шт.)", 
+        status='pending'
+    )
+    db.session.add(scan_job)
+    db.session.commit()
+    
+    app_obj = current_app._get_current_object()
+    thread = threading.Thread(target=run_nslookup_scan, args=(app_obj, scan_job.id, target_text))
+    thread.daemon = True
+    thread.start()
+    
+    return jsonify({
+        'success': True, 
+        'job_id': scan_job.id, 
+        'message': f'Nslookup запущен для {scan_job.target}'
     })
