@@ -47,6 +47,41 @@ function initTreeTogglers() {
         }
         filterByGroup(treeNode.dataset.id);
     });
+    
+    // 🔥 Подсветка активной группы при загрузке страницы на основе URL
+    highlightActiveGroupFromUrl();
+}
+
+// 🔥 Функция подсветки активной группы на основе параметров URL
+function highlightActiveGroupFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    let groupId = null;
+    
+    if (params.has('ungrouped') && params.get('ungrouped') === 'true') {
+        groupId = 'ungrouped';
+    } else if (params.has('group_id')) {
+        groupId = params.get('group_id');
+    }
+    
+    if (groupId) {
+        // Снимаем выделение со всех
+        document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
+        // Находим и выделяем нужный узел
+        const activeNode = document.querySelector(`.tree-node[data-id="${groupId}"]`);
+        if (activeNode) {
+            activeNode.classList.add('active');
+            // Раскрываем родительские узлы если нужно
+            let parent = activeNode.parentElement;
+            while (parent) {
+                if (parent.classList.contains('nested')) {
+                    parent.classList.add('active');
+                    const caret = parent.previousElementSibling?.querySelector('.caret');
+                    if (caret) caret.classList.add('caret-down');
+                }
+                parent = parent.parentElement;
+            }
+        }
+    }
 }
 
 function filterByGroup(groupId) {
