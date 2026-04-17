@@ -1,5 +1,11 @@
-# Web Framework
-flask>=2.3.0
-
-# ORM и работа с БД
-flask-sqlalchemy>=3.0.0
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Flask-Migrate==4.0.7
+Werkzeug==3.0.3
+SQLAlchemy==2.0.36
+requests==2.32.3
+python-nmap==0.7.1
+email-validator==2.2.0
+gunicorn==22.0.0

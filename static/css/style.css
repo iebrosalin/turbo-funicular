@@ -30,3 +30,32 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 .filter-group { border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.75rem; background: var(--bg-card); position: relative; }
 .filter-condition { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; background: var(--bg-body); padding: 0.5rem; border-radius: 0.375rem; }
 @media (max-width: 768px) { .sidebar { display: none !important; } }
+.group-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0; /* Скрыты по умолчанию */
+    transition: opacity 0.2s;
+}
+
+.tree-node:hover .group-actions {
+    opacity: 1; /* Показываем при наведении на группу */
+}
+
+.btn-action {
+    background: transparent;
+    border: none;
+    padding: 2px 4px;
+    cursor: pointer;
+    color: inherit;
+    border-radius: 4px;
+}
+
+.btn-action:hover {
+    background-color: var(--bg-hover);
+    color: var(--bs-primary);
+}
+
+.btn-action.text-danger:hover {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: var(--bs-danger);
+}

@@ -29,13 +29,11 @@ def parse_targets(target_str):
     """Разбивает строку целей на список IP/CIDR"""
     return [t.strip() for t in re.split(r'[,\s]+', target_str) if t.strip()]
 
-# 🔥 Функция check_scan_conflicts остаётся в scanner.py для импорта в routes
 def check_scan_conflicts(target, scan_type):
     """
-    🔥 Проверка на конфликты сканирований
+    Проверка на конфликты сканирований
     Возвращает: (is_blocked, error_message)
     """
-    # Проверка активных сканирований той же цели
     active_jobs = ScanJob.query.filter(
         ScanJob.status.in_(['pending', 'running', 'paused']),
         ScanJob.target == target
@@ -44,7 +42,6 @@ def check_scan_conflicts(target, scan_type):
     if active_jobs:
         return True, f"Активное сканирование уже выполняется для {target} (job #{active_jobs[0].id})"
     
-    # Проверка активных сканирований того же типа
     same_type_jobs = ScanJob.query.filter(
         ScanJob.status.in_(['pending', 'running', 'paused']),
         ScanJob.scan_type == scan_type
@@ -57,7 +54,7 @@ def check_scan_conflicts(target, scan_type):
 
 def validate_custom_args(scan_type, custom_args):
     """
-    🔥 Проверка корректности кастомных аргументов перед запуском
+    Проверка корректности кастомных аргументов перед запуском
     Возвращает: (is_valid, error_message, parsed_args)
     """
     if not custom_args or not custom_args.strip():
@@ -68,7 +65,6 @@ def validate_custom_args(scan_type, custom_args):
     parsed_rustscan = []
     parsed_nmap = []
     
-    # Проверка баланса флагов и значений
     i = 0
     while i < len(args_list):
         arg = args_list[i]
@@ -85,7 +81,6 @@ def validate_custom_args(scan_type, custom_args):
                 i += 1
         i += 1
     
-    # Проверка портов
     i = 0
     while i < len(args_list):
         if args_list[i] in ['-p', '--ports'] and i + 1 < len(args_list):
@@ -94,7 +89,6 @@ def validate_custom_args(scan_type, custom_args):
                 errors.append(f"❌ Неверный формат портов: '{port_val}'")
         i += 1
     
-    # Разделение аргументов Rustscan и Nmap
     in_nmap_section = False
     for arg in args_list:
         if arg == '--':
@@ -109,14 +103,13 @@ def validate_custom_args(scan_type, custom_args):
         return False, '\n'.join(errors), {'rustscan': parsed_rustscan, 'nmap': parsed_nmap}
     return True, None, {'rustscan': parsed_rustscan, 'nmap': parsed_nmap}
 
-def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
+def run_rustscan_scan(app, scan_job_id, target, ports, custom_args=''):
     """Фоновое выполнение Rustscan с отладкой вывода"""
     with app.app_context():
         try:
             db.session.remove()
             targets = parse_targets(target)
             
-            # Валидация
             is_valid, error_msg, parsed_args = validate_custom_args('rustscan', custom_args)
             if not is_valid:
                 update_job(scan_job_id, status='failed', progress=100,
@@ -128,7 +121,6 @@ def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
             update_job(scan_job_id, status='running', progress=5, total_hosts=len(targets), 
                       hosts_processed=0, current_target='Инициализация...')
             
-            # Сборка команды
             cmd = ['rustscan', '-a', target, '--greppable']
             cmd.extend(parsed_args['rustscan'])
             if parsed_args['nmap']:
@@ -140,16 +132,13 @@ def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
             print(f"   📜 Команда: {cmd_str}")
             print(f"   🎯 Цель: {target}")
             
-            # 🔥 Запуск с захватом stdout
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
             start_time = time.time()
             processed = 0
             output_lines = []
 
-            # 🔥 Читаем stdout ПОСТРОЧНО
             for line in iter(process.stdout.readline, ''):
                 line = line.strip()
-                print(f"📝 Rustscan stdout: {line}")  # 🔥 ОТЛАДКА
                 if line:
                     output_lines.append(line)
                 
@@ -177,11 +166,6 @@ def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
             process.wait()
             stdout_data, stderr_data = process.communicate()
             
-            print(f"📊 Process returncode: {process.returncode}")
-            print(f"📊 Output lines collected: {len(output_lines)}")
-            print(f"📊 Stdout data length: {len(stdout_data) if stdout_data else 0}")
-            print(f"📊 Stderr data: {stderr_data[:500] if stderr_data else 'None'}")
-            
             job = ScanJob.query.get(scan_job_id)
             if not job: 
                 print("❌ Job не найден после завершения процесса")
@@ -195,14 +179,18 @@ def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
                 print(f"❌ Ошибка rustscan: {err_msg}")
                 return
 
-            # 🔥 Сохраняем вывод ДВУМЯ способами
             job.rustscan_output = '\n'.join(output_lines) if output_lines else stdout_data
-            print(f"📝 Сохранён вывод: {len(job.rustscan_output)} символов")
-            print(f"📝 Первые 500 символов: {job.rustscan_output[:500]}")
+            
+            ts = datetime.now(MOSCOW_TZ).strftime('%Y%m%d_%H%M%S')
+            res_dir = os.path.join('scan_results', f'rustscan_{ts}')
+            os.makedirs(res_dir, exist_ok=True)
+            text_path = os.path.join(res_dir, 'scan.txt')
+            with open(text_path, 'w', encoding='utf-8') as f:
+                f.write(job.rustscan_output)
+            job.rustscan_text_path = text_path
             
             update_job(scan_job_id, progress=98, current_target='Парсинг результатов...')
             
-            # 🔥 Вызываем парсер с явной передачей вывода
             parse_rustscan_results(scan_job_id, job.rustscan_output, target)
             
             update_job(scan_job_id, progress=100, status='completed', current_target='Готово', 
@@ -223,16 +211,12 @@ def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
             db.session.remove()
 
 def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
-    """
-    Фоновое выполнение Nmap
-    🔥 ПРОВЕРКА КОНФЛИКТОВ УДАЛЕНА — выполняется только в маршруте до создания job
-    """
+    """Фоновое выполнение Nmap"""
     with app.app_context():
         try:
             db.session.remove()
             targets = parse_targets(target)
             
-            # 🔥 ВАЛИДАЦИЯ АРГУМЕНТОВ (остаётся)
             is_valid, error_msg, parsed_args = validate_custom_args('nmap', custom_args)
             if not is_valid:
                 update_job(scan_job_id, status='failed', progress=100,
@@ -240,8 +224,6 @@ def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
                           completed_at=datetime.now(MOSCOW_TZ))
                 print(f"❌ Ошибка валидации аргументов nmap job {scan_job_id}: {error_msg}")
                 return
-            
-            # 🔥 ПРОВЕРКА КОНФЛИКТОВ УДАЛЕНА отсюда!
             
             update_job(scan_job_id, status='running', progress=5, total_hosts=len(targets), 
                       hosts_processed=0, current_target='Инициализация...')
@@ -281,11 +263,22 @@ def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
                     return
                 if job.status == 'paused':
                     if os.name != 'nt':
-                        os.kill(process.pid, 19)
-                        while ScanJob.query.get(scan_job_id).status == 'paused': time.sleep(0.5)
-                        os.kill(process.pid, 18)
+                        try:
+                            os.kill(process.pid, 19)
+                            while True:
+                                cur_job = ScanJob.query.get(scan_job_id)
+                                if not cur_job or cur_job.status != 'paused':
+                                    break
+                                time.sleep(0.5)
+                            os.kill(process.pid, 18)
+                        except ProcessLookupError:
+                            break
                     else:
-                        while ScanJob.query.get(scan_job_id).status == 'paused': time.sleep(0.5)
+                        while True:
+                            cur_job = ScanJob.query.get(scan_job_id)
+                            if not cur_job or cur_job.status != 'paused':
+                                break
+                            time.sleep(0.5)
                     continue
 
                 hm = re.search(r'Nmap scan report for (.+)', line)
@@ -316,19 +309,32 @@ def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
             job.nmap_xml_path = f'{base}.xml'
             job.nmap_grep_path = f'{base}.gnmap'
             job.nmap_normal_path = f'{base}.nmap'
-            if os.path.exists(job.nmap_xml_path): parse_nmap_results(scan_job_id, job.nmap_xml_path)
+            
+            if os.path.exists(job.nmap_xml_path):
+                with open(job.nmap_xml_path, 'r', encoding='utf-8') as f:
+                    job.nmap_xml_content = f.read()
+                parse_nmap_results(scan_job_id, job.nmap_xml_path)
+            
+            if os.path.exists(job.nmap_grep_path):
+                with open(job.nmap_grep_path, 'r', encoding='utf-8') as f:
+                    job.nmap_grep_content = f.read()
+            
+            if os.path.exists(job.nmap_normal_path):
+                with open(job.nmap_normal_path, 'r', encoding='utf-8') as f:
+                    job.nmap_normal_content = f.read()
+            
             update_job(scan_job_id, progress=100, status='completed', current_target='Готово', 
                       completed_at=datetime.now(MOSCOW_TZ))
             print(f"✅ Job {scan_job_id} завершён успешно")
 
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             update_job(scan_job_id, status='failed', progress=100, 
-                      error_message=f"Утилита nmap не найдена в PATH.", completed_at=datetime.now(MOSCOW_TZ))
-            print(f"❌ nmap не установлен или не в PATH")
-        except PermissionError as e:
+                      error_message="Утилита nmap не найдена в PATH.", completed_at=datetime.now(MOSCOW_TZ))
+            print("❌ nmap не установлен или не в PATH")
+        except PermissionError:
             update_job(scan_job_id, status='failed', progress=100, 
-                      error_message=f"Нет прав на выполнение nmap.", completed_at=datetime.now(MOSCOW_TZ))
-            print(f"❌ Нет прав на nmap")
+                      error_message="Нет прав на выполнение nmap.", completed_at=datetime.now(MOSCOW_TZ))
+            print("❌ Нет прав на nmap")
         except Exception as e:
             update_job(scan_job_id, status='failed', progress=100, 
                       error_message=f"Критическая ошибка: {str(e)}", completed_at=datetime.now(MOSCOW_TZ))
@@ -338,12 +344,117 @@ def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
         finally:
             db.session.remove()
 
+def run_nslookup_scan(app, job_id, targets_text, dns_server='77.88.8.8', cli_args=''):
+    """
+    Выполняет nslookup для списка доменов.
+    ВАЖНО: Первый аргумент - app (объект Flask), чтобы работать в контексте.
+    """
+    with app.app_context():
+        try:
+            db.session.remove()
+            job = ScanJob.query.get(job_id)
+            if not job:
+                return
+
+            job.status = 'running'
+            job.started_at = datetime.now(MOSCOW_TZ)
+            db.session.commit()
+
+            domains = [d.strip() for d in targets_text.split('\n') if d.strip()]
+            total = len(domains)
+            output_lines = []
+
+            for i, domain in enumerate(domains):
+                job.current_target = domain
+                job.progress = int((i / total) * 100)
+                db.session.commit()
+
+                # Формирование команды: nslookup [опции] домен [сервер]
+                cmd = ['nslookup']
+                if cli_args:
+                    cmd.extend(cli_args.split())
+                cmd.append(domain)
+                if dns_server:
+                    cmd.append(dns_server)
+
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                output_lines.append(f">>> {domain}\n{result.stdout}")
+                if result.stderr:
+                    output_lines.append(f"ERROR: {result.stderr}")
+                
+                # Парсинг результатов сразу
+                parse_nslookup_output(result.stdout, domain)
+
+            job.status = 'completed'
+            job.nslookup_output = "\n".join(output_lines)
+            job.progress = 100
+            job.completed_at = datetime.now(MOSCOW_TZ)
+            db.session.commit()
+            
+        except Exception as e:
+            if job:
+                job.status = 'failed'
+                job.error_message = str(e)
+                job.nslookup_output = "\n".join(output_lines) if 'output_lines' in locals() else ""
+                db.session.commit()
+            print(f"❌ Ошибка nslookup: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            db.session.remove()
+
+def parse_nslookup_output(output, domain_query):
+    """Парсинг вывода nslookup и создание активов"""
+    lines = output.split('\n')
+    current_ip = None
+    current_name = None
+    
+    for line in lines:
+        line = line.strip()
+        if line.startswith('Name:'):
+            current_name = line.split(':', 1)[1].strip()
+        elif line.startswith('Address:') and '#' not in line:
+            current_ip = line.split(':', 1)[1].strip()
+            
+            if current_ip and current_name:
+                try:
+                    asset = Asset.query.filter_by(ip_address=current_ip).first()
+                    if not asset:
+                        asset = Asset(
+                            ip_address=current_ip,
+                            hostname=current_name,
+                            status='up',
+                            data_source='nslookup'
+                        )
+                        db.session.add(asset)
+                        db.session.flush()
+                        log_asset_change(asset.id, 'asset_created', 'ip_address', None, current_ip, None, 'Создан через nslookup')
+                    
+                    # Обновляем DNS имена
+                    if asset.dns_names:
+                        try:
+                            names = json.loads(asset.dns_names)
+                        except:
+                            names = []
+                    else:
+                        names = []
+                    
+                    if current_name not in names:
+                        names.append(current_name)
+                        asset.dns_names = json.dumps(names)
+                    
+                    asset.last_scanned = datetime.now(MOSCOW_TZ)
+                    db.session.commit()
+                    print(f"✅ NSLookup: Добавлен/обновлен актив {current_ip} ({current_name})")
+                    
+                except Exception as e:
+                    print(f"❌ Ошибка сохранения актива из nslookup: {e}")
+                    db.session.rollback()
+                
+                current_name = None # Сброс для следующей записи
+
 def parse_rustscan_results(scan_job_id, output, target):
     """Парсинг вывода Rustscan с обработкой квадратных скобок"""
-    print(f"🔍 Парсинг rustscan job {scan_job_id}...")
-    print(f"🔍 Вывод получен: {bool(output)}")
-    print(f"🔍 Длина вывода: {len(output) if output else 0}")
-    
     if not output:
         print(f"⚠️ ПУСТОЙ вывод rustscan для job {scan_job_id}")
         return
@@ -352,10 +463,7 @@ def parse_rustscan_results(scan_job_id, output, target):
     
     for line in output.strip().split('\n'):
         line = line.strip()
-        print(f"🔍 Строка: '{line}'")
-        
         if not line or '->' not in line:
-            print(f"⚠️ Пропущено (нет '->'): {line}")
             continue
             
         try:
@@ -363,16 +471,12 @@ def parse_rustscan_results(scan_job_id, output, target):
             ip = parts[0].strip()
             ports_str = parts[1].strip() if len(parts) > 1 else ''
             
-            # 🔥 УДАЛЯЕМ КВАДРАТНЫЕ СКОБКИ
+            # Удаляем квадратные скобки
             ports_str = ports_str.replace('[', '').replace(']', '')
             
-            print(f"🔍 IP: {ip}, Порты (после очистки): {ports_str}")
-            
-            # Теперь разбиваем по запятым и проверяем isdigit()
             new_ports = [p.strip() for p in ports_str.split(',') if p.strip() and p.strip().isdigit()]
             
             if not new_ports:
-                print(f"⚠️ Не найдено портов для {ip}")
                 continue
             
             formatted_ports = [f"{p}/tcp" for p in new_ports]
@@ -380,14 +484,12 @@ def parse_rustscan_results(scan_job_id, output, target):
             
             asset = Asset.query.filter_by(ip_address=ip).first()
             if not asset:
-                print(f"🆕 Создаю новый актив для {ip}")
                 asset = Asset(ip_address=ip, status='up', data_source='scanning',
                              rustscan_ports=ports_string, last_rustscan=datetime.now(MOSCOW_TZ))
                 db.session.add(asset)
                 db.session.flush()
                 log_asset_change(asset.id, 'asset_created', 'ip_address', None, ip, scan_job_id, 'Создан через rustscan')
             else:
-                print(f"✏️ Обновляю существующий актив {ip}")
                 asset.rustscan_ports = ports_string
                 asset.last_rustscan = datetime.now(MOSCOW_TZ)
                 
@@ -410,11 +512,9 @@ def parse_rustscan_results(scan_job_id, output, target):
                                      scanned_at=datetime.now(MOSCOW_TZ)))
             
             parsed_count += 1
-            print(f"✅ Обработан {ip}: порты {', '.join(new_ports)}")
             
         except Exception as e:
-            print(f"❌ Ошибка парсинга строки: {line}")
-            print(f"❌ Ошибка: {e}")
+            print(f"❌ Ошибка парсинга строки rustscan: {line} - {e}")
             import traceback
             traceback.print_exc()
     
@@ -466,8 +566,12 @@ def parse_nmap_results(scan_job_id, xml_path):
                         if asset:
                             ex = ServiceInventory.query.filter_by(asset_id=asset.id, port=pstr).first()
                             if ex:
-                                ex.service_name, ex.product, ex.version, ex.extrainfo, ex.last_seen, ex.is_active = \
-                                    s['name'], s['product'], s['version'], s['extrainfo'], datetime.now(MOSCOW_TZ), True
+                                ex.service_name = s['name']
+                                ex.product = s['product']
+                                ex.version = s['version']
+                                ex.extrainfo = s['extrainfo']
+                                ex.last_seen = datetime.now(MOSCOW_TZ)
+                                ex.is_active = True
                             else:
                                 db.session.add(ServiceInventory(asset_id=asset.id, port=pstr, protocol=proto, 
                                                                service_name=s['name'], product=s['product'], 

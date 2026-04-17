@@ -1,209 +1,308 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response, send_file, current_app
+from flask import Blueprint, request, jsonify, render_template, current_app
+from models import db, Asset, Group, ScanJob, ScanResult
+from utils import create_asset_if_not_exists, update_asset_dns_names
+import json
+import os
 import threading
-from extensions import db
-from models import Group, Asset, ScanJob, ScanProfile
-from utils import build_group_tree
-from scanner import run_rustscan_scan, run_nmap_scan, check_scan_conflicts
+import traceback
 from datetime import datetime
-import os, threading, json
-from utils import format_moscow_time
+from scanner import run_rustscan_scan, run_nmap_scan, run_nslookup_scan
 
 scans_bp = Blueprint('scans', __name__)
 
+# ────────────────────────────────────────────────────────────────
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ────────────────────────────────────────────────────────────────
+
+def run_scan_wrapper(app, func, job_id, *args):
+    """
+    Обертка для безопасного запуска сканирования в потоке.
+    app: объект приложения Flask
+    func: функция сканирования (например, run_rustscan_scan)
+    job_id: ID задачи
+    *args: остальные аргументы для функции сканирования
+    """
+    try:
+        with app.app_context():
+            # ИСПРАВЛЕНИЕ: Передаем app первым аргументом, так как функции в scanner.py ожидают его там
+            func(app, job_id, *args)
+    except Exception as e:
+        print(f"❌ Ошибка в потоке сканирования {job_id}: {e}")
+        traceback.print_exc()
+        
+        try:
+            with app.app_context():
+                job = ScanJob.query.get(job_id)
+                if job:
+                    job.status = 'failed'
+                    job.error_message = f"Exception in thread: {str(e)}\n{traceback.format_exc()}"
+                    job.progress = 0
+                    job.completed_at = datetime.utcnow()
+                    db.session.commit()
+        except Exception as db_err:
+            print(f"❌ Ошибка обновления статуса задачи в БД: {db_err}")
+
+# ────────────────────────────────────────────────────────────────
+# СТРАНИЦЫ
+# ────────────────────────────────────────────────────────────────
+
 @scans_bp.route('/scans')
 def scans_page():
-    all_groups = Group.query.all(); group_tree = build_group_tree(all_groups)
-    scan_jobs = ScanJob.query.order_by(ScanJob.created_at.desc()).limit(50).all()
-    profiles = ScanProfile.query.order_by(ScanProfile.name).all()
-    return render_template('scans.html', scan_jobs=scan_jobs, group_tree=group_tree, all_groups=all_groups, profiles=profiles)
+    """Страница управления сканированиями"""
+    jobs = ScanJob.query.order_by(ScanJob.created_at.desc()).limit(50).all()
+    profiles = [] 
+    all_groups = Group.query.all()
+    return render_template('scans.html', scan_jobs=jobs, profiles=profiles, all_groups=all_groups)
 
-def get_assets_for_group(group_id):
-    if group_id == 'ungrouped': return Asset.query.filter(Asset.group_id.is_(None)).all(), "Без группы"
-    group = Group.query.get(group_id)
-    if not group: return None, None
-    def get_child_group_ids(parent_id, all_groups, result=[]):
-        children = [g for g in all_groups if g.parent_id == parent_id]
-        for child in children: result.append(child.id); get_child_group_ids(child.id, all_groups, result)
-        return result
-    all_groups = Group.query.all(); group_ids = [group_id] + get_child_group_ids(group_id, all_groups)
-    return Asset.query.filter(Asset.group_id.in_(group_ids)).all(), group.name
-
-
-@scans_bp.route('/api/scans/<int:job_id>')
-def get_scan_status(job_id): return jsonify(ScanJob.query.get_or_404(job_id).to_dict())
-
-@scans_bp.route('/api/scans/<int:job_id>/results')
-def get_scan_results(job_id):
-    scan_job = ScanJob.query.get_or_404(job_id)
-    results = [{'ip': r.ip_address, 'ports': json.loads(r.ports) if r.ports else [], 'services': json.loads(r.services) if r.services else [], 'os': r.os_detection, 'scanned_at': r.scanned_at.strftime('%Y-%m-%d %H:%M:%S')} for r in scan_job.results]
-    return jsonify({'job': scan_job.to_dict(), 'results': results})
-
-@scans_bp.route('/scans/<int:job_id>/download/<format_type>')
-def download_scan_results(job_id, format_type):
-    scan_job = ScanJob.query.get_or_404(job_id)
-    if scan_job.scan_type == 'rustscan':
-        if format_type == 'greppable':
-            if not scan_job.rustscan_output: flash('Результаты недоступны', 'danger'); return redirect(url_for('scans.scans_page'))
-            return Response(scan_job.rustscan_output, mimetype='text/plain', headers={'Content-Disposition': f'attachment; filename=rustscan_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}.txt'})
-    elif scan_job.scan_type == 'nmap':
-        file_path = None; mimetype = 'text/plain'; filename = ''
-        if format_type == 'xml': file_path, mimetype, filename = scan_job.nmap_xml_path, 'application/xml', 'nmap_results.xml'
-        elif format_type == 'greppable': file_path, filename = scan_job.nmap_grep_path, 'nmap_results.gnmap'
-        elif format_type == 'normal': file_path, filename = scan_job.nmap_normal_path, 'nmap_results.txt'
-        if file_path and os.path.exists(file_path): return send_file(file_path, mimetype=mimetype, as_attachment=True, download_name=filename)
-        else: flash('Файл результатов не найден', 'danger'); return redirect(url_for('scans.scans_page'))
-    flash('Неподдерживаемый формат', 'danger'); return redirect(url_for('scans.scans_page'))
-
-@scans_bp.route('/api/scans/<int:job_id>/control', methods=['POST'])
-def control_scan_job(job_id):
-    data = request.json; action = data.get('action'); scan_job = ScanJob.query.get_or_404(job_id)
-    try:
-        if action == 'stop':
-            if scan_job.status in ['running', 'paused']: scan_job.status = 'stopped'; scan_job.error_message = "Остановлено пользователем."; scan_job.completed_at = datetime.utcnow(); db.session.commit(); return jsonify({'success': True})
-            return jsonify({'error': f'Нельзя остановить задание в статусе: {scan_job.status}'}), 400
-        elif action == 'pause':
-            if scan_job.status == 'running': scan_job.status = 'paused'; db.session.commit(); return jsonify({'success': True})
-            return jsonify({'error': f'Нельзя приостановить задание в статусе: {scan_job.status}'}), 400
-        elif action == 'resume':
-            if scan_job.status == 'paused': scan_job.status = 'running'; db.session.commit(); return jsonify({'success': True})
-            return jsonify({'error': f'Нельзя возобновить задание в статусе: {scan_job.status}'}), 400
-        elif action == 'delete':
-            if scan_job.status in ['pending', 'completed', 'failed', 'stopped']:
-                for f in [scan_job.nmap_xml_path, scan_job.nmap_grep_path, scan_job.nmap_normal_path]:
-                    if f and os.path.exists(f):
-                        try: os.remove(f)
-                        except: pass
-                db.session.delete(scan_job); db.session.commit(); return jsonify({'success': True})
-            return jsonify({'error': 'Нельзя удалить активное задание'}), 400
-        return jsonify({'error': 'Неизвестная команда'}), 400
-    except Exception as e: db.session.rollback(); return jsonify({'error': str(e)}), 500
+# ────────────────────────────────────────────────────────────────
+# API СКАНИРОВАНИЙ
+# ────────────────────────────────────────────────────────────────
 
 @scans_bp.route('/api/scans/status')
 def get_active_scans_status():
-    active_jobs = ScanJob.query.filter(ScanJob.status.in_(['pending', 'running'])).order_by(ScanJob.created_at.desc()).limit(10).all()
-    return jsonify({'active': [{
-        **job.to_dict(),
-        'started_at': format_moscow_time(job.started_at, '%H:%M')  # 🔥 Москва
-    } for job in active_jobs], 'total_active': len(active_jobs)})
-
-@scans_bp.route('/api/scans/profiles', methods=['GET'])
-def get_scan_profiles(): return jsonify([p.to_dict() for p in ScanProfile.query.order_by(ScanProfile.name).all()])
-
-@scans_bp.route('/api/scans/profiles', methods=['POST'])
-def save_scan_profile():
-    data = request.json
-    if not data.get('name'): return jsonify({'error': 'Имя профиля обязательно'}), 400
-    if ScanProfile.query.filter_by(name=data['name']).first(): return jsonify({'error': 'Профиль уже существует'}), 409
-    profile = ScanProfile(name=data['name'], scan_type=data['scan_type'], target_method=data.get('target_method', 'ip'), ports=data.get('ports'), custom_args=data.get('custom_args'))
-    db.session.add(profile); db.session.commit()
-    return jsonify(profile.to_dict()), 201
-
-@scans_bp.route('/api/scans/profiles/<int:id>', methods=['DELETE'])
-def delete_scan_profile(id):
-    profile = ScanProfile.query.get_or_404(id); db.session.delete(profile); db.session.commit()
-    return jsonify({'success': True})
+    active_jobs = ScanJob.query.filter(
+        ScanJob.status.in_(['pending', 'running', 'paused'])
+    ).order_by(ScanJob.created_at.desc()).all()
+    
+    jobs_data = []
+    for j in active_jobs:
+        jobs_data.append({
+            'id': j.id,
+            'scan_type': j.scan_type,
+            'target': j.target,
+            'status': j.status,
+            'progress': j.progress,
+            'current_target': j.current_target,
+            'created_at': j.created_at.strftime('%Y-%m-%d %H:%M:%S') if j.created_at else None
+        })
+    return jsonify({'active': jobs_data})
 
 @scans_bp.route('/api/scans/history')
 def get_scan_history():
     jobs = ScanJob.query.order_by(ScanJob.created_at.desc()).limit(50).all()
-    return jsonify([{
-        'id': j.id, 
-        'scan_type': j.scan_type, 
-        'target': j.target,
-        'status': j.status, 
-        'progress': j.progress,
-        'started_at': format_moscow_time(j.started_at, '%H:%M'),  # 🔥 Москва
-        'completed_at': format_moscow_time(j.completed_at, '%H:%M'),  # 🔥 Москва
-        'error_message': j.error_message
-    } for j in jobs])
+    history = []
+    for j in jobs:
+        history.append({
+            'id': j.id,
+            'scan_type': j.scan_type,
+            'target': j.target,
+            'status': j.status,
+            'progress': j.progress,
+            'error_message': j.error_message,
+            'started_at': j.started_at.strftime('%Y-%m-%d %H:%M:%S') if j.started_at else None,
+            'completed_at': j.completed_at.strftime('%Y-%m-%d %H:%M:%S') if j.completed_at else None
+        })
+    return jsonify(history)
 
 @scans_bp.route('/api/scans/rustscan', methods=['POST'])
 def start_rustscan():
     data = request.json
-    target = data.get('target', '')
-    group_id = data.get('group_id')
-    custom_args = data.get('custom_args', '')
+    target = data.get('target')
+    ports = data.get('ports', '-')
+    args = data.get('extra_args', '')
     
-    if group_id:
-        assets, group_name = get_assets_for_group(group_id)
-        if not assets: 
-            return jsonify({'error': 'В группе нет активов'}), 400
-        target = ' '.join([a.ip_address for a in assets])
-        target_description = f"Группа: {group_name} ({len(assets)} активов)"
-    else:
-        if not target: 
-            return jsonify({'error': 'Цель сканирования не указана'}), 400
-        target_description = target
-    
-    # 🔥 ПРОВЕРКА НА КОНФЛИКТЫ ДО СОЗДАНИЯ ЗАДАНИЯ
-    is_blocked, error_msg = check_scan_conflicts(target, 'rustscan')
-    if is_blocked:
-        return jsonify({'error': error_msg}), 409
-    
-    # Создаём задание только после успешной проверки
-    scan_job = ScanJob(
-        scan_type='rustscan', 
-        target=target_description, 
-        status='pending', 
-        rustscan_output=custom_args if custom_args else None
+    if not target:
+        return jsonify({'error': 'Не указана цель'}), 400
+        
+    job = ScanJob(
+        scan_type='rustscan',
+        target=target,
+        status='pending',
+        progress=0,
+        scan_parameters=json.dumps({'ports': ports, 'args': args})
     )
-    db.session.add(scan_job)
+    db.session.add(job)
     db.session.commit()
     
-    app_obj = current_app._get_current_object()
-    thread = threading.Thread(target=run_rustscan_scan, args=(app_obj, scan_job.id, target, custom_args))
-    thread.daemon = True
-    thread.start()
+    # Получаем текущее приложение и передаем в поток
+    app = current_app._get_current_object()
+    t = threading.Thread(
+        target=run_scan_wrapper, 
+        args=(app, run_rustscan_scan, job.id, target, ports, args)
+    )
+    t.daemon = True
+    t.start()
     
-    return jsonify({
-        'success': True, 
-        'job_id': scan_job.id, 
-        'message': f'Rustscan запущен для {target_description}'
-    })
+    return jsonify({'job_id': job.id, 'status': 'started', 'message': 'Сканирование запущено'})
 
 @scans_bp.route('/api/scans/nmap', methods=['POST'])
 def start_nmap():
     data = request.json
-    target = data.get('target', '')
-    group_id = data.get('group_id')
-    ports = data.get('ports', '')
-    custom_args = data.get('custom_args', '')
+    target = data.get('target')
+    ports = data.get('ports', '-')
+    scripts = data.get('scripts', '')
+    args = data.get('extra_args', '')
     
-    if group_id:
-        assets, group_name = get_assets_for_group(group_id)
-        if not assets: 
-            return jsonify({'error': 'В группе нет активов'}), 400
-        target = ' '.join([a.ip_address for a in assets])
-        target_description = f"Группа: {group_name} ({len(assets)} активов)"
-    else:
-        if not target: 
-            return jsonify({'error': 'Цель сканирования не указана'}), 400
-        target_description = target
-    
-    # 🔥 ПРОВЕРКА НА КОНФЛИКТЫ ДО СОЗДАНИЯ ЗАДАНИЯ
-    is_blocked, error_msg = check_scan_conflicts(target, 'nmap')
-    if is_blocked:
-        return jsonify({'error': error_msg}), 409
-    
-    scan_job = ScanJob(
-        scan_type='nmap', 
-        target=target_description, 
-        status='pending', 
-        rustscan_output=f'Ports: {ports}' if ports else None
+    if not target:
+        return jsonify({'error': 'Не указана цель'}), 400
+        
+    job = ScanJob(
+        scan_type='nmap',
+        target=target,
+        status='pending',
+        progress=0,
+        scan_parameters=json.dumps({'ports': ports, 'scripts': scripts, 'args': args})
     )
-    if custom_args: 
-        scan_job.error_message = f'Custom args: {custom_args}'
-    
-    db.session.add(scan_job)
+    db.session.add(job)
     db.session.commit()
     
-    app_obj = current_app._get_current_object()
-    thread = threading.Thread(target=run_nmap_scan, args=(app_obj, scan_job.id, target, ports, custom_args))
-    thread.daemon = True
-    thread.start()
+    app = current_app._get_current_object()
+    t = threading.Thread(
+        target=run_scan_wrapper, 
+        args=(app, run_nmap_scan, job.id, target, ports, scripts, args)
+    )
+    t.daemon = True
+    t.start()
+    
+    return jsonify({'job_id': job.id, 'status': 'started', 'message': 'Сканирование запущено'})
+
+@scans_bp.route('/api/scans/nslookup', methods=['POST'])
+def start_nslookup():
+    data = request.json
+    targets = data.get('targets', '') 
+    dns_server = data.get('dns_server', '77.88.8.8')
+    args = data.get('nslookup_args', '')
+    
+    if not targets or not targets.strip():
+        return jsonify({'error': 'Не указаны домены'}), 400
+        
+    params = {
+        'targets': targets,
+        'dns_server': dns_server,
+        'args': args
+    }
+    
+    job = ScanJob(
+        scan_type='nslookup',
+        target=f"NSLookup ({len(targets.splitlines())} domains)",
+        status='pending',
+        progress=0,
+        scan_parameters=json.dumps(params)
+    )
+    db.session.add(job)
+    db.session.commit()
+    
+    app = current_app._get_current_object()
+    t = threading.Thread(
+        target=run_scan_wrapper, 
+        args=(app, run_nslookup_scan, job.id, targets, dns_server, args)
+    )
+    t.daemon = True
+    t.start()
+    
+    return jsonify({'job_id': job.id, 'status': 'started', 'message': 'Сканирование запущено'})
+
+@scans_bp.route('/api/scans/<int:job_id>/results')
+def get_scan_results(job_id):
+    job = ScanJob.query.get_or_404(job_id)
+    results = []
+    
+    if job.scan_type == 'nslookup' and job.nslookup_output:
+        lines = job.nslookup_output.split('\n')
+        current_ip = None
+        current_domain = None
+        for line in lines:
+            line = line.strip()
+            if line.startswith('Name:'):
+                current_domain = line.split(':', 1)[1].strip()
+            elif line.startswith('Address:') and '#' not in line:
+                 current_ip = line.split(':', 1)[1].strip()
+                 if current_domain and current_ip:
+                     results.append({'domain': current_domain, 'ip': current_ip})
+                     try:
+                         asset = create_asset_if_not_exists(current_ip, hostname=current_domain)
+                         update_asset_dns_names(asset, current_domain)
+                     except Exception as e:
+                         print(f"Error creating asset: {e}")
+                     current_domain = None
     
     return jsonify({
-        'success': True, 
-        'job_id': scan_job.id, 
-        'message': f'Nmap запущен для {target_description}'
+        'job': {
+            'id': job.id,
+            'scan_type': job.scan_type,
+            'target': job.target,
+            'status': job.status,
+            'progress': job.progress,
+            'error_message': job.error_message,
+            'started_at': job.started_at.strftime('%Y-%m-%d %H:%M:%S') if job.started_at else None,
+            'completed_at': job.completed_at.strftime('%Y-%m-%d %H:%M:%S') if job.completed_at else None,
+            'nslookup_output': job.nslookup_output if job.scan_type == 'nslookup' else None
+        },
+        'results': results
     })
+
+@scans_bp.route('/api/scans/<int:job_id>', methods=['DELETE'])
+def delete_scan_job(job_id):
+    job = ScanJob.query.get_or_404(job_id)
+    if job.status == 'running':
+        job.status = 'failed'
+        job.error_message = 'Удалено пользователем во время выполнения'
+        job.completed_at = datetime.utcnow()
+        db.session.commit()
+    
+    db.session.delete(job)
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Задача удалена'})
+
+@scans_bp.route('/api/scans/<int:job_id>/control', methods=['POST'])
+def control_scan(job_id):
+    job = ScanJob.query.get_or_404(job_id)
+    data = request.json
+    action = data.get('action')
+    
+    if action == 'delete':
+        db.session.delete(job)
+        db.session.commit()
+        return jsonify({'success': True})
+        
+    elif action == 'stop':
+        if job.status == 'running':
+            job.status = 'failed'
+            job.error_message = 'Остановлено пользователем'
+            job.completed_at = datetime.utcnow()
+            db.session.commit()
+            return jsonify({'success': True})
+            
+    elif action == 'pause':
+        if job.status == 'running':
+            job.status = 'paused'
+            db.session.commit()
+            return jsonify({'success': True})
+            
+    elif action == 'resume':
+        if job.status == 'paused':
+            job.status = 'running'
+            db.session.commit()
+            return jsonify({'success': True})
+            
+    elif action == 'rerun':
+        if not job.scan_parameters:
+            return jsonify({'error': 'Нет параметров для повтора'}), 400
+            
+        params = json.loads(job.scan_parameters)
+        new_job = ScanJob(
+            scan_type=job.scan_type,
+            target=job.target,
+            status='pending',
+            progress=0,
+            scan_parameters=job.scan_parameters
+        )
+        db.session.add(new_job)
+        db.session.commit()
+        
+        app = current_app._get_current_object()
+        
+        if job.scan_type == 'rustscan':
+            t = threading.Thread(target=run_scan_wrapper, args=(app, run_rustscan_scan, new_job.id, job.target, params.get('ports', '-'), params.get('args', '')))
+        elif job.scan_type == 'nmap':
+            t = threading.Thread(target=run_scan_wrapper, args=(app, run_nmap_scan, new_job.id, job.target, params.get('ports', '-'), params.get('scripts', ''), params.get('args', '')))
+        elif job.scan_type == 'nslookup':
+            t = threading.Thread(target=run_scan_wrapper, args=(app, run_nslookup_scan, new_job.id, params.get('targets', ''), params.get('dns_server', '77.88.8.8'), params.get('args', '')))
+        else:
+            return jsonify({'error': 'Неизвестный тип'}), 400
+            
+        t.daemon = True
+        t.start()
+        return jsonify({'success': True, 'new_id': new_job.id})
+    
+    return jsonify({'error': 'Недопустимое действие'}), 400

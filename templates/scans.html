@@ -1,131 +1,149 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Сканирования | Asset Manager</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
-</head>
-<body>
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Sidebar -->
-            <div class="col-md-3 col-lg-2 sidebar p-3 d-none d-md-block">
-                <h5 class="mb-3"><i class="bi bi-folder-tree"></i> Группы</h5>
+{% extends "base.html" %}
+
+{% block title %}Сканирования | Asset Manager{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- Sidebar (Группы) -->
+        <div class="col-md-3 col-lg-2 d-none d-md-block">
+            <div class="sticky-top" style="top: 20px;">
                 {% include 'components/group_tree.html' %}
-            </div>
-
-            <!-- Main Content -->
-            <div class="col-md-9 col-lg-10 p-4">
-                <nav class="navbar navbar-light mb-4 px-3">
-                    <span class="navbar-brand mb-0 h1"><i class="bi bi-wifi"></i> Сканирования</span>
-                    <div class="d-flex align-items-center">
-                        <button class="theme-toggle me-2" onclick="toggleTheme()" aria-label="Переключить тему">
-                            <i class="bi bi-moon"></i><i class="bi bi-sun"></i>
-                        </button>
-                        <a href="{{ url_for('main.index') }}" class="btn btn-outline-dark"><i class="bi bi-arrow-left"></i> На главную</a>
+                
+                <!-- Блок активных сканирований в сайдбаре -->
+                <div class="card mt-3 border-info shadow-sm">
+                    <div class="card-header bg-info text-white py-1">
+                        <small><i class="bi bi-activity"></i> Активные</small>
                     </div>
-                </nav>
-
-                <!-- Flash Messages -->
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for c, m in messages %}
-                        <div class="alert alert-{{ c }} alert-dismissible fade show" role="alert">
-                            {{ m }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                        {% endfor %}
-                    {% endif %}
-                {% endwith %}
-
-                <!-- Profiles -->
-                <div class="card mb-3 bg-light">
-                    <div class="card-body py-2 d-flex align-items-center gap-3 flex-wrap">
-                        <label class="fw-bold mb-0"><i class="bi bi-collection"></i> Профили:</label>
-                        <select id="scan-profile-select" class="form-select form-select-sm" style="width: 250px;">
-                            <option value="">-- Без профиля --</option>
-                            {% for p in profiles %}
-                                <option value="{{ p.id }}" data-json='{{ p.to_dict()|tojson|forceescape }}'>{{ p.name }} ({{ p.scan_type }})</option>
-                            {% endfor %}
-                        </select>
-                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#saveProfileModal">
-                            <i class="bi bi-save"></i> Сохранить
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteCurrentProfile()">
-                            <i class="bi bi-trash"></i>
-                        </button>
+                    <div class="card-body p-2" id="sidebar-active-scans" style="max-height: 300px; overflow-y: auto;">
+                        <small class="text-muted">Нет активных</small>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <!-- Scan Form -->
-                <div class="card mb-4">
-                    <div class="card-header"><i class="bi bi-plus-circle"></i> Новое сканирование</div>
-                    <div class="card-body">
-                        <form id="scanForm">
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">Тип сканирования</label>
-                                    <select id="scan-type" class="form-select" onchange="toggleScanOptions()">
-                                        <option value="rustscan">🚀 Rustscan</option>
-                                        <option value="nmap">🔍 Nmap</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Метод выбора цели</label>
-                                    <select id="target-method" class="form-select" onchange="toggleTargetInput()">
-                                        <option value="ip">IP / CIDR</option>
-                                        <option value="group">Группа активов</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="mb-3" id="target-ip-section">
-                                <label class="form-label">Цель</label>
-                                <input type="text" id="scan-target" class="form-control" placeholder="192.168.1.0/24 или 10.0.0.5">
-                            </div>
-                            <div class="mb-3" id="target-group-section" style="display: none;">
-                                <label class="form-label">Группа активов</label>
-                                <select id="scan-group" class="form-select">
-                                    <option value="">-- Выберите группу --</option>
-                                    <option value="ungrouped">📂 Без группы</option>
-                                    {% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+        <!-- Main Content -->
+        <div class="col-md-9 col-lg-10">
+            <nav class="navbar navbar-light mb-4 px-0">
+                <span class="navbar-brand mb-0 h1"><i class="bi bi-wifi"></i> Сканирования</span>
+                <div class="d-flex align-items-center">
+                    <button class="theme-toggle me-2" onclick="toggleTheme()" aria-label="Переключить тему">
+                        <i class="bi bi-moon"></i><i class="bi bi-sun"></i>
+                    </button>
+                    <a href="{{ url_for('main.index') }}" class="btn btn-outline-dark btn-sm"><i class="bi bi-arrow-left"></i> На главную</a>
+                </div>
+            </nav>
+
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for c, m in messages %}
+                    <div class="alert alert-{{ c }} alert-dismissible fade show" role="alert">
+                        {{ m }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Scan Form -->
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-primary text-white"><i class="bi bi-plus-circle"></i> Новое сканирование</div>
+                <div class="card-body">
+                    <form id="scanForm">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Тип сканирования</label>
+                                <select id="scan-type" class="form-select" onchange="toggleScanOptions()">
+                                    <option value="rustscan">🚀 Rustscan (Быстрый)</option>
+                                    <option value="nmap">🔍 Nmap (Глубокий)</option>
+                                    <option value="nslookup">🌐 Nslookup (DNS)</option>
                                 </select>
                             </div>
-                            <div class="mb-3" id="ports-section" style="display: none;">
-                                <label class="form-label">Порты (для Nmap)</label>
-                                <input type="text" id="scan-ports" class="form-control" placeholder="22,80,443 или 1-1000">
+                            <div class="col-md-6">
+                                <label class="form-label">Метод выбора цели</label>
+                                <select id="target-method" class="form-select" onchange="toggleTargetInput()">
+                                    <option value="ip">IP / CIDR</option>
+                                    <option value="group">Группа активов</option>
+                                    <option value="text">Список доменов</option>
+                                </select>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label"><i class="bi bi-sliders"></i> Кастомные аргументы</label>
-                                <input type="text" id="scan-custom-args" class="form-control" placeholder="--batch-size 500 (Rustscan) или -sS -T4 (Nmap)">
-                            </div>
-                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                                <button type="button" class="btn btn-secondary" onclick="resetScanForm()"><i class="bi bi-arrow-counterclockwise"></i> Сброс</button>
-                                <button type="submit" class="btn btn-primary"><i class="bi bi-play-fill"></i> Запустить</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- Active Scans -->
-                <div class="card mb-4">
-                    <div class="card-header"><i class="bi bi-activity"></i> Активные сканирования</div>
-                    <div class="card-body">
-                        <div id="active-scans">
-                            <p class="text-muted mb-0"><i class="bi bi-check-circle"></i> Нет активных сканирований</p>
                         </div>
-                    </div>
+                        
+                        <!-- Цели -->
+                        <div class="mb-3" id="target-ip-section">
+                            <label class="form-label">Цель (IP или диапазон)</label>
+                            <input type="text" id="scan-target" class="form-control" placeholder="192.168.1.0/24">
+                        </div>
+                        <div class="mb-3" id="target-group-section" style="display: none;">
+                            <label class="form-label">Группа активов</label>
+                            <select id="scan-group" class="form-select">
+                                <option value="">-- Выберите группу --</option>
+                                <option value="ungrouped">📂 Без группы</option>
+                                {% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3" id="target-text-section" style="display: none;">
+                            <label class="form-label">Список доменов (каждый с новой строки)</label>
+                            <textarea id="scan-target-text" class="form-control" rows="4" placeholder="example.com&#10;google.com"></textarea>
+                        </div>
+                        
+                        <!-- Доп. настройки -->
+                        <div class="mb-3" id="dns-server-section" style="display: none;">
+                            <label class="form-label">DNS-сервер</label>
+                            <input type="text" id="scan-dns-server" class="form-control" value="77.88.8.8">
+                        </div>
+                        <div class="mb-3" id="ports-section" style="display: none;">
+                            <label class="form-label">Порты</label>
+                            <input type="text" id="scan-ports" class="form-control" placeholder="22,80,443 или 1-1000">
+                        </div>
+                        <div class="mb-3" id="nslookup-args-section" style="display: none;">
+                            <label class="form-label">Аргументы nslookup</label>
+                            <input type="text" id="scan-nslookup-args" class="form-control" placeholder="-querytype=A">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label"><i class="bi bi-sliders"></i> Кастомные аргументы</label>
+                            <input type="text" id="scan-custom-args" class="form-control" placeholder="--batch-size 500">
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-secondary" onclick="resetScanForm()"><i class="bi bi-arrow-counterclockwise"></i> Сброс</button>
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-play-fill"></i> Запустить</button>
+                        </div>
+                    </form>
                 </div>
+            </div>
 
-                <!-- History -->
-                <div class="card">
-                    <div class="card-header"><i class="bi bi-clock-history"></i> История сканирований</div>
-                    <div class="card-body p-0">
-                        <table class="table table-hover mb-0" id="history-table">
+            <!-- Активные сканирования (Основной блок) -->
+            <div class="card mb-4 shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-activity"></i> Активные сканирования</h5>
+                    <button class="btn btn-sm btn-light" onclick="pollActiveScans()"><i class="bi bi-arrow-clockwise"></i></button>
+                </div>
+                <div class="card-body" id="active-scans">
+                    <p class="text-muted mb-0 text-center"><i class="bi bi-check-circle"></i> Нет активных сканирований</p>
+                </div>
+            </div>
+
+            <!-- История -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> История сканирований</h5>
+                    <button class="btn btn-sm btn-light" onclick="updateScanHistory()"><i class="bi bi-arrow-clockwise"></i></button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0" id="history-table">
                             <thead class="table-light">
-                                <tr><th>ID</th><th>Тип</th><th>Цель</th><th>Статус</th><th>Прогресс</th><th>Начало</th><th>Действия</th></tr>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Тип</th>
+                                    <th>Цель</th>
+                                    <th>Статус</th>
+                                    <th>Прогресс</th>
+                                    <th>Начало</th>
+                                    <th>Действия</th>
+                                </tr>
                             </thead>
                             <tbody>
                                 {% for job in scan_jobs %}
@@ -140,24 +158,27 @@
                                         </span>
                                     </td>
                                     <td>
-                                        <div class="progress" style="width:100px"><div class="progress-bar" style="width:{{ job.progress }}%"></div></div>
-                                        <small class="progress-text">{{ job.progress }}%</small>
+                                        <div class="progress" style="width:80px"><div class="progress-bar" style="width:{{ job.progress }}%"></div></div>
+                                        <small>{{ job.progress }}%</small>
                                     </td>
-                                    <td>{{ job.started_at.strftime('%Y-%m-%d %H:%M') if job.started_at else '-' }}</td>
+                                    <td>{{ job.started_at.strftime('%H:%M:%S') if job.started_at else '-' }}</td>
                                     <td>
                                         {% if job.status=='pending' %}
-                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'delete')"><i class="bi bi-trash"></i></button>
+                                            <!-- Кнопка удаления для Pending -->
+                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'delete')" title="Удалить"><i class="bi bi-trash"></i></button>
+                                        
                                         {% elif job.status=='running' %}
-                                            <button class="btn btn-sm btn-outline-warning" onclick="controlScan('{{ job.id }}', 'pause')"><i class="bi bi-pause-fill"></i></button>
-                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'stop')"><i class="bi bi-stop-fill"></i></button>
-                                        {% elif job.status=='paused' %}
-                                            <button class="btn btn-sm btn-outline-success" onclick="controlScan('{{ job.id }}', 'resume')"><i class="bi bi-play-fill"></i></button>
-                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'stop')"><i class="bi bi-stop-fill"></i></button>
+                                            <!-- УДАЛЕНО: Кнопка Pause -->
+                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'stop')" title="Остановить"><i class="bi bi-stop-fill"></i></button>
+                                            <button class="btn btn-sm btn-outline-success" onclick="controlScan('{{ job.id }}', 'rerun')" title="Повторить"><i class="bi bi-arrow-clockwise"></i></button>
+                                        
                                         {% elif job.status in ['completed','failed','stopped'] %}
-                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'delete')"><i class="bi bi-trash"></i></button>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'delete')" title="Удалить"><i class="bi bi-trash"></i></button>
+                                            <button class="btn btn-sm btn-outline-success" onclick="controlScan('{{ job.id }}', 'rerun')" title="Повторить"><i class="bi bi-arrow-clockwise"></i></button>
                                         {% endif %}
+                                        
                                         {% if job.status!='pending' %}
-                                            <button class="btn btn-sm btn-outline-info" onclick="viewScanResults('{{ job.id }}')"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-sm btn-outline-info" onclick="viewScanResults('{{ job.id }}')" title="Результаты"><i class="bi bi-eye"></i></button>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -171,176 +192,281 @@
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Modals -->
-    <div class="modal fade" id="scanResultsModal" tabindex="-1">
-        <div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Результаты</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="scan-results-content"></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button></div></div></div>
+<!-- Modals -->
+<div class="modal fade" id="scanResultsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Результаты</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body"><div id="scan-results-content"></div></div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button></div>
+        </div>
     </div>
-    <div class="modal fade" id="saveProfileModal" tabindex="-1">
-        <div class="modal-dialog modal-sm"><div class="modal-content"><div class="modal-header"><h6>💾 Сохранить профиль</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="text" id="profile-name-input" class="form-control" placeholder="Название" required></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button><button type="button" class="btn btn-primary" onclick="saveProfile()">Сохранить</button></div></div></div>
-    </div>
+</div>
 
-    <!-- Групповые модальные окна (обязательно!) -->
-    {% include 'components/modals.html' %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+    // === УПРАВЛЕНИЕ ФОРМОЙ ===
+    function toggleTargetInput(){
+        const m = document.getElementById('target-method').value;
+        document.getElementById('target-ip-section').style.display = (m === 'text' || m === 'group') ? 'none' : 'block';
+        document.getElementById('target-group-section').style.display = (m === 'group') ? 'block' : 'none';
+        document.getElementById('target-text-section').style.display = (m === 'text') ? 'block' : 'none';
+    }
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <script>
-        // === УПРАВЛЕНИЕ ФОРМОЙ ===
-        function toggleTargetInput(){
-            const m=document.getElementById('target-method').value;
-            document.getElementById('target-ip-section').style.display=m==='group'?'none':'block';
-            document.getElementById('target-group-section').style.display=m==='group'?'block':'none';
-        }
-        function toggleScanOptions(){
-            const t=document.getElementById('scan-type').value;
-            document.getElementById('ports-section').style.display=t==='nmap'?'block':'none';
-        }
-        function resetScanForm(){
-            document.getElementById('scanForm').reset();
-            toggleTargetInput(); toggleScanOptions();
-        }
+    function toggleScanOptions(){
+        const t = document.getElementById('scan-type').value;
+        const portsSec = document.getElementById('ports-section');
+        const dnsSec = document.getElementById('dns-server-section');
+        const nsArgsSec = document.getElementById('nslookup-args-section');
+        const targetMethod = document.getElementById('target-method');
 
-        // === ЗАПУСК СКАНИРОВАНИЯ ===
-        document.getElementById('scanForm').addEventListener('submit', async e=>{
-            e.preventDefault();
-            const t=document.getElementById('scan-type').value;
-            const m=document.getElementById('target-method').value;
-            const tg=m==='ip'?document.getElementById('scan-target').value:null;
-            const gr=m==='group'?document.getElementById('scan-group').value:null;
-            if(m==='ip'&&!tg){alert('⚠️ Укажите цель');return;}
-            if(m==='group'&&!gr){alert('⚠️ Выберите группу');return;}
+        portsSec.style.display = (t === 'nmap' || t === 'rustscan') ? 'block' : 'none';
+        dnsSec.style.display = (t === 'nslookup') ? 'block' : 'none';
+        nsArgsSec.style.display = (t === 'nslookup') ? 'block' : 'none';
+
+        // Автоматическое переключение на "Список доменов" для nslookup
+        if(t === 'nslookup'){
+            targetMethod.value = 'text';
+            toggleTargetInput();
+        }
+    }
+
+    function resetScanForm(){
+        document.getElementById('scanForm').reset();
+        toggleTargetInput(); 
+        toggleScanOptions();
+    }
+
+    // === ЗАПУСК СКАНИРОВАНИЯ ===
+    document.getElementById('scanForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const t = document.getElementById('scan-type').value;
+        const m = document.getElementById('target-method').value;
+        
+        let url = '';
+        let payload = {};
+
+        if(t === 'nslookup'){
+            const targetText = document.getElementById('scan-target-text').value;
+            if(!targetText || !targetText.trim()){
+                alert('⚠️ Введите список доменов');
+                return;
+            }
+            url = '/api/scans/nslookup';
+            payload = {
+                targets: targetText,
+                dns_server: document.getElementById('scan-dns-server').value || '77.88.8.8',
+                nslookup_args: document.getElementById('scan-nslookup-args').value || ''
+            };
+        } else {
+            // Rustscan или Nmap
+            let targetVal = null;
+            if(m === 'ip') targetVal = document.getElementById('scan-target').value;
+            else if(m === 'group') targetVal = 'group:' + document.getElementById('scan-group').value;
             
-            const body={target:tg, group_id:gr};
-            if(t==='nmap' && document.getElementById('scan-ports').value) body.ports=document.getElementById('scan-ports').value;
-            if(document.getElementById('scan-custom-args').value) body.custom_args=document.getElementById('scan-custom-args').value;
-            
-            try{
-                const res=await fetch(`/api/scans/${t}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-                const d=await res.json();
-                if(res.ok){ alert(`✅ ${d.message}`); location.reload(); } else alert(`❌ ${d.error}`);
-            }catch(err){ alert(`❌ Ошибка сети: ${err.message}`); }
-        });
+            if(!targetVal){
+                alert('⚠️ Укажите цель');
+                return;
+            }
 
-        // === ПРОСМОТР РЕЗУЛЬТАТОВ ===
-        async function viewScanResults(id){
-            const m=new bootstrap.Modal(document.getElementById('scanResultsModal'));
-            const c=document.getElementById('scan-results-content');
-            c.innerHTML='<div class="text-center"><div class="spinner-border"></div><p class="mt-2">Загрузка...</p></div>';
-            m.show();
-            try{
-                const r=await fetch(`/api/scans/${id}/results`);
-                const d=await r.json();
-                let h=`<h6>#${d.job.id} - ${d.job.scan_type.toUpperCase()}</h6><p><strong>Цель:</strong> ${d.job.target}</p><p><strong>Статус:</strong> ${d.job.status}</p><hr>`;
-                if(d.results.length===0) h+='<p class="text-muted">Нет результатов</p>';
-                else{
-                    h+=`<p><strong>Хостов:</strong> ${d.results.length}</p><div class="list-group">`;
-                    d.results.forEach(x=>{
-                        h+=`<div class="list-group-item"><div class="d-flex justify-content-between"><h6 class="mb-1">${x.ip}</h6><small>${x.scanned_at}</small></div><p class="mb-1"><strong>Порты:</strong> ${x.ports.join(', ')||'Нет'}</p></div>`;
-                    });
-                    h+='</div>';
+            if(t === 'rustscan') url = '/api/scans/rustscan';
+            else if(t === 'nmap') url = '/api/scans/nmap';
+
+            payload = {
+                target: targetVal,
+                ports: document.getElementById('scan-ports').value || '-',
+                extra_args: document.getElementById('scan-custom-args').value || ''
+            };
+            if(t === 'nmap') payload.scripts = document.getElementById('scan-ports').value; // Упрощено
+        }
+
+        try{
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const d = await res.json();
+            if(res.ok){ 
+                alert(`✅ ${d.message || 'Запущено'}`); 
+                location.reload(); 
+            } else {
+                alert(`❌ ${d.error}`);
+            }
+        } catch(err){ 
+            alert(`❌ Ошибка сети: ${err.message}`); 
+        }
+    });
+
+    // === ПРОСМОТР РЕЗУЛЬТАТОВ ===
+    async function viewScanResults(id){
+        const m = new bootstrap.Modal(document.getElementById('scanResultsModal'));
+        const c = document.getElementById('scan-results-content');
+        c.innerHTML = '<div class="text-center"><div class="spinner-border"></div><p class="mt-2">Загрузка...</p></div>';
+        m.show();
+        
+        try{
+            const r = await fetch(`/api/scans/${id}/results`);
+            const d = await r.json();
+            
+            let h = `<h6>#${d.job.id} - ${d.job.scan_type.toUpperCase()}</h6>`;
+            h += `<p><strong>Цель:</strong> ${d.job.target}</p>`;
+            h += `<p><strong>Статус:</strong> <span class="badge bg-${d.job.status==='completed'?'success':'danger'}">${d.job.status}</span></p>`;
+            
+            if(d.job.error_message){
+                h += `<div class="alert alert-danger"><pre class="mb-0">${d.job.error_message}</pre></div>`;
+            }
+
+            if(d.job.scan_type === 'nslookup' && d.job.nslookup_output){
+                h += `<pre class="bg-light p-3 border rounded" style="max-height:400px;overflow:auto;">${d.job.nslookup_output.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`;
+            } else if(d.results && d.results.length > 0) {
+                h += `<p><strong>Найдено хостов:</strong> ${d.results.length}</p>`;
+                h += `<ul class="list-group">`;
+                d.results.forEach(x => {
+                    h += `<li class="list-group-item"><strong>${x.ip}</strong> ${x.domain ? '('+x.domain+')' : ''}</li>`;
+                });
+                h += `</ul>`;
+            } else {
+                h += '<p class="text-muted">Нет деталей результатов</p>';
+            }
+            
+            c.innerHTML = h;
+        } catch(err){ 
+            c.innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`; 
+        }
+    }
+
+    // === УПРАВЛЕНИЕ ЗАДАНИЯМИ (Удаление, Стоп, Реран) ===
+    async function controlScan(id, action){
+        if(action === 'delete' && !confirm('Удалить запись о сканировании?')) return;
+        if(action === 'stop' && !confirm('Остановить сканирование?')) return;
+        if(action === 'rerun' && !confirm('Повторить сканирование?')) return;
+
+        try{
+            let url, method, body;
+            
+            if(action === 'delete'){
+                url = `/api/scans/${id}`;
+                method = 'DELETE';
+                body = null;
+            } else {
+                url = `/api/scans/${id}/control`;
+                method = 'POST';
+                body = JSON.stringify({action: action});
+            }
+
+            const r = await fetch(url, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: body
+            });
+            
+            const d = await r.json();
+            if(r.ok){
+                if(action === 'delete'){
+                    const row = document.getElementById(`scan-row-${id}`);
+                    if(row) row.remove();
+                    pollActiveScans();
+                } else {
+                    location.reload();
                 }
-                c.innerHTML=h;
-            }catch(err){ c.innerHTML=`<div class="alert alert-danger">❌ ${err.message}</div>`; }
+            } else {
+                alert(`❌ ${d.error}`);
+            }
+        } catch(err){ 
+            alert(`❌ Ошибка: ${err.message}`); 
         }
+    }
 
-        // === УПРАВЛЕНИЕ ЗАДАНИЯМИ ===
-        async function controlScan(id, action){
-            if(action==='delete' && !confirm('Удалить запись?')) return;
-            if(action==='stop' && !confirm('Остановить сканирование?')) return;
-            try{
-                const r=await fetch(`/api/scans/${id}/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action})});
-                const d=await r.json();
-                if(r.ok) location.reload(); else alert(`❌ ${d.error}`);
-            }catch(err){ alert(`❌ Ошибка: ${err.message}`); }
-        }
+    // === ПОЛЛИНГ АКТИВНЫХ (Обновляет и основной блок, и сайдбар) ===
+    function pollActiveScans(){
+        fetch('/api/scans/status')
+        .then(r => r.json())
+        .then(d => {
+            const mainContainer = document.getElementById('active-scans');
+            const sidebarContainer = document.getElementById('sidebar-active-scans');
+            
+            if(!mainContainer) return;
 
-        // === ПРОФИЛИ ===
-        async function saveProfile(){
-            const n=document.getElementById('profile-name-input').value;
-            if(!n) return alert('Введите название');
-            const p={name:n, scan_type:document.getElementById('scan-type').value, target_method:document.getElementById('target-method').value, ports:document.getElementById('scan-ports').value, custom_args:document.getElementById('scan-custom-args').value};
-            const r=await fetch('/api/scans/profiles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
-            if(r.ok) location.reload(); else alert('❌ Ошибка сохранения');
-        }
-        async function deleteCurrentProfile(){
-            const id=document.getElementById('scan-profile-select').value;
-            if(!id) return alert('Выберите профиль');
-            if(!confirm('Удалить профиль?')) return;
-            await fetch(`/api/scans/profiles/${id}`,{method:'DELETE'});
-            location.reload();
-        }
+            if(d.active && d.active.length > 0){
+                let html = '<div class="row g-2">';
+                d.active.forEach(j => {
+                    const badgeClass = j.status === 'running' ? 'bg-warning text-dark' : 'bg-info';
+                    const progressClass = j.status === 'running' ? 'progress-bar-striped progress-bar-animated' : '';
+                    
+                    const cardHtml = `
+                        <div class="col-md-6 col-lg-12">
+                            <div class="card border-${j.status==='running'?'warning':'info'} h-100">
+                                <div class="card-body p-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <small class="fw-bold">${j.scan_type.toUpperCase()}</small>
+                                        <span class="badge ${badgeClass}">${j.status}</span>
+                                    </div>
+                                    <div class="progress mb-1" style="height: 6px;">
+                                        <div class="progress-bar ${progressClass}" style="width: ${j.progress}%"></div>
+                                    </div>
+                                    <small class="text-truncate d-block" title="${j.target}">${j.target}</small>
+                                    <small class="text-muted">${j.progress}%</small>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    html += cardHtml;
+                });
+                html += '</div>';
+                
+                mainContainer.innerHTML = html;
+                if(sidebarContainer) sidebarContainer.innerHTML = html;
+            } else {
+                const emptyMsg = '<p class="text-muted mb-0 text-center"><i class="bi bi-check-circle"></i> Нет активных сканирований</p>';
+                mainContainer.innerHTML = emptyMsg;
+                if(sidebarContainer) sidebarContainer.innerHTML = emptyMsg;
+            }
+        })
+        .catch(e => console.warn('Poll error:', e));
+    }
 
-        // === ПОЛЛИНГ АКТИВНЫХ И ИСТОРИИ ===
-        function pollActiveScans(){
-            fetch('/api/scans/status').then(r=>r.json()).then(d=>{
-                const c=document.getElementById('active-scans');
-                if(d.active?.length){
-                    let h='<div class="row">';
-                    d.active.forEach(j=>{
-                        const cls=j.status==='running'?'progress-bar-striped progress-bar-animated':'';
-                        const b=j.scan_type==='rustscan'?'bg-danger':'bg-info text-dark';
-                        const s=j.status==='running'?'bg-warning text-dark':j.status==='paused'?'bg-info text-dark':'bg-secondary';
-                        h+=`<div class="col-md-6 mb-3"><div class="card border-${j.status==='failed'?'danger':j.status==='running'?'warning':'info'}"><div class="card-body"><div class="d-flex justify-content-between align-items-center mb-2"><h6 class="mb-0"><span class="badge ${b} me-2">${j.scan_type.toUpperCase()}</span>${j.target}</h6><span class="badge ${s}">${j.status}</span></div><div class="progress mb-2" style="height:6px"><div class="progress-bar ${cls}" style="width:${j.progress}%"></div></div><small>${j.current_target&&j.status==='running'?`📡 ${j.current_target}<br>`:''}Прогресс: ${j.progress}%</small></div></div></div>`;
-                    });
-                    h+='</div>'; c.innerHTML=h;
-                } else c.innerHTML='<p class="text-muted mb-0"><i class="bi bi-check-circle"></i> Нет активных сканирований</p>';
-            }).catch(e=>console.warn('⚠️ Active poll error:',e));
-        }
-
-        async function updateScanHistory(){
-            try{
-                const res=await fetch('/api/scans/history');
-                if(!res.ok) return;
-                const jobs=await res.json();
-                const tbody=document.querySelector('#history-table tbody');
-                if(!tbody) return;
-
-                jobs.forEach(j=>{
-                    const row=document.getElementById(`scan-row-${j.id}`);
-                    if(!row){
-                        // Если строки нет, просто перезагрузим для простоты (или можно добавить динамически)
-                        // Для надежности оставим частичное обновление существующих строк
-                        return; 
-                    }
-                    const badge=row.querySelector('.status-badge');
-                    if(badge){
-                        badge.textContent=j.status;
-                        badge.className=`badge status-badge bg-${j.status==='running'?'warning text-dark':j.status==='completed'?'success':'danger'}`;
+    // === ОБНОВЛЕНИЕ ИСТОРИИ (Частичное) ===
+    async function updateScanHistory(){
+        try{
+            const res = await fetch('/api/scans/history');
+            if(!res.ok) return;
+            const jobs = await res.json();
+            
+            jobs.forEach(j => {
+                const row = document.getElementById(`scan-row-${j.id}`);
+                if(row){
+                    const badge = row.querySelector('.status-badge');
+                    if(badge && badge.textContent !== j.status){
+                        badge.textContent = j.status;
+                        badge.className = `badge status-badge bg-${j.status==='running'?'warning text-dark':j.status==='completed'?'success':'danger'}`;
                         if(j.error_message){
-                            badge.setAttribute('data-bs-toggle','tooltip');
-                            badge.setAttribute('title',j.error_message.replace(/\n/g,' ').replace(/"/g,'&quot;'));
-                            new bootstrap.Tooltip(badge);
+                            badge.setAttribute('data-bs-toggle', 'tooltip');
+                            badge.setAttribute('title', j.error_message);
                         }
                     }
-                    const bar=row.querySelector('.progress-bar');
-                    const txt=row.querySelector('.progress-text');
-                    if(bar) bar.style.width=`${j.progress}%`;
-                    if(txt) txt.textContent=`${j.progress}%`;
-                });
-            }catch(e){console.warn('History poll error:',e);}
-        }
-
-        // === ИНИЦИАЛИЗАЦИЯ ===
-        document.addEventListener('DOMContentLoaded',()=>{
-            toggleTargetInput(); toggleScanOptions();
-            pollActiveScans(); setInterval(pollActiveScans, 5000);
-            updateScanHistory(); setInterval(updateScanHistory, 8000);
-            
-            // Профили
-            const ps=document.getElementById('scan-profile-select');
-            if(ps) ps.addEventListener('change',function(){
-                const o=this.options[this.selectedIndex];
-                if(o.dataset.json){
-                    const p=JSON.parse(o.dataset.json);
-                    document.getElementById('scan-type').value=p.scan_type;
-                    document.getElementById('target-method').value=p.target_method||'ip';
-                    toggleTargetInput(); toggleScanOptions();
-                    document.getElementById('scan-ports').value=p.ports||'';
-                    document.getElementById('scan-custom-args').value=p.custom_args||'';
+                    const bar = row.querySelector('.progress-bar');
+                    const txt = row.querySelector('small'); 
+                    if(bar) bar.style.width = `${j.progress}%`;
+                    if(txt && txt.textContent.includes('%')) txt.textContent = `${j.progress}%`;
                 }
             });
-        });
-    </script>
-</body>
-</html>
+        } catch(e){ console.warn('History update error', e); }
+    }
+
+    // === ИНИЦИАЛИЗАЦИЯ ===
+    document.addEventListener('DOMContentLoaded', () => {
+        toggleTargetInput(); 
+        toggleScanOptions();
+        
+        pollActiveScans(); 
+        setInterval(pollActiveScans, 3000); 
+        
+        updateScanHistory();
+        setInterval(updateScanHistory, 5000); 
+    });
+</script>
+{% endblock %}

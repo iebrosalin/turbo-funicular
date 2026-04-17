@@ -1,9 +1,11 @@
 // ═══════════════════════════════════════════════════════════════
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
 // ═══════════════════════════════════════════════════════════════
-let currentGroupId = null; let contextMenu = null;
-let editModal, moveModal, deleteModal, bulkDeleteModalInstance;
-let lastSelectedIndex = -1; let selectedAssetIds = new Set();
+let currentGroupId = null; 
+let contextMenu = null;
+let editModal, createModal, moveModal, deleteModal, bulkDeleteModalInstance;
+let lastSelectedIndex = -1; 
+let selectedAssetIds = new Set();
 
 const FILTER_FIELDS = [
     { value: 'ip_address', text: 'IP Адрес' }, { value: 'hostname', text: 'Hostname' },
@@ -17,50 +19,114 @@ const FILTER_OPS = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
-// ТЕМА & ГРУППЫ
+// ТЕМА & НАВИГАЦИЯ
 // ═══════════════════════════════════════════════════════════════
 function initTheme() {
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-bs-theme', savedTheme === 'dark' ? 'dark' : 'light');
     updateThemeIcon(savedTheme);
 }
+
 function toggleTheme() {
-    const html = document.documentElement; const newTheme = html.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
-    document.body.classList.add('theme-transition'); html.setAttribute('data-bs-theme', newTheme); localStorage.setItem('theme', newTheme);
-    updateThemeIcon(newTheme); setTimeout(() => document.body.classList.remove('theme-transition'), 300);
+    const html = document.documentElement; 
+    const newTheme = html.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+    document.body.classList.add('theme-transition'); 
+    html.setAttribute('data-bs-theme', newTheme); 
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme); 
+    setTimeout(() => document.body.classList.remove('theme-transition'), 300);
 }
+
 function updateThemeIcon(theme) {
-    const toggle = document.querySelector('.theme-toggle'); if (!toggle) return;
+    const toggle = document.querySelector('.theme-toggle'); 
+    if (!toggle) return;
     toggle.querySelector('.bi-moon').style.display = theme === 'dark' ? 'none' : 'block';
     toggle.querySelector('.bi-sun').style.display = theme === 'dark' ? 'block' : 'none';
 }
+
 function initTreeTogglers() {
-    const groupTree = document.getElementById('group-tree'); if (!groupTree) return;
-    const newGroupTree = groupTree.cloneNode(true); groupTree.parentNode.replaceChild(newGroupTree, groupTree);
+    const groupTree = document.getElementById('group-tree'); 
+    if (!groupTree) return;
+    
+    const newGroupTree = groupTree.cloneNode(true); 
+    groupTree.parentNode.replaceChild(newGroupTree, groupTree);
+    
     newGroupTree.addEventListener('click', function(e) {
-        const treeNode = e.target.closest('.tree-node'); if (!treeNode) return;
+        const treeNode = e.target.closest('.tree-node'); 
+        if (!treeNode) return;
+        
         if (e.target.classList.contains('caret') || e.target.closest('.caret')) {
-            e.preventDefault(); e.stopPropagation();
+            e.preventDefault(); 
+            e.stopPropagation();
             const nested = treeNode.querySelector(".nested");
-            if (nested) { nested.classList.toggle("active"); const caret = treeNode.querySelector('.caret'); if (caret) caret.classList.toggle("caret-down"); }
+            if (nested) { 
+                nested.classList.toggle("active"); 
+                const caret = treeNode.querySelector('.caret'); 
+                if (caret) caret.classList.toggle("caret-down"); 
+            }
             return;
         }
+        
         filterByGroup(treeNode.dataset.id);
     });
+
+    highlightActiveGroupFromUrl();
+}
+
+function highlightActiveGroupFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    let targetId = null;
+    let isUngrouped = false;
+
+    if (params.has('group_id')) {
+        targetId = params.get('group_id');
+    } else if (params.has('ungrouped')) {
+        isUngrouped = true;
+        targetId = 'ungrouped';
+    }
+
+    if (!targetId) return;
+
+    document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
+
+    if (isUngrouped) {
+        const node = document.querySelector('.tree-node[data-id="ungrouped"]');
+        if (node) {
+            node.classList.add('active');
+            node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+    }
+
+    const activeNode = document.querySelector(`.tree-node[data-id="${targetId}"]`);
+    if (activeNode) {
+        let parent = activeNode.parentElement;
+        while (parent) {
+            if (parent.classList.contains('nested')) {
+                parent.classList.add('active');
+                const parentLi = parent.previousElementSibling;
+                if (parentLi && parentLi.querySelector('.caret')) {
+                    parentLi.querySelector('.caret').classList.add('caret-down');
+                }
+            }
+            if (parent.id === 'group-tree') break;
+            parent = parent.parentElement;
+        }
+
+        activeNode.classList.add('active');
+        activeNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
 }
 
 function filterByGroup(groupId) {
-    // Подсветка активной группы в дереве
     document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
     const activeNode = document.querySelector(`.tree-node[data-id="${groupId}"]`);
     if (activeNode) activeNode.classList.add('active');
     
     groupId = String(groupId);
     
-    // 🔥 Проверка: если мы не на главной странице, перенаправляем на неё
     const currentPage = window.location.pathname;
     if (currentPage !== '/' && !currentPage.endsWith('/index.html')) {
-        // Перенаправление на главную с параметром группы
         const url = groupId === 'ungrouped' 
             ? '/?ungrouped=true' 
             : `/?group_id=${parseInt(groupId)}`;
@@ -68,7 +134,6 @@ function filterByGroup(groupId) {
         return;
     }
     
-    // Если мы на главной, просто фильтруем активы (существующее поведение)
     const url = groupId === 'ungrouped' 
         ? '/api/assets?ungrouped=true' 
         : `/api/assets?group_id=${parseInt(groupId)}`;
@@ -80,7 +145,270 @@ function filterByGroup(groupId) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ВЫДЕЛЕНИЕ & ФИЛЬТРЫ
+// УПРАВЛЕНИЕ ГРУППАМИ (СОЗДАНИЕ / РЕДАКТИРОВАНИЕ / CIDR / DYNAMIC)
+// ═══════════════════════════════════════════════════════════════
+
+window.showCreateGroupModal = function(parentId = null) {
+    // Закрываем заглушку если она вдруг открылась
+    const dummyModalEl = document.getElementById('groupCreateModal');
+    if(dummyModalEl) {
+        const dummyModal = bootstrap.Modal.getInstance(dummyModalEl);
+        if(dummyModal) dummyModal.hide();
+    }
+
+    const modalEl = document.getElementById('groupEditModal');
+    if (!modalEl) return console.error('Modal #groupEditModal not found');
+
+    document.getElementById('groupEditForm').reset();
+    document.getElementById('edit-group-id').value = '';
+    document.getElementById('groupEditTitle').textContent = 'Новая группа';
+    document.getElementById('edit-group-parent').value = parentId || '';
+    document.getElementById('edit-group-name').value = '';
+    document.getElementById('group-filter-root').innerHTML = '';
+    
+    document.getElementById('modeManual').checked = true;
+    toggleGroupMode(); 
+
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+};
+
+window.toggleGroupMode = function() {
+    const mode = document.querySelector('input[name="groupMode"]:checked').value;
+    const secCommon = document.getElementById('sectionCommon');
+    const secCidr = document.getElementById('sectionCidr');
+    const secDynamic = document.getElementById('sectionDynamic');
+    const nameInput = document.getElementById('edit-group-name');
+    const parentSelect = document.getElementById('edit-group-parent');
+
+    secCidr.style.display = 'none';
+    secDynamic.style.display = 'none';
+    
+    if (mode === 'manual') {
+        secCommon.style.display = 'block';
+        nameInput.required = true;
+        parentSelect.disabled = false;
+    } else if (mode === 'cidr') {
+        secCommon.style.display = 'block';
+        secCidr.style.display = 'block';
+        nameInput.required = false;
+        parentSelect.disabled = false;
+    } else if (mode === 'dynamic') {
+        secCommon.style.display = 'block';
+        secDynamic.style.display = 'block';
+        nameInput.required = true;
+        parentSelect.disabled = false;
+        
+        if(document.getElementById('group-filter-root').children.length === 0) {
+            addDynamicRule();
+        }
+    }
+};
+
+window.addDynamicRule = function(field = '', op = 'eq', value = '') {
+    const container = document.getElementById('group-filter-root');
+    if(!container) return;
+    
+    const div = document.createElement('div');
+    div.className = 'filter-condition mb-2';
+    div.innerHTML = `
+        <div class="input-group input-group-sm">
+            <select class="form-select rule-field">${FILTER_FIELDS.map(f => `<option value="${f.value}" ${f.value===field?'selected':''}>${f.text}</option>`).join('')}</select>
+            <select class="form-select rule-op" style="max-width:100px">${FILTER_OPS.map(o => `<option value="${o.value}" ${o.value===op?'selected':''}>${o.text}</option>`).join('')}</select>
+            <input type="text" class="form-control rule-val" value="${value}" placeholder="Значение">
+            <button class="btn btn-outline-danger" type="button" onclick="this.parentElement.parentElement.remove()">×</button>
+        </div>
+    `;
+    container.appendChild(div);
+};
+
+window.showRenameModal = function(id) {
+    const modalEl = document.getElementById('groupEditModal');
+    if (!modalEl) return console.warn('⚠️ #groupEditModal не найден');
+
+    const idInput = document.getElementById('edit-group-id');
+    if (idInput) idInput.value = id;
+    document.getElementById('groupEditTitle').textContent = 'Редактировать группу';
+
+    fetch(`/api/groups/${id}`)
+        .then(r => r.json())
+        .then(data => {
+            const nameInput = document.getElementById('edit-group-name');
+            const parentSelect = document.getElementById('edit-group-parent');
+            
+            if (nameInput) nameInput.value = data.name || '';
+            if (parentSelect) parentSelect.value = data.parent_id || '';
+
+            const dynCheck = document.getElementById('modeDynamic');
+            const manualCheck = document.getElementById('modeManual');
+            
+            if (data.is_dynamic || (data.filter_rules && data.filter_rules.length > 0)) {
+                dynCheck.checked = true;
+                renderGroupFilters(data.filter_rules);
+            } else {
+                manualCheck.checked = true;
+                document.getElementById('group-filter-root').innerHTML = '';
+            }
+            
+            toggleGroupMode();
+            new bootstrap.Modal(modalEl).show();
+        })
+        .catch(err => console.error('Ошибка загрузки данных группы:', err));
+};
+
+function renderGroupFilters(rules) {
+    const container = document.getElementById('group-filter-root');
+    if(!container) return;
+    container.innerHTML = '';
+    
+    if(!rules || rules.length === 0) {
+        addDynamicRule();
+        return;
+    }
+
+    rules.forEach(rule => {
+        addDynamicRule(rule.field, rule.op, rule.value);
+    });
+}
+
+window.showMoveModal = function(id) {
+    const modalEl = document.getElementById('groupMoveModal');
+    if (!modalEl) return console.warn('⚠️ #groupMoveModal не найден.');
+    document.getElementById('move-group-id').value = id;
+    
+    const select = document.getElementById('move-group-parent');
+    select.innerHTML = '<option value="">-- Корень --</option>';
+    
+    fetch('/api/groups/tree').then(r=>r.json()).then(data => {
+        data.flat.forEach(g => {
+            if(g.id != id) {
+                const opt = document.createElement('option');
+                opt.value = g.id;
+                opt.textContent = g.name;
+                select.appendChild(opt);
+            }
+        });
+        new bootstrap.Modal(modalEl).show();
+    });
+};
+
+window.showDeleteModal = function(id) {
+    const modalEl = document.getElementById('groupDeleteModal');
+    if (!modalEl) return console.warn('⚠️ #groupDeleteModal не найден.');
+    document.getElementById('delete-group-id').value = id;
+    
+    const select = document.getElementById('delete-move-assets');
+    select.innerHTML = '<option value="">-- Удалить активы вместе с группой --</option>';
+    
+    fetch('/api/groups/tree').then(r=>r.json()).then(data => {
+        data.flat.forEach(g => {
+            if(g.id != id) {
+                const opt = document.createElement('option');
+                opt.value = g.id;
+                opt.textContent = g.name;
+                select.appendChild(opt);
+            }
+        });
+        new bootstrap.Modal(modalEl).show();
+    });
+};
+
+// Обработка форм
+document.addEventListener('DOMContentLoaded', () => {
+    const e = document.getElementById('groupEditModal'); 
+    const m = document.getElementById('groupMoveModal');
+    const d = document.getElementById('groupDeleteModal'); 
+    const b = document.getElementById('bulkDeleteModal');
+    
+    if(e) editModal = new bootstrap.Modal(e); 
+    if(m) moveModal = new bootstrap.Modal(m);
+    if(d) deleteModal = new bootstrap.Modal(d); 
+    if(b) bulkDeleteModalInstance = new bootstrap.Modal(b);
+
+    // Форма редактирования/создания
+    const editForm = document.getElementById('groupEditForm');
+    if(editForm) {
+        editForm.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            const id = document.getElementById('edit-group-id').value;
+            const mode = document.querySelector('input[name="groupMode"]:checked').value;
+            const name = document.getElementById('edit-group-name').value;
+            const parentId = document.getElementById('edit-group-parent').value;
+            
+            let payload = {
+                name: name,
+                parent_id: parentId || null,
+                is_dynamic: mode === 'dynamic'
+            };
+
+            if (mode === 'cidr') {
+                payload.cidr_network = document.getElementById('cidr-network').value;
+                payload.cidr_mask = document.getElementById('cidr-mask').value;
+                if(!payload.cidr_network) return alert('Введите сеть CIDR');
+            }
+
+            if(mode === 'dynamic') {
+                const rules = [];
+                document.querySelectorAll('#group-filter-root .filter-condition').forEach(cond => {
+                    const f = cond.querySelector('.rule-field').value;
+                    const o = cond.querySelector('.rule-op').value;
+                    const v = cond.querySelector('.rule-val').value;
+                    if(f && v) rules.push({field: f, op: o, value: v});
+                });
+                payload.filter_rules = rules;
+                if(rules.length === 0) return alert('Добавьте хотя бы одно правило');
+            }
+
+            const url = id ? `/api/groups/${id}` : '/api/groups';
+            const method = id ? 'PUT' : 'POST';
+
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+
+                if(res.ok) {
+                    editModal.hide();
+                    refreshGroupTree();
+                } else {
+                    const err = await res.json();
+                    alert('Ошибка: ' + (err.error || 'Неизвестная ошибка'));
+                }
+            } catch (e) {
+                console.error(e);
+                alert('Ошибка сети');
+            }
+        });
+    }
+
+    // Форма перемещения
+    const moveForm = document.getElementById('groupMoveForm');
+    if(moveForm) {
+        moveForm.addEventListener('submit', async (ev) => {
+            ev.preventDefault();
+            const id = document.getElementById('move-group-id').value;
+            const newParent = document.getElementById('move-group-parent').value;
+
+            const res = await fetch(`/api/groups/${id}/move`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ parent_id: newParent || null })
+            });
+
+            if(res.ok) {
+                moveModal.hide();
+                refreshGroupTree();
+            } else {
+                alert('Ошибка перемещения');
+            }
+        });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// ВЫДЕЛЕНИЕ АКТИВОВ
 // ═══════════════════════════════════════════════════════════════
 function initAssetSelection() {
     const tbody = document.getElementById('assets-body'); if (!tbody) return;
@@ -100,6 +428,7 @@ function initAssetSelection() {
         if(cb) { if(e.shiftKey && lastSelectedIndex >= 0) { e.preventDefault(); selectRange(lastSelectedIndex, getRowIndex(row)); } else { cb.checked = !cb.checked; handleCheckboxChange(cb); } }
     });
 }
+
 function handleCheckboxChange(cb) {
     const row = cb.closest('tr'); const id = cb.value; const checked = cb.checked;
     toggleRowSelection(row, checked);
@@ -107,6 +436,7 @@ function handleCheckboxChange(cb) {
     else { selectedAssetIds.delete(id); if(lastSelectedIndex === getRowIndex(row)) lastSelectedIndex = -1; }
     updateBulkToolbar(); updateSelectAllCheckbox();
 }
+
 function toggleRowSelection(row, isSel) { if(isSel) row.classList.add('selected'); else row.classList.remove('selected'); }
 function getRowIndex(row) { return Array.from(document.querySelectorAll('#assets-body .asset-row')).indexOf(row); }
 function selectRange(start, end) {
@@ -142,9 +472,6 @@ async function executeBulkDelete() {
     clearSelection(); if(bulkDeleteModalInstance) bulkDeleteModalInstance.hide(); location.reload();
 }
 
-// ═══════════════════════════════════════════════════════════════
-// КОНСТРУКТОР ФИЛЬТРОВ
-// ═══════════════════════════════════════════════════════════════
 function createConditionElement() {
     const div = document.createElement('div'); div.className = 'filter-condition'; div.dataset.type = 'condition';
     div.innerHTML = `<input type="text" class="form-control form-control-sm f-field" list="filter-fields-list" placeholder="Поле..." style="width:160px">
@@ -153,15 +480,7 @@ function createConditionElement() {
         <button class="btn btn-sm btn-outline-danger" onclick="this.parentElement.remove()">×</button>`;
     return div;
 }
-function createGroupElement() {
-    const g = document.createElement('div'); g.className = 'filter-group'; g.dataset.type = 'group';
-    g.innerHTML = `<div class="d-flex justify-content-between mb-2"><span class="badge bg-primary" onclick="this.textContent=this.textContent==='AND'?'OR':'AND'">AND</span><button class="btn btn-sm btn-close" onclick="this.closest('.filter-group').remove()"></button></div><div class="filter-group-content"></div><button class="btn btn-xs btn-outline-primary mt-1" onclick="this.closest('.filter-group').querySelector('.filter-group-content').appendChild(createConditionElement())">+ Условие</button>`;
-    return g;
-}
-function initFilterRoot() {
-    const r = document.getElementById('filter-root');
-    if(r && !r.querySelector('.filter-group-content')) { r.innerHTML = '<div class="filter-group-content"></div>'; r.appendChild(createConditionElement()); }
-}
+
 function initFilterFieldDatalist() {
     if(!document.getElementById('filter-fields-list')) {
         const dl = document.createElement('datalist'); dl.id = 'filter-fields-list';
@@ -169,29 +488,7 @@ function initFilterFieldDatalist() {
         document.body.appendChild(dl);
     }
 }
-function buildFilterJSON() {
-    const root = document.getElementById('filter-root'); if(!root) return {logic:'AND', conditions:[]};
-    const logic = root.querySelector('.badge')?.textContent || 'AND'; const conds = [];
-    root.querySelectorAll('.filter-condition').forEach(c => {
-        conds.push({field: c.querySelector('.f-field').value.trim(), op: c.querySelector('.f-op').value, value: c.querySelector('.f-val').value.trim()});
-    });
-    return {logic, conditions: conds};
-}
-function applyFilters() {
-    const valid = new Set(FILTER_FIELDS.map(f=>f.value)); let err = false;
-    document.querySelectorAll('.filter-condition').forEach(c => {
-        const v = c.querySelector('.f-field').value.trim();
-        if(!valid.has(v)) { c.classList.add('border-danger'); err = true; } else c.classList.remove('border-danger');
-    });
-    if(err) { alert('⚠️ Проверьте имена полей.'); return; }
-    fetch(`/api/assets?filters=${encodeURIComponent(JSON.stringify(buildFilterJSON()))}`).then(r=>r.json()).then(renderAssets);
-}
-function resetFilters() { document.getElementById('filter-root').querySelector('.filter-group-content').innerHTML = ''; document.getElementById('filter-root').appendChild(createConditionElement()); loadAssets(); }
-function loadAssets() { fetch('/api/assets').then(r=>r.json()).then(renderAssets); }
 
-// ═══════════════════════════════════════════════════════════════
-// РЕНДЕР & МОДАЛКИ
-// ═══════════════════════════════════════════════════════════════
 window.renderAssets = function(data) {
     const tb = document.getElementById('assets-body'); if(!tb) return;
     tb.innerHTML = ''; clearSelection();
@@ -208,7 +505,7 @@ window.renderAssets = function(data) {
 };
 
 // ═══════════════════════════════════════════════════════════════
-// WAZUH & ПРОФИЛИ
+// WAZUH
 // ═══════════════════════════════════════════════════════════════
 document.getElementById('data-source-filter')?.addEventListener('change', function() {
     const p = new URLSearchParams(window.location.search); p.set('data_source', this.value); window.location.search = p.toString();
@@ -230,58 +527,9 @@ document.getElementById('wazuhModal')?.addEventListener('show.bs.modal', async (
 });
 
 // ═══════════════════════════════════════════════════════════════
-// ИНИЦИАЛИЗАЦИЯ
+// СКАНИРОВАНИЯ
 // ═══════════════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
-    initTheme(); initFilterFieldDatalist(); initTreeTogglers(); initFilterRoot(); initAssetSelection();
-    contextMenu = document.getElementById('group-context-menu');
-    const e = document.getElementById('groupEditModal'); const m = document.getElementById('groupMoveModal');
-    const d = document.getElementById('groupDeleteModal'); const b = document.getElementById('bulkDeleteModal');
-    if(e) editModal = new bootstrap.Modal(e); if(m) moveModal = new bootstrap.Modal(m);
-    if(d) deleteModal = new bootstrap.Modal(d); if(b) bulkDeleteModalInstance = new bootstrap.Modal(b);
-    document.addEventListener('keydown', e => { if(e.ctrlKey && e.key==='a' && !['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) { e.preventDefault(); document.querySelectorAll('#assets-body .asset-checkbox').forEach(cb => { cb.checked=true; toggleRowSelection(cb.closest('tr'),true); selectedAssetIds.add(cb.value); }); updateBulkToolbar(); updateSelectAllCheckbox(); } });
-});
-
-// ═══════════════════════════════════════════════════════════════
-// ЭКСПОРТ ФУНКЦИЙ В ГЛОБАЛЬНУЮ ОБЛАСТЬ (для inline onclick)
-// ═══════════════════════════════════════════════════════════════
-
-function showRenameModal(id) {
-    const modalEl = document.getElementById('groupEditModal');
-    if (!modalEl) return console.warn('⚠️ #groupEditModal не найден');
-
-    const idInput = document.getElementById('edit-group-id');
-    if (idInput) idInput.value = id;
-
-    const nameEl = document.querySelector(`.tree-node[data-id="${id}"] .group-name`);
-    const nameInput = document.getElementById('edit-group-name');
-    if (nameInput && nameEl) nameInput.value = nameEl.textContent.trim();
-
-    const dynCheck = document.getElementById('edit-group-dynamic');
-    if (dynCheck) dynCheck.checked = false;
-
-    const filterSection = document.getElementById('dynamic-filter-section');
-    if (filterSection) filterSection.style.display = 'none';
-
-    new bootstrap.Modal(modalEl).show();
-}
-
-function showMoveModal(id) {
-    const modalEl = document.getElementById('groupMoveModal');
-    if (!modalEl) return console.warn('⚠️ #groupMoveModal не найден.');
-    document.getElementById('move-group-id').value = id;
-    new bootstrap.Modal(modalEl).show();
-}
-
-function showDeleteModal(id) {
-    const modalEl = document.getElementById('groupDeleteModal');
-    if (!modalEl) return console.warn('⚠️ #groupDeleteModal не найден.');
-    document.getElementById('delete-group-id').value = id;
-    new bootstrap.Modal(modalEl).show();
-}
-
-// 🔥 Просмотр результатов с отображением ошибок
-async function viewScanResults(id){
+window.viewScanResults = async function(id){
     const m = new bootstrap.Modal(document.getElementById('scanResultsModal'));
     const c = document.getElementById('scan-results-content');
     const errAlert = document.getElementById('scan-error-alert');
@@ -295,7 +543,6 @@ async function viewScanResults(id){
         const r = await fetch(`/api/scans/${id}/results`);
         const d = await r.json();
         
-        // 🔥 Показываем ошибку если статус failed
         if(d.job.status === 'failed' && d.job.error_message){
             errAlert.style.display = 'block';
             errText.textContent = d.job.error_message;
@@ -310,7 +557,7 @@ async function viewScanResults(id){
         h += `<hr>`;
         
         if(d.job.status === 'failed'){
-            h += '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Сканирование завершилось с ошибкой. Смотрите детали выше.</div>';
+            h += '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Сканирование завершилось с ошибкой.</div>';
         } else if(d.results.length === 0){
             h += '<p class="text-muted">Нет результатов</p>';
         } else {
@@ -327,17 +574,18 @@ async function viewScanResults(id){
     }
 }
 
-// 🔥 Показ полной ошибки в отдельном модальном окне
-function showScanError(jobId, errorMsg){
+window.showScanError = function(jobId, errorMsg){
     const m = new bootstrap.Modal(document.getElementById('scanErrorModal'));
     const c = document.getElementById('scan-error-content');
+    const safeMsg = errorMsg.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+    
     c.innerHTML = `
         <div class="alert alert-danger">
             <h6><i class="bi bi-exclamation-triangle"></i> Ошибка сканирования #${jobId}:</h6>
-            <pre class="mb-0" style="white-space:pre-wrap;max-height:400px;overflow-y:auto">${errorMsg}</pre>
+            <pre class="mb-0" style="white-space:pre-wrap;max-height:400px;overflow-y:auto">${safeMsg}</pre>
         </div>
         <div class="mt-3">
-            <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText(\`${errorMsg.replace(/`/g, '\\`')}\`)">
+            <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('${safeMsg}')">
                 <i class="bi bi-clipboard"></i> Копировать ошибку
             </button>
         </div>
@@ -345,7 +593,6 @@ function showScanError(jobId, errorMsg){
     m.show();
 }
 
-// 🔥 Обновление истории с кликабельной ошибкой
 async function updateScanHistory(){
     try{
         const res = await fetch('/api/scans/history');
@@ -363,7 +610,6 @@ async function updateScanHistory(){
                 badge.textContent = j.status;
                 badge.className = `badge status-badge bg-${j.status==='running'?'warning text-dark':j.status==='completed'?'success':'danger'}`;
                 
-                // 🔥 Делаем ошибку кликабельной
                 if(j.error_message){
                     badge.style.cursor = 'pointer';
                     badge.setAttribute('title', 'Нажмите для просмотра детали ошибки');
@@ -381,10 +627,11 @@ async function updateScanHistory(){
     }catch(e){console.warn('History poll error:',e);}
 }
 
-// 🔥 Обновление дерева групп (вызывать после сканирования и при загрузке)
+// ═══════════════════════════════════════════════════════════════
+// ОБНОВЛЕНИЕ ДЕРЕВА ГРУПП
+// ═══════════════════════════════════════════════════════════════
 async function refreshGroupTree() {
     try {
-        // Получаем актуальное дерево
         const res = await fetch('/api/groups/tree');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
@@ -395,74 +642,104 @@ async function refreshGroupTree() {
         const ungroupedEl = document.getElementById('ungrouped-count');
         if (ungroupedEl) ungroupedEl.textContent = ungroupedAssets.length;
         
-        // Обновляем счётчики у каждой группы в дереве
-        data.flat.forEach(g => {
-            const node = document.querySelector(`.tree-node[data-id="${g.id}"]`);
-            if (node) {
-                const badge = node.querySelector('.badge');
-                if (badge) {
-                    // Плавное обновление числа
-                    const oldCount = parseInt(badge.textContent) || 0;
-                    const newCount = g.count || 0;
-                    if (oldCount !== newCount) {
-                        badge.classList.add('bg-warning', 'text-dark');
-                        setTimeout(() => {
-                            badge.textContent = newCount;
-                            badge.classList.remove('bg-warning', 'text-dark');
-                        }, 300);
-                    }
-                }
-            }
-        });
+        const treeContainer = document.getElementById('group-tree');
+        if(treeContainer && data.flat) {
+             let html = '';
+             const roots = data.flat.filter(g => !g.parent_id);
+             
+             function buildNode(g, level) {
+                 const children = data.flat.filter(c => c.parent_id == g.id);
+                 const hasChildren = children.length > 0;
+                 const caret = hasChildren ? '<i class="bi bi-caret-right caret"></i>' : '<i class="bi bi-dot"></i>';
+                 
+                 // 🔥 Добавляем кнопки действий
+                 const actionsHtml = `
+                    <div class="group-actions">
+                        <button class="btn-action btn-sm text-muted" onclick="event.stopPropagation(); showRenameModal(${g.id})" title="Редактировать">
+                            <i class="bi bi-pencil-square"></i>
+                        </button>
+                        <button class="btn-action btn-sm text-muted" onclick="event.stopPropagation(); showMoveModal(${g.id})" title="Переместить">
+                            <i class="bi bi-arrow-move"></i>
+                        </button>
+                        <button class="btn-action btn-sm text-danger" onclick="event.stopPropagation(); showDeleteModal(${g.id})" title="Удалить">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                 `;
+
+                 let nodeHtml = `
+                    <div class="tree-node" data-id="${g.id}" style="padding-left:${10 + level*15}px; display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display:flex; align-items:center; flex:1;">
+                            ${caret} 
+                            <span class="group-name ms-2">${g.name}</span> 
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span class="badge bg-secondary">${g.count||0}</span>
+                            ${actionsHtml}
+                        </div>
+                    </div>
+                 `;
+                 
+                 if(hasChildren) {
+                     nodeHtml += `<ul class="nested">`;
+                     children.forEach(c => nodeHtml += buildNode(c, level+1));
+                     nodeHtml += `</ul>`;
+                 }
+                 return nodeHtml;
+             }
+
+             html = '<ul style="list-style:none; padding:0; margin:0;">';
+             roots.forEach(r => html += buildNode(r, 0));
+             html += '</ul>';
+             
+             // Добавляем "Без группы" (без кнопок удаления/перемещения)
+             html += `<div class="tree-node" data-id="ungrouped" style="padding-left:10px; margin-top:10px; border-top:1px solid var(--border-color); display:flex; justify-content:space-between;">
+                <div><i class="bi bi-folder-minus"></i> <span class="group-name ms-2">Без группы</span></div>
+                <span id="ungrouped-count" class="badge bg-secondary">${ungroupedAssets.length}</span>
+             </div>`;
+
+             treeContainer.innerHTML = html;
+             initTreeTogglers(); // Перевешиваем слушатели кликов
+        }
         
-        console.log('✅ Дерево групп обновлено');
     } catch (e) {
         console.warn('⚠️ Ошибка обновления дерева групп:', e);
     }
 }
 
-let lastCompletedScans = new Set();
-
+// Поллинг активных сканирований
 function pollActiveScans(){
     fetch('/api/scans/status').then(r=>r.json()).then(d=>{
-        const c=document.getElementById('active-scans');
+        const c = document.getElementById('active-scans');
         
-        // 🔥 Проверяем завершённые сканирования
-        fetch('/api/scans/history').then(hr=>hr.json()).then(history=>{
-            history.forEach(j=>{
-                if(j.status === 'completed' && !lastCompletedScans.has(j.id)){
-                    lastCompletedScans.add(j.id);
-                    // 🔥 Обновляем дерево групп при завершении сканирования
-                    refreshGroupTree();
-                }
-            });
-        });
-        
+        if (!c) return; // Защита от ошибки если элемента нет на странице
+
         if(d.active?.length){
             let h='<div class="row">';
             d.active.forEach(j=>{
                 const cls=j.status==='running'?'progress-bar-striped progress-bar-animated':'';
                 const b=j.scan_type==='rustscan'?'bg-danger':'bg-info text-dark';
                 const s=j.status==='running'?'bg-warning text-dark':j.status==='paused'?'bg-info text-dark':'bg-secondary';
-                h+=`<div class="col-md-6 mb-3"><div class="card border-${j.status==='failed'?'danger':j.status==='running'?'warning':'info'}"><div class="card-body"><div class="d-flex justify-content-between align-items-center mb-2"><h6 class="mb-0"><span class="badge ${b} me-2">${j.scan_type.toUpperCase()}</span>${j.target}</h6><span class="badge ${s}">${j.status}</span></div><div class="progress mb-2" style="height:6px"><div class="progress-bar ${cls}" style="width:${j.progress}%"></div></div><small>${j.current_target&&j.status==='running'?`📡 ${j.current_target}<br>`:''}Прогресс: ${j.progress}%</small></div></div></div>`;
+                h+=`<div class="col-md-12 mb-2"><div class="card border-${j.status==='failed'?'danger':j.status==='running'?'warning':'info'}"><div class="card-body p-2"><div class="d-flex justify-content-between align-items-center mb-1"><h6 class="mb-0 small"><span class="badge ${b} me-1">${j.scan_type.toUpperCase()}</span>${j.target}</h6><span class="badge ${s} small">${j.status}</span></div><div class="progress mb-1" style="height:4px"><div class="progress-bar ${cls}" style="width:${j.progress}%"></div></div><small class="text-muted" style="font-size:0.7rem">Прогресс: ${j.progress}%</small></div></div></div>`;
             });
-            h+='</div>'; c.innerHTML=h;
-        } else c.innerHTML='<p class="text-muted mb-0"><i class="bi bi-check-circle"></i> Нет активных сканирований</p>';
+            h+='</div>';
+            c.innerHTML = h;
+        } else {
+            c.innerHTML='<p class="text-muted mb-0 small"><i class="bi bi-check-circle"></i> Нет активных сканирований</p>';
+        }
+        
+        checkCompletedScans();
     }).catch(e=>console.warn('⚠️ Active poll error:',e));
 }
 
-// 🔥 Отслеживание завершённых сканирований для обновления групп
 let lastKnownCompleted = new Set();
-
 function checkCompletedScans() {
     fetch('/api/scans/history')
         .then(r => r.json())
         .then(history => {
             history.forEach(j => {
-                // Если сканирование завершено и мы его ещё не обработали
                 if (j.status === 'completed' && !lastKnownCompleted.has(j.id)) {
                     lastKnownCompleted.add(j.id);
-                    console.log(`🔄 Сканирование #${j.id} завершено, обновляем группы...`);
                     refreshGroupTree();
                 }
             });
@@ -470,20 +747,63 @@ function checkCompletedScans() {
         .catch(e => console.warn('⚠️ Ошибка проверки сканирований:', e));
 }
 
-// В функции pollActiveScans добавьте вызов checkCompletedScans():
-function pollActiveScans(){
-    fetch('/api/scans/status').then(r=>r.json()).then(d=>{
-        // ... существующий код для активных сканирований ...
-        
-        // 🔥 Проверяем завершённые сканирования
-        checkCompletedScans();
-        
-    }).catch(e=>console.warn('⚠️ Active poll error:',e));
-}
+// ═══════════════════════════════════════════════════════════════
+// ИНИЦИАЛИЗАЦИЯ
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+    initTheme(); 
+    initFilterFieldDatalist(); 
+    initTreeTogglers(); 
+    initAssetSelection();
+    
+    contextMenu = document.getElementById('group-context-menu');
+    
+    setInterval(pollActiveScans, 5000);
+    pollActiveScans();
 
-// 🔥 Экспорт в глобальную область
-window.showRenameModal = showRenameModal;
-window.showMoveModal = showMoveModal;
-window.showDeleteModal = showDeleteModal;
-window.refreshGroupTree = refreshGroupTree;
-window.filterByGroup = filterByGroup;
+    document.addEventListener('keydown', e => { 
+        if(e.ctrlKey && e.key==='a' && !['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) { 
+            e.preventDefault(); 
+            document.querySelectorAll('#assets-body .asset-checkbox').forEach(cb => { 
+                cb.checked=true; 
+                toggleRowSelection(cb.closest('tr'),true); 
+                selectedAssetIds.add(cb.value); 
+            }); 
+            updateBulkToolbar(); 
+            updateSelectAllCheckbox(); 
+        } 
+    });
+});
+
+// Функция подтверждения удаления группы (вызывается из HTML onclick)
+window.confirmDeleteGroup = function() {
+    const groupId = document.getElementById('delete-group-id').value;
+    const moveToId = document.getElementById('delete-move-assets').value;
+    
+    // Закрываем модальное окно вручную, так как кнопка не внутри формы submit
+    const modalEl = document.getElementById('groupDeleteModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+
+    fetch(`/api/groups/${groupId}`, {
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ move_to_id: moveToId || null })
+    })
+    .then(response => {
+        if (response.ok) {
+            refreshGroupTree();
+            // Если удалили текущую группу, сбросить фильтр
+            if (currentGroupId == groupId) {
+                currentGroupId = null;
+                loadAssets(); 
+            }
+        } else {
+            alert('Ошибка при удалении группы');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка сети');
+    });
+};
