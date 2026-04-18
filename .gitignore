@@ -1,3 +1,5 @@
+scan_results/
+
 # Python compiled files
 __pycache__/
 *.pyc
