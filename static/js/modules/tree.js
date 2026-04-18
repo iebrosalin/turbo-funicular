@@ -17,44 +17,54 @@ export async function refreshGroupTree() {
         const activeId = activeNode ? activeNode.dataset.id : null;
         const isUngrouped = !!document.querySelector('.tree-node[data-id="ungrouped"].active');
 
-        // Функция для построения дерева
+        // Функция для построения дерева (рекурсивная)
         const buildTreeHtml = (nodes, parentId = null) => {
-            let html = '';
+            // Фильтруем узлы, которые являются прямыми детьми текущего родителя
             const children = nodes.filter(n => n.parent_id == parentId);
             
+            if (children.length === 0) return '';
+
+            let html = '';
+            
             children.forEach(node => {
+                // Проверяем, есть ли у этого узла дети (для отображения стрелки)
                 const hasChildren = nodes.some(n => n.parent_id == node.id);
-                const indentClass = node.depth > 0 ? 'ms-' + Math.min(node.depth * 2, 5) : '';
                 
+                // Формируем HTML узла
+                html += `<li>`;
                 html += `
-                    <li>
-                        <div class="tree-node" data-id="${node.id}">
-                            ${hasChildren ? '<span class="caret"></span>' : '<span class="caret-spacer"></span>'}
-                            <i class="bi bi-folder folder-icon"></i>
-                            <span class="group-name"
-                                  data-id="${node.id}"
-                                  data-name="${node.name}"
-                                  data-parent="${node.parent_id || ''}"
-                                  data-type="${node.is_cidr ? 'cidr' : node.is_dynamic ? 'dynamic' : 'manual'}">
-                                ${node.name}
-                                ${node.is_cidr ? '<i class="bi bi-globe ms-1 text-muted" title="CIDR группа"></i>' : ''}
-                                ${node.is_dynamic ? '<i class="bi bi-funnel ms-1 text-muted" title="Динамическая группа"></i>' : ''}
-                            </span>
-                            <span class="badge bg-secondary ms-auto">${node.asset_count || 0}</span>
-                        </div>
+                    <div class="tree-node" data-id="${node.id}">
+                        ${hasChildren ? '<span class="caret"></span>' : '<span class="caret-spacer"></span>'}
+                        <i class="bi bi-folder folder-icon"></i>
+                        <span class="group-name"
+                              data-id="${node.id}"
+                              data-name="${node.name}"
+                              data-parent="${node.parent_id || ''}"
+                              data-type="${node.is_cidr ? 'cidr' : node.is_dynamic ? 'dynamic' : 'manual'}">
+                            ${node.name}
+                            ${node.is_cidr ? '<i class="bi bi-globe ms-1 text-muted" title="CIDR группа"></i>' : ''}
+                            ${node.is_dynamic ? '<i class="bi bi-funnel ms-1 text-muted" title="Динамическая группа"></i>' : ''}
+                        </span>
+                        <span class="badge bg-secondary ms-auto">${node.asset_count ?? node.count ?? 0}</span>
+                    </div>
                 `;
 
+                // Если есть дети, рекурсивно строим вложенный список
                 if (hasChildren) {
-                    html += `<ul class="nested">${buildTreeHtml(nodes, node.id)}</ul>`;
+                    const childrenHtml = buildTreeHtml(nodes, node.id);
+                    if (childrenHtml) {
+                        html += `<ul class="nested" style="display: none;">${childrenHtml}</ul>`;
+                    }
                 }
+                
                 html += `</li>`;
             });
 
             return html;
         };
 
-        // Ungrouped секция
-        let ungroupedHtml = `
+        // Секция "Без группы"
+        const ungroupedHtml = `
             <li>
                 <div class="tree-node" data-id="ungrouped">
                     <span class="caret-spacer"></span>
@@ -67,7 +77,9 @@ export async function refreshGroupTree() {
             </li>
         `;
 
-        treeContainer.innerHTML = `<ul>${ungroupedHtml + buildTreeHtml(data.flat)}</ul>`;
+        // Собираем всё дерево
+        const treeHtml = ungroupedHtml + buildTreeHtml(data.flat);
+        treeContainer.innerHTML = `<ul>${treeHtml}</ul>`;
 
         // Восстанавливаем выделение
         if (isUngrouped) {
@@ -77,6 +89,18 @@ export async function refreshGroupTree() {
             const node = treeContainer.querySelector(`.tree-node[data-id="${activeId}"]`);
             if (node) {
                 node.classList.add('active');
+                // Раскрываем родителей, если элемент глубоко вложен
+                let parentUl = node.closest('ul.nested');
+                while (parentUl) {
+                    parentUl.style.display = 'block';
+                    // Поворачиваем стрелку у родителя
+                    const parentLi = parentUl.closest('li');
+                    if (parentLi) {
+                        const caret = parentLi.querySelector(':scope > .tree-node > .caret');
+                        if (caret) caret.classList.add('down');
+                    }
+                    parentUl = parentUl.closest('ul.nested');
+                }
                 node.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         }
@@ -114,35 +138,55 @@ export async function loadAssets(groupId = null, ungrouped = false) {
 
 function initTreeTogglers() {
     const treeContainer = document.getElementById('group-tree');
+    if (!treeContainer) return;
     
-    // Обработчик кликов по узлам дерева
     treeContainer.addEventListener('click', function(e) {
+        // Клик по названию группы
         const groupSpan = e.target.closest('.group-name');
         if (groupSpan) {
             const nodeId = groupSpan.dataset.id;
             
-            // Удаляем активный класс со всех узлов
             treeContainer.querySelectorAll('.tree-node').forEach(node => {
                 node.classList.remove('active');
             });
             
-            // Добавляем активный класс к выбранному узлу
             const clickedNode = e.target.closest('.tree-node');
-            clickedNode.classList.add('active');
+            if (clickedNode) clickedNode.classList.add('active');
             
-            // Загружаем активы в зависимости от типа узла
             if (nodeId === 'ungrouped') {
                 loadAssets(null, true);
             } else {
                 loadAssets(parseInt(nodeId), false);
             }
+            return;
         }
         
+        // Клик по стрелке
         const caret = e.target.closest('.caret');
         if (caret) {
-            const parentLi = caret.parentElement.parentElement;
-            parentLi.classList.toggle("active");
-            caret.classList.toggle("down");
+            e.stopPropagation(); // Предотвращаем всплытие события
+
+            const parentLi = caret.closest('li');
+
+            if (parentLi) {
+                // Находим ul.nested как следующий соседний элемент после .tree-node
+                const nestedUl = parentLi.querySelector('ul.nested');
+
+                if (nestedUl) {
+                    // Переключаем видимость напрямую через style.display
+                    const isVisible = nestedUl.style.display === 'block';
+
+                    if (isVisible) {
+                        nestedUl.style.display = 'none';
+                        nestedUl.classList.remove('active');
+                    } else {
+                        nestedUl.style.display = 'block';
+                        nestedUl.classList.add('active');
+                    }
+                }
+            }
+
+            caret.classList.toggle('down');
         }
     });
 }

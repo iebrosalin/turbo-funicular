@@ -241,33 +241,26 @@ def api_get_tree():
     all_groups = Group.query.all()
     tree = build_group_tree(all_groups)
     
+    # Преобразуем дерево в плоский список с сохранением всех полей включая depth
     flat_list = []
-    def flatten(nodes, level=0):
+    def flatten(nodes):
         for node in nodes:
             flat_list.append({
                 'id': node['id'], 
-                'name': node['name'], # Убрал отступы, их делает фронт
+                'name': node['name'],
                 'count': node['count'],
-                'parent_id': node.get('parent_id'), # Добавил parent_id для дерева
-                'is_dynamic': node.get('is_dynamic', False)
+                'asset_count': node['asset_count'],
+                'parent_id': node.get('parent_id'),
+                'is_dynamic': node.get('is_dynamic', False),
+                'depth': node.get('depth', 0)
             })
-            flatten(node['children'], level + 1)
-            
-    # Добавим корневые элементы с явным parent_id=None
-    # Функция build_group_tree уже возвращает структуру, но для flat списка нужно пройтись по всем группам
-    # Проще вернуть просто список всех групп с parent_id
-    simple_flat = []
-    for g in all_groups:
-        count = Asset.query.filter_by(group_id=g.id).count()
-        simple_flat.append({
-            'id': g.id,
-            'name': g.name,
-            'parent_id': g.parent_id,
-            'count': count,
-            'is_dynamic': g.is_dynamic
-        })
+            flatten(node['children'])
     
-    return jsonify({'tree': tree, 'flat': simple_flat})
+    flatten(tree)
+    
+    ungrouped_count = Asset.query.filter(Asset.group_id.is_(None)).count()
+    
+    return jsonify({'tree': tree, 'flat': flat_list, 'ungrouped_count': ungrouped_count})
 
 # ────────────────────────────────────────────────────────────────
 # АКТИВЫ: ДЕТАЛИ, ИСТОРИЯ, ТАКСОНОМИЯ

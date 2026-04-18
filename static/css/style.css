@@ -82,12 +82,13 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 }
 
 /* Скрытие/отображение вложенных списков */
-#group-tree .nested {
+#group-tree ul.nested {
     display: none;
 }
 
-#group-tree .nested.active {
-    display: block;
+#group-tree ul.nested.active,
+#group-tree ul.nested[style*="display: block"] {
+    display: block !important;
 }
 
 #group-tree li {
@@ -123,12 +124,8 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     display: inline-block;
 }
 
-.caret-down {
+.caret.down {
     transform: rotate(90deg);
-}
-
-.caret-down::before {
-    content: "▶";
 }
 
 /* Пустой спейсер вместо caret для листовых узлов */

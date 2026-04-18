@@ -267,36 +267,47 @@ def parse_nmap_xml(filepath):
 # ГРУППЫ И ФИЛЬТРЫ
 # ────────────────────────────────────────────────────────────────
 
-def build_group_tree(groups, parent_id=None):
+def build_group_tree(groups, parent_id=None, depth=0):
     """Построение дерева групп"""
     Asset, Group, _, _, _ = get_models()
     from sqlalchemy import and_, or_
     
     tree = []
-    for group in groups:
-        if group.parent_id == parent_id:
-            children = build_group_tree(groups, group.id)
-            
-            count = 0
-            if group.is_dynamic and group.filter_rules:
-                try:
-                    filter_struct = json.loads(group.filter_rules)
-                    base_query = Asset.query
-                    complex_query = build_complex_query(Asset, filter_struct, base_query)
-                    count = complex_query.count()
-                except Exception as e:
-                    print(f"Ошибка подсчета динамической группы {group.name}: {e}")
-                    count = 0
-            else:
-                count = group.assets.count()
-            
-            tree.append({
-                'id': group.id, 
-                'name': group.name, 
-                'children': children, 
-                'count': count, 
-                'is_dynamic': group.is_dynamic
-            })
+    # Фильтруем группы текущего уровня
+    current_level_groups = [g for g in groups if g.parent_id == parent_id]
+
+    for group in current_level_groups:
+        # Рекурсивно строим поддерево
+        children = build_group_tree(groups, group.id, depth + 1)
+
+        # Подсчёт активов: прямые + все вложенные группы
+        count = 0
+        if group.is_dynamic and group.filter_rules:
+            try:
+                filter_struct = json.loads(group.filter_rules)
+                base_query = Asset.query
+                complex_query = build_complex_query(Asset, filter_struct, base_query)
+                count = complex_query.count()
+            except Exception as e:
+                print(f"Ошибка подсчета динамической группы {group.name}: {e}")
+                count = 0
+        else:
+            count = group.assets.count()
+
+        # Добавляем активы из всех вложенных групп
+        for child in children:
+            count += child.get('asset_count', 0)
+
+        tree.append({
+            'id': group.id,
+            'name': group.name,
+            'children': children,
+            'count': count,
+            'asset_count': count,
+            'is_dynamic': group.is_dynamic,
+            'parent_id': group.parent_id,
+            'depth': depth
+        })
     return tree
 
 def build_complex_query(model, filters_structure, base_query=None):
