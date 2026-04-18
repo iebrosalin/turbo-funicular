@@ -147,12 +147,14 @@ export async function saveGroup() {
     };
 
     if (mode === 'cidr') {
-        const cidr = document.getElementById('edit-group-cidr').value.trim();
+        const cidr = document.getElementById('cidr-network').value.trim();
+        const mask = document.getElementById('cidr-mask').value;
         if (!cidr) {
             alert('Укажите CIDR');
             return;
         }
-        payload.cidr = cidr;
+        payload.cidr_network = cidr;
+        payload.cidr_mask = mask;
     } else if (mode === 'dynamic') {
         const rules = [];
         document.querySelectorAll('.filter-condition').forEach(el => {

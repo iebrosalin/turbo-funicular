@@ -1,12 +1,23 @@
 import os
+import json
 from flask import Flask
 from extensions import db
 from routes import register_blueprints
-# Убираем прямой импорт scanner здесь, если он не нужен для конфигурации
-# import scanner 
+
+# Фильтр для парсинга JSON в шаблонах
+def fromjson_filter(s):
+    if s is None:
+        return None
+    try:
+        return json.loads(s)
+    except (TypeError, ValueError):
+        return None
 
 def create_app():
     app = Flask(__name__)
+
+    # Регистрируем пользовательский фильтр
+    app.jinja_env.filters['fromjson'] = fromjson_filter
 
     # 1. Конфигурация
     basedir = os.path.abspath(os.path.dirname(__file__))

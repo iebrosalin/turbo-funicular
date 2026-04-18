@@ -46,6 +46,23 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers } from '.
         // 🖱️ Контекстное меню
         initContextMenu();
 
+        // 📝 Обработчик формы редактирования/создания группы
+        const groupEditForm = document.getElementById('groupEditForm');
+        if (groupEditForm) {
+            groupEditForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                saveGroup();
+            });
+        }
+
+        // 🔄 Обработчик формы перемещения группы
+        const groupMoveForm = document.getElementById('groupMoveForm');
+        if (groupMoveForm) {
+            groupMoveForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                moveGroup();
+            });
+        }
         // 🔗 Ссылка на контекстное меню
         window.contextMenu = document.getElementById('group-context-menu');
 
