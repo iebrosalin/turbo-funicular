@@ -100,16 +100,21 @@ def start_rustscan():
     target = data.get('target')
     ports = data.get('ports', '-')
     args = data.get('extra_args', '')
+    use_known_ports = data.get('use_known_ports', False)
     
     if not target:
         return jsonify({'error': 'Не указана цель'}), 400
+    
+    # Если выбраны известные порты,目标 должен быть группой
+    if use_known_ports and not target.startswith('group:'):
+        return jsonify({'error': 'Опция "Известные порты" доступна только для групп активов'}), 400
         
     job = ScanJob(
         scan_type='rustscan',
         target=target,
         status='pending',
         progress=0,
-        scan_parameters=json.dumps({'ports': ports, 'args': args})
+        scan_parameters=json.dumps({'ports': ports, 'args': args, 'use_known_ports': use_known_ports})
     )
     db.session.add(job)
     db.session.commit()
@@ -118,7 +123,7 @@ def start_rustscan():
     app = current_app._get_current_object()
     t = threading.Thread(
         target=run_scan_wrapper, 
-        args=(app, run_rustscan_scan, job.id, target, ports, args)
+        args=(app, run_rustscan_scan, job.id, target, ports, args, use_known_ports)
     )
     t.daemon = True
     t.start()
@@ -132,16 +137,21 @@ def start_nmap():
     ports = data.get('ports', '-')
     scripts = data.get('scripts', '')
     args = data.get('extra_args', '')
+    use_known_ports = data.get('use_known_ports', False)
     
     if not target:
         return jsonify({'error': 'Не указана цель'}), 400
+    
+    # Если выбраны известные порты,目标 должен быть группой
+    if use_known_ports and not target.startswith('group:'):
+        return jsonify({'error': 'Опция "Известные порты" доступна только для групп активов'}), 400
         
     job = ScanJob(
         scan_type='nmap',
         target=target,
         status='pending',
         progress=0,
-        scan_parameters=json.dumps({'ports': ports, 'scripts': scripts, 'args': args})
+        scan_parameters=json.dumps({'ports': ports, 'scripts': scripts, 'args': args, 'use_known_ports': use_known_ports})
     )
     db.session.add(job)
     db.session.commit()
@@ -149,7 +159,7 @@ def start_nmap():
     app = current_app._get_current_object()
     t = threading.Thread(
         target=run_scan_wrapper, 
-        args=(app, run_nmap_scan, job.id, target, ports, scripts, args)
+        args=(app, run_nmap_scan, job.id, target, ports, scripts, args, use_known_ports)
     )
     t.daemon = True
     t.start()
@@ -292,10 +302,12 @@ def control_scan(job_id):
         
         app = current_app._get_current_object()
         
+        use_known_ports = params.get('use_known_ports', False)
+        
         if job.scan_type == 'rustscan':
-            t = threading.Thread(target=run_scan_wrapper, args=(app, run_rustscan_scan, new_job.id, job.target, params.get('ports', '-'), params.get('args', '')))
+            t = threading.Thread(target=run_scan_wrapper, args=(app, run_rustscan_scan, new_job.id, job.target, params.get('ports', '-'), params.get('args', ''), use_known_ports))
         elif job.scan_type == 'nmap':
-            t = threading.Thread(target=run_scan_wrapper, args=(app, run_nmap_scan, new_job.id, job.target, params.get('ports', '-'), params.get('scripts', ''), params.get('args', '')))
+            t = threading.Thread(target=run_scan_wrapper, args=(app, run_nmap_scan, new_job.id, job.target, params.get('ports', '-'), params.get('scripts', ''), params.get('args', ''), use_known_ports))
         elif job.scan_type == 'nslookup':
             t = threading.Thread(target=run_scan_wrapper, args=(app, run_nslookup_scan, new_job.id, params.get('targets', ''), params.get('dns_server', '77.88.8.8'), params.get('args', '')))
         else:

@@ -29,6 +29,51 @@ def parse_targets(target_str):
     """Разбивает строку целей на список IP/CIDR"""
     return [t.strip() for t in re.split(r'[,\s]+', target_str) if t.strip()]
 
+def get_known_ports_for_group(group_id):
+    """
+    Получает список уникальных портов из всех активов указанной группы.
+    Возвращает строку с портами через запятую (например, "22,80,443") или '-' если портов нет.
+    """
+    if not group_id or group_id == 'ungrouped':
+        return '-'
+    
+    assets = Asset.query.filter_by(group_id=group_id).all()
+    all_ports = set()
+    
+    for asset in assets:
+        # Собираем порты из разных полей
+        port_sources = [asset.open_ports, asset.rustscan_ports, asset.nmap_ports]
+        
+        for port_str in port_sources:
+            if not port_str:
+                continue
+            # Пробуем распарсить как JSON список
+            try:
+                ports_list = json.loads(port_str)
+                if isinstance(ports_list, list):
+                    for p in ports_list:
+                        # Извлекаем номер порта (например, "22/tcp" -> "22")
+                        port_num = str(p).split('/')[0]
+                        if port_num.isdigit():
+                            all_ports.add(port_num)
+                    continue
+            except (json.JSONDecodeError, TypeError):
+                pass
+            
+            # Если не JSON, пробуем как строку "22/tcp, 80/tcp"
+            for item in port_str.split(','):
+                item = item.strip()
+                if not item:
+                    continue
+                port_num = item.split('/')[0]
+                if port_num.isdigit():
+                    all_ports.add(port_num)
+    
+    if not all_ports:
+        return '-'
+    
+    return ','.join(sorted(all_ports, key=int))
+
 def check_scan_conflicts(target, scan_type):
     """
     Проверка на конфликты сканирований
@@ -103,11 +148,19 @@ def validate_custom_args(scan_type, custom_args):
         return False, '\n'.join(errors), {'rustscan': parsed_rustscan, 'nmap': parsed_nmap}
     return True, None, {'rustscan': parsed_rustscan, 'nmap': parsed_nmap}
 
-def run_rustscan_scan(app, scan_job_id, target, ports, custom_args=''):
+def run_rustscan_scan(app, scan_job_id, target, ports, custom_args='', use_known_ports=False):
     """Фоновое выполнение Rustscan с отладкой вывода"""
     with app.app_context():
         try:
             db.session.remove()
+            
+            # Если выбраны известные порты и цель - группа, получаем порты из активов
+            actual_ports = ports
+            if use_known_ports and target.startswith('group:'):
+                group_id = target.replace('group:', '')
+                actual_ports = get_known_ports_for_group(group_id)
+                print(f"📦 Использование известных портов для группы {group_id}: {actual_ports}")
+            
             targets = parse_targets(target)
             
             is_valid, error_msg, parsed_args = validate_custom_args('rustscan', custom_args)
@@ -123,6 +176,9 @@ def run_rustscan_scan(app, scan_job_id, target, ports, custom_args=''):
             
             cmd = ['rustscan', '-a', target, '--greppable']
             cmd.extend(parsed_args['rustscan'])
+            # Добавляем порты в команду
+            if actual_ports and actual_ports != '-':
+                cmd.extend(['-p', actual_ports])
             if parsed_args['nmap']:
                 cmd.append('--')
                 cmd.extend(parsed_args['nmap'])
@@ -210,11 +266,19 @@ def run_rustscan_scan(app, scan_job_id, target, ports, custom_args=''):
         finally:
             db.session.remove()
 
-def run_nmap_scan(app, scan_job_id, target, ports, scripts, custom_args=''):
+def run_nmap_scan(app, scan_job_id, target, ports, scripts, custom_args='', use_known_ports=False):
     """Фоновое выполнение Nmap"""
     with app.app_context():
         try:
             db.session.remove()
+            
+            # Если выбраны известные порты и цель - группа, получаем порты из активов
+            actual_ports = ports
+            if use_known_ports and target.startswith('group:'):
+                group_id = target.replace('group:', '')
+                actual_ports = get_known_ports_for_group(group_id)
+                print(f"📦 Использование известных портов для группы {group_id}: {actual_ports}")
+            
             targets = parse_targets(target)
             
             is_valid, error_msg, parsed_args = validate_custom_args('nmap', custom_args)
@@ -235,8 +299,8 @@ def run_nmap_scan(app, scan_job_id, target, ports, scripts, custom_args=''):
             
             cmd = ['nmap', target]
             cmd.extend(parsed_args['rustscan'] + parsed_args['nmap'])
-            if '-p' not in custom_args and ports: 
-                cmd.extend(['-p', ports])
+            if '-p' not in custom_args and actual_ports and actual_ports != '-': 
+                cmd.extend(['-p', actual_ports])
             for def_arg in ['-sV', '-sC', '-O', '-v']:
                 if def_arg not in custom_args: 
                     cmd.append(def_arg)

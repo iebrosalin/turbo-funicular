@@ -87,6 +87,16 @@
                             <label class="form-label">Порты</label>
                             <input type="text" id="scan-ports" class="form-control" placeholder="22,80,443 или 1-1000">
                         </div>
+                        <div class="mb-3 form-check" id="known-ports-section" style="display: none;">
+                            <input type="checkbox" class="form-check-input" id="scan-known-ports">
+                            <label class="form-check-label" for="scan-known-ports">
+                                Сканировать только известные порты (из активов группы)
+                            </label>
+                            <small class="form-text text-muted d-block mt-1">
+                                При выборе этой опции будут использованы порты, уже найденные у активов выбранной группы. 
+                                Поле "Порты" будет заблокировано.
+                            </small>
+                        </div>
                         <div class="mb-3" id="nslookup-args-section" style="display: none;">
                             <label class="form-label">Аргументы nslookup</label>
                             <input type="text" id="scan-nslookup-args" class="form-control" placeholder="-querytype=A">
@@ -209,11 +219,13 @@
     function toggleScanOptions(){
         const t = document.getElementById('scan-type').value;
         const portsSec = document.getElementById('ports-section');
+        const knownPortsSec = document.getElementById('known-ports-section');
         const dnsSec = document.getElementById('dns-server-section');
         const nsArgsSec = document.getElementById('nslookup-args-section');
         const targetMethod = document.getElementById('target-method');
 
         portsSec.style.display = (t === 'nmap' || t === 'rustscan') ? 'block' : 'none';
+        knownPortsSec.style.display = (t === 'nmap' || t === 'rustscan') ? 'block' : 'none';
         dnsSec.style.display = (t === 'nslookup') ? 'block' : 'none';
         nsArgsSec.style.display = (t === 'nslookup') ? 'block' : 'none';
 
@@ -230,6 +242,35 @@
         toggleScanOptions();
     }
 
+    // Обработка чекбокса "Известные порты"
+    document.addEventListener('DOMContentLoaded', function() {
+        const knownPortsCheckbox = document.getElementById('scan-known-ports');
+        const portsInput = document.getElementById('scan-ports');
+        const targetMethod = document.getElementById('target-method');
+        const targetGroupSelect = document.getElementById('scan-group');
+
+        if (knownPortsCheckbox) {
+            knownPortsCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    // Блокируем поле портов при выборе известных портов
+                    portsInput.disabled = true;
+                    portsInput.value = '';
+                    portsInput.placeholder = 'Будут использованы порты из активов группы';
+                    
+                    // Автоматически выбираем метод "Группа активов" если не выбран
+                    if (targetMethod.value !== 'group') {
+                        targetMethod.value = 'group';
+                        toggleTargetInput();
+                    }
+                } else {
+                    // Разблокируем поле портов
+                    portsInput.disabled = false;
+                    portsInput.placeholder = '22,80,443 или 1-1000';
+                }
+            });
+        }
+    });
+
     // === ЗАПУСК СКАНИРОВАНИЯ ===
     document.getElementById('scanForm').addEventListener('submit', async e => {
         e.preventDefault();
@@ -238,6 +279,7 @@
         
         let url = '';
         let payload = {};
+        const useKnownPorts = document.getElementById('scan-known-ports').checked;
 
         if(t === 'nslookup'){
             const targetText = document.getElementById('scan-target-text').value;
@@ -262,15 +304,22 @@
                 return;
             }
 
+            // Проверка: если выбраны известные порты, но метод не "группа"
+            if (useKnownPorts && m !== 'group') {
+                alert('⚠️ Опция "Сканировать только известные порты" доступна только при выборе метода "Группа активов"');
+                return;
+            }
+
             if(t === 'rustscan') url = '/api/scans/rustscan';
             else if(t === 'nmap') url = '/api/scans/nmap';
 
             payload = {
                 target: targetVal,
-                ports: document.getElementById('scan-ports').value || '-',
-                extra_args: document.getElementById('scan-custom-args').value || ''
+                ports: useKnownPorts ? 'known_ports' : (document.getElementById('scan-ports').value || '-'),
+                extra_args: document.getElementById('scan-custom-args').value || '',
+                use_known_ports: useKnownPorts
             };
-            if(t === 'nmap') payload.scripts = document.getElementById('scan-ports').value; // Упрощено
+            if(t === 'nmap') payload.scripts = useKnownPorts ? 'known_ports' : document.getElementById('scan-ports').value;
         }
 
         try{
