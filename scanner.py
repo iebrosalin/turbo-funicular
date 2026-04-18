@@ -210,7 +210,7 @@ def run_rustscan_scan(app, scan_job_id, target, ports, custom_args=''):
         finally:
             db.session.remove()
 
-def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
+def run_nmap_scan(app, scan_job_id, target, ports, scripts, custom_args=''):
     """Фоновое выполнение Nmap"""
     with app.app_context():
         try:

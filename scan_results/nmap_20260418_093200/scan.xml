@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE nmaprun>
+<?xml-stylesheet href="file:///usr/share/nmap/nmap.xsl" type="text/xsl"?>
+<!-- Nmap 7.98 scan initiated Sat Apr 18 09:32:00 2026 as: /usr/lib/nmap/nmap -&#45;privileged -p 5000 -sV -sC -O -v -oA scan_results/nmap_20260418_093200/scan 10.250.95.39 -->
+<nmaprun scanner="nmap" args="/usr/lib/nmap/nmap -&#45;privileged -p 5000 -sV -sC -O -v -oA scan_results/nmap_20260418_093200/scan 10.250.95.39" start="1776493920" startstr="Sat Apr 18 09:32:00 2026" version="7.98" xmloutputversion="1.05">
+<scaninfo type="syn" protocol="tcp" numservices="1" services="5000"/>
+<verbose level="1"/>
+<debugging level="0"/>
+<taskbegin task="NSE" time="1776493921"/>
+<taskend task="NSE" time="1776493921"/>
+<taskbegin task="NSE" time="1776493921"/>
+<taskend task="NSE" time="1776493921"/>
+<taskbegin task="NSE" time="1776493921"/>
+<taskend task="NSE" time="1776493921"/>
+<taskbegin task="SYN Stealth Scan" time="1776493921"/>
+<taskend task="SYN Stealth Scan" time="1776493921" extrainfo="1 total ports"/>
+<taskbegin task="Service scan" time="1776493921"/>
+<taskend task="Service scan" time="1776493927" extrainfo="1 service on 1 host"/>
+<taskbegin task="NSE" time="1776493929"/>
+<taskend task="NSE" time="1776493929"/>
+<taskbegin task="NSE" time="1776493929"/>
+<taskend task="NSE" time="1776493929"/>
+<taskbegin task="NSE" time="1776493929"/>
+<taskend task="NSE" time="1776493929"/>
+<host starttime="1776493921" endtime="1776493929"><status state="up" reason="localhost-response" reason_ttl="0"/>
+<address addr="10.250.95.39" addrtype="ipv4"/>
+<hostnames>
+<hostname name="Kali-Infosec.fsa.local" type="PTR"/>
+</hostnames>
+<ports><port protocol="tcp" portid="5000"><state state="open" reason="syn-ack" reason_ttl="64"/><service name="http" product="Werkzeug httpd" version="3.0.3" extrainfo="Python 3.13.11" method="probed" conf="10"><cpe>cpe:/a:python:python:3.13.11</cpe></service><script id="http-title" output="Asset Manager"><elem key="title">Asset Manager</elem>
+</script><script id="http-methods" output="&#xa;  Supported Methods: OPTIONS GET HEAD"><table key="Supported Methods">
+<elem>OPTIONS</elem>
+<elem>GET</elem>
+<elem>HEAD</elem>
+</table>
+</script><script id="http-server-header" output="Werkzeug/3.0.3 Python/3.13.11"><elem>Werkzeug/3.0.3 Python/3.13.11</elem>
+</script></port>
+</ports>
+<os><portused state="open" proto="tcp" portid="5000"/>
+<portused state="closed" proto="udp" portid="31250"/>
+<osmatch name="Linux 5.0 - 6.2" accuracy="100" line="71749">
+<osclass type="general purpose" vendor="Linux" osfamily="Linux" osgen="5.X" accuracy="100"><cpe>cpe:/o:linux:linux_kernel:5</cpe></osclass>
+<osclass type="general purpose" vendor="Linux" osfamily="Linux" osgen="6.X" accuracy="100"><cpe>cpe:/o:linux:linux_kernel:6</cpe></osclass>
+</osmatch>
+</os>
+<uptime seconds="1789358" lastboot="Sat Mar 28 16:29:31 2026"/>
+<distance value="0"/>
+<tcpsequence index="262" difficulty="Good luck!" values="26DF4B0A,CF1D4851,5EAE057D,19E159A3,1852CF72,3595CDEE"/>
+<ipidsequence class="All zeros" values="0,0,0,0,0,0"/>
+<tcptssequence class="1000HZ" values="6AA76A0C,6AA76A71,6AA76AD5,6AA76B39,6AA76B9D,6AA76C01"/>
+<times srtt="56" rttvar="220" to="100000"/>
+</host>
+<taskbegin task="NSE" time="1776493929"/>
+<taskend task="NSE" time="1776493929"/>
+<taskbegin task="NSE" time="1776493929"/>
+<taskend task="NSE" time="1776493929"/>
+<taskbegin task="NSE" time="1776493929"/>
+<taskend task="NSE" time="1776493929"/>
+<runstats><finished time="1776493929" timestr="Sat Apr 18 09:32:09 2026" summary="Nmap done at Sat Apr 18 09:32:09 2026; 1 IP address (1 host up) scanned in 8.45 seconds" elapsed="8.45" exit="success"/><hosts up="1" down="0" total="1"/>
+</runstats>
+</nmaprun>

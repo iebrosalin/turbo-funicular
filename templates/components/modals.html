@@ -1,7 +1,3 @@
-<!-- ═══════════════════════════════════════════════════════════════
-     МОДАЛЬНЫЕ ОКНА ГРУПП (СОЗДАНИЕ / РЕДАКТИРОВАНИЕ / ПЕРЕМЕЩЕНИЕ / УДАЛЕНИЕ)
-     ═══════════════════════════════════════════════════════════════ -->
-
 <!-- Универсальное окно создания/редактирования группы -->
 <div class="modal fade" id="groupEditModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
@@ -37,10 +33,13 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Родительская группа</label>
-                            <select id="edit-group-parent" class="form-select">
+                            <!-- ✅ ИСПРАВЛЕНО: Убран цикл Jinja. Список будет заполнен через JS (populateParentSelect) -->
+                            <select id="edit-group-parent" class="form-select hierarchy-select">
                                 <option value="">-- Корень --</option>
-                                {% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
                             </select>
+                            <div class="form-text small text-muted">
+                                Выберите родительскую группу для вложенности.
+                            </div>
                         </div>
                     </div>
 
