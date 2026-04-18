@@ -40,7 +40,7 @@ export async function refreshGroupTree() {
                                 ${node.is_cidr ? '<i class="bi bi-globe ms-1 text-muted" title="CIDR группа"></i>' : ''}
                                 ${node.is_dynamic ? '<i class="bi bi-funnel ms-1 text-muted" title="Динамическая группа"></i>' : ''}
                             </span>
-                            <span class="badge bg-secondary ms-auto">${node.asset_count || 0}</span>
+                            <span class="badge bg-secondary ms-auto">${node.asset_count ?? node.count ?? 0}</span>
                         </div>
                 `;
 

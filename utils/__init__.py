@@ -267,7 +267,7 @@ def parse_nmap_xml(filepath):
 # ГРУППЫ И ФИЛЬТРЫ
 # ────────────────────────────────────────────────────────────────
 
-def build_group_tree(groups, parent_id=None):
+def build_group_tree(groups, parent_id=None, depth=0):
     """Построение дерева групп"""
     Asset, Group, _, _, _ = get_models()
     from sqlalchemy import and_, or_
@@ -275,8 +275,9 @@ def build_group_tree(groups, parent_id=None):
     tree = []
     for group in groups:
         if group.parent_id == parent_id:
-            children = build_group_tree(groups, group.id)
+            children = build_group_tree(groups, group.id, depth + 1)
             
+            # Подсчёт активов: прямые + все вложенные группы
             count = 0
             if group.is_dynamic and group.filter_rules:
                 try:
@@ -290,12 +291,19 @@ def build_group_tree(groups, parent_id=None):
             else:
                 count = group.assets.count()
             
+            # Добавляем активы из всех вложенных групп
+            for child in children:
+                count += child.get('asset_count', 0)
+            
             tree.append({
                 'id': group.id, 
                 'name': group.name, 
                 'children': children, 
-                'count': count, 
-                'is_dynamic': group.is_dynamic
+                'count': count,
+                'asset_count': count,
+                'is_dynamic': group.is_dynamic,
+                'parent_id': parent_id,
+                'depth': depth
             })
     return tree
 
