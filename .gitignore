@@ -1,36 +1,41 @@
-scan_results/
-
-# Python compiled files
+```
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Dependencies
-.venv/
+# Build and distribution
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
 venv/
+.venv/
 env/
+
+# Logs
+*.log
+
+# Environment files
 .env
 .env.local
 *.env.*
 
-# Logs and temporary files
-*.log
-*.tmp
-*.swp
-*.swo
-
-# Coverage reports
-.coverage
-htmlcov/
-coverage/
-
-# IDE specific
+# Editor/IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
+*.tmp
+
+# Coverage reports
+.coverage
+coverage/
+htmlcov/
 
 # OS generated files
 .DS_Store
 Thumbs.db
+```
