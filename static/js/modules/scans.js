@@ -111,7 +111,7 @@ export async function updateScanHistory(){
 
 export async function pollActiveScans() {
     try {
-        const res = await fetch('/api/scans/active');
+        const res = await fetch('/api/scans/status');
         if (!res.ok) return;
         const data = await res.json();
         

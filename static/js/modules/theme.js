@@ -112,8 +112,8 @@ export function initTreeTogglers() {
         if (e.target.classList.contains('caret') || e.target.closest('.caret')) {
             e.preventDefault(); 
             e.stopPropagation();
-            const nested = treeNode.querySelector(".nested");
-            if (nested) { 
+            const nested = treeNode.nextElementSibling;
+            if (nested && nested.classList.contains('nested')) {
                 nested.classList.toggle("active"); 
                 const caret = treeNode.querySelector('.caret'); 
                 if (caret) caret.classList.toggle("caret-down"); 

@@ -59,3 +59,112 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     background-color: rgba(220, 53, 69, 0.1);
     color: var(--bs-danger);
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   СТИЛИ ДЛЯ ДЕРЕВА ГРУПП
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Контейнер дерева групп */
+#group-tree {
+    padding: 0.25rem 0;
+}
+
+#group-tree ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+#group-tree ul.nested {
+    padding-left: 1.5rem;
+    margin-top: 0.25rem;
+}
+
+/* Скрытие/отображение вложенных списков */
+#group-tree .nested {
+    display: none;
+}
+
+#group-tree .nested.active {
+    display: block;
+}
+
+#group-tree li {
+    margin: 0.125rem 0;
+    position: relative;
+}
+
+/* Элемент дерева (узел) */
+.tree-node {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Индикатор раскрытия/сворачивания (caret) */
+.caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.caret::before {
+    content: "▶";
+    font-size: 0.625rem;
+    display: inline-block;
+}
+
+.caret-down {
+    transform: rotate(90deg);
+}
+
+.caret-down::before {
+    content: "▶";
+}
+
+/* Пустой спейсер вместо caret для листовых узлов */
+.caret-spacer {
+    display: inline-block;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+}
+
+/* Иконка папки для группы */
+.tree-node .folder-icon {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.tree-node:hover .folder-icon {
+    color: var(--bs-primary);
+}
+
+.tree-node.active .folder-icon {
+    color: var(--bs-primary);
+}
+
+/* Название группы */
+.tree-node .group-name {
+    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Бейдж с количеством активов */
+.tree-node .badge {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    min-width: 1.5rem;
+    justify-content: center;
+}
