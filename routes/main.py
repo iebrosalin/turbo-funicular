@@ -241,15 +241,15 @@ def api_get_tree():
     all_groups = Group.query.all()
     tree = build_group_tree(all_groups)
     
-    # Преобразуем дерево в плоский список с сохранением всех полей включая depth
+    # Преобразуем дерево в плоский список с сохранением всех полей
     flat_list = []
     def flatten(nodes):
         for node in nodes:
             flat_list.append({
-                'id': node['id'], 
+                'id': node['id'],
                 'name': node['name'],
                 'count': node['count'],
-                'asset_count': node['asset_count'],
+                'asset_count': node['asset_count'],  # 🔥 Важно для отображения
                 'parent_id': node.get('parent_id'),
                 'is_dynamic': node.get('is_dynamic', False),
                 'depth': node.get('depth', 0)
@@ -257,10 +257,13 @@ def api_get_tree():
             flatten(node['children'])
     
     flatten(tree)
-    
     ungrouped_count = Asset.query.filter(Asset.group_id.is_(None)).count()
     
-    return jsonify({'tree': tree, 'flat': flat_list, 'ungrouped_count': ungrouped_count})
+    return jsonify({
+        'tree': tree, 
+        'flat': flat_list, 
+        'ungrouped_count': ungrouped_count
+    })
 
 # ────────────────────────────────────────────────────────────────
 # АКТИВЫ: ДЕТАЛИ, ИСТОРИЯ, ТАКСОНОМИЯ

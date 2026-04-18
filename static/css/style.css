@@ -86,9 +86,8 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     display: none;
 }
 
-#group-tree ul.nested.active,
-#group-tree ul.nested[style*="display: block"] {
-    display: block !important;
+#group-tree ul.nested.active {
+    display: block;
 }
 
 #group-tree li {
@@ -164,4 +163,36 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     font-size: 0.75rem;
     min-width: 1.5rem;
     justify-content: center;
+}
+
+/* Анимация поворота стрелки */
+.caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.caret::before {
+    content: "▶";
+    font-size: 0.625rem;
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+
+.caret.down::before {
+    transform: rotate(90deg); /* 🔥 Поворот на 90° */
+}
+
+/* Пустой спейсер для листовых узлов */
+.caret-spacer {
+    display: inline-block;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
 }

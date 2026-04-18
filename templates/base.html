@@ -25,12 +25,6 @@
             setTimeout(() => {
                 if (typeof window.initTheme === 'function') window.initTheme();
                 
-                const groupTreeEl = document.getElementById('group-tree');
-                if (groupTreeEl && typeof window.refreshGroupTree === 'function') {
-                    window.refreshGroupTree();
-                    setInterval(window.refreshGroupTree, 30000);
-                }
-                
                 const activeScansEl = document.getElementById('active-scans');
                 if (activeScansEl && typeof window.pollActiveScans === 'function') {
                     window.pollActiveScans();

@@ -103,18 +103,4 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    // Инициализация при загрузке страницы
-    document.addEventListener('DOMContentLoaded', () => {
-        // Ждем загрузки модуля
-        setTimeout(() => {
-            // Убедимся, что функции из main.js доступны глобально
-            if (typeof window.initTheme === 'function') window.initTheme();
-            if (typeof window.initFilterRoot === 'function') window.initFilterRoot();
-            if (typeof window.initTreeTogglers === 'function') window.initTreeTogglers();
-            if (typeof window.initAssetSelection === 'function') window.initAssetSelection();
-            if (typeof window.initFilterFieldDatalist === 'function') window.initFilterFieldDatalist();
-        }, 100);
-    });
-</script>
 {% endblock %}

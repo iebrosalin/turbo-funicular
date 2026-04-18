@@ -1,8 +1,8 @@
 # 📁 PROJECT CODEBASE: Nmap Asset Manager v2.0
 
-**Дата экспорта:** 2026-04-17 17:10:43
-**Файлов включено:** 36
-**Общий размер:** 414.8 KB
+**Дата экспорта:** 2026-04-18 19:12:18
+**Файлов включено:** 44
+**Общий размер:** 423.1 KB
 **Инструкция для ИИ:** Используй этот файл как полный контекст проекта. Ссылайся на файлы по путям из заголовков.
 ---
 
@@ -24,6 +24,7 @@
     📄 utils.py
     📁 utils/
         📄 __init__.py
+        📄 network_utils.py
         📄 osquery_validator.py
         📄 wazuh_api.py
     📁 routes/
@@ -43,9 +44,18 @@
     📁 static/
         📁 js/
             📄 main.js
+            📁 modules/
+                📄 assets.js
+                📄 groups.js
+                📄 scans.js
+                📄 theme.js
+                📄 tree.js
+                📄 utils.js
+                📄 wazuh.js
         📁 css/
             📄 style.css
     📁 instance/
+        📁 uploads/
     📁 templates/
         📄 asset_detail.html
         📄 asset_history.html
@@ -74,51 +84,68 @@
 
 ```python
 import os
-import json
 from flask import Flask
-from config import Config
 from extensions import db
 from routes import register_blueprints
-from utils import format_moscow_time
+# Убираем прямой импорт scanner здесь, если он не нужен для конфигурации
+# import scanner 
 
 def create_app():
     app = Flask(__name__)
-    app.config.from_object(Config)
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    os.makedirs(app.config['SCAN_RESULTS_FOLDER'], exist_ok=True)
+
+    # 1. Конфигурация
+    basedir = os.path.abspath(os.path.dirname(__file__))
+    instance_dir = os.path.join(basedir, 'instance')
+    
+    if not os.path.exists(instance_dir):
+        os.makedirs(instance_dir)
+
+    db_path = os.path.join(instance_dir, 'app.db')
+    
+    app.config['SECRET_KEY'] = 'dev-secret-key-change-in-production'
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'uploads')
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+
+    # 2. Инициализация расширений (Привязка app к db)
     db.init_app(app)
-    
-    # 🔥 Фильтр для московского времени
-    @app.template_filter('moscow_time')
-    def moscow_time_filter(dt, format_str='%Y-%m-%d %H:%M:%S'):
-        return format_moscow_time(dt, format_str)
-    
-    # 🔥 Фильтр для парсинга JSON в шаблонах
-    @app.template_filter('fromjson')
-    def fromjson_filter(s):
-        """Парсит JSON-строку в список/словарь для использования в шаблонах"""
-        if not s:
-            return []
-        try:
-            return json.loads(s)
-        except (json.JSONDecodeError, TypeError, AttributeError):
-            return []
-    
-    with app.app_context():
-        from models import Group, Asset, ScanJob, ScanProfile, WazuhConfig, OsqueryInventory, ServiceInventory
-        db.create_all()
-        if not Group.query.first():
-            db.session.add(Group(name="Сеть"))
-            db.session.commit()
-    
+
+    # 3. Регистрация маршрутов
     register_blueprints(app)
+
+    # 4. Создание таблиц и начальных данных ТОЛЬКО внутри контекста
+    with app.app_context():
+        try:
+            # Создаем таблицы
+            db.create_all()
+            print(f"✅ Таблицы БД созданы/проверены: {db_path}")
+
+            # Проверка данных теперь безопасна, так как мы внутри контекста
+            # и db уже инициализирован через init_app выше.
+            from models import Group
+            if not Group.query.first():
+                root = Group(name="Root")
+                db.session.add(root)
+                db.session.commit()
+                print("✅ Создана корневая группа 'Root'")
+
+        except Exception as e:
+            print(f"❌ Ошибка создания таблиц БД или начальных данных: {e}")
+            # Пробрасываем ошибку дальше, чтобы приложение не запустилось в сломанном состоянии
+            raise
+
     return app
 
 if __name__ == '__main__':
-    print("📁 Текущая директория:", os.getcwd())
+    print(f"📁 Текущая директория: {os.getcwd()}")
     print("🚀 Запуск сервера...")
-    app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    
+    try:
+        app = create_app()
+        app.run(host='0.0.0.0', port=5000, debug=True)
+    except Exception as e:
+        print(f"🛑 Критическая ошибка запуска: {e}")
 ```
 
 ### 📄 `config.py`
@@ -299,6 +326,7 @@ if __name__ == '__main__':
 
 ```python
 from flask_sqlalchemy import SQLAlchemy
+
 db = SQLAlchemy()
 
 ```
@@ -2025,378 +2053,222 @@ if __name__ == '__main__':
 ### 📄 `models.py`
 
 ```python
-# models.py
-from extensions import db
+from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from extensions import db
 import json
 
 class Group(db.Model):
-    """Модель группы активов (статическая или динамическая)"""
     __tablename__ = 'group'
-    
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
+    name = db.Column(db.String(120), nullable=False)
     parent_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=True)
     is_dynamic = db.Column(db.Boolean, default=False)
-    filter_query = db.Column(db.Text, nullable=True)  # JSON-структура фильтра для динамических групп
+    filter_rules = db.Column(db.Text, nullable=True)  # JSON строка с правилами
     
-    # 🔹 Отношения (без backref='assets' — он определён в Asset!)
-    parent = db.relationship('Group', remote_side=[id], backref='children')
-    
-    def __repr__(self):
-        return f'<Group {self.name}>'
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'parent_id': self.parent_id,
-            'is_dynamic': self.is_dynamic,
-            'filter_query': self.filter_query
-        }
-
+    # Рекурсивная связь
+    children = db.relationship('Group', backref=db.backref('parent', remote_side=[id]), lazy='dynamic')
+    assets = db.relationship('Asset', backref='group', lazy='dynamic', cascade='all, delete-orphan')
 
 class Asset(db.Model):
-    """Модель актива (устройства/сервера) в сети"""
-    __tablename__ = 'asset'
-    
-    # 🔹 Основные идентификаторы
     id = db.Column(db.Integer, primary_key=True)
     ip_address = db.Column(db.String(50), nullable=False, index=True)
     hostname = db.Column(db.String(255), nullable=True)
-    
-    # 🔹 Информация об ОС
-    os_info = db.Column(db.String(255), nullable=True)
-    status = db.Column(db.String(20), default='up')
-    
-    # 🔹 Порты (разделённые по сканерам)
-    open_ports = db.Column(db.Text, nullable=True)
-    rustscan_ports = db.Column(db.Text, nullable=True)
-    nmap_ports = db.Column(db.Text, nullable=True)
-    ports_list = db.Column(db.Text, default='[]')
-    
-    # 🔹 Временные метки сканирований
-    last_scanned = db.Column(db.DateTime, nullable=True)
-    last_rustscan = db.Column(db.DateTime, nullable=True)
-    last_nmap = db.Column(db.DateTime, nullable=True)
-    
-    # 🔹 Заметки и классификация
-    notes = db.Column(db.Text, nullable=True)
-    device_role = db.Column(db.String(100), nullable=True)
-    device_tags = db.Column(db.Text, nullable=True)
-    
-    # 🔹 Источники данных
-    scanners_used = db.Column(db.Text, nullable=True)
-    data_source = db.Column(db.String(20), default='manual')
-    
-    # 🔹 Wazuh интеграция
-    wazuh_agent_id = db.Column(db.String(50), nullable=True)
-    
-    # 🔹 OSquery интеграция
-    osquery_status = db.Column(db.String(20), default='offline')
-    osquery_last_seen = db.Column(db.DateTime, nullable=True)
-    osquery_cpu = db.Column(db.String(255), nullable=True)
-    osquery_ram = db.Column(db.String(50), nullable=True)
-    osquery_disk = db.Column(db.String(50), nullable=True)
-    osquery_os = db.Column(db.String(255), nullable=True)
-    osquery_kernel = db.Column(db.String(255), nullable=True)
-    osquery_uptime = db.Column(db.Integer, nullable=True)
-    osquery_node_key = db.Column(db.String(100), nullable=True, unique=True)
-    osquery_version = db.Column(db.String(50), nullable=True)
-    
-    # 🔹 Внешние ключи
+    os_info = db.Column(db.String(100), nullable=True)
+    mac_address = db.Column(db.String(50), nullable=True)
     group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=True, index=True)
     
-    # 🔹 Отношения (backref='assets' определён ЗДЕСЬ, не в Group!)
-    group = db.relationship('Group', backref=db.backref('assets', lazy='dynamic'))
-    change_log = db.relationship('AssetChangeLog', backref='asset', lazy='dynamic', cascade='all, delete-orphan')
-    service_inventory = db.relationship('ServiceInventory', backref='asset', lazy='dynamic', cascade='all, delete-orphan')
-    scan_results = db.relationship('ScanResult', backref='asset', lazy='dynamic', cascade='all, delete-orphan')
+    # Дополнительные поля
+    device_role = db.Column(db.String(100), nullable=True)
+    device_tags = db.Column(db.Text, nullable=True)  # 🔥 JSON список тегов (добавлено)
+    status = db.Column(db.String(50), default='active')
+    notes = db.Column(db.Text, nullable=True)
     
-    def to_dict(self):
-        """Сериализация актива в словарь"""
-        return {
-            'id': self.id,
-            'ip_address': self.ip_address,
-            'hostname': self.hostname,
-            'os_info': self.os_info,
-            'status': self.status,
-            'open_ports': self.open_ports,
-            'rustscan_ports': self.rustscan_ports,
-            'nmap_ports': self.nmap_ports,
-            'ports_list': json.loads(self.ports_list) if self.ports_list else [],
-            'last_scanned': self.last_scanned.strftime('%Y-%m-%d %H:%M') if self.last_scanned else None,
-            'last_rustscan': self.last_rustscan.strftime('%Y-%m-%d %H:%M') if self.last_rustscan else None,
-            'last_nmap': self.last_nmap.strftime('%Y-%m-%d %H:%M') if self.last_nmap else None,
-            'notes': self.notes,
-            'device_role': self.device_role,
-            'device_tags': json.loads(self.device_tags) if self.device_tags else [],
-            'scanners_used': json.loads(self.scanners_used) if self.scanners_used else [],
-            'data_source': self.data_source,
-            'group_id': self.group_id,
-            'group_name': self.group.name if self.group else None,
-            'osquery_status': self.osquery_status,
-            'osquery_last_seen': self.osquery_last_seen.strftime('%Y-%m-%d %H:%M') if self.osquery_last_seen else None,
-        }
+    # Поля для DNS (из nslookup)
+    dns_names = db.Column(db.Text, nullable=True)  # JSON список доменов
     
-    def __repr__(self):
-        return f'<Asset {self.ip_address}>'
+    # Поля для совместимости со старым кодом и scanner.py
+    data_source = db.Column(db.String(50), default='manual')
+    last_scanned = db.Column(db.DateTime, nullable=True)
+    scanners_used = db.Column(db.Text, nullable=True)  # JSON список сканеров
+    
+    # Порты от разных сканеров (строки)
+    open_ports = db.Column(db.Text, nullable=True)      # Объединенный список "22/tcp, 80/tcp"
+    ports_list = db.Column(db.Text, nullable=True)      # JSON список портов
+    
+    rustscan_ports = db.Column(db.Text, nullable=True)  # 🔥 Порты только от RustScan (добавлено)
+    nmap_ports = db.Column(db.Text, nullable=True)      # 🔥 Порты только от Nmap (добавлено)
+    
+    # Даты последних сканирований конкретными утилитами
+    last_rustscan = db.Column(db.DateTime, nullable=True)  # 🔥 (добавлено)
+    last_nmap = db.Column(db.DateTime, nullable=True)      # 🔥 (добавлено)
 
+    # Связи
+    scan_results = db.relationship('ScanResult', backref='asset', lazy='select', cascade='all, delete-orphan')
+    change_log = db.relationship('AssetChangeLog', backref='asset', lazy='select', cascade='all, delete-orphan')
+    services = db.relationship('ServiceInventory', backref='asset', lazy='select', cascade='all, delete-orphan')
+    
+    # Особое внимание здесь: если это one-to-one, uselist=False обязательно, но lazy не может быть 'dynamic'
+    osquery_inventory = db.relationship('OsqueryInventory', backref='asset', lazy='select', uselist=False, cascade='all, delete-orphan')
+
+class AssetChangeLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    field_name = db.Column(db.String(100))
+    old_value = db.Column(db.Text)
+    new_value = db.Column(db.Text)
+    changed_by = db.Column(db.String(100), default='system')
+    # Для совместимости со старым кодом
+    change_type = db.Column(db.String(50), nullable=True)
+    scan_job_id = db.Column(db.Integer, db.ForeignKey('scan_job.id'), nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+
+class ServiceInventory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
+    port = db.Column(db.Integer) # Или String если хранится как "22/tcp"
+    protocol = db.Column(db.String(10))
+    service_name = db.Column(db.String(100))
+    version = db.Column(db.String(100))
+    state = db.Column(db.String(50))
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    # Для совместимости
+    is_active = db.Column(db.Boolean, default=True)
+    # Дополнительные поля из парсера nmap (если используются)
+    product = db.Column(db.String(255), nullable=True)
+    extrainfo = db.Column(db.Text, nullable=True)
+
+class OsqueryInventory(db.Model):
+    __tablename__ = 'osquery_inventory'
+    id = db.Column(db.Integer, primary_key=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False, unique=True)
+    
+    # Основная информация из OSquery
+    osquery_version = db.Column(db.String(50))
+    os_name = db.Column(db.String(100))
+    os_version = db.Column(db.String(100))
+    os_build = db.Column(db.String(50))
+    os_platform = db.Column(db.String(50))
+    platform_like = db.Column(db.String(50))
+    code_name = db.Column(db.String(50))
+    
+    # Система
+    hostname = db.Column(db.String(255))
+    uuid = db.Column(db.String(100))
+    cpu_type = db.Column(db.String(100))
+    cpu_subtype = db.Column(db.String(100))
+    cpu_brand = db.Column(db.String(100))
+    cpu_physical_cores = db.Column(db.Integer)
+    cpu_logical_cores = db.Column(db.Integer)
+    cpu_microcode = db.Column(db.String(50))
+    
+    # Память и диск
+    physical_memory = db.Column(db.BigInteger)
+    hardware_vendor = db.Column(db.String(100))
+    hardware_model = db.Column(db.String(100))
+    hardware_version = db.Column(db.String(50))
+    hardware_serial = db.Column(db.String(100))
+    board_vendor = db.Column(db.String(100))
+    board_model = db.Column(db.String(100))
+    board_version = db.Column(db.String(50))
+    board_serial = db.Column(db.String(100))
+    chassis_type = db.Column(db.String(50))
+    
+    # Статус агента
+    status = db.Column(db.String(20), default='unknown')
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    config_hash = db.Column(db.String(64))
 
 class ScanJob(db.Model):
-    """Модель задания сканирования (Nmap/Rustscan/Nslookup)"""
-    __tablename__ = 'scan_job'
-    
     id = db.Column(db.Integer, primary_key=True)
-    scan_type = db.Column(db.String(20), nullable=False)  # 'nmap', 'rustscan', 'nslookup'
-    target = db.Column(db.Text, nullable=False)
-    status = db.Column(db.String(20), default='pending')  # pending, running, paused, completed, failed, stopped
+    scan_type = db.Column(db.String(50), nullable=False)
+    target = db.Column(db.String(255), nullable=False)
+    status = db.Column(db.String(20), default='pending')
     progress = db.Column(db.Integer, default=0)
+    
     current_target = db.Column(db.String(255), nullable=True)
     total_hosts = db.Column(db.Integer, default=0)
     hosts_processed = db.Column(db.Integer, default=0)
     error_message = db.Column(db.Text, nullable=True)
-    rustscan_output = db.Column(db.Text, nullable=True)  # 🔥 Содержимое вывода rustscan
-    rustscan_text_path = db.Column(db.String(500), nullable=True)  # Путь к текстовому файлу rustscan
-    nmap_xml_path = db.Column(db.String(500), nullable=True)  # Путь к XML файлу nmap
-    nmap_grep_path = db.Column(db.String(500), nullable=True)  # Путь к grepable файлу nmap
-    nmap_normal_path = db.Column(db.String(500), nullable=True)  # Путь к normal файлу nmap
-    nmap_xml_content = db.Column(db.Text, nullable=True)  # 🔥 Содержимое XML файла nmap
-    nmap_grep_content = db.Column(db.Text, nullable=True)  # 🔥 Содержимое grepable файла nmap
-    nmap_normal_content = db.Column(db.Text, nullable=True)  # 🔥 Содержимое normal файла nmap
-    nslookup_output = db.Column(db.Text, nullable=True)  # 🔥 Содержимое вывода nslookup
-    nslookup_file_path = db.Column(db.String(500), nullable=True)  # Путь к файлу nslookup
+    
+    # Вывод сканеров
+    rustscan_output = db.Column(db.Text, nullable=True)
+    rustscan_text_path = db.Column(db.String(500), nullable=True)
+    
+    nmap_xml_path = db.Column(db.String(500), nullable=True)
+    nmap_grep_path = db.Column(db.String(500), nullable=True)
+    nmap_normal_path = db.Column(db.String(500), nullable=True)
+    
+    nmap_xml_content = db.Column(db.Text, nullable=True)
+    nmap_grep_content = db.Column(db.Text, nullable=True)
+    nmap_normal_content = db.Column(db.Text, nullable=True)
+    
+    nslookup_output = db.Column(db.Text, nullable=True)
+    nslookup_file_path = db.Column(db.String(500), nullable=True)
+    
+    scan_parameters = db.Column(db.Text, nullable=True)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     started_at = db.Column(db.DateTime, nullable=True)
     completed_at = db.Column(db.DateTime, nullable=True)
-    
-    # 🔹 Отношения
-    results = db.relationship('ScanResult', backref='job', lazy='dynamic', cascade='all, delete-orphan')
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'scan_type': self.scan_type,
-            'target': self.target,
-            'status': self.status,
-            'progress': self.progress,
-            'current_target': self.current_target,
-            'total_hosts': self.total_hosts,
-            'hosts_processed': self.hosts_processed,
-            'error_message': self.error_message,
-            'rustscan_output': self.rustscan_output,
-            'rustscan_text_path': self.rustscan_text_path,
-            'nmap_xml_path': self.nmap_xml_path,
-            'nmap_grep_path': self.nmap_grep_path,
-            'nmap_normal_path': self.nmap_normal_path,
-            'nmap_xml_content': self.nmap_xml_content,
-            'nmap_grep_content': self.nmap_grep_content,
-            'nmap_normal_content': self.nmap_normal_content,
-            'nslookup_output': self.nslookup_output,
-            'nslookup_file_path': self.nslookup_file_path,
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else None,
-            'started_at': self.started_at.strftime('%Y-%m-%d %H:%M') if self.started_at else None,
-            'completed_at': self.completed_at.strftime('%Y-%m-%d %H:%M') if self.completed_at else None,
-        }
-    
-    def __repr__(self):
-        return f'<ScanJob {self.id} ({self.scan_type})>'
-
 
 class ScanResult(db.Model):
-    """Модель результата сканирования"""
-    __tablename__ = 'scan_result'
-    
     id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=True)
-    ip_address = db.Column(db.String(50), nullable=False)
+    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
     scan_job_id = db.Column(db.Integer, db.ForeignKey('scan_job.id'), nullable=True)
-    scan_type = db.Column(db.String(20), nullable=True)  # 🔥 Добавлено для фильтрации
-    ports = db.Column(db.Text, nullable=True)
-    services = db.Column(db.Text, nullable=True)
-    os_detection = db.Column(db.String(255), nullable=True)
     scanned_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'asset_id': self.asset_id,
-            'ip_address': self.ip_address,
-            'scan_type': self.scan_type,
-            'ports': json.loads(self.ports) if self.ports else [],
-            'services': json.loads(self.services) if self.services else [],
-            'os_detection': self.os_detection,
-            'scanned_at': self.scanned_at.strftime('%Y-%m-%d %H:%M') if self.scanned_at else None,
-        }
-    
-    def __repr__(self):
-        return f'<ScanResult {self.ip_address}>'
-
-
-class ServiceInventory(db.Model):
-    """Модель сервиса на порту (из Nmap)"""
-    __tablename__ = 'service_inventory'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
-    port = db.Column(db.String(20), nullable=False)
-    protocol = db.Column(db.String(10), default='tcp')
-    service_name = db.Column(db.String(100), nullable=True)
-    product = db.Column(db.String(255), nullable=True)
-    version = db.Column(db.String(255), nullable=True)
-    extrainfo = db.Column(db.Text, nullable=True)
-    script_output = db.Column(db.Text, nullable=True)
-    first_seen = db.Column(db.DateTime, default=datetime.utcnow)
-    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
-    is_active = db.Column(db.Boolean, default=True)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'port': self.port,
-            'protocol': self.protocol,
-            'service_name': self.service_name,
-            'product': self.product,
-            'version': self.version,
-            'is_active': self.is_active,
-            'last_seen': self.last_seen.strftime('%Y-%m-%d %H:%M') if self.last_seen else None,
-        }
-    
-    def __repr__(self):
-        return f'<ServiceInventory {self.port} ({self.service_name})>'
-
-
-class AssetChangeLog(db.Model):
-    """Модель журнала изменений актива"""
-    __tablename__ = 'asset_change_log'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
-    change_type = db.Column(db.String(50), nullable=False)  # port_added, port_removed, os_changed, etc.
-    field_name = db.Column(db.String(100), nullable=True)
-    old_value = db.Column(db.Text, nullable=True)
-    new_value = db.Column(db.Text, nullable=True)
-    scan_job_id = db.Column(db.Integer, db.ForeignKey('scan_job.id'), nullable=True)
-    notes = db.Column(db.Text, nullable=True)
-    changed_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'asset_id': self.asset_id,
-            'change_type': self.change_type,
-            'field_name': self.field_name,
-            'old_value': self.old_value,
-            'new_value': self.new_value,
-            'scan_job_id': self.scan_job_id,
-            'notes': self.notes,
-            'changed_at': self.changed_at.strftime('%Y-%m-%d %H:%M') if self.changed_at else None,
-        }
-    
-    def __repr__(self):
-        return f'<AssetChangeLog {self.asset_id} ({self.change_type})>'
-
+    ip = db.Column(db.String(50))
+    ports = db.Column(db.Text)
+    os = db.Column(db.String(100), nullable=True)
+    hostname = db.Column(db.String(255), nullable=True)
+    os_detection = db.Column(db.String(100), nullable=True)
+    services = db.Column(db.Text, nullable=True) # JSON
+    scan_type = db.Column(db.String(50), nullable=True) # Для совместимости со старым кодом
+    ip_address = db.Column(db.String(50), nullable=True) # Для совместимости
 
 class ScanProfile(db.Model):
-    """Модель профиля сканирования (шаблон настроек)"""
     __tablename__ = 'scan_profile'
-    
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    scan_type = db.Column(db.String(20), nullable=False)  # 'nmap', 'rustscan'
-    target_method = db.Column(db.String(20), default='ip')  # 'ip', 'group'
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    description = db.Column(db.Text, nullable=True)
+    
+    scan_type = db.Column(db.String(50), nullable=False)
+    targets = db.Column(db.Text, nullable=True)
     ports = db.Column(db.String(255), nullable=True)
-    custom_args = db.Column(db.Text, nullable=True)
+    timing = db.Column(db.String(10), default='T3')
+    scripts = db.Column(db.Text, nullable=True)
+    extra_args = db.Column(db.Text, nullable=True)
+    
+    is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'name': self.name,
-            'scan_type': self.scan_type,
-            'target_method': self.target_method,
-            'ports': self.ports,
-            'custom_args': self.custom_args,
-            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else None,
-            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M') if self.updated_at else None,
-        }
-    
-    def __repr__(self):
-        return f'<ScanProfile {self.name}>'
-
 
 class WazuhConfig(db.Model):
-    """Модель конфигурации интеграции с Wazuh"""
-    __tablename__ = 'wazuh_config'
-    
     id = db.Column(db.Integer, primary_key=True)
-    api_url = db.Column(db.String(255), nullable=False)
-    api_username = db.Column(db.String(100), nullable=False)
-    api_password = db.Column(db.String(100), nullable=False)
-    verify_ssl = db.Column(db.Boolean, default=True)
-    last_sync = db.Column(db.DateTime, nullable=True)
+    url = db.Column(db.String(255), nullable=False)
+    username = db.Column(db.String(100), nullable=False)
+    password = db.Column(db.String(255), nullable=False)
+    verify_ssl = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'api_url': self.api_url,
-            'api_username': self.api_username,
-            'verify_ssl': self.verify_ssl,
-            'last_sync': self.last_sync.strftime('%Y-%m-%d %H:%M') if self.last_sync else None,
-            'is_active': self.is_active,
-        }
-    
-    def __repr__(self):
-        return f'<WazuhConfig {self.api_url}>'
-
-
-class OsqueryInventory(db.Model):
-    """Модель инвентаризации OSquery (детальная)"""
-    __tablename__ = 'osquery_inventory'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    node_key = db.Column(db.String(100), nullable=False, unique=True, index=True)
-    hostname = db.Column(db.String(255), nullable=True)
-    uuid = db.Column(db.String(100), nullable=True)
-    cpu_brand = db.Column(db.String(255), nullable=True)
-    cpu_logical_cores = db.Column(db.Integer, nullable=True)
-    physical_memory = db.Column(db.String(50), nullable=True)
-    disk_size = db.Column(db.String(50), nullable=True)
-    os_name = db.Column(db.String(100), nullable=True)
-    os_version = db.Column(db.String(100), nullable=True)
-    kernel_version = db.Column(db.String(100), nullable=True)
-    uptime = db.Column(db.Integer, nullable=True)
-    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
-    osquery_version = db.Column(db.String(50), nullable=True)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'node_key': self.node_key,
-            'hostname': self.hostname,
-            'cpu_brand': self.cpu_brand,
-            'physical_memory': self.physical_memory,
-            'os_name': self.os_name,
-            'os_version': self.os_version,
-            'last_seen': self.last_seen.strftime('%Y-%m-%d %H:%M') if self.last_seen else None,
-        }
-    
-    def __repr__(self):
-        return f'<OsqueryInventory {self.node_key}>'
+    last_sync = db.Column(db.DateTime, nullable=True)
 ```
 
 ### 📄 `requirements.txt`
 
 ```text
-# Web Framework
-flask>=2.3.0
-
-# ORM и работа с БД
-flask-sqlalchemy>=3.0.0
-requests
-
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.3
+Flask-WTF==1.2.1
+Flask-Migrate==4.0.7
+Werkzeug==3.0.3
+SQLAlchemy==2.0.36
+requests==2.32.3
+python-nmap==0.7.1
+email-validator==2.2.0
+gunicorn==22.0.0
 ```
 
 ### 📄 `scanner.py`
@@ -2433,13 +2305,11 @@ def parse_targets(target_str):
     """Разбивает строку целей на список IP/CIDR"""
     return [t.strip() for t in re.split(r'[,\s]+', target_str) if t.strip()]
 
-# 🔥 Функция check_scan_conflicts остаётся в scanner.py для импорта в routes
 def check_scan_conflicts(target, scan_type):
     """
-    🔥 Проверка на конфликты сканирований
+    Проверка на конфликты сканирований
     Возвращает: (is_blocked, error_message)
     """
-    # Проверка активных сканирований той же цели
     active_jobs = ScanJob.query.filter(
         ScanJob.status.in_(['pending', 'running', 'paused']),
         ScanJob.target == target
@@ -2448,7 +2318,6 @@ def check_scan_conflicts(target, scan_type):
     if active_jobs:
         return True, f"Активное сканирование уже выполняется для {target} (job #{active_jobs[0].id})"
     
-    # Проверка активных сканирований того же типа
     same_type_jobs = ScanJob.query.filter(
         ScanJob.status.in_(['pending', 'running', 'paused']),
         ScanJob.scan_type == scan_type
@@ -2461,7 +2330,7 @@ def check_scan_conflicts(target, scan_type):
 
 def validate_custom_args(scan_type, custom_args):
     """
-    🔥 Проверка корректности кастомных аргументов перед запуском
+    Проверка корректности кастомных аргументов перед запуском
     Возвращает: (is_valid, error_message, parsed_args)
     """
     if not custom_args or not custom_args.strip():
@@ -2472,7 +2341,6 @@ def validate_custom_args(scan_type, custom_args):
     parsed_rustscan = []
     parsed_nmap = []
     
-    # Проверка баланса флагов и значений
     i = 0
     while i < len(args_list):
         arg = args_list[i]
@@ -2489,7 +2357,6 @@ def validate_custom_args(scan_type, custom_args):
                 i += 1
         i += 1
     
-    # Проверка портов
     i = 0
     while i < len(args_list):
         if args_list[i] in ['-p', '--ports'] and i + 1 < len(args_list):
@@ -2498,7 +2365,6 @@ def validate_custom_args(scan_type, custom_args):
                 errors.append(f"❌ Неверный формат портов: '{port_val}'")
         i += 1
     
-    # Разделение аргументов Rustscan и Nmap
     in_nmap_section = False
     for arg in args_list:
         if arg == '--':
@@ -2513,14 +2379,13 @@ def validate_custom_args(scan_type, custom_args):
         return False, '\n'.join(errors), {'rustscan': parsed_rustscan, 'nmap': parsed_nmap}
     return True, None, {'rustscan': parsed_rustscan, 'nmap': parsed_nmap}
 
-def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
+def run_rustscan_scan(app, scan_job_id, target, ports, custom_args=''):
     """Фоновое выполнение Rustscan с отладкой вывода"""
     with app.app_context():
         try:
             db.session.remove()
             targets = parse_targets(target)
             
-            # Валидация
             is_valid, error_msg, parsed_args = validate_custom_args('rustscan', custom_args)
             if not is_valid:
                 update_job(scan_job_id, status='failed', progress=100,
@@ -2532,7 +2397,6 @@ def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
             update_job(scan_job_id, status='running', progress=5, total_hosts=len(targets), 
                       hosts_processed=0, current_target='Инициализация...')
             
-            # Сборка команды
             cmd = ['rustscan', '-a', target, '--greppable']
             cmd.extend(parsed_args['rustscan'])
             if parsed_args['nmap']:
@@ -2544,16 +2408,13 @@ def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
             print(f"   📜 Команда: {cmd_str}")
             print(f"   🎯 Цель: {target}")
             
-            # 🔥 Запуск с захватом stdout
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, bufsize=1)
             start_time = time.time()
             processed = 0
             output_lines = []
 
-            # 🔥 Читаем stdout ПОСТРОЧНО
             for line in iter(process.stdout.readline, ''):
                 line = line.strip()
-                print(f"📝 Rustscan stdout: {line}")  # 🔥 ОТЛАДКА
                 if line:
                     output_lines.append(line)
                 
@@ -2581,11 +2442,6 @@ def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
             process.wait()
             stdout_data, stderr_data = process.communicate()
             
-            print(f"📊 Process returncode: {process.returncode}")
-            print(f"📊 Output lines collected: {len(output_lines)}")
-            print(f"📊 Stdout data length: {len(stdout_data) if stdout_data else 0}")
-            print(f"📊 Stderr data: {stderr_data[:500] if stderr_data else 'None'}")
-            
             job = ScanJob.query.get(scan_job_id)
             if not job: 
                 print("❌ Job не найден после завершения процесса")
@@ -2599,10 +2455,8 @@ def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
                 print(f"❌ Ошибка rustscan: {err_msg}")
                 return
 
-            # 🔥 Сохраняем вывод ДВУМЯ способами: в БД и в файл
             job.rustscan_output = '\n'.join(output_lines) if output_lines else stdout_data
             
-            # 🔥 Сохраняем результат в текстовый файл
             ts = datetime.now(MOSCOW_TZ).strftime('%Y%m%d_%H%M%S')
             res_dir = os.path.join('scan_results', f'rustscan_{ts}')
             os.makedirs(res_dir, exist_ok=True)
@@ -2611,17 +2465,8 @@ def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
                 f.write(job.rustscan_output)
             job.rustscan_text_path = text_path
             
-            print(f"📝 Сохранён вывод: {len(job.rustscan_output)} символов")
-            print(f"📁 Файл сохранён: {text_path}")
-            print(f"📝 Первые 500 символов: {job.rustscan_output[:500]}")
-            
-            # 🔥 Читаем содержимое файла и сохраняем в БД
-            with open(text_path, 'r', encoding='utf-8') as f:
-                job.rustscan_output = f.read()
-            
             update_job(scan_job_id, progress=98, current_target='Парсинг результатов...')
             
-            # 🔥 Вызываем парсер с явной передачей вывода
             parse_rustscan_results(scan_job_id, job.rustscan_output, target)
             
             update_job(scan_job_id, progress=100, status='completed', current_target='Готово', 
@@ -2641,17 +2486,13 @@ def run_rustscan_scan(app, scan_job_id, target, custom_args=''):
         finally:
             db.session.remove()
 
-def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
-    """
-    Фоновое выполнение Nmap
-    🔥 ПРОВЕРКА КОНФЛИКТОВ УДАЛЕНА — выполняется только в маршруте до создания job
-    """
+def run_nmap_scan(app, scan_job_id, target, ports, scripts, custom_args=''):
+    """Фоновое выполнение Nmap"""
     with app.app_context():
         try:
             db.session.remove()
             targets = parse_targets(target)
             
-            # 🔥 ВАЛИДАЦИЯ АРГУМЕНТОВ (остаётся)
             is_valid, error_msg, parsed_args = validate_custom_args('nmap', custom_args)
             if not is_valid:
                 update_job(scan_job_id, status='failed', progress=100,
@@ -2659,8 +2500,6 @@ def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
                           completed_at=datetime.now(MOSCOW_TZ))
                 print(f"❌ Ошибка валидации аргументов nmap job {scan_job_id}: {error_msg}")
                 return
-            
-            # 🔥 ПРОВЕРКА КОНФЛИКТОВ УДАЛЕНА отсюда!
             
             update_job(scan_job_id, status='running', progress=5, total_hosts=len(targets), 
                       hosts_processed=0, current_target='Инициализация...')
@@ -2700,11 +2539,22 @@ def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
                     return
                 if job.status == 'paused':
                     if os.name != 'nt':
-                        os.kill(process.pid, 19)
-                        while ScanJob.query.get(scan_job_id).status == 'paused': time.sleep(0.5)
-                        os.kill(process.pid, 18)
+                        try:
+                            os.kill(process.pid, 19)
+                            while True:
+                                cur_job = ScanJob.query.get(scan_job_id)
+                                if not cur_job or cur_job.status != 'paused':
+                                    break
+                                time.sleep(0.5)
+                            os.kill(process.pid, 18)
+                        except ProcessLookupError:
+                            break
                     else:
-                        while ScanJob.query.get(scan_job_id).status == 'paused': time.sleep(0.5)
+                        while True:
+                            cur_job = ScanJob.query.get(scan_job_id)
+                            if not cur_job or cur_job.status != 'paused':
+                                break
+                            time.sleep(0.5)
                     continue
 
                 hm = re.search(r'Nmap scan report for (.+)', line)
@@ -2736,7 +2586,6 @@ def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
             job.nmap_grep_path = f'{base}.gnmap'
             job.nmap_normal_path = f'{base}.nmap'
             
-            # 🔥 Читаем содержимое файлов и сохраняем в БД
             if os.path.exists(job.nmap_xml_path):
                 with open(job.nmap_xml_path, 'r', encoding='utf-8') as f:
                     job.nmap_xml_content = f.read()
@@ -2749,18 +2598,19 @@ def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
             if os.path.exists(job.nmap_normal_path):
                 with open(job.nmap_normal_path, 'r', encoding='utf-8') as f:
                     job.nmap_normal_content = f.read()
+            
             update_job(scan_job_id, progress=100, status='completed', current_target='Готово', 
                       completed_at=datetime.now(MOSCOW_TZ))
             print(f"✅ Job {scan_job_id} завершён успешно")
 
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             update_job(scan_job_id, status='failed', progress=100, 
-                      error_message=f"Утилита nmap не найдена в PATH.", completed_at=datetime.now(MOSCOW_TZ))
-            print(f"❌ nmap не установлен или не в PATH")
-        except PermissionError as e:
+                      error_message="Утилита nmap не найдена в PATH.", completed_at=datetime.now(MOSCOW_TZ))
+            print("❌ nmap не установлен или не в PATH")
+        except PermissionError:
             update_job(scan_job_id, status='failed', progress=100, 
-                      error_message=f"Нет прав на выполнение nmap.", completed_at=datetime.now(MOSCOW_TZ))
-            print(f"❌ Нет прав на nmap")
+                      error_message="Нет прав на выполнение nmap.", completed_at=datetime.now(MOSCOW_TZ))
+            print("❌ Нет прав на nmap")
         except Exception as e:
             update_job(scan_job_id, status='failed', progress=100, 
                       error_message=f"Критическая ошибка: {str(e)}", completed_at=datetime.now(MOSCOW_TZ))
@@ -2770,118 +2620,117 @@ def run_nmap_scan(app, scan_job_id, target, ports=None, custom_args=''):
         finally:
             db.session.remove()
 
-def run_nslookup_scan(app, scan_job_id, target_list):
-    """Фоновое выполнение nslookup для списка доменных имён"""
+def run_nslookup_scan(app, job_id, targets_text, dns_server='77.88.8.8', cli_args=''):
+    """
+    Выполняет nslookup для списка доменов.
+    ВАЖНО: Первый аргумент - app (объект Flask), чтобы работать в контексте.
+    """
     with app.app_context():
         try:
             db.session.remove()
-            
-            # Парсим список доменов (разделённые переносом строки)
-            if isinstance(target_list, str):
-                domains = [d.strip() for d in target_list.split('\n') if d.strip()]
-            else:
-                domains = target_list
-            
-            if not domains:
-                update_job(scan_job_id, status='failed', progress=100,
-                          error_message="Список доменов пуст", 
-                          completed_at=datetime.now(MOSCOW_TZ))
+            job = ScanJob.query.get(job_id)
+            if not job:
                 return
-            
-            update_job(scan_job_id, status='running', progress=5, total_hosts=len(domains), 
-                      hosts_processed=0, current_target='Инициализация...')
-            
-            # Сохраняем результаты
-            ts = datetime.now(MOSCOW_TZ).strftime('%Y%m%d_%H%M%S')
-            res_dir = os.path.join('scan_results', f'nslookup_{ts}')
-            os.makedirs(res_dir, exist_ok=True)
-            output_file = os.path.join(res_dir, 'results.txt')
-            
-            results = []
-            processed = 0
-            
-            for domain in domains:
-                job = ScanJob.query.get(scan_job_id)
-                if not job:
-                    break
-                if job.status == 'stopped':
-                    update_job(scan_job_id, status='stopped', progress=100, 
-                              error_message='Остановлено пользователем', completed_at=datetime.now(MOSCOW_TZ))
-                    return
-                if job.status == 'paused':
-                    time.sleep(0.5)
-                    continue
+
+            job.status = 'running'
+            job.started_at = datetime.now(MOSCOW_TZ)
+            db.session.commit()
+
+            domains = [d.strip() for d in targets_text.split('\n') if d.strip()]
+            total = len(domains)
+            output_lines = []
+
+            for i, domain in enumerate(domains):
+                job.current_target = domain
+                job.progress = int((i / total) * 100)
+                db.session.commit()
+
+                # Формирование команды: nslookup [опции] домен [сервер]
+                cmd = ['nslookup']
+                if cli_args:
+                    cmd.extend(cli_args.split())
+                cmd.append(domain)
+                if dns_server:
+                    cmd.append(dns_server)
+
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                output_lines.append(f">>> {domain}\n{result.stdout}")
+                if result.stderr:
+                    output_lines.append(f"ERROR: {result.stderr}")
                 
-                update_job(scan_job_id, current_target=domain, hosts_processed=processed)
-                
-                try:
-                    # Выполняем nslookup
-                    process = subprocess.Popen(['nslookup', domain], 
-                                             stdout=subprocess.PIPE, 
-                                             stderr=subprocess.PIPE, 
-                                             text=True)
-                    stdout, stderr = process.communicate(timeout=30)
-                    
-                    result_entry = f"\n{'='*60}\nДомен: {domain}\n{'='*60}\n"
-                    if process.returncode == 0:
-                        result_entry += stdout
-                        results.append({'domain': domain, 'status': 'success', 'output': stdout})
-                    else:
-                        result_entry += f"Ошибка: {stderr}\n"
-                        results.append({'domain': domain, 'status': 'failed', 'error': stderr})
-                    
-                    # Записываем в файл
-                    with open(output_file, 'a', encoding='utf-8') as f:
-                        f.write(result_entry)
-                    
-                    processed += 1
-                    prog = min(95, 10 + (processed / len(domains)) * 85)
-                    update_job(scan_job_id, progress=int(prog))
-                    
-                except subprocess.TimeoutExpired:
-                    error_msg = f"Превышено время ожидания для {domain}"
-                    results.append({'domain': domain, 'status': 'timeout', 'error': error_msg})
-                    with open(output_file, 'a', encoding='utf-8') as f:
-                        f.write(f"\n{'='*60}\nДомен: {domain}\n{'='*60}\nОшибка: {error_msg}\n")
-                except FileNotFoundError:
-                    update_job(scan_job_id, status='failed', progress=100,
-                              error_message="Утилита nslookup не найдена в PATH.", 
-                              completed_at=datetime.now(MOSCOW_TZ))
-                    return
-                except Exception as e:
-                    results.append({'domain': domain, 'status': 'error', 'error': str(e)})
-                    with open(output_file, 'a', encoding='utf-8') as f:
-                        f.write(f"\n{'='*60}\nДомен: {domain}\n{'='*60}\nОшибка: {str(e)}\n")
-            
-            # Читаем содержимое файла и сохраняем в БД
-            with open(output_file, 'r', encoding='utf-8') as f:
-                nslookup_output = f.read()
-            
-            job = ScanJob.query.get(scan_job_id)
-            if job:
-                job.nslookup_output = nslookup_output
-                job.nslookup_file_path = output_file
-                update_job(scan_job_id, progress=100, status='completed', current_target='Готово', 
-                          completed_at=datetime.now(MOSCOW_TZ))
-                print(f"✅ Job {scan_job_id} nslookup завершён успешно")
-                print(f"📁 Файл сохранён: {output_file}")
-                print(f"📊 Обработано доменов: {processed}/{len(domains)}")
+                # Парсинг результатов сразу
+                parse_nslookup_output(result.stdout, domain)
+
+            job.status = 'completed'
+            job.nslookup_output = "\n".join(output_lines)
+            job.progress = 100
+            job.completed_at = datetime.now(MOSCOW_TZ)
+            db.session.commit()
             
         except Exception as e:
-            update_job(scan_job_id, status='failed', progress=100, 
-                      error_message=f"Критическая ошибка: {str(e)}", completed_at=datetime.now(MOSCOW_TZ))
-            print(f"❌ Критическая ошибка nslookup job {scan_job_id}: {e}")
+            if job:
+                job.status = 'failed'
+                job.error_message = str(e)
+                job.nslookup_output = "\n".join(output_lines) if 'output_lines' in locals() else ""
+                db.session.commit()
+            print(f"❌ Ошибка nslookup: {e}")
             import traceback
             traceback.print_exc()
         finally:
             db.session.remove()
 
+def parse_nslookup_output(output, domain_query):
+    """Парсинг вывода nslookup и создание активов"""
+    lines = output.split('\n')
+    current_ip = None
+    current_name = None
+    
+    for line in lines:
+        line = line.strip()
+        if line.startswith('Name:'):
+            current_name = line.split(':', 1)[1].strip()
+        elif line.startswith('Address:') and '#' not in line:
+            current_ip = line.split(':', 1)[1].strip()
+            
+            if current_ip and current_name:
+                try:
+                    asset = Asset.query.filter_by(ip_address=current_ip).first()
+                    if not asset:
+                        asset = Asset(
+                            ip_address=current_ip,
+                            hostname=current_name,
+                            status='up',
+                            data_source='nslookup'
+                        )
+                        db.session.add(asset)
+                        db.session.flush()
+                        log_asset_change(asset.id, 'asset_created', 'ip_address', None, current_ip, None, 'Создан через nslookup')
+                    
+                    # Обновляем DNS имена
+                    if asset.dns_names:
+                        try:
+                            names = json.loads(asset.dns_names)
+                        except:
+                            names = []
+                    else:
+                        names = []
+                    
+                    if current_name not in names:
+                        names.append(current_name)
+                        asset.dns_names = json.dumps(names)
+                    
+                    asset.last_scanned = datetime.now(MOSCOW_TZ)
+                    db.session.commit()
+                    print(f"✅ NSLookup: Добавлен/обновлен актив {current_ip} ({current_name})")
+                    
+                except Exception as e:
+                    print(f"❌ Ошибка сохранения актива из nslookup: {e}")
+                    db.session.rollback()
+                
+                current_name = None # Сброс для следующей записи
+
 def parse_rustscan_results(scan_job_id, output, target):
     """Парсинг вывода Rustscan с обработкой квадратных скобок"""
-    print(f"🔍 Парсинг rustscan job {scan_job_id}...")
-    print(f"🔍 Вывод получен: {bool(output)}")
-    print(f"🔍 Длина вывода: {len(output) if output else 0}")
-    
     if not output:
         print(f"⚠️ ПУСТОЙ вывод rustscan для job {scan_job_id}")
         return
@@ -2890,10 +2739,7 @@ def parse_rustscan_results(scan_job_id, output, target):
     
     for line in output.strip().split('\n'):
         line = line.strip()
-        print(f"🔍 Строка: '{line}'")
-        
         if not line or '->' not in line:
-            print(f"⚠️ Пропущено (нет '->'): {line}")
             continue
             
         try:
@@ -2901,16 +2747,12 @@ def parse_rustscan_results(scan_job_id, output, target):
             ip = parts[0].strip()
             ports_str = parts[1].strip() if len(parts) > 1 else ''
             
-            # 🔥 УДАЛЯЕМ КВАДРАТНЫЕ СКОБКИ
+            # Удаляем квадратные скобки
             ports_str = ports_str.replace('[', '').replace(']', '')
             
-            print(f"🔍 IP: {ip}, Порты (после очистки): {ports_str}")
-            
-            # Теперь разбиваем по запятым и проверяем isdigit()
             new_ports = [p.strip() for p in ports_str.split(',') if p.strip() and p.strip().isdigit()]
             
             if not new_ports:
-                print(f"⚠️ Не найдено портов для {ip}")
                 continue
             
             formatted_ports = [f"{p}/tcp" for p in new_ports]
@@ -2918,14 +2760,12 @@ def parse_rustscan_results(scan_job_id, output, target):
             
             asset = Asset.query.filter_by(ip_address=ip).first()
             if not asset:
-                print(f"🆕 Создаю новый актив для {ip}")
                 asset = Asset(ip_address=ip, status='up', data_source='scanning',
                              rustscan_ports=ports_string, last_rustscan=datetime.now(MOSCOW_TZ))
                 db.session.add(asset)
                 db.session.flush()
                 log_asset_change(asset.id, 'asset_created', 'ip_address', None, ip, scan_job_id, 'Создан через rustscan')
             else:
-                print(f"✏️ Обновляю существующий актив {ip}")
                 asset.rustscan_ports = ports_string
                 asset.last_rustscan = datetime.now(MOSCOW_TZ)
                 
@@ -2948,11 +2788,9 @@ def parse_rustscan_results(scan_job_id, output, target):
                                      scanned_at=datetime.now(MOSCOW_TZ)))
             
             parsed_count += 1
-            print(f"✅ Обработан {ip}: порты {', '.join(new_ports)}")
             
         except Exception as e:
-            print(f"❌ Ошибка парсинга строки: {line}")
-            print(f"❌ Ошибка: {e}")
+            print(f"❌ Ошибка парсинга строки rustscan: {line} - {e}")
             import traceback
             traceback.print_exc()
     
@@ -3004,8 +2842,12 @@ def parse_nmap_results(scan_job_id, xml_path):
                         if asset:
                             ex = ServiceInventory.query.filter_by(asset_id=asset.id, port=pstr).first()
                             if ex:
-                                ex.service_name, ex.product, ex.version, ex.extrainfo, ex.last_seen, ex.is_active = \
-                                    s['name'], s['product'], s['version'], s['extrainfo'], datetime.now(MOSCOW_TZ), True
+                                ex.service_name = s['name']
+                                ex.product = s['product']
+                                ex.version = s['version']
+                                ex.extrainfo = s['extrainfo']
+                                ex.last_seen = datetime.now(MOSCOW_TZ)
+                                ex.is_active = True
                             else:
                                 db.session.add(ServiceInventory(asset_id=asset.id, port=pstr, protocol=proto, 
                                                                service_name=s['name'], product=s['product'], 
@@ -3083,16 +2925,27 @@ def format_moscow_time(dt, format_str='%Y-%m-%d %H:%M:%S'):
 ### 📄 `utils/__init__.py`
 
 ```python
+# utils/__init__.py
+
 import json
 import os
 import re
 import xml.etree.ElementTree as ET
-from sqlalchemy import or_, and_
 from datetime import datetime, timezone, timedelta
-from extensions import db
-from models import Asset, Group, AssetChangeLog
 
-# 🔥 Московское время (UTC+3)
+# Ленивый импорт для избежания циклических зависимостей
+def get_db():
+    from extensions import db
+    return db
+
+def get_models():
+    from models import Asset, Group, AssetChangeLog, ServiceInventory, ScanResult
+    return Asset, Group, AssetChangeLog, ServiceInventory, ScanResult
+
+# ────────────────────────────────────────────────────────────────
+# ВРЕМЯ (Москва)
+# ────────────────────────────────────────────────────────────────
+
 MOSCOW_TZ = timezone(timedelta(hours=3))
 
 def to_moscow_time(dt):
@@ -3100,7 +2953,6 @@ def to_moscow_time(dt):
     if not dt:
         return None
     if dt.tzinfo is None:
-        # Если время без timezone, считаем что это UTC
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(MOSCOW_TZ)
 
@@ -3111,247 +2963,180 @@ def format_moscow_time(dt, format_str='%Y-%m-%d %H:%M:%S'):
     moscow_dt = to_moscow_time(dt)
     return moscow_dt.strftime(format_str)
 
+# ────────────────────────────────────────────────────────────────
+# РАБОТА С АКТИВАМИ (Создание, Обновление, DNS)
+# ────────────────────────────────────────────────────────────────
+
+def create_asset_if_not_exists(ip_string, hostname=None, group_id=None, source='scan'):
+    """Создает актив если не существует, иначе обновляет hostname если пустой"""
+    Asset, _, _, _, _ = get_models()
+    db = get_db()
+    
+    asset = Asset.query.filter_by(ip_address=ip_string).first()
+    if not asset:
+        asset = Asset(
+            ip_address=ip_string, 
+            hostname=hostname, 
+            group_id=group_id,
+            data_source=source
+        )
+        db.session.add(asset)
+        db.session.commit()
+    elif hostname and not asset.hostname:
+        asset.hostname = hostname
+        db.session.commit()
+        
+    return asset
+
+def update_asset_dns_names(asset, domain_name):
+    """Обновление списка DNS имен актива"""
+    if not domain_name:
+        return
+        
+    db = get_db()
+    
+    current_names = []
+    if asset.dns_names:
+        try:
+            current_names = json.loads(asset.dns_names)
+        except Exception:
+            current_names = []
+            
+    if domain_name not in current_names:
+        current_names.append(domain_name)
+        asset.dns_names = json.dumps(current_names)
+        db.session.commit()
+
+def log_asset_change(asset_id, change_type, field_name, old_value, new_value, scan_job_id=None, notes=None):
+    """Логирование изменений актива"""
+    _, _, AssetChangeLog, _, _ = get_models()
+    db = get_db()
+    
+    change = AssetChangeLog(
+        asset_id=asset_id, 
+        change_type=change_type, 
+        field_name=field_name,
+        old_value=json.dumps(old_value) if old_value else None,
+        new_value=json.dumps(new_value) if new_value else None,
+        scan_job_id=scan_job_id, 
+        notes=notes
+    )
+    db.session.add(change)
+    # Коммит делается вызывающей стороной или внутри транзакции
+
+# ────────────────────────────────────────────────────────────────
+# ТАКСОНОМИЯ И РОЛИ
+# ────────────────────────────────────────────────────────────────
+
 def detect_device_role_and_tags(ports_str, services_data=None):
-    """Определяет роль устройства и набор тегов-корреляций на основе портов и сервисов"""
+    """Определяет роль устройства и набор тегов на основе портов и сервисов"""
     ports_set = {p.strip().split('/')[0] for p in (ports_str or '').split(',') if p.strip()}
     service_str = ' '.join([f"{s.get('name','')} {s.get('product','')} {s.get('version','')} {s.get('extrainfo','')}" for s in (services_data or [])]).lower()
+    
     tags = []
     rules = [
         ("Windows Server", {"ports": {"445", "135", "139", "3389"}, "svc": ["microsoft-ds", "smb", "windows", "rdp"]}, 2),
         ("Linux Server", {"ports": {"22", "80", "443"}, "svc": ["openssh", "linux", "ubuntu", "centos", "apache", "nginx"]}, 2),
-        ("Windows АРМ", {"ports": {"445", "3389"}, "svc": ["microsoft-ds", "rdp", "windows"]}, 1),
-        ("Linux АРМ", {"ports": {"22"}, "svc": ["openssh", "linux", "ubuntu"]}, 1),
         ("Контроллер домена (AD)", {"ports": {"88", "389", "445", "636"}, "svc": ["ldap", "kpasswd", "microsoft-ds"]}, 2),
         ("База данных", {"ports": {"1433", "3306", "5432", "27017", "6379"}, "svc": ["mysql", "postgresql", "mongodb", "redis", "mssql"]}, 1),
-        ("Веб-сервер", {"ports": {"80", "443", "8080", "8443"}, "svc": ["http", "nginx", "apache", "iis", "tomcat"]}, 1),
-        ("Почтовый сервер", {"ports": {"25", "110", "143", "465", "587", "993"}, "svc": ["smtp", "pop3", "imap", "exchange"]}, 2),
-        ("DNS Сервер", {"ports": {"53"}, "svc": ["dns", "bind", "unbound"]}, 1),
-        ("Файловый сервер / NAS", {"ports": {"21", "445", "2049", "139", "873"}, "svc": ["ftp", "smb", "nfs", "rsync", "synology"]}, 1),
-        ("Удаленное управление", {"ports": {"22", "23", "3389", "5900", "5901"}, "svc": ["ssh", "telnet", "rdp", "vnc"]}, 1),
-        ("Принтер / МФУ", {"ports": {"515", "631", "9100"}, "svc": ["ipp", "http", "jetdirect", "printer"]}, 1),
-        ("Прокси / Балансировщик", {"ports": {"3128", "8080", "1080"}, "svc": ["http-proxy", "squid", "haproxy", "nginx"]}, 1),
-        ("IoT / Smart Device", {"ports": {"1883", "8883", "5683", "1900"}, "svc": ["mqtt", "coap", "upnp", "http"]}, 1),
-        ("DHCP Сервер", {"ports": {"67", "68"}, "svc": ["bootps", "bootpc"]}, 1),
-        ("Сетевое оборудование", {"ports": {"161", "162", "23"}, "svc": ["snmp", "telnet", "ssh", "cisco"]}, 1),
-        ("Видеонаблюдение", {"ports": {"554", "8000", "37777"}, "svc": ["rtsp", "http", "dvr"]}, 1),
-        ("VoIP / Телефония", {"ports": {"5060", "5061", "1720"}, "svc": ["sip", "h323"]}, 1),
-        ("Сервер приложений", {"ports": {"8005", "1099", "4444", "9090"}, "svc": ["java", "jboss", "tomcat", "weblogic"]}, 1),
-        ("Резервное копирование", {"ports": {"8140", "10080", "445"}, "svc": ["http", "smb", "bacula", "veeam"]}, 1),
+        ("Веб-сервер", {"ports": {"80", "443", "8080"}, "svc": ["http", "nginx", "apache", "iis"]}, 1),
+        ("Почтовый сервер", {"ports": {"25", "110", "143", "465", "587"}, "svc": ["smtp", "pop3", "imap", "exchange"]}, 2),
+        ("DNS Сервер", {"ports": {"53"}, "svc": ["dns", "bind"]}, 1),
+        ("Файловый сервер", {"ports": {"21", "445", "2049"}, "svc": ["ftp", "smb", "nfs"]}, 1),
+        ("Принтер", {"ports": {"515", "631", "9100"}, "svc": ["ipp", "jetdirect", "printer"]}, 1),
+        ("Сетевое оборудование", {"ports": {"161", "162", "23"}, "svc": ["snmp", "telnet", "cisco"]}, 1),
     ]
+    
     matched_role = "Не определено"
     max_score = 0
+    
     for role, criteria, min_match in rules:
         score = 0
         current_tags = []
+        
         port_matches = ports_set.intersection(criteria["ports"])
         if port_matches:
             score += len(port_matches)
             current_tags += [f"port:{p}" for p in port_matches]
+            
         svc_matches = [s for s in criteria["svc"] if s in service_str]
         if svc_matches:
             score += len(svc_matches)
             current_tags += [f"svc:{s}" for s in svc_matches]
+            
         if score >= min_match and score > max_score:
             max_score = score
             matched_role = role
             tags = current_tags
+            
     return matched_role, json.dumps(tags)
 
-def parse_nmap_xml(filepath):
-    import xml.etree.ElementTree as ET
-    tree = ET.parse(filepath)
-    root = tree.getroot()
-    assets = []
-    for host in root.findall('host'):
-        status = host.find('status')
-        if status is None or status.get('state') != 'up': continue
-        addr = host.find('address')
-        ip = addr.get('addr') if addr is not None else 'Unknown'
-        hostnames = host.find('hostnames')
-        hostname = 'Unknown'
-        if hostnames is not None:
-            name_elem = hostnames.find('hostname')
-            if name_elem is not None: hostname = name_elem.get('name')
-        os_info = 'Unknown'
-        os_elem = host.find('os')
-        if os_elem is not None:
-            os_match = os_elem.find('osmatch')
-            if os_match is not None: os_info = os_match.get('name')
-        ports = []
-        ports_elem = host.find('ports')
-        if ports_elem is not None:
-            for port in ports_elem.findall('port'):
-                state = port.find('state')
-                if state is not None and state.get('state') == 'open':
-                    port_id = port.get('portid')
-                    service = port.find('service')
-                    service_name = service.get('name') if service is not None else ''
-                    ports.append(f"{port_id}/{service_name}")
-        assets.append({'ip_address': ip, 'hostname': hostname, 'os_info': os_info, 'status': 'up', 'open_ports': ', '.join(ports)})
-    return assets
-
-def build_group_tree(groups, parent_id=None):
-    """Построение дерева групп с подсчётом активов"""
-    tree = []
-    for group in groups:
-        if group.parent_id == parent_id:
-            children = build_group_tree(groups, group.id)
-            
-            # 🔥 Подсчёт активов
-            if group.is_dynamic and group.filter_query:
-                try:
-                    filter_struct = json.loads(group.filter_query)
-                    count_query = build_complex_query(Asset, filter_struct, Asset.query)
-                    count = count_query.count()  # ✅ .count() для Query
-                except Exception as e:
-                    print(f"⚠️ Ошибка подсчёта динамической группы {group.name}: {e}")
-                    count = 0
-            else:
-                count = group.assets.count()  # ✅ .count() вместо len() для AppenderQuery
-            
-            tree.append({
-                'id': group.id, 
-                'name': group.name, 
-                'children': children, 
-                'count': count, 
-                'is_dynamic': group.is_dynamic
-            })
-    return tree
-
-def build_complex_query(model, filters_structure, base_query=None):
-    if base_query is None: base_query = model.query
-    if not filters_structure or 'conditions' not in filters_structure: return base_query
-    logic = filters_structure.get('logic', 'AND')
-    conditions = filters_structure.get('conditions', [])
-    sqlalchemy_filters = []
-    for item in conditions:
-        if item.get('type') == 'group':
-            sub_query = build_complex_query(model, item, model.query)
-            ids = [a.id for a in sub_query.all()]
-            if ids: sqlalchemy_filters.append(model.id.in_(ids))
-            elif logic == 'AND': sqlalchemy_filters.append(model.id == -1)
-        else:
-            field = item.get('field')
-            op = item.get('op')
-            val = item.get('value')
-            col = getattr(model, field, None)
-            if col is None: continue
-            if op == 'eq': sqlalchemy_filters.append(col == val)
-            elif op == 'ne': sqlalchemy_filters.append(col != val)
-            elif op == 'like': sqlalchemy_filters.append(col.like(f'%{val}%'))
-            elif op == 'gt': sqlalchemy_filters.append(col > val)
-            elif op == 'lt': sqlalchemy_filters.append(col < val)
-            elif op == 'in': sqlalchemy_filters.append(col.in_(val.split(',')))
-    if sqlalchemy_filters:
-        if logic == 'AND': base_query = base_query.filter(and_(*sqlalchemy_filters))
-        else: base_query = base_query.filter(or_(*sqlalchemy_filters))
-    return base_query
-
-def log_asset_change(asset_id, change_type, field_name, old_value, new_value, scan_job_id=None, notes=None):
-    change = AssetChangeLog(asset_id=asset_id, change_type=change_type, field_name=field_name,
-                            old_value=json.dumps(old_value) if old_value else None,
-                            new_value=json.dumps(new_value) if new_value else None,
-                            scan_job_id=scan_job_id, notes=notes)
-    db.session.add(change)
-
 def generate_asset_taxonomy(asset, services=None):
-    """Генерирует таксономию актива на основе его атрибутов"""
+    """Генерирует таксономию актива"""
     ports = set()
     if asset.open_ports:
         for p in asset.open_ports.split(','):
             port_num = p.strip().split('/')[0]
-            if port_num.isdigit(): ports.add(port_num)
+            if port_num.isdigit():
+                ports.add(port_num)
+    
     device_class = "Не классифицировано"
     device_subclass = ""
+    
     if asset.os_info:
         os_lower = asset.os_info.lower()
-        if any(w in os_lower for w in ['windows', 'microsoft']): 
+        if 'windows' in os_lower: 
             device_class = "Сервер/АРМ (Windows)"
-            device_subclass = "Windows" if 'server' in os_lower else "Windows Workstation"
-        elif any(w in os_lower for w in ['linux', 'ubuntu', 'centos', 'debian', 'red hat']): 
+            device_subclass = "Server" if 'server' in os_lower else "Workstation"
+        elif 'linux' in os_lower: 
             device_class = "Сервер/АРМ (Linux)"
             device_subclass = "Linux"
-        elif any(w in os_lower for w in ['cisco', 'juniper', 'mikrotik', 'router', 'switch']): 
+        elif any(x in os_lower for x in ['cisco', 'juniper', 'switch', 'router']): 
             device_class = "Сетевое оборудование"
-            device_subclass = "Network Device"
-        elif any(w in os_lower for w in ['iot', 'embedded', 'camera', 'printer']): 
-            device_class = "Специализированное / IoT"
-            device_subclass = "IoT/Embedded"
-    if not device_class:
+            device_subclass = "Network"
+            
+    if device_class == "Не классифицировано":
         if '3389' in ports or '445' in ports: 
             device_class = "Сервер/АРМ (Windows)"
-            device_subclass = "Windows (по портам)"
         elif '22' in ports: 
             device_class = "Сервер/АРМ (Linux)"
-            device_subclass = "Linux (по портам)"
-        elif '161' in ports or '23' in ports: 
+        elif '161' in ports: 
             device_class = "Сетевое оборудование"
-            device_subclass = "Network (по портам)"
+
     role = asset.device_role or "Не определена"
-    role_category = "Общего назначения"
-    role_map = {
-        'контроллер': "Инфраструктура идентификации", 'domain controller': "Инфраструктура идентификации",
-        'база данных': "Хранение данных", 'database': "Хранение данных",
-        'веб': "Публикация контента / Приложения", 'web': "Публикация контента / Приложения", 'сервер приложений': "Публикация контента / Приложения",
-        'почт': "Коммуникации", 'mail': "Коммуникации", 'exchange': "Коммуникации",
-        'файл': "Файловые сервисы", 'file': "Файловые сервисы", 'nas': "Файловые сервисы",
-        'принтер': "Периферия", 'printer': "Периферия",
-        'мониторинг': "Управление и обслуживание", 'backup': "Управление и обслуживание", 'резерв': "Управление и обслуживание",
-        'видео': "Мультимедиа / Телефония", 'voip': "Мультимедиа / Телефония", 'телефон': "Мультимедиа / Телефония"
-    }
-    for key, cat in role_map.items():
-        if key in role.lower(): 
-            role_category = cat
-            break
-    services_tree = []
+    
     svc_map = {
-        '22': ('Удаленный доступ', 'SSH'), '23': ('Удаленный доступ', 'Telnet'), 
-        '80': ('Веб-сервисы', 'HTTP'), '443': ('Веб-сервисы', 'HTTPS'), '8080': ('Веб-сервисы', 'HTTP-Proxy/Alt'), 
-        '21': ('Файловые сервисы', 'FTP'), '445': ('Файловые сервисы', 'SMB/CIFS'), 
-        '3306': ('Базы данных', 'MySQL'), '1433': ('Базы данных', 'MSSQL'), '5432': ('Базы данных', 'PostgreSQL'), 
-        '27017': ('Базы данных', 'MongoDB'), '3389': ('Удаленный доступ', 'RDP'), '53': ('Инфраструктура', 'DNS'), 
-        '25': ('Почта', 'SMTP'), '110': ('Почта', 'POP3'), '143': ('Почта', 'IMAP'), 
-        '88': ('Инфраструктура', 'Kerberos'), '389': ('Инфраструктура', 'LDAP'), '161': ('Мониторинг', 'SNMP'), 
-        '5900': ('Удаленный доступ', 'VNC'), '9100': ('Периферия', 'JetDirect/Printer'),
+        '22': ('Удаленный доступ', 'SSH'), '80': ('Веб', 'HTTP'), '443': ('Веб', 'HTTPS'),
+        '3306': ('БД', 'MySQL'), '5432': ('БД', 'PostgreSQL'), '3389': ('RDP', 'RDP'),
+        '53': ('Инфра', 'DNS'), '25': ('Почта', 'SMTP')
     }
+    
     grouped_services = {}
     for port in sorted(ports):
         if port in svc_map:
             cat, svc_name = svc_map[port]
             grouped_services.setdefault(cat, []).append(svc_name)
-    for cat, svcs in grouped_services.items(): 
-        services_tree.append({'category': cat, 'services': svcs})
-    sources = []
-    if asset.scanners_used:
-        try:
-            for s in json.loads(asset.scanners_used): 
-                sources.append({'name': s.upper(), 'type': 'Сканер уязвимостей/портов'})
-        except: pass
-    if asset.osquery_status == 'online': 
-        sources.append({'name': 'OSquery Agent', 'type': 'Агент инвентаризации'})
-    if not sources: 
-        sources.append({'name': 'Ручной ввод', 'type': 'Статический'})
+            
+    sources = [{'name': 'Сканирование', 'type': 'Автоматический'}]
+        
     return {
         'asset_id': asset.id, 
         'ip_address': asset.ip_address, 
         'hostname': asset.hostname or 'N/A', 
         'nodes': [
-            {'id': 'device', 'title': 'Класс устройства', 'icon': 'bi-pc-display', 'value': device_class,
-             'children': [{'title': 'Подкласс', 'value': device_subclass}] if device_subclass else []},
-            {'id': 'role', 'title': 'Функциональная роль', 'icon': 'bi-briefcase', 'value': role,
-             'children': [{'title': 'Категория', 'value': role_category}] if role_category else []},
-            {'id': 'services', 'title': 'Сетевые сервисы', 'icon': 'bi-hdd-network', 'value': f"{len(ports)} портов",
-             'children': [{'title': cat, 'value': ', '.join(svcs)} for cat, svcs in grouped_services.items()] or [{'title': 'Нет классифицируемых сервисов', 'value': ''}]},
-            {'id': 'sources', 'title': 'Источники данных', 'icon': 'bi-database', 'value': f"{len(sources)} источников",
-             'children': [{'title': s['name'], 'value': s['type']} for s in sources]}
+            {'id': 'device', 'title': 'Класс', 'value': device_class, 'children': [{'title': 'Подкласс', 'value': device_subclass}] if device_subclass else []},
+            {'id': 'role', 'title': 'Роль', 'value': role, 'children': []},
+            {'id': 'services', 'title': 'Сервисы', 'value': f"{len(ports)} портов", 'children': [{'title': k, 'value': ', '.join(v)} for k, v in grouped_services.items()]},
+            {'id': 'sources', 'title': 'Источники', 'value': 'Scan', 'children': sources}
         ]
     }
 
+# ────────────────────────────────────────────────────────────────
+# ПАРСИНГ NMAP XML
+# ────────────────────────────────────────────────────────────────
+
 def parse_nmap_xml(filepath):
-    """Парсинг Nmap XML файла для импорта через интерфейс"""
-    import xml.etree.ElementTree as ET
-    import json
-    
+    """Парсинг Nmap XML файла"""
     try:
         tree = ET.parse(filepath)
         root = tree.getroot()
@@ -3363,18 +3148,17 @@ def parse_nmap_xml(filepath):
                 continue
             
             addr = host.find('address')
-            ip = addr.get('addr') if addr is not None else 'Unknown'
-            if ip == 'Unknown':
-                continue
+            ip = addr.get('addr') if addr is not None else None
+            if not ip: continue
             
-            hostname = 'Unknown'
+            hostname = None
             hostnames = host.find('hostnames')
             if hostnames is not None:
                 name_elem = hostnames.find('hostname')
                 if name_elem is not None:
                     hostname = name_elem.get('name')
             
-            os_info = 'Unknown'
+            os_info = None
             os_elem = host.find('os')
             if os_elem is not None:
                 os_match = os_elem.find('osmatch')
@@ -3389,25 +3173,174 @@ def parse_nmap_xml(filepath):
                     if state is not None and state.get('state') == 'open':
                         port_id = port.get('portid')
                         service = port.find('service')
-                        service_name = service.get('name') if service is not None else ''
-                        ports.append(f"{port_id}/{service_name}" if service_name else port_id)
+                        svc_name = service.get('name') if service is not None else ''
+                        ports.append(f"{port_id}/{svc_name}" if svc_name else port_id)
             
-            # ✅ Теперь ports_list можно передавать — поле есть в модели
             assets.append({
                 'ip_address': ip,
                 'hostname': hostname,
                 'os_info': os_info,
                 'status': 'up',
                 'open_ports': ', '.join(ports),
-                'ports_list': json.dumps(ports)  # 🔥 Сохраняем как JSON
+                'ports_list': json.dumps(ports)
             })
         
-        print(f"✅ Спарсено {len(assets)} активов из {filepath}")
         return assets
-        
     except Exception as e:
-        print(f"❌ Ошибка парсинга Nmap XML {filepath}: {e}")
+        print(f"Ошибка парсинга Nmap XML: {e}")
         return []
+
+# ────────────────────────────────────────────────────────────────
+# ГРУППЫ И ФИЛЬТРЫ
+# ────────────────────────────────────────────────────────────────
+
+def build_group_tree(groups, parent_id=None, depth=0):
+    """Построение дерева групп"""
+    Asset, Group, _, _, _ = get_models()
+    from sqlalchemy import and_, or_
+    
+    tree = []
+    # Фильтруем группы текущего уровня
+    current_level_groups = [g for g in groups if g.parent_id == parent_id]
+
+    for group in current_level_groups:
+        # Рекурсивно строим поддерево
+        children = build_group_tree(groups, group.id, depth + 1)
+
+        # Подсчёт активов: прямые + все вложенные группы
+        count = 0
+        if group.is_dynamic and group.filter_rules:
+            try:
+                filter_struct = json.loads(group.filter_rules)
+                base_query = Asset.query
+                complex_query = build_complex_query(Asset, filter_struct, base_query)
+                count = complex_query.count()
+            except Exception as e:
+                print(f"Ошибка подсчета динамической группы {group.name}: {e}")
+                count = 0
+        else:
+            count = group.assets.count()
+
+        # Добавляем активы из всех вложенных групп
+        for child in children:
+            count += child.get('asset_count', 0)
+
+        tree.append({
+            'id': group.id,
+            'name': group.name,
+            'children': children,
+            'count': count,
+            'asset_count': count,
+            'is_dynamic': group.is_dynamic,
+            'parent_id': group.parent_id,
+            'depth': depth
+        })
+    return tree
+
+def build_complex_query(model, filters_structure, base_query=None):
+    """Построение SQL запроса по JSON фильтру"""
+    from sqlalchemy import and_, or_
+    
+    if base_query is None:
+        base_query = model.query
+        
+    if not filters_structure or 'conditions' not in filters_structure:
+        return base_query
+        
+    logic = filters_structure.get('logic', 'AND')
+    conditions = filters_structure.get('conditions', [])
+    sqlalchemy_filters = []
+    
+    for item in conditions:
+        if item.get('type') == 'group':
+            sub_query = build_complex_query(model, item, model.query)
+            ids = [a.id for a in sub_query.all()]
+            if ids:
+                sqlalchemy_filters.append(model.id.in_(ids))
+            elif logic == 'AND':
+                sqlalchemy_filters.append(model.id == -1)
+        else:
+            field = item.get('field')
+            op = item.get('op')
+            val = item.get('value')
+            
+            col = getattr(model, field, None)
+            if col is None: continue
+                
+            if op == 'eq': sqlalchemy_filters.append(col == val)
+            elif op == 'ne': sqlalchemy_filters.append(col != val)
+            elif op == 'like': sqlalchemy_filters.append(col.like(f'%{val}%'))
+            elif op == 'gt': sqlalchemy_filters.append(col > val)
+            elif op == 'lt': sqlalchemy_filters.append(col < val)
+            elif op == 'in': sqlalchemy_filters.append(col.in_(val.split(',')))
+    
+    if sqlalchemy_filters:
+        if logic == 'AND':
+            base_query = base_query.filter(and_(*sqlalchemy_filters))
+        else:
+            base_query = base_query.filter(or_(*sqlalchemy_filters))
+            
+    return base_query
+
+__all__ = [
+    'to_moscow_time',
+    'format_moscow_time',
+    'create_asset_if_not_exists',
+    'update_asset_dns_names',
+    'log_asset_change',
+    'detect_device_role_and_tags',
+    'generate_asset_taxonomy',
+    'parse_nmap_xml',
+    'build_group_tree',
+    'build_complex_query'
+]
+```
+
+### 📄 `utils/network_utils.py`
+
+```python
+import ipaddress
+from models import db, Group
+
+def create_cidr_groups(network_str, mask_prefix, parent_id=None):
+    """
+    Создает группы для подсетей внутри указанной сети.
+    
+    :param network_str: Строка сети в формате CIDR (например, "192.168.0.0/16")
+    :param mask_prefix: Префикс маски для подгрупп (например, 24 для /24)
+    :param parent_id: ID родительской группы (опционально)
+    :return: Список созданных объектов Group
+    """
+    try:
+        network = ipaddress.ip_network(network_str, strict=False)
+        subnets = network.subnets(new_prefix=mask_prefix)
+        
+        created_groups = []
+        
+        for subnet in subnets:
+            group_name = str(subnet)
+            
+            # Проверяем, существует ли уже группа с таким именем и родителем
+            existing_group = Group.query.filter_by(
+                name=group_name, 
+                parent_id=parent_id
+            ).first()
+            
+            if not existing_group:
+                new_group = Group(
+                    name=group_name,
+                    parent_id=parent_id,
+                    description=f"Автоматически созданная группа для подсети {group_name}"
+                )
+                db.session.add(new_group)
+                created_groups.append(new_group)
+        
+        db.session.commit()
+        return created_groups
+    
+    except Exception as e:
+        db.session.rollback()
+        raise ValueError(f"Ошибка при создании CIDR групп: {str(e)}")
 ```
 
 ### 📄 `utils/osquery_validator.py`
@@ -3503,7 +3436,7 @@ class WazuhAPI:
 ### 📄 `routes/__init__.py`
 
 ```python
-from .main import main_bp
+from .main import main_bp, groups_bp
 from .scans import scans_bp
 from .wazuh import wazuh_bp
 from .osquery import osquery_bp
@@ -3515,54 +3448,107 @@ def register_blueprints(app):
     app.register_blueprint(wazuh_bp)
     app.register_blueprint(osquery_bp)
     app.register_blueprint(utilities_bp)
+    app.register_blueprint(groups_bp)
 
 ```
 
 ### 📄 `routes/main.py`
 
 ```python
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from extensions import db
-from models import Group, Asset, AssetChangeLog, ServiceInventory, ScanResult, ScanJob
-from utils import build_group_tree, build_complex_query, format_moscow_time, MOSCOW_TZ
-from sqlalchemy import func
+from models import Group, Asset, AssetChangeLog, ServiceInventory, ScanResult, ScanJob, WazuhConfig
+# Исправленный импорт сканеров из корня проекта (файл scanner.py)
+from scanner import run_rustscan_scan, run_nmap_scan, run_nslookup_scan
+from utils import build_group_tree, build_complex_query, format_moscow_time, parse_nmap_xml, generate_asset_taxonomy
+from sqlalchemy import func, and_, or_
 import json
 import os
-from datetime import datetime
+import threading
+import ipaddress
+from datetime import datetime, timezone, timedelta
 from werkzeug.utils import secure_filename
-from flask import current_app
+
+# Локальный часовой пояс
+MOSCOW_TZ = timezone(timedelta(hours=3))
 
 main_bp = Blueprint('main', __name__)
+groups_bp = Blueprint('groups', __name__)
+
+# ────────────────────────────────────────────────────────────────
+# УТИЛИТЫ ДЛЯ CIDR (Локальная реализация)
+# ────────────────────────────────────────────────────────────────
+
+def create_cidr_groups_logic(network_str, mask_bits, parent_id=None, group_name_prefix="Subnet"):
+    try:
+        network = ipaddress.ip_network(network_str, strict=False)
+        subnets = list(network.subnets(new_prefix=int(mask_bits)))
+        
+        created_ids = []
+        for subnet in subnets:
+            g_name = f"{group_name_prefix} {subnet}"
+            new_group = Group(name=g_name, parent_id=parent_id, is_dynamic=False)
+            db.session.add(new_group)
+            db.session.flush()
+            created_ids.append(new_group.id)
+            
+        db.session.commit()
+        return len(created_ids)
+    except Exception as e:
+        db.session.rollback()
+        raise e
+
+# ────────────────────────────────────────────────────────────────
+# ОСНОВНЫЕ МАРШРУТЫ
+# ────────────────────────────────────────────────────────────────
 
 @main_bp.route('/')
 def index():
-    all_groups = Group.query.all(); group_tree = build_group_tree(all_groups); assets = Asset.query.all()
+    all_groups = Group.query.all()
+    group_tree = build_group_tree(all_groups)
+    assets = Asset.query.all()
     ungrouped_count = Asset.query.filter(Asset.group_id.is_(None)).count()
+    
     current_filter = request.args.get('group_id')
-    if request.args.get('ungrouped') == 'true': current_filter = 'ungrouped'
-    elif not current_filter or current_filter == 'all': current_filter = 'ungrouped'
+    if request.args.get('ungrouped') == 'true': 
+        current_filter = 'ungrouped'
+    elif not current_filter or current_filter == 'all': 
+        current_filter = 'ungrouped'
+        
     return render_template('index.html', assets=assets, group_tree=group_tree, all_groups=all_groups, ungrouped_count=ungrouped_count, current_filter=current_filter)
 
 @main_bp.route('/api/assets', methods=['GET'])
 def get_assets_api():
     query = Asset.query
-    filters_raw = request.args.get('filters'); ungrouped = request.args.get('ungrouped'); data_source = request.args.get('data_source')
-    if data_source and data_source != 'all': query = query.filter(Asset.data_source == data_source)
-    if ungrouped and ungrouped.lower() == 'true': query = query.filter(Asset.group_id.is_(None))
+    filters_raw = request.args.get('filters')
+    ungrouped = request.args.get('ungrouped')
+    
+    # Обработка фильтра "Без группы"
+    if ungrouped and ungrouped.lower() == 'true':
+        query = query.filter(Asset.group_id.is_(None))
     else:
         group_id = request.args.get('group_id')
         if group_id and group_id != 'all':
             try:
                 group_id_int = int(group_id)
                 group = Group.query.get(group_id_int)
-                if group and group.is_dynamic and group.filter_query:
-                    try: query = build_complex_query(Asset, json.loads(group.filter_query), query)
-                    except: query = query.filter(Asset.group_id == group_id_int)
-                else: query = query.filter(Asset.group_id == group_id_int)
-            except ValueError: return jsonify({'error': 'Invalid group_id'}), 400
+                if group and group.is_dynamic and group.filter_rules:
+                    try:
+                        query = build_complex_query(Asset, json.loads(group.filter_rules), query)
+                    except:
+                        query = query.filter(Asset.group_id == group_id_int)
+                else:
+                    query = query.filter(Asset.group_id == group_id_int)
+            except ValueError:
+                return jsonify({'error': 'Invalid group_id'}), 400
+                
+    # Обработка сложных фильтров
     if filters_raw:
-        try: query = build_complex_query(Asset, json.loads(filters_raw), query)
-        except: pass
+        try:
+            query = build_complex_query(Asset, json.loads(filters_raw), query)
+        except:
+            pass
+            
     assets = query.all()
     data = [{
         'id': a.id, 
@@ -3571,58 +3557,178 @@ def get_assets_api():
         'os': a.os_info, 
         'ports': a.open_ports, 
         'group': a.group.name if a.group else 'Без группы', 
-        'last_scan': format_moscow_time(a.last_scanned, '%Y-%m-%d %H:%M'),  # 🔥 Москва
-        'source': a.data_source or 'manual'
+        'last_scan': format_moscow_time(a.last_scanned if hasattr(a, 'last_scanned') else None, '%Y-%m-%d %H:%M'),
+        'dns_names': json.loads(a.dns_names) if a.dns_names else []
     } for a in assets]
+    
     return jsonify(data)
 
 @main_bp.route('/api/analytics', methods=['GET'])
 def get_analytics():
-    filters_raw = request.args.get('filters'); group_by_field = request.args.get('group_by', 'os_info')
+    filters_raw = request.args.get('filters')
+    group_by_field = request.args.get('group_by', 'os_info')
+    
     query = Asset.query
     if filters_raw:
-        try: query = build_complex_query(Asset, json.loads(filters_raw), query)
-        except: pass
+        try:
+            query = build_complex_query(Asset, json.loads(filters_raw), query)
+        except:
+            pass
+            
     group_col = getattr(Asset, group_by_field, Asset.os_info)
     results = db.session.query(group_col, func.count(Asset.id).label('count')).group_by(group_col).all()
+    
     return jsonify([{'label': r[0] or 'Unknown', 'value': r[1]} for r in results])
 
-@main_bp.route('/api/groups', methods=['POST'])
-def api_create_group():
-    data = request.json; name = data.get('name'); parent_id = data.get('parent_id'); filter_query = data.get('filter_query')
-    is_dynamic = True if filter_query else False
-    if parent_id == '': parent_id = None
-    if not name: return jsonify({'error': 'Имя обязательно'}), 400
-    new_group = Group(name=name, parent_id=parent_id, filter_query=filter_query, is_dynamic=is_dynamic)
-    db.session.add(new_group); db.session.commit()
-    return jsonify({'id': new_group.id, 'name': new_group.name, 'is_dynamic': is_dynamic}), 201
+# ────────────────────────────────────────────────────────────────
+# API ГРУПП
+# ────────────────────────────────────────────────────────────────
 
-@main_bp.route('/api/groups/<int:id>', methods=['PUT'])
-def api_update_group(id):
-    group = Group.query.get_or_404(id); data = request.json
-    if 'name' in data: group.name = data['name']
-    if 'parent_id' in data:
-        new_parent_id = data['parent_id']
-        if new_parent_id == '': new_parent_id = None
-        if new_parent_id and int(new_parent_id) == group.id: return jsonify({'error': 'Группа не может быть родителем самой себя'}), 400
-        group.parent_id = new_parent_id
-    if 'filter_query' in data: group.filter_query = data['filter_query'] if data['filter_query'] else None; group.is_dynamic = bool(data['filter_query'])
-    db.session.commit()
-    return jsonify({'success': True})
+@groups_bp.route('/api/groups', methods=['POST'])
+def api_create_group():
+    data = request.json
+    name = data.get('name')
+    parent_id = data.get('parent_id')
+    is_dynamic = data.get('is_dynamic', False)
+    filter_rules = data.get('filter_rules', [])
+    cidr_network = data.get('cidr_network')
+    cidr_mask = data.get('cidr_mask')
+    
+    if parent_id == '':
+        parent_id = None
+    
+    # Обработка CIDR
+    if cidr_network:
+        try:
+            created_count = create_cidr_groups_logic(cidr_network, int(cidr_mask or 24), parent_id)
+            return jsonify({'success': True, 'message': f'Создано {created_count} групп', 'count': created_count}), 201
+        except Exception as e:
+            return jsonify({'error': str(e)}), 400
+    
+    # Обработка динамической группы
+    filter_query = None
+    if is_dynamic and filter_rules:
+        filter_query = json.dumps(filter_rules)
+    
+    if not name and not cidr_network:
+        return jsonify({'error': 'Имя обязательно'}), 400
+    
+    # Если это не CIDR (который создает несколько групп), создаем одну
+    if not cidr_network:
+        new_group = Group(
+            name=name,
+            parent_id=parent_id,
+            filter_rules=filter_query, # Используем поле filter_rules
+            is_dynamic=is_dynamic
+        )
+        db.session.add(new_group)
+        db.session.commit()
+        return jsonify({'id': new_group.id, 'name': new_group.name, 'is_dynamic': is_dynamic}), 201
+        
+    return jsonify({'error': 'Неизвестный режим создания'}), 400
+
+@groups_bp.route('/api/groups/<int:group_id>', methods=['GET', 'PUT', 'DELETE'])
+def group_actions(group_id):
+    group = Group.query.get_or_404(group_id)
+
+    if request.method == 'GET':
+        rules = []
+        if group.filter_rules:
+            try: rules = json.loads(group.filter_rules)
+            except: pass
+            
+        return jsonify({
+            'id': group.id,
+            'name': group.name,
+            'parent_id': group.parent_id,
+            'is_dynamic': group.is_dynamic,
+            'filter_rules': rules
+        })
+
+    if request.method == 'PUT':
+        data = request.json
+        group.name = data.get('name', group.name)
+        
+        p_id = data.get('parent_id')
+        group.parent_id = p_id if p_id != '' else None
+        
+        if 'is_dynamic' in data:
+            group.is_dynamic = data['is_dynamic']
+            
+        if 'filter_rules' in data:
+            group.filter_rules = json.dumps(data['filter_rules']) if data['filter_rules'] else None
+            
+        db.session.commit()
+        return jsonify({'status': 'success'})
+
+    if request.method == 'DELETE':
+        move_to_id = request.args.get('move_to')
+        if move_to_id:
+            Asset.query.filter_by(group_id=group_id).update({'group_id': move_to_id})
+        else:
+            Asset.query.filter_by(group_id=group_id).update({'group_id': None})
+            
+        db.session.delete(group)
+        db.session.commit()
+        return jsonify({'status': 'success'})
 
 @main_bp.route('/api/groups/<int:id>', methods=['DELETE'])
 def api_delete_group(id):
-    group = Group.query.get_or_404(id); move_to_id = request.args.get('move_to')
-    if move_to_id: Asset.query.filter_by(group_id=id).update({'group_id': move_to_id})
-    db.session.delete(group); db.session.commit()
+    # Дублирующий маршрут для совместимости, лучше использовать groups_bp
+    group = Group.query.get_or_404(id)
+    move_to_id = request.args.get('move_to')
+    if move_to_id:
+        Asset.query.filter_by(group_id=id).update({'group_id': move_to_id})
+    db.session.delete(group)
+    db.session.commit()
     return jsonify({'success': True})
 
 @main_bp.route('/groups', methods=['POST'])
 def manage_groups():
-    name = request.form.get('name'); parent_id = request.form.get('parent_id')
+    # Старый маршрут для форм, можно удалить если используется только API
+    name = request.form.get('name')
+    parent_id = request.form.get('parent_id')
     if parent_id == '': parent_id = None
-    db.session.add(Group(name=name, parent_id=parent_id)); db.session.commit()
+    db.session.add(Group(name=name, parent_id=parent_id))
+    db.session.commit()
     return redirect(url_for('main.index'))
+
+@main_bp.route('/api/groups/tree')
+def api_get_tree():
+    all_groups = Group.query.all()
+    tree = build_group_tree(all_groups)
+    
+    # Преобразуем дерево в плоский список с сохранением всех полей включая depth
+    flat_list = []
+    def flatten(nodes):
+        for node in nodes:
+            flat_list.append({
+                'id': node['id'], 
+                'name': node['name'],
+                'count': node['count'],
+                'asset_count': node['asset_count'],
+                'parent_id': node.get('parent_id'),
+                'is_dynamic': node.get('is_dynamic', False),
+                'depth': node.get('depth', 0)
+            })
+            flatten(node['children'])
+    
+    flatten(tree)
+    
+    ungrouped_count = Asset.query.filter(Asset.group_id.is_(None)).count()
+    
+    return jsonify({'tree': tree, 'flat': flat_list, 'ungrouped_count': ungrouped_count})
+
+# ────────────────────────────────────────────────────────────────
+# АКТИВЫ: ДЕТАЛИ, ИСТОРИЯ, ТАКСОНОМИЯ
+# ────────────────────────────────────────────────────────────────
+
+@main_bp.route('/asset/<int:id>')
+def asset_detail(id):
+    asset = Asset.query.get_or_404(id)
+    all_groups = Group.query.all()
+    services = ServiceInventory.query.filter_by(asset_id=id).all() # Убрал is_active если нет такого поля
+    return render_template('asset_detail.html', asset=asset, all_groups=all_groups, services=services)
 
 @main_bp.route('/asset/<int:id>/history')
 def asset_history(id):
@@ -3630,62 +3736,135 @@ def asset_history(id):
     all_groups = Group.query.all()
     group_tree = build_group_tree(all_groups)
     changes = AssetChangeLog.query.filter_by(asset_id=id).order_by(AssetChangeLog.changed_at.desc()).all()
-    services = ServiceInventory.query.filter_by(asset_id=id, is_active=True).all()
-    return render_template('asset_history.html', 
-                          asset=asset, 
-                          changes=changes, 
-                          services=services, 
-                          group_tree=group_tree, 
-                          all_groups=all_groups)
+    services = ServiceInventory.query.filter_by(asset_id=id).all()
+    return render_template('asset_history.html', asset=asset, changes=changes, services=services, group_tree=group_tree, all_groups=all_groups)
+
+@main_bp.route('/asset/<int:id>/taxonomy')
+def asset_taxonomy(id):
+    asset = Asset.query.get_or_404(id)
+    all_groups = Group.query.all()
+    services = ServiceInventory.query.filter_by(asset_id=id).all()
+    taxonomy_data = generate_asset_taxonomy(asset, services)
+    return render_template('asset_taxonomy.html', asset=asset, taxonomy=taxonomy_data, all_groups=all_groups)
 
 @main_bp.route('/api/assets/<int:asset_id>/scans')
 def get_asset_scans(asset_id):
     search = request.args.get('search', '').strip()
     query = db.session.query(ScanResult, ScanJob).join(ScanJob, isouter=True).filter(ScanResult.asset_id == asset_id)
-    if search: query = query.filter(db.or_(ScanJob.scan_type.like(f'%{search}%'), ScanJob.status.like(f'%{search}%')))
+    if search:
+        # Проверка наличия полей перед фильтрацией
+        filters = []
+        if hasattr(ScanJob, 'scan_type'):
+            filters.append(ScanJob.scan_type.like(f'%{search}%'))
+        if hasattr(ScanJob, 'status'):
+            filters.append(ScanJob.status.like(f'%{search}%'))
+        if filters:
+            query = query.filter(or_(*filters))
+            
     results = query.order_by(ScanResult.scanned_at.desc()).limit(100).all()
-    return jsonify([{'id': res.id, 
-        'scan_type': job.scan_type if job else 'unknown', 
-        'status': job.status if job else 'completed',
-        'scanned_at': format_moscow_time(res.scanned_at),  # 🔥 Москва
-        'ports': json.loads(res.ports) if res.ports else [], 
-        'os': res.os_detection or '-'} for res, job in results])
+    
+    data = []
+    for res, job in results:
+        ports = []
+        if res.ports:
+            try: ports = json.loads(res.ports)
+            except: ports = res.ports.split(',') if isinstance(res.ports, str) else []
+            
+        data.append({
+            'id': res.id, 
+            'scan_type': job.scan_type if job else 'unknown', 
+            'status': job.status if job else 'completed',
+            'scanned_at': format_moscow_time(res.scanned_at),
+            'ports': ports, 
+            'os': res.os_detection if hasattr(res, 'os_detection') else '-'
+        })
+    return jsonify(data)
+
+# ────────────────────────────────────────────────────────────────
+# ОПЕРАЦИИ С АКТИВАМИ (BULK, UPDATE, DELETE)
+# ────────────────────────────────────────────────────────────────
 
 @main_bp.route('/api/assets/bulk-delete', methods=['POST'])
 def bulk_delete_assets():
-    data = request.json; asset_ids = data.get('ids', [])
-    if not asset_ids: return jsonify({'error': 'No IDs provided'}), 400
+    data = request.json
+    asset_ids = data.get('ids', [])
+    if not asset_ids:
+        return jsonify({'error': 'No IDs provided'}), 400
     deleted_count = Asset.query.filter(Asset.id.in_(asset_ids)).delete(synchronize_session=False)
     db.session.commit()
     return jsonify({'success': True, 'deleted': deleted_count})
 
 @main_bp.route('/api/assets/bulk-move', methods=['POST'])
 def bulk_move_assets():
-    data = request.json; asset_ids = data.get('ids', []); group_id = data.get('group_id')
-    if group_id == '': group_id = None
-    elif group_id: group_id = int(group_id)
-    if not asset_ids: return jsonify({'error': 'No IDs provided'}), 400
+    data = request.json
+    asset_ids = data.get('ids', [])
+    group_id = data.get('group_id')
+    
+    if group_id == '':
+        group_id = None
+    elif group_id:
+        group_id = int(group_id)
+        
+    if not asset_ids:
+        return jsonify({'error': 'No IDs provided'}), 400
+        
     moved_count = Asset.query.filter(Asset.id.in_(asset_ids)).update({'group_id': group_id}, synchronize_session=False)
     db.session.commit()
     return jsonify({'success': True, 'moved': moved_count})
 
+@main_bp.route('/asset/<int:id>/delete')
+def delete_asset(id):
+    asset = Asset.query.get_or_404(id)
+    group_id = asset.group_id
+    db.session.delete(asset)
+    db.session.commit()
+    flash(f'Актив {asset.ip_address} удалён', 'warning')
+    if group_id:
+        return redirect(url_for('main.index', group_id=group_id))
+    else:
+        return redirect(url_for('main.index', ungrouped='true'))
+    
+@main_bp.route('/asset/<int:id>/update-notes', methods=['POST'])
+def update_asset_notes(id):
+    asset = Asset.query.get_or_404(id)
+    notes = request.form.get('notes', '')
+    asset.notes = notes
+    db.session.commit()
+    flash('Заметки обновлены', 'success')
+    return redirect(url_for('main.asset_detail', id=id))
+
+@main_bp.route('/asset/<int:id>/update-group', methods=['POST'])
+def update_asset_group(id):
+    asset = Asset.query.get_or_404(id)
+    group_id = request.form.get('group_id')
+    asset.group_id = int(group_id) if group_id and group_id.strip() else None
+    db.session.commit()
+    flash('Группа обновлена', 'success')
+    return redirect(url_for('main.asset_detail', id=id))
+
+# ────────────────────────────────────────────────────────────────
+# СКАНИРОВАНИЕ И ИМПОРТ
+# ────────────────────────────────────────────────────────────────
+
 @main_bp.route('/scan', methods=['POST'])
 def import_scan():
-    from utils import parse_nmap_xml
-    
     if 'file' not in request.files:
         flash('Файл не найден', 'danger')
         return redirect(url_for('main.index'))
     
     file = request.files['file']
     group_id = request.form.get('group_id')
-    if group_id == '':
-        group_id = None
+    if group_id == '': group_id = None
     
     if file and file.filename:
         filename = secure_filename(file.filename)
-        filepath = os.path.join(current_app.config.get('UPLOAD_FOLDER', 'uploads'), filename)
+        # Путь к папке загрузок
+        upload_folder = current_app.config.get('UPLOAD_FOLDER', 'uploads')
+        if not os.path.exists(upload_folder):
+            os.makedirs(upload_folder)
+        filepath = os.path.join(upload_folder, filename)
         file.save(filepath)
+        
         try:
             parsed_assets = parse_nmap_xml(filepath)
             updated_count = 0
@@ -3697,23 +3876,21 @@ def import_scan():
                     existing.hostname = data.get('hostname')
                     existing.os_info = data.get('os_info')
                     existing.open_ports = data.get('open_ports')
-                    existing.ports_list = data.get('ports_list', '[]')  # 🔥 Обновляем
-                    existing.last_scanned = datetime.now(MOSCOW_TZ)
-                    existing.status = data.get('status')
+                    if hasattr(existing, 'last_scanned'):
+                        existing.last_scanned = datetime.now(MOSCOW_TZ)
+                    if hasattr(existing, 'status'):
+                        existing.status = data.get('status')
                     if group_id and not existing.group_id:
                         existing.group_id = group_id
                     updated_count += 1
                 else:
-                    # 🔥 Теперь можно передавать ports_list напрямую
                     new_asset = Asset(
                         ip_address=data['ip_address'],
                         hostname=data.get('hostname'),
                         os_info=data.get('os_info'),
                         open_ports=data.get('open_ports'),
-                        ports_list=data.get('ports_list', '[]'),  # 🔥 Поле теперь валидно
                         status=data.get('status', 'up'),
-                        group_id=group_id,
-                        data_source='scanning'
+                        group_id=group_id
                     )
                     db.session.add(new_asset)
                     created_count += 1
@@ -3723,125 +3900,34 @@ def import_scan():
         except Exception as e:
             flash(f'Ошибка парсинга: {str(e)}', 'danger')
             print(f"❌ Ошибка импорта: {e}")
-            import traceback
-            traceback.print_exc()
         finally:
             if os.path.exists(filepath):
                 os.remove(filepath)
     
     return redirect(url_for('main.index'))
 
-@main_bp.route('/asset/<int:id>/delete')
-def delete_asset(id):
-    """Удаление актива"""
-    asset = Asset.query.get_or_404(id)
-    
-    # Получаем группу для перенаправления
-    group_id = asset.group_id
-    
-    db.session.delete(asset)
-    db.session.commit()
-    
-    flash(f'Актив {asset.ip_address} удалён', 'warning')
-    
-    # Перенаправляем на главную с фильтром по группе
-    if group_id:
-        return redirect(url_for('main.index', group_id=group_id))
-    else:
-        return redirect(url_for('main.index', ungrouped='true'))
-    
-@main_bp.route('/asset/<int:id>/update-notes', methods=['POST'])
-def update_asset_notes(id):
-    """Обновление заметок актива"""
-    asset = Asset.query.get_or_404(id)
-    notes = request.form.get('notes', '')
-    asset.notes = notes
-    db.session.commit()
-    flash('Заметки обновлены', 'success')
-    return redirect(url_for('main.asset_detail', id=id))
-
-@main_bp.route('/asset/<int:id>/update-group', methods=['POST'])
-def update_asset_group(id):
-    """Обновление группы актива"""
-    asset = Asset.query.get_or_404(id)
-    group_id = request.form.get('group_id')
-    asset.group_id = int(group_id) if group_id and group_id.strip() else None
-    db.session.commit()
-    flash('Группа обновлена', 'success')
-    return redirect(url_for('main.asset_detail', id=id))
-
 @main_bp.route('/asset/<int:id>/scan-nmap', methods=['POST'])
 def scan_asset_nmap(id):
-    """Запуск Nmap сканирования для актива"""
-    from routes.scans import run_nmap_scan
-    from flask import current_app
-    import threading
-    
     asset = Asset.query.get_or_404(id)
     scan_job = ScanJob(scan_type='nmap', target=asset.ip_address, status='pending')
     db.session.add(scan_job)
     db.session.commit()
     
-    app_obj = current_app._get_current_object()
-    thread = threading.Thread(target=run_nmap_scan, args=(app_obj, scan_job.id, asset.ip_address, None, ''))
+    # Запуск в фоне
+    thread = threading.Thread(target=run_nmap_scan, args=(scan_job.id, asset.ip_address, None, ''))
     thread.daemon = True
     thread.start()
     
     flash(f'Nmap сканирование запущено для {asset.ip_address}', 'info')
     return redirect(url_for('main.asset_detail', id=id))
 
-@main_bp.route('/asset/<int:id>/taxonomy')
-def asset_taxonomy(id):
-    """Страница таксономии актива"""
-    from utils import generate_asset_taxonomy
-    asset = Asset.query.get_or_404(id)
-    all_groups = Group.query.all()
-    
-    # Получаем сервисы для таксономии
-    services = ServiceInventory.query.filter_by(asset_id=id, is_active=True).all()
-    
-    # Генерируем таксономию
-    taxonomy_data = generate_asset_taxonomy(asset, services)
-    
-    return render_template('asset_taxonomy.html', 
-                          asset=asset, 
-                          taxonomy=taxonomy_data,
-                          all_groups=all_groups)
+# ────────────────────────────────────────────────────────────────
+# РЕГИСТРАЦИЯ BLUEPRINTS
+# ────────────────────────────────────────────────────────────────
 
-@main_bp.route('/api/groups/tree')
-def api_get_tree():
-    """Возвращает дерево групп с актуальными счётчиками"""
-    all_groups = Group.query.all()
-    tree = build_group_tree(all_groups)
-    
-    # 🔥 Плоский список для удобного обновления на клиенте
-    flat_list = []
-    def flatten(nodes, level=0):
-        for node in nodes:
-            flat_list.append({
-                'id': node['id'], 
-                'name': '  ' * level + node['name'], 
-                'count': node['count'],  # 🔥 Актуальный счётчик
-                'is_dynamic': node.get('is_dynamic', False)
-            })
-            flatten(node['children'], level + 1)
-    flatten(tree)
-    
-    return jsonify({'tree': tree, 'flat': flat_list})
-
-@main_bp.route('/asset/<int:id>')
-def asset_detail(id):
-    """Детальная страница актива"""
-    asset = Asset.query.get_or_404(id)
-    all_groups = Group.query.all()
-    
-    # Получаем сервисы для отображения
-    services = ServiceInventory.query.filter_by(asset_id=id, is_active=True).all()
-    
-    return render_template('asset_detail.html', 
-                          asset=asset, 
-                          all_groups=all_groups,
-                          services=services)
+def register_blueprints(app):
+    app.register_blueprint(main_bp)
+    app.register_blueprint(groups_bp)
 ```
 
 ### 📄 `routes/osquery.py`
@@ -3922,250 +4008,314 @@ def save_config():
 ### 📄 `routes/scans.py`
 
 ```python
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, Response, send_file, current_app
+from flask import Blueprint, request, jsonify, render_template, current_app
+from models import db, Asset, Group, ScanJob, ScanResult
+from utils import create_asset_if_not_exists, update_asset_dns_names
+import json
+import os
 import threading
-from extensions import db
-from models import Group, Asset, ScanJob, ScanProfile
-from utils import build_group_tree
-from scanner import run_rustscan_scan, run_nmap_scan, check_scan_conflicts, run_nslookup_scan
+import traceback
 from datetime import datetime
-import os, threading, json
-from utils import format_moscow_time
+from scanner import run_rustscan_scan, run_nmap_scan, run_nslookup_scan
 
 scans_bp = Blueprint('scans', __name__)
 
+# ────────────────────────────────────────────────────────────────
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ────────────────────────────────────────────────────────────────
+
+def run_scan_wrapper(app, func, job_id, *args):
+    """
+    Обертка для безопасного запуска сканирования в потоке.
+    app: объект приложения Flask
+    func: функция сканирования (например, run_rustscan_scan)
+    job_id: ID задачи
+    *args: остальные аргументы для функции сканирования
+    """
+    try:
+        with app.app_context():
+            # ИСПРАВЛЕНИЕ: Передаем app первым аргументом, так как функции в scanner.py ожидают его там
+            func(app, job_id, *args)
+    except Exception as e:
+        print(f"❌ Ошибка в потоке сканирования {job_id}: {e}")
+        traceback.print_exc()
+        
+        try:
+            with app.app_context():
+                job = ScanJob.query.get(job_id)
+                if job:
+                    job.status = 'failed'
+                    job.error_message = f"Exception in thread: {str(e)}\n{traceback.format_exc()}"
+                    job.progress = 0
+                    job.completed_at = datetime.utcnow()
+                    db.session.commit()
+        except Exception as db_err:
+            print(f"❌ Ошибка обновления статуса задачи в БД: {db_err}")
+
+# ────────────────────────────────────────────────────────────────
+# СТРАНИЦЫ
+# ────────────────────────────────────────────────────────────────
+
 @scans_bp.route('/scans')
 def scans_page():
-    all_groups = Group.query.all(); group_tree = build_group_tree(all_groups)
-    scan_jobs = ScanJob.query.order_by(ScanJob.created_at.desc()).limit(50).all()
-    profiles = ScanProfile.query.order_by(ScanProfile.name).all()
-    return render_template('scans.html', scan_jobs=scan_jobs, group_tree=group_tree, all_groups=all_groups, profiles=profiles)
+    """Страница управления сканированиями"""
+    jobs = ScanJob.query.order_by(ScanJob.created_at.desc()).limit(50).all()
+    profiles = [] 
+    all_groups = Group.query.all()
+    return render_template('scans.html', scan_jobs=jobs, profiles=profiles, all_groups=all_groups)
 
-def get_assets_for_group(group_id):
-    if group_id == 'ungrouped': return Asset.query.filter(Asset.group_id.is_(None)).all(), "Без группы"
-    group = Group.query.get(group_id)
-    if not group: return None, None
-    def get_child_group_ids(parent_id, all_groups, result=[]):
-        children = [g for g in all_groups if g.parent_id == parent_id]
-        for child in children: result.append(child.id); get_child_group_ids(child.id, all_groups, result)
-        return result
-    all_groups = Group.query.all(); group_ids = [group_id] + get_child_group_ids(group_id, all_groups)
-    return Asset.query.filter(Asset.group_id.in_(group_ids)).all(), group.name
-
-
-@scans_bp.route('/api/scans/<int:job_id>')
-def get_scan_status(job_id): return jsonify(ScanJob.query.get_or_404(job_id).to_dict())
-
-@scans_bp.route('/api/scans/<int:job_id>/results')
-def get_scan_results(job_id):
-    scan_job = ScanJob.query.get_or_404(job_id)
-    results = [{'ip': r.ip_address, 'ports': json.loads(r.ports) if r.ports else [], 'services': json.loads(r.services) if r.services else [], 'os': r.os_detection, 'scanned_at': r.scanned_at.strftime('%Y-%m-%d %H:%M:%S')} for r in scan_job.results]
-    return jsonify({'job': scan_job.to_dict(), 'results': results})
-
-@scans_bp.route('/scans/<int:job_id>/download/<format_type>')
-def download_scan_results(job_id, format_type):
-    scan_job = ScanJob.query.get_or_404(job_id)
-    if scan_job.scan_type == 'rustscan':
-        if format_type == 'greppable':
-            if not scan_job.rustscan_output: flash('Результаты недоступны', 'danger'); return redirect(url_for('scans.scans_page'))
-            return Response(scan_job.rustscan_output, mimetype='text/plain', headers={'Content-Disposition': f'attachment; filename=rustscan_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}.txt'})
-    elif scan_job.scan_type == 'nmap':
-        file_path = None; mimetype = 'text/plain'; filename = ''
-        if format_type == 'xml': file_path, mimetype, filename = scan_job.nmap_xml_path, 'application/xml', 'nmap_results.xml'
-        elif format_type == 'greppable': file_path, filename = scan_job.nmap_grep_path, 'nmap_results.gnmap'
-        elif format_type == 'normal': file_path, filename = scan_job.nmap_normal_path, 'nmap_results.txt'
-        if file_path and os.path.exists(file_path): return send_file(file_path, mimetype=mimetype, as_attachment=True, download_name=filename)
-        else: flash('Файл результатов не найден', 'danger'); return redirect(url_for('scans.scans_page'))
-    elif scan_job.scan_type == 'nslookup':
-        if format_type == 'text':
-            if not scan_job.nslookup_output: flash('Результаты недоступны', 'danger'); return redirect(url_for('scans.scans_page'))
-            return Response(scan_job.nslookup_output, mimetype='text/plain', headers={'Content-Disposition': f'attachment; filename=nslookup_{datetime.utcnow().strftime("%Y%m%d_%H%M%S")}.txt'})
-        if scan_job.nslookup_file_path and os.path.exists(scan_job.nslookup_file_path):
-            return send_file(scan_job.nslookup_file_path, mimetype='text/plain', as_attachment=True, download_name='nslookup_results.txt')
-        else: flash('Файл результатов не найден', 'danger'); return redirect(url_for('scans.scans_page'))
-    flash('Неподдерживаемый формат', 'danger'); return redirect(url_for('scans.scans_page'))
-
-@scans_bp.route('/api/scans/<int:job_id>/control', methods=['POST'])
-def control_scan_job(job_id):
-    data = request.json; action = data.get('action'); scan_job = ScanJob.query.get_or_404(job_id)
-    try:
-        if action == 'stop':
-            if scan_job.status in ['running', 'paused']: scan_job.status = 'stopped'; scan_job.error_message = "Остановлено пользователем."; scan_job.completed_at = datetime.utcnow(); db.session.commit(); return jsonify({'success': True})
-            return jsonify({'error': f'Нельзя остановить задание в статусе: {scan_job.status}'}), 400
-        elif action == 'pause':
-            if scan_job.status == 'running': scan_job.status = 'paused'; db.session.commit(); return jsonify({'success': True})
-            return jsonify({'error': f'Нельзя приостановить задание в статусе: {scan_job.status}'}), 400
-        elif action == 'resume':
-            if scan_job.status == 'paused': scan_job.status = 'running'; db.session.commit(); return jsonify({'success': True})
-            return jsonify({'error': f'Нельзя возобновить задание в статусе: {scan_job.status}'}), 400
-        elif action == 'delete':
-            if scan_job.status in ['pending', 'completed', 'failed', 'stopped']:
-                for f in [scan_job.nmap_xml_path, scan_job.nmap_grep_path, scan_job.nmap_normal_path, scan_job.nslookup_file_path]:
-                    if f and os.path.exists(f):
-                        try: os.remove(f)
-                        except: pass
-                db.session.delete(scan_job); db.session.commit(); return jsonify({'success': True})
-            return jsonify({'error': 'Нельзя удалить активное задание'}), 400
-        return jsonify({'error': 'Неизвестная команда'}), 400
-    except Exception as e: db.session.rollback(); return jsonify({'error': str(e)}), 500
+# ────────────────────────────────────────────────────────────────
+# API СКАНИРОВАНИЙ
+# ────────────────────────────────────────────────────────────────
 
 @scans_bp.route('/api/scans/status')
 def get_active_scans_status():
-    active_jobs = ScanJob.query.filter(ScanJob.status.in_(['pending', 'running'])).order_by(ScanJob.created_at.desc()).limit(10).all()
-    return jsonify({'active': [{
-        **job.to_dict(),
-        'started_at': format_moscow_time(job.started_at, '%H:%M')  # 🔥 Москва
-    } for job in active_jobs], 'total_active': len(active_jobs)})
-
-@scans_bp.route('/api/scans/profiles', methods=['GET'])
-def get_scan_profiles(): return jsonify([p.to_dict() for p in ScanProfile.query.order_by(ScanProfile.name).all()])
-
-@scans_bp.route('/api/scans/profiles', methods=['POST'])
-def save_scan_profile():
-    data = request.json
-    if not data.get('name'): return jsonify({'error': 'Имя профиля обязательно'}), 400
-    if ScanProfile.query.filter_by(name=data['name']).first(): return jsonify({'error': 'Профиль уже существует'}), 409
-    profile = ScanProfile(name=data['name'], scan_type=data['scan_type'], target_method=data.get('target_method', 'ip'), ports=data.get('ports'), custom_args=data.get('custom_args'))
-    db.session.add(profile); db.session.commit()
-    return jsonify(profile.to_dict()), 201
-
-@scans_bp.route('/api/scans/profiles/<int:id>', methods=['DELETE'])
-def delete_scan_profile(id):
-    profile = ScanProfile.query.get_or_404(id); db.session.delete(profile); db.session.commit()
-    return jsonify({'success': True})
+    active_jobs = ScanJob.query.filter(
+        ScanJob.status.in_(['pending', 'running', 'paused'])
+    ).order_by(ScanJob.created_at.desc()).all()
+    
+    jobs_data = []
+    for j in active_jobs:
+        jobs_data.append({
+            'id': j.id,
+            'scan_type': j.scan_type,
+            'target': j.target,
+            'status': j.status,
+            'progress': j.progress,
+            'current_target': j.current_target,
+            'created_at': j.created_at.strftime('%Y-%m-%d %H:%M:%S') if j.created_at else None
+        })
+    return jsonify({'active': jobs_data})
 
 @scans_bp.route('/api/scans/history')
 def get_scan_history():
     jobs = ScanJob.query.order_by(ScanJob.created_at.desc()).limit(50).all()
-    return jsonify([{
-        'id': j.id, 
-        'scan_type': j.scan_type, 
-        'target': j.target,
-        'status': j.status, 
-        'progress': j.progress,
-        'started_at': format_moscow_time(j.started_at, '%H:%M'),  # 🔥 Москва
-        'completed_at': format_moscow_time(j.completed_at, '%H:%M'),  # 🔥 Москва
-        'error_message': j.error_message
-    } for j in jobs])
+    history = []
+    for j in jobs:
+        history.append({
+            'id': j.id,
+            'scan_type': j.scan_type,
+            'target': j.target,
+            'status': j.status,
+            'progress': j.progress,
+            'error_message': j.error_message,
+            'started_at': j.started_at.strftime('%Y-%m-%d %H:%M:%S') if j.started_at else None,
+            'completed_at': j.completed_at.strftime('%Y-%m-%d %H:%M:%S') if j.completed_at else None
+        })
+    return jsonify(history)
 
 @scans_bp.route('/api/scans/rustscan', methods=['POST'])
 def start_rustscan():
     data = request.json
-    target = data.get('target', '')
-    group_id = data.get('group_id')
-    custom_args = data.get('custom_args', '')
+    target = data.get('target')
+    ports = data.get('ports', '-')
+    args = data.get('extra_args', '')
     
-    if group_id:
-        assets, group_name = get_assets_for_group(group_id)
-        if not assets: 
-            return jsonify({'error': 'В группе нет активов'}), 400
-        target = ' '.join([a.ip_address for a in assets])
-        target_description = f"Группа: {group_name} ({len(assets)} активов)"
-    else:
-        if not target: 
-            return jsonify({'error': 'Цель сканирования не указана'}), 400
-        target_description = target
-    
-    # 🔥 ПРОВЕРКА НА КОНФЛИКТЫ ДО СОЗДАНИЯ ЗАДАНИЯ
-    is_blocked, error_msg = check_scan_conflicts(target, 'rustscan')
-    if is_blocked:
-        return jsonify({'error': error_msg}), 409
-    
-    # Создаём задание только после успешной проверки
-    scan_job = ScanJob(
-        scan_type='rustscan', 
-        target=target_description, 
-        status='pending', 
-        rustscan_output=custom_args if custom_args else None
+    if not target:
+        return jsonify({'error': 'Не указана цель'}), 400
+        
+    job = ScanJob(
+        scan_type='rustscan',
+        target=target,
+        status='pending',
+        progress=0,
+        scan_parameters=json.dumps({'ports': ports, 'args': args})
     )
-    db.session.add(scan_job)
+    db.session.add(job)
     db.session.commit()
     
-    app_obj = current_app._get_current_object()
-    thread = threading.Thread(target=run_rustscan_scan, args=(app_obj, scan_job.id, target, custom_args))
-    thread.daemon = True
-    thread.start()
+    # Получаем текущее приложение и передаем в поток
+    app = current_app._get_current_object()
+    t = threading.Thread(
+        target=run_scan_wrapper, 
+        args=(app, run_rustscan_scan, job.id, target, ports, args)
+    )
+    t.daemon = True
+    t.start()
     
-    return jsonify({
-        'success': True, 
-        'job_id': scan_job.id, 
-        'message': f'Rustscan запущен для {target_description}'
-    })
+    return jsonify({'job_id': job.id, 'status': 'started', 'message': 'Сканирование запущено'})
 
 @scans_bp.route('/api/scans/nmap', methods=['POST'])
 def start_nmap():
     data = request.json
-    target = data.get('target', '')
-    group_id = data.get('group_id')
-    ports = data.get('ports', '')
-    custom_args = data.get('custom_args', '')
+    target = data.get('target')
+    ports = data.get('ports', '-')
+    scripts = data.get('scripts', '')
+    args = data.get('extra_args', '')
     
-    if group_id:
-        assets, group_name = get_assets_for_group(group_id)
-        if not assets: 
-            return jsonify({'error': 'В группе нет активов'}), 400
-        target = ' '.join([a.ip_address for a in assets])
-        target_description = f"Группа: {group_name} ({len(assets)} активов)"
-    else:
-        if not target: 
-            return jsonify({'error': 'Цель сканирования не указана'}), 400
-        target_description = target
-    
-    # 🔥 ПРОВЕРКА НА КОНФЛИКТЫ ДО СОЗДАНИЯ ЗАДАНИЯ
-    is_blocked, error_msg = check_scan_conflicts(target, 'nmap')
-    if is_blocked:
-        return jsonify({'error': error_msg}), 409
-    
-    scan_job = ScanJob(
-        scan_type='nmap', 
-        target=target_description, 
-        status='pending', 
-        rustscan_output=f'Ports: {ports}' if ports else None
+    if not target:
+        return jsonify({'error': 'Не указана цель'}), 400
+        
+    job = ScanJob(
+        scan_type='nmap',
+        target=target,
+        status='pending',
+        progress=0,
+        scan_parameters=json.dumps({'ports': ports, 'scripts': scripts, 'args': args})
     )
-    if custom_args: 
-        scan_job.error_message = f'Custom args: {custom_args}'
-    
-    db.session.add(scan_job)
+    db.session.add(job)
     db.session.commit()
     
-    app_obj = current_app._get_current_object()
-    thread = threading.Thread(target=run_nmap_scan, args=(app_obj, scan_job.id, target, ports, custom_args))
-    thread.daemon = True
-    thread.start()
+    app = current_app._get_current_object()
+    t = threading.Thread(
+        target=run_scan_wrapper, 
+        args=(app, run_nmap_scan, job.id, target, ports, scripts, args)
+    )
+    t.daemon = True
+    t.start()
     
-    return jsonify({
-        'success': True, 
-        'job_id': scan_job.id, 
-        'message': f'Nmap запущен для {target_description}'
-    })
+    return jsonify({'job_id': job.id, 'status': 'started', 'message': 'Сканирование запущено'})
 
 @scans_bp.route('/api/scans/nslookup', methods=['POST'])
 def start_nslookup():
     data = request.json
-    target_text = data.get('target_text', '')  # Список доменов, разделённых переносом строки
+    targets = data.get('targets', '') 
+    dns_server = data.get('dns_server', '77.88.8.8')
+    args = data.get('nslookup_args', '')
     
-    if not target_text or not target_text.strip():
-        return jsonify({'error': 'Список доменов пуст'}), 400
+    if not targets or not targets.strip():
+        return jsonify({'error': 'Не указаны домены'}), 400
+        
+    params = {
+        'targets': targets,
+        'dns_server': dns_server,
+        'args': args
+    }
     
-    # Создаём задание
-    scan_job = ScanJob(
-        scan_type='nslookup', 
-        target=f"Домены ({len([d for d in target_text.split('\\n') if d.strip()])} шт.)", 
-        status='pending'
+    job = ScanJob(
+        scan_type='nslookup',
+        target=f"NSLookup ({len(targets.splitlines())} domains)",
+        status='pending',
+        progress=0,
+        scan_parameters=json.dumps(params)
     )
-    db.session.add(scan_job)
+    db.session.add(job)
     db.session.commit()
     
-    app_obj = current_app._get_current_object()
-    thread = threading.Thread(target=run_nslookup_scan, args=(app_obj, scan_job.id, target_text))
-    thread.daemon = True
-    thread.start()
+    app = current_app._get_current_object()
+    t = threading.Thread(
+        target=run_scan_wrapper, 
+        args=(app, run_nslookup_scan, job.id, targets, dns_server, args)
+    )
+    t.daemon = True
+    t.start()
+    
+    return jsonify({'job_id': job.id, 'status': 'started', 'message': 'Сканирование запущено'})
+
+@scans_bp.route('/api/scans/<int:job_id>/results')
+def get_scan_results(job_id):
+    job = ScanJob.query.get_or_404(job_id)
+    results = []
+    
+    if job.scan_type == 'nslookup' and job.nslookup_output:
+        lines = job.nslookup_output.split('\n')
+        current_ip = None
+        current_domain = None
+        for line in lines:
+            line = line.strip()
+            if line.startswith('Name:'):
+                current_domain = line.split(':', 1)[1].strip()
+            elif line.startswith('Address:') and '#' not in line:
+                 current_ip = line.split(':', 1)[1].strip()
+                 if current_domain and current_ip:
+                     results.append({'domain': current_domain, 'ip': current_ip})
+                     try:
+                         asset = create_asset_if_not_exists(current_ip, hostname=current_domain)
+                         update_asset_dns_names(asset, current_domain)
+                     except Exception as e:
+                         print(f"Error creating asset: {e}")
+                     current_domain = None
     
     return jsonify({
-        'success': True, 
-        'job_id': scan_job.id, 
-        'message': f'Nslookup запущен для {scan_job.target}'
+        'job': {
+            'id': job.id,
+            'scan_type': job.scan_type,
+            'target': job.target,
+            'status': job.status,
+            'progress': job.progress,
+            'error_message': job.error_message,
+            'started_at': job.started_at.strftime('%Y-%m-%d %H:%M:%S') if job.started_at else None,
+            'completed_at': job.completed_at.strftime('%Y-%m-%d %H:%M:%S') if job.completed_at else None,
+            'nslookup_output': job.nslookup_output if job.scan_type == 'nslookup' else None
+        },
+        'results': results
     })
+
+@scans_bp.route('/api/scans/<int:job_id>', methods=['DELETE'])
+def delete_scan_job(job_id):
+    job = ScanJob.query.get_or_404(job_id)
+    if job.status == 'running':
+        job.status = 'failed'
+        job.error_message = 'Удалено пользователем во время выполнения'
+        job.completed_at = datetime.utcnow()
+        db.session.commit()
+    
+    db.session.delete(job)
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Задача удалена'})
+
+@scans_bp.route('/api/scans/<int:job_id>/control', methods=['POST'])
+def control_scan(job_id):
+    job = ScanJob.query.get_or_404(job_id)
+    data = request.json
+    action = data.get('action')
+    
+    if action == 'delete':
+        db.session.delete(job)
+        db.session.commit()
+        return jsonify({'success': True})
+        
+    elif action == 'stop':
+        if job.status == 'running':
+            job.status = 'failed'
+            job.error_message = 'Остановлено пользователем'
+            job.completed_at = datetime.utcnow()
+            db.session.commit()
+            return jsonify({'success': True})
+            
+    elif action == 'pause':
+        if job.status == 'running':
+            job.status = 'paused'
+            db.session.commit()
+            return jsonify({'success': True})
+            
+    elif action == 'resume':
+        if job.status == 'paused':
+            job.status = 'running'
+            db.session.commit()
+            return jsonify({'success': True})
+            
+    elif action == 'rerun':
+        if not job.scan_parameters:
+            return jsonify({'error': 'Нет параметров для повтора'}), 400
+            
+        params = json.loads(job.scan_parameters)
+        new_job = ScanJob(
+            scan_type=job.scan_type,
+            target=job.target,
+            status='pending',
+            progress=0,
+            scan_parameters=job.scan_parameters
+        )
+        db.session.add(new_job)
+        db.session.commit()
+        
+        app = current_app._get_current_object()
+        
+        if job.scan_type == 'rustscan':
+            t = threading.Thread(target=run_scan_wrapper, args=(app, run_rustscan_scan, new_job.id, job.target, params.get('ports', '-'), params.get('args', '')))
+        elif job.scan_type == 'nmap':
+            t = threading.Thread(target=run_scan_wrapper, args=(app, run_nmap_scan, new_job.id, job.target, params.get('ports', '-'), params.get('scripts', ''), params.get('args', '')))
+        elif job.scan_type == 'nslookup':
+            t = threading.Thread(target=run_scan_wrapper, args=(app, run_nslookup_scan, new_job.id, params.get('targets', ''), params.get('dns_server', '77.88.8.8'), params.get('args', '')))
+        else:
+            return jsonify({'error': 'Неизвестный тип'}), 400
+            
+        t.daemon = True
+        t.start()
+        return jsonify({'success': True, 'new_id': new_job.id})
+    
+    return jsonify({'error': 'Недопустимое действие'}), 400
 ```
 
 ### 📄 `routes/utilities.py`
@@ -4286,12 +4436,277 @@ def sync_wazuh():
 ### 📄 `static/js/main.js`
 
 ```javascript
-// ═══════════════════════════════════════════════════════════════
-// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
-// ═══════════════════════════════════════════════════════════════
-let currentGroupId = null; let contextMenu = null;
-let editModal, moveModal, deleteModal, bulkDeleteModalInstance;
-let lastSelectedIndex = -1; let selectedAssetIds = new Set();
+// static/js/main.js
+import { initTheme, toggleTheme } from './modules/theme.js';
+import { populateParentSelect, closeModalById } from './modules/utils.js';
+import {
+    showCreateGroupModal, toggleGroupMode, addDynamicRule, showRenameModal,
+    saveGroup, showDeleteModal, confirmDeleteGroup, showMoveGroupModal, moveGroup, initContextMenu
+} from './modules/groups.js';
+import {
+    initAssetSelection, confirmBulkDelete, executeBulkDelete,
+    initFilterFieldDatalist, renderAssets
+} from './modules/assets.js';
+import { viewScanResults, showScanError, updateScanHistory, pollActiveScans } from './modules/scans.js';
+import { initWazuhFilter, saveWazuhConfig, testWazuhConnection } from './modules/wazuh.js';
+// ✅ Импорт всей логики дерева из одного источника
+import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers } from './modules/tree.js';
+
+(function() {
+    if (window.__MAIN_JS_LOADED) return;
+    window.__MAIN_JS_LOADED = true;
+
+    window.currentGroupId = null;
+    window.contextMenu = null;
+    window.editModal = null; window.createModal = null;
+    window.moveModal = null; window.deleteModal = null;
+    window.bulkDeleteModalInstance = null;
+    window.lastSelectedIndex = -1;
+    window.selectedAssetIds = new Set();
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initTheme();
+        initFilterFieldDatalist();
+        initAssetSelection();
+        initWazuhFilter();
+        initContextMenu();
+        
+        window.contextMenu = document.getElementById('group-context-menu');
+        setInterval(pollActiveScans, 5000);
+        pollActiveScans();
+
+        // ✅ Инициализируем дерево строго один раз после готовности DOM
+        refreshGroupTree().then(() => initTreeTogglers());
+
+        document.addEventListener('keydown', e => {
+            if(e.ctrlKey && e.key==='a' && !['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) {
+                e.preventDefault();
+                document.querySelectorAll('#assets-body .asset-checkbox').forEach(cb => {
+                    cb.checked=true;
+                    const row = cb.closest('tr');
+                    if(row) row.classList.add('selected');
+                    window.selectedAssetIds.add(cb.value);
+                });
+                const tb = document.getElementById('bulk-toolbar');
+                if(tb) {
+                    tb.style.display = window.selectedAssetIds.size > 0 ? 'flex' : 'none';
+                    const countEl = document.getElementById('selected-count');
+                    if(countEl) countEl.textContent = window.selectedAssetIds.size;
+                }
+            }
+        });
+
+        // Глобальные экспорты для onclick в HTML
+        window.toggleTheme = toggleTheme;
+        window.showCreateGroupModal = showCreateGroupModal;
+        window.toggleGroupMode = toggleGroupMode;
+        window.addDynamicRule = addDynamicRule;
+        window.showRenameModal = showRenameModal;
+        window.saveGroup = saveGroup;
+        window.showDeleteModal = showDeleteModal;
+        window.confirmDeleteGroup = confirmDeleteGroup;
+        window.showMoveGroupModal = showMoveGroupModal;
+        window.moveGroup = moveGroup;
+        window.confirmBulkDelete = confirmBulkDelete;
+        window.executeBulkDelete = executeBulkDelete;
+        window.refreshGroupTree = refreshGroupTree;
+        window.loadAssets = loadAssets;
+        window.filterByGroup = filterByGroup;
+        window.saveWazuhConfig = saveWazuhConfig;
+        window.testWazuhConnection = testWazuhConnection;
+    });
+})();
+```
+
+### 📄 `static/js/modules/assets.js`
+
+```javascript
+// static/js/modules/assets.js
+
+export function initAssetSelection() {
+    const tbody = document.getElementById('assets-body'); 
+    if (!tbody) return;
+    
+    const selAll = document.getElementById('select-all');
+    if(selAll) selAll.addEventListener('change', function() {
+        document.querySelectorAll('.asset-checkbox').forEach(cb => {
+            cb.checked = this.checked; 
+            toggleRowSelection(cb.closest('tr'), this.checked);
+            if(this.checked) window.selectedAssetIds.add(cb.value); 
+            else window.selectedAssetIds.delete(cb.value);
+        });
+        window.lastSelectedIndex = this.checked ? getRowIndex(document.querySelectorAll('.asset-checkbox').pop().closest('tr')) : -1;
+        updateBulkToolbar(); 
+        updateSelectAllCheckbox();
+    });
+    
+    tbody.addEventListener('change', e => { 
+        if(e.target.classList.contains('asset-checkbox')) handleCheckboxChange(e.target); 
+    });
+    
+    tbody.addEventListener('click', e => {
+        const row = e.target.closest('.asset-row'); 
+        if(!row || e.target.closest('a, button, .asset-checkbox')) return;
+        const cb = row.querySelector('.asset-checkbox');
+        if(cb) { 
+            if(e.shiftKey && window.lastSelectedIndex >= 0) { 
+                e.preventDefault(); 
+                selectRange(window.lastSelectedIndex, getRowIndex(row)); 
+            } else { 
+                cb.checked = !cb.checked; 
+                handleCheckboxChange(cb); 
+            } 
+        }
+    });
+}
+
+function handleCheckboxChange(cb) {
+    const row = cb.closest('tr'); 
+    const id = cb.value; 
+    const checked = cb.checked;
+    toggleRowSelection(row, checked);
+    if(checked) { 
+        window.selectedAssetIds.add(id); 
+        window.lastSelectedIndex = getRowIndex(row); 
+    } else { 
+        window.selectedAssetIds.delete(id); 
+        if(window.lastSelectedIndex === getRowIndex(row)) window.lastSelectedIndex = -1; 
+    }
+    updateBulkToolbar(); 
+    updateSelectAllCheckbox();
+}
+
+function toggleRowSelection(row, isSel) { 
+    if(isSel) row.classList.add('selected'); 
+    else row.classList.remove('selected'); 
+}
+
+function getRowIndex(row) { 
+    return Array.from(document.querySelectorAll('#assets-body .asset-row')).indexOf(row); 
+}
+
+function selectRange(start, end) {
+    const [s, e] = start <= end ? [start, end] : [end, start];
+    document.querySelectorAll('#assets-body .asset-row').forEach((row, i) => {
+        if(i >= s && i <= e) {
+            const cb = row.querySelector('.asset-checkbox');
+            if(cb && !cb.checked) { 
+                cb.checked = true; 
+                toggleRowSelection(row, true); 
+                window.selectedAssetIds.add(cb.value); 
+            }
+        }
+    }); 
+    updateBulkToolbar(); 
+    updateSelectAllCheckbox();
+}
+
+function clearSelection() {
+    document.querySelectorAll('#assets-body .asset-checkbox:checked').forEach(cb => { 
+        cb.checked = false; 
+        toggleRowSelection(cb.closest('tr'), false); 
+        window.selectedAssetIds.delete(cb.value); 
+    });
+    window.lastSelectedIndex = -1; 
+    updateBulkToolbar(); 
+    updateSelectAllCheckbox();
+}
+
+function updateSelectAllCheckbox() {
+    const selAll = document.getElementById('select-all'); 
+    const cbs = document.querySelectorAll('#assets-body .asset-checkbox');
+    const checked = document.querySelectorAll('#assets-body .asset-checkbox:checked').length;
+    if(selAll && cbs.length > 0) { 
+        selAll.checked = checked === cbs.length; 
+        selAll.indeterminate = checked > 0 && checked < cbs.length; 
+    }
+}
+
+function updateBulkToolbar() {
+    const tb = document.getElementById('bulk-toolbar'); 
+    const c = window.selectedAssetIds.size;
+    if(tb) {
+        tb.style.display = c > 0 ? 'flex' : 'none'; 
+        const countEl = document.getElementById('selected-count');
+        if(countEl) countEl.textContent = c;
+    }
+}
+
+export function confirmBulkDelete() {
+    if(window.selectedAssetIds.size === 0) return;
+    const countEl = document.getElementById('bulk-delete-count');
+    if(countEl) countEl.textContent = window.selectedAssetIds.size;
+    const modalInstance = bootstrap.Modal.getInstance(document.getElementById('bulkDeleteModal'));
+    if(modalInstance) modalInstance.show();
+}
+
+export async function executeBulkDelete() {
+    const ids = Array.from(window.selectedAssetIds);
+    await fetch('/api/assets/bulk-delete', { 
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json'}, 
+        body: JSON.stringify({ids}) 
+    });
+    clearSelection(); 
+    
+    const modalEl = document.getElementById('bulkDeleteModal');
+    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstance) {
+        modalInstance.hide();
+    }
+    
+    location.reload();
+}
+
+const FILTER_FIELDS = [
+    { value: 'ip_address', text: 'IP Адрес' }, { value: 'hostname', text: 'Hostname' },
+    { value: 'os_info', text: 'ОС (Сканирование)' }, { value: 'device_role', text: 'Роль устройства' },
+    { value: 'open_ports', text: 'Открытые порты' }, { value: 'status', text: 'Статус' },
+    { value: 'notes', text: 'Заметки' }, { value: 'osquery_status', text: 'Статус OSquery' },
+    { value: 'osquery_os', text: 'ОС (OSquery)' }, { value: 'scanners_used', text: 'Сканеры (JSON)' }
+];
+
+export function initFilterFieldDatalist() {
+    if(!document.getElementById('filter-fields-list')) {
+        const dl = document.createElement('datalist'); 
+        dl.id = 'filter-fields-list';
+        dl.innerHTML = FILTER_FIELDS.map(f => `<option value="${f.value}">${f.text}</option>`).join('');
+        document.body.appendChild(dl);
+    }
+}
+
+export function renderAssets(data) {
+    const tb = document.getElementById('assets-body'); 
+    if(!tb) return;
+    tb.innerHTML = ''; 
+    clearSelection();
+    if(data.length===0) { 
+        tb.innerHTML='<tr><td colspan="7" class="text-center py-4 text-muted"><i class="bi bi-inbox fs-1 d-block mb-2"></i>Ничего не найдено</td></tr>'; 
+        return; 
+    }
+    data.forEach(a => {
+        const tr = document.createElement('tr'); 
+        tr.className='asset-row'; 
+        tr.dataset.assetId=a.id;
+        tr.innerHTML=`<td><input type="checkbox" class="form-check-input asset-checkbox" value="${a.id}"></td>
+            <td><a href="/asset/${a.id}"><strong>${a.ip}</strong></a></td><td>${a.hostname||'—'}</td>
+            <td><span class="text-muted small">${a.os||'—'}</span></td><td><small class="text-muted">${a.ports||'—'}</small></td>
+            <td><span class="badge bg-light text-dark border">${a.group}</span></td>
+            <td><a href="/asset/${a.id}" class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></a></td>`;
+        tb.appendChild(tr);
+    });
+}
+
+// Экспорт для доступа из main.js
+window.renderAssets = renderAssets;
+```
+
+### 📄 `static/js/modules/groups.js`
+
+```javascript
+// static/js/modules/groups.js
+
+import { populateParentSelect, closeModalById } from './utils.js';
 
 const FILTER_FIELDS = [
     { value: 'ip_address', text: 'IP Адрес' }, { value: 'hostname', text: 'Hostname' },
@@ -4304,324 +4719,353 @@ const FILTER_OPS = [
     { value: 'eq', text: '=' }, { value: 'ne', text: '≠' }, { value: 'like', text: 'содержит' }, { value: 'in', text: 'в списке' }
 ];
 
-// ═══════════════════════════════════════════════════════════════
-// ТЕМА & ГРУППЫ
-// ═══════════════════════════════════════════════════════════════
-function initTheme() {
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    document.documentElement.setAttribute('data-bs-theme', savedTheme === 'dark' ? 'dark' : 'light');
-    updateThemeIcon(savedTheme);
-}
-function toggleTheme() {
-    const html = document.documentElement; const newTheme = html.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
-    document.body.classList.add('theme-transition'); html.setAttribute('data-bs-theme', newTheme); localStorage.setItem('theme', newTheme);
-    updateThemeIcon(newTheme); setTimeout(() => document.body.classList.remove('theme-transition'), 300);
-}
-function updateThemeIcon(theme) {
-    const toggle = document.querySelector('.theme-toggle'); if (!toggle) return;
-    toggle.querySelector('.bi-moon').style.display = theme === 'dark' ? 'none' : 'block';
-    toggle.querySelector('.bi-sun').style.display = theme === 'dark' ? 'block' : 'none';
-}
-function initTreeTogglers() {
-    const groupTree = document.getElementById('group-tree'); if (!groupTree) return;
-    const newGroupTree = groupTree.cloneNode(true); groupTree.parentNode.replaceChild(newGroupTree, groupTree);
-    newGroupTree.addEventListener('click', function(e) {
-        const treeNode = e.target.closest('.tree-node'); if (!treeNode) return;
-        if (e.target.classList.contains('caret') || e.target.closest('.caret')) {
-            e.preventDefault(); e.stopPropagation();
-            const nested = treeNode.querySelector(".nested");
-            if (nested) { nested.classList.toggle("active"); const caret = treeNode.querySelector('.caret'); if (caret) caret.classList.toggle("caret-down"); }
-            return;
-        }
-        filterByGroup(treeNode.dataset.id);
-    });
+export async function showCreateGroupModal(parentId = null) {
+    const modalId = 'groupEditModal';
+    const modalEl = document.getElementById(modalId);
+    if (!modalEl) return console.error('Modal #' + modalId + ' not found');
+
+    document.getElementById('groupEditForm').reset();
+    document.getElementById('edit-group-id').value = '';
+    document.getElementById('groupEditTitle').textContent = 'Новая группа';
+    document.getElementById('edit-group-name').value = '';
+    document.getElementById('group-filter-root').innerHTML = '';
     
-    // 🔥 Подсветка активной группы при загрузке страницы на основе URL
-    highlightActiveGroupFromUrl();
+    await populateParentSelect([], parentId);
+    
+    document.getElementById('modeManual').checked = true;
+    toggleGroupMode(); 
+
+    const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
+    modal.show();
 }
 
-// 🔥 Функция подсветки активной группы на основе параметров URL
-function highlightActiveGroupFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    let groupId = null;
+export function toggleGroupMode() {
+    const mode = document.querySelector('input[name="groupMode"]:checked')?.value;
+    if(!mode) return;
+
+    const secCommon = document.getElementById('sectionCommon');
+    const secCidr = document.getElementById('sectionCidr');
+    const secDynamic = document.getElementById('sectionDynamic');
+    const nameInput = document.getElementById('edit-group-name');
+    const parentSelect = document.getElementById('edit-group-parent');
+
+    if(secCommon) secCommon.style.display = 'block';
+    if(secCidr) secCidr.style.display = 'none';
+    if(secDynamic) secDynamic.style.display = 'none';
     
-    if (params.has('ungrouped') && params.get('ungrouped') === 'true') {
-        groupId = 'ungrouped';
-    } else if (params.has('group_id')) {
-        groupId = params.get('group_id');
-    }
-    
-    if (groupId) {
-        // Снимаем выделение со всех
-        document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
-        // Находим и выделяем нужный узел
-        const activeNode = document.querySelector(`.tree-node[data-id="${groupId}"]`);
-        if (activeNode) {
-            activeNode.classList.add('active');
-            // Раскрываем родительские узлы если нужно
-            let parent = activeNode.parentElement;
-            while (parent) {
-                if (parent.classList.contains('nested')) {
-                    parent.classList.add('active');
-                    const caret = parent.previousElementSibling?.querySelector('.caret');
-                    if (caret) caret.classList.add('caret-down');
-                }
-                parent = parent.parentElement;
-            }
+    if (mode === 'manual') {
+        if(nameInput) nameInput.required = true;
+        if(parentSelect) parentSelect.disabled = false;
+    } else if (mode === 'cidr') {
+        if(secCidr) secCidr.style.display = 'block';
+        if(nameInput) nameInput.required = false;
+        if(parentSelect) parentSelect.disabled = false;
+    } else if (mode === 'dynamic') {
+        if(secDynamic) secDynamic.style.display = 'block';
+        if(nameInput) nameInput.required = true;
+        if(parentSelect) parentSelect.disabled = false;
+        
+        const root = document.getElementById('group-filter-root');
+        if(root && root.children.length === 0) {
+            addDynamicRule();
         }
     }
 }
 
-function filterByGroup(groupId) {
-    // Подсветка активной группы в дереве
-    document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
-    const activeNode = document.querySelector(`.tree-node[data-id="${groupId}"]`);
-    if (activeNode) activeNode.classList.add('active');
+export function addDynamicRule(field = '', op = 'eq', value = '') {
+    const container = document.getElementById('group-filter-root');
+    if(!container) return;
     
-    groupId = String(groupId);
-    
-    // 🔥 Проверка: если мы не на главной странице, перенаправляем на неё
-    const currentPage = window.location.pathname;
-    if (currentPage !== '/' && !currentPage.endsWith('/index.html')) {
-        // Перенаправление на главную с параметром группы
-        const url = groupId === 'ungrouped' 
-            ? '/?ungrouped=true' 
-            : `/?group_id=${parseInt(groupId)}`;
-        window.location.href = url;
-        return;
-    }
-    
-    // Если мы на главной, просто фильтруем активы (существующее поведение)
-    const url = groupId === 'ungrouped' 
-        ? '/api/assets?ungrouped=true' 
-        : `/api/assets?group_id=${parseInt(groupId)}`;
-    
-    fetch(url)
-        .then(r => r.json())
-        .then(data => renderAssets(data))
-        .catch(e => console.error(e));
+    const div = document.createElement('div');
+    div.className = 'filter-condition mb-2';
+    div.innerHTML = `
+        <div class="input-group input-group-sm">
+            <select class="form-select rule-field">${FILTER_FIELDS.map(f => `<option value="${f.value}" ${f.value===field?'selected':''}>${f.text}</option>`).join('')}</select>
+            <select class="form-select rule-op" style="max-width:100px">${FILTER_OPS.map(o => `<option value="${o.value}" ${o.value===op?'selected':''}>${o.text}</option>`).join('')}</select>
+            <input type="text" class="form-control rule-val" value="${value}" placeholder="Значение">
+            <button class="btn btn-outline-danger" type="button" onclick="this.parentElement.parentElement.remove()">×</button>
+        </div>
+    `;
+    container.appendChild(div);
 }
 
-// ═══════════════════════════════════════════════════════════════
-// ВЫДЕЛЕНИЕ & ФИЛЬТРЫ
-// ═══════════════════════════════════════════════════════════════
-function initAssetSelection() {
-    const tbody = document.getElementById('assets-body'); if (!tbody) return;
-    const selAll = document.getElementById('select-all');
-    if(selAll) selAll.addEventListener('change', function() {
-        document.querySelectorAll('.asset-checkbox').forEach(cb => {
-            cb.checked = this.checked; toggleRowSelection(cb.closest('tr'), this.checked);
-            if(this.checked) selectedAssetIds.add(cb.value); else selectedAssetIds.delete(cb.value);
-        });
-        lastSelectedIndex = this.checked ? getRowIndex(document.querySelectorAll('.asset-checkbox').pop().closest('tr')) : -1;
-        updateBulkToolbar(); updateSelectAllCheckbox();
-    });
-    tbody.addEventListener('change', e => { if(e.target.classList.contains('asset-checkbox')) handleCheckboxChange(e.target); });
-    tbody.addEventListener('click', e => {
-        const row = e.target.closest('.asset-row'); if(!row || e.target.closest('a, button, .asset-checkbox')) return;
-        const cb = row.querySelector('.asset-checkbox');
-        if(cb) { if(e.shiftKey && lastSelectedIndex >= 0) { e.preventDefault(); selectRange(lastSelectedIndex, getRowIndex(row)); } else { cb.checked = !cb.checked; handleCheckboxChange(cb); } }
-    });
-}
-function handleCheckboxChange(cb) {
-    const row = cb.closest('tr'); const id = cb.value; const checked = cb.checked;
-    toggleRowSelection(row, checked);
-    if(checked) { selectedAssetIds.add(id); lastSelectedIndex = getRowIndex(row); }
-    else { selectedAssetIds.delete(id); if(lastSelectedIndex === getRowIndex(row)) lastSelectedIndex = -1; }
-    updateBulkToolbar(); updateSelectAllCheckbox();
-}
-function toggleRowSelection(row, isSel) { if(isSel) row.classList.add('selected'); else row.classList.remove('selected'); }
-function getRowIndex(row) { return Array.from(document.querySelectorAll('#assets-body .asset-row')).indexOf(row); }
-function selectRange(start, end) {
-    const [s, e] = start <= end ? [start, end] : [end, start];
-    document.querySelectorAll('#assets-body .asset-row').forEach((row, i) => {
-        if(i >= s && i <= e) {
-            const cb = row.querySelector('.asset-checkbox');
-            if(cb && !cb.checked) { cb.checked = true; toggleRowSelection(row, true); selectedAssetIds.add(cb.value); }
-        }
-    }); updateBulkToolbar(); updateSelectAllCheckbox();
-}
-function clearSelection() {
-    document.querySelectorAll('#assets-body .asset-checkbox:checked').forEach(cb => { cb.checked = false; toggleRowSelection(cb.closest('tr'), false); selectedAssetIds.delete(cb.value); });
-    lastSelectedIndex = -1; updateBulkToolbar(); updateSelectAllCheckbox();
-}
-function updateSelectAllCheckbox() {
-    const selAll = document.getElementById('select-all'); const cbs = document.querySelectorAll('#assets-body .asset-checkbox');
-    const checked = document.querySelectorAll('#assets-body .asset-checkbox:checked').length;
-    if(selAll && cbs.length > 0) { selAll.checked = checked === cbs.length; selAll.indeterminate = checked > 0 && checked < cbs.length; }
-}
-function updateBulkToolbar() {
-    const tb = document.getElementById('bulk-toolbar'); const c = selectedAssetIds.size;
-    tb.style.display = c > 0 ? 'flex' : 'none'; document.getElementById('selected-count').textContent = c;
-}
-function confirmBulkDelete() {
-    if(selectedAssetIds.size === 0) return;
-    document.getElementById('bulk-delete-count').textContent = selectedAssetIds.size;
-    if(bulkDeleteModalInstance) bulkDeleteModalInstance.show();
-}
-async function executeBulkDelete() {
-    const ids = Array.from(selectedAssetIds);
-    await fetch('/api/assets/bulk-delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids}) });
-    clearSelection(); if(bulkDeleteModalInstance) bulkDeleteModalInstance.hide(); location.reload();
-}
-
-// ═══════════════════════════════════════════════════════════════
-// КОНСТРУКТОР ФИЛЬТРОВ
-// ═══════════════════════════════════════════════════════════════
-function createConditionElement() {
-    const div = document.createElement('div'); div.className = 'filter-condition'; div.dataset.type = 'condition';
-    div.innerHTML = `<input type="text" class="form-control form-control-sm f-field" list="filter-fields-list" placeholder="Поле..." style="width:160px">
-        <select class="form-select form-select-sm f-op" style="width:120px">${FILTER_OPS.map(o=>`<option value="${o.value}">${o.text}</option>`).join('')}</select>
-        <input type="text" class="form-control form-control-sm f-val" placeholder="Значение" style="flex:1">
-        <button class="btn btn-sm btn-outline-danger" onclick="this.parentElement.remove()">×</button>`;
-    return div;
-}
-function createGroupElement() {
-    const g = document.createElement('div'); g.className = 'filter-group'; g.dataset.type = 'group';
-    g.innerHTML = `<div class="d-flex justify-content-between mb-2"><span class="badge bg-primary" onclick="this.textContent=this.textContent==='AND'?'OR':'AND'">AND</span><button class="btn btn-sm btn-close" onclick="this.closest('.filter-group').remove()"></button></div><div class="filter-group-content"></div><button class="btn btn-xs btn-outline-primary mt-1" onclick="this.closest('.filter-group').querySelector('.filter-group-content').appendChild(createConditionElement())">+ Условие</button>`;
-    return g;
-}
-function initFilterRoot() {
-    const r = document.getElementById('filter-root');
-    if(r && !r.querySelector('.filter-group-content')) { r.innerHTML = '<div class="filter-group-content"></div>'; r.appendChild(createConditionElement()); }
-}
-function initFilterFieldDatalist() {
-    if(!document.getElementById('filter-fields-list')) {
-        const dl = document.createElement('datalist'); dl.id = 'filter-fields-list';
-        dl.innerHTML = FILTER_FIELDS.map(f => `<option value="${f.value}">${f.text}</option>`).join('');
-        document.body.appendChild(dl);
-    }
-}
-function buildFilterJSON() {
-    const root = document.getElementById('filter-root'); if(!root) return {logic:'AND', conditions:[]};
-    const logic = root.querySelector('.badge')?.textContent || 'AND'; const conds = [];
-    root.querySelectorAll('.filter-condition').forEach(c => {
-        conds.push({field: c.querySelector('.f-field').value.trim(), op: c.querySelector('.f-op').value, value: c.querySelector('.f-val').value.trim()});
-    });
-    return {logic, conditions: conds};
-}
-function applyFilters() {
-    const valid = new Set(FILTER_FIELDS.map(f=>f.value)); let err = false;
-    document.querySelectorAll('.filter-condition').forEach(c => {
-        const v = c.querySelector('.f-field').value.trim();
-        if(!valid.has(v)) { c.classList.add('border-danger'); err = true; } else c.classList.remove('border-danger');
-    });
-    if(err) { alert('⚠️ Проверьте имена полей.'); return; }
-    fetch(`/api/assets?filters=${encodeURIComponent(JSON.stringify(buildFilterJSON()))}`).then(r=>r.json()).then(renderAssets);
-}
-function resetFilters() { document.getElementById('filter-root').querySelector('.filter-group-content').innerHTML = ''; document.getElementById('filter-root').appendChild(createConditionElement()); loadAssets(); }
-function loadAssets() { fetch('/api/assets').then(r=>r.json()).then(renderAssets); }
-
-// ═══════════════════════════════════════════════════════════════
-// РЕНДЕР & МОДАЛКИ
-// ═══════════════════════════════════════════════════════════════
-window.renderAssets = function(data) {
-    const tb = document.getElementById('assets-body'); if(!tb) return;
-    tb.innerHTML = ''; clearSelection();
-    if(data.length===0) { tb.innerHTML='<tr><td colspan="7" class="text-center py-4 text-muted"><i class="bi bi-inbox fs-1 d-block mb-2"></i>Ничего не найдено</td></tr>'; return; }
-    data.forEach(a => {
-        const tr = document.createElement('tr'); tr.className='asset-row'; tr.dataset.assetId=a.id;
-        tr.innerHTML=`<td><input type="checkbox" class="form-check-input asset-checkbox" value="${a.id}"></td>
-            <td><a href="/asset/${a.id}"><strong>${a.ip}</strong></a></td><td>${a.hostname||'—'}</td>
-            <td><span class="text-muted small">${a.os||'—'}</span></td><td><small class="text-muted">${a.ports||'—'}</small></td>
-            <td><span class="badge bg-light text-dark border">${a.group}</span></td>
-            <td><a href="/asset/${a.id}" class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></a></td>`;
-        tb.appendChild(tr);
-    });
-};
-
-// ═══════════════════════════════════════════════════════════════
-// WAZUH & ПРОФИЛИ
-// ═══════════════════════════════════════════════════════════════
-document.getElementById('data-source-filter')?.addEventListener('change', function() {
-    const p = new URLSearchParams(window.location.search); p.set('data_source', this.value); window.location.search = p.toString();
-});
-async function saveWazuhConfig() {
-    const btn = event.target; btn.disabled = true; btn.textContent = '⏳ Синхронизация...';
-    const st = document.getElementById('waz-status');
-    const body = { url: document.getElementById('waz-url').value, username: document.getElementById('waz-user').value, password: document.getElementById('waz-pass').value, verify_ssl: document.getElementById('waz-ssl').checked, is_active: document.getElementById('waz-active').checked };
-    await fetch('/api/wazuh/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
-    const res = await fetch('/api/wazuh/sync', { method: 'POST' }); const d = await res.json();
-    if(res.ok) { st.innerHTML=`<span class="text-success">✅ +${d.new} | обн. ${d.updated}</span>`; setTimeout(()=>location.reload(), 1500); }
-    else { st.innerHTML=`<span class="text-danger">❌ ${d.error}</span>`; }
-    btn.disabled = false; btn.textContent = '💾 Сохранить и синхронизировать';
-}
-document.getElementById('wazuhModal')?.addEventListener('show.bs.modal', async () => {
-    const c = await (await fetch('/api/wazuh/config')).json();
-    document.getElementById('waz-url').value = c.url; document.getElementById('waz-user').value = c.username;
-    document.getElementById('waz-pass').value = c.password; document.getElementById('waz-ssl').checked = c.verify_ssl; document.getElementById('waz-active').checked = c.is_active;
-});
-
-// ═══════════════════════════════════════════════════════════════
-// ИНИЦИАЛИЗАЦИЯ
-// ═══════════════════════════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', () => {
-    initTheme(); initFilterFieldDatalist(); initTreeTogglers(); initFilterRoot(); initAssetSelection();
-    contextMenu = document.getElementById('group-context-menu');
-    const e = document.getElementById('groupEditModal'); const m = document.getElementById('groupMoveModal');
-    const d = document.getElementById('groupDeleteModal'); const b = document.getElementById('bulkDeleteModal');
-    if(e) editModal = new bootstrap.Modal(e); if(m) moveModal = new bootstrap.Modal(m);
-    if(d) deleteModal = new bootstrap.Modal(d); if(b) bulkDeleteModalInstance = new bootstrap.Modal(b);
-    document.addEventListener('keydown', e => { if(e.ctrlKey && e.key==='a' && !['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName)) { e.preventDefault(); document.querySelectorAll('#assets-body .asset-checkbox').forEach(cb => { cb.checked=true; toggleRowSelection(cb.closest('tr'),true); selectedAssetIds.add(cb.value); }); updateBulkToolbar(); updateSelectAllCheckbox(); } });
-});
-
-// ═══════════════════════════════════════════════════════════════
-// ЭКСПОРТ ФУНКЦИЙ В ГЛОБАЛЬНУЮ ОБЛАСТЬ (для inline onclick)
-// ═══════════════════════════════════════════════════════════════
-
-function showRenameModal(id) {
-    const modalEl = document.getElementById('groupEditModal');
-    if (!modalEl) return console.warn('⚠️ #groupEditModal не найден');
+export async function showRenameModal(id) {
+    const modalId = 'groupEditModal';
+    const modalEl = document.getElementById(modalId);
+    if (!modalEl) return console.warn('⚠️ #' + modalId + ' не найден');
 
     const idInput = document.getElementById('edit-group-id');
     if (idInput) idInput.value = id;
+    document.getElementById('groupEditTitle').textContent = 'Редактировать группу';
 
-    const nameEl = document.querySelector(`.tree-node[data-id="${id}"] .group-name`);
+    let groupData;
+    try {
+        const r = await fetch(`/api/groups/${id}`);
+        groupData = await r.json();
+    } catch (err) {
+        console.error('Ошибка загрузки данных группы:', err);
+        return;
+    }
+
+    await populateParentSelect([String(id)], groupData.parent_id);
+
     const nameInput = document.getElementById('edit-group-name');
-    if (nameInput && nameEl) nameInput.value = nameEl.textContent.trim();
+    const parentSelect = document.getElementById('edit-group-parent');
+    
+    if (nameInput) nameInput.value = groupData.name || '';
+    if (parentSelect) parentSelect.value = groupData.parent_id || '';
 
-    const dynCheck = document.getElementById('edit-group-dynamic');
-    if (dynCheck) dynCheck.checked = false;
+    const dynCheck = document.getElementById('modeDynamic');
+    const manualCheck = document.getElementById('modeManual');
+    
+    if (groupData.is_dynamic || (groupData.filter_rules && groupData.filter_rules.length > 0)) {
+        if(dynCheck) dynCheck.checked = true;
+        if(manualCheck) manualCheck.checked = false;
+    } else {
+        if(manualCheck) manualCheck.checked = true;
+        if(dynCheck) dynCheck.checked = false;
+    }
+    
+    toggleGroupMode();
 
-    const filterSection = document.getElementById('dynamic-filter-section');
-    if (filterSection) filterSection.style.display = 'none';
+    if (groupData.is_dynamic && groupData.filter_rules) {
+        const root = document.getElementById('group-filter-root');
+        if(root) root.innerHTML = '';
+        groupData.filter_rules.forEach(rule => {
+            addDynamicRule(rule.field, rule.op, rule.value);
+        });
+    }
 
-    new bootstrap.Modal(modalEl).show();
+    const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
+    modal.show();
 }
 
-function showMoveModal(id) {
-    const modalEl = document.getElementById('groupMoveModal');
-    if (!modalEl) return console.warn('⚠️ #groupMoveModal не найден.');
-    document.getElementById('move-group-id').value = id;
-    new bootstrap.Modal(modalEl).show();
+export async function saveGroup() {
+    const id = document.getElementById('edit-group-id').value;
+    const name = document.getElementById('edit-group-name').value.trim();
+    const parentId = document.getElementById('edit-group-parent').value;
+    const mode = document.querySelector('input[name="groupMode"]:checked')?.value;
+
+    let payload = {
+        name: name,
+        parent_id: parentId === '' ? null : parseInt(parentId),
+        mode: mode
+    };
+
+    if (mode === 'cidr') {
+        const cidr = document.getElementById('edit-group-cidr').value.trim();
+        if (!cidr) {
+            alert('Укажите CIDR');
+            return;
+        }
+        payload.cidr = cidr;
+    } else if (mode === 'dynamic') {
+        const rules = [];
+        document.querySelectorAll('.filter-condition').forEach(el => {
+            const field = el.querySelector('.rule-field').value;
+            const op = el.querySelector('.rule-op').value;
+            const value = el.querySelector('.rule-val').value.trim();
+            if (field && value) rules.push({ field, op, value });
+        });
+        payload.filter_rules = rules;
+    }
+
+    const url = id ? `/api/groups/${id}` : '/api/groups';
+    const method = id ? 'PUT' : 'POST';
+
+    try {
+        const res = await fetch(url, {
+            method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Ошибка сохранения');
+        }
+
+        closeModalById('groupEditModal');
+        
+        // Обновляем дерево и список активов
+        if (typeof refreshGroupTree === 'function') {
+            await refreshGroupTree();
+        }
+        if (typeof loadAssets === 'function') {
+            await loadAssets();
+        }
+    } catch (e) {
+        console.error('Ошибка сохранения группы:', e);
+        alert(e.message);
+    }
 }
 
-function showDeleteModal(id) {
-    const modalEl = document.getElementById('groupDeleteModal');
-    if (!modalEl) return console.warn('⚠️ #groupDeleteModal не найден.');
+export async function showDeleteModal(id) {
+    const modalId = 'groupDeleteModal';
+    const modalEl = document.getElementById(modalId);
+    if (!modalEl) return console.warn('❌ Модальное окно удаления не найдено');
+
     document.getElementById('delete-group-id').value = id;
-    new bootstrap.Modal(modalEl).show();
+    
+    await populateParentSelect([String(id)]);
+    
+    const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
+    modal.show();
 }
 
-// 🔥 Просмотр результатов с отображением ошибок
-async function viewScanResults(id){
-    const m = new bootstrap.Modal(document.getElementById('scanResultsModal'));
+export function confirmDeleteGroup() {
+    const groupId = document.getElementById('delete-group-id').value;
+    const moveToId = document.getElementById('delete-move-assets').value;
+    
+    closeModalById('groupDeleteModal');
+
+    fetch(`/api/groups/${groupId}`, {
+        method: 'DELETE',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ move_to_id: moveToId || null })
+    })
+    .then(response => {
+        if (response.ok) {
+            if (typeof refreshGroupTree === 'function') {
+                refreshGroupTree();
+            }
+            if (typeof loadAssets === 'function' && window.currentGroupId == groupId) {
+                window.currentGroupId = null;
+                loadAssets(); 
+            }
+        } else {
+            alert('Ошибка при удалении группы');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка сети');
+    });
+}
+
+export async function showMoveGroupModal(id) {
+    const modalId = 'groupMoveModal';
+    const modalEl = document.getElementById(modalId);
+    if (!modalEl) return console.warn('❌ Модальное окно перемещения не найдено');
+
+    document.getElementById('move-group-id').value = id;
+    
+    await populateParentSelect([String(id)]);
+    
+    const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
+    modal.show();
+}
+
+export async function moveGroup() {
+    const groupId = document.getElementById('move-group-id').value;
+    const newParentId = document.getElementById('move-group-parent').value;
+
+    try {
+        const res = await fetch(`/api/groups/${groupId}/move`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ parent_id: newParentId === '' ? null : parseInt(newParentId) })
+        });
+
+        if (!res.ok) throw new Error('Не удалось переместить группу');
+
+        closeModalById('groupMoveModal');
+        
+        if (typeof refreshGroupTree === 'function') {
+            await refreshGroupTree();
+        }
+    } catch (e) {
+        console.error('Ошибка перемещения группы:', e);
+        alert(e.message);
+    }
+}
+
+export function initContextMenu() {
+    document.addEventListener('click', function(e) {
+        const ctx = document.getElementById('group-context-menu');
+        if (!ctx) return;
+        ctx.style.display = 'none';
+    });
+
+    document.addEventListener('contextmenu', function(e) {
+        const treeNode = e.target.closest('.tree-node');
+        if (!treeNode) return;
+
+        const ctx = document.getElementById('group-context-menu');
+        if (!ctx) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const groupId = treeNode.dataset.id;
+        const isUngrouped = groupId === 'ungrouped';
+
+        ctx.style.display = 'block';
+        ctx.style.left = e.pageX + 'px';
+        ctx.style.top = e.pageY + 'px';
+
+        const createItem = ctx.querySelector('[data-action="create-child"]');
+        const renameItem = ctx.querySelector('[data-action="rename"]');
+        const moveItem = ctx.querySelector('[data-action="move"]');
+        const deleteItem = ctx.querySelector('[data-action="delete"]');
+
+        if(createItem) createItem.style.display = isUngrouped ? 'none' : 'block';
+        if(renameItem) renameItem.style.display = isUngrouped ? 'none' : 'block';
+        if(moveItem) moveItem.style.display = isUngrouped ? 'none' : 'block';
+        if(deleteItem) deleteItem.style.display = isUngrouped ? 'none' : 'block';
+
+        ctx.dataset.groupId = groupId;
+    });
+
+    document.getElementById('group-context-menu')?.addEventListener('click', function(e) {
+        const actionItem = e.target.closest('[data-action]');
+        if (!actionItem) return;
+
+        const groupId = this.dataset.groupId;
+        const action = actionItem.dataset.action;
+
+        if (action === 'create-child') {
+            showCreateGroupModal(groupId);
+        } else if (action === 'rename') {
+            showRenameModal(groupId);
+        } else if (action === 'move') {
+            showMoveGroupModal(groupId);
+        } else if (action === 'delete') {
+            showDeleteModal(groupId);
+        }
+
+        this.style.display = 'none';
+    });
+}
+```
+
+### 📄 `static/js/modules/scans.js`
+
+```javascript
+// static/js/modules/scans.js
+
+export async function viewScanResults(id) {
+    const modalId = 'scanResultsModal';
+    const modalEl = document.getElementById(modalId);
+    if(!modalEl) return;
+
+    const m = new bootstrap.Modal(modalEl);
     const c = document.getElementById('scan-results-content');
     const errAlert = document.getElementById('scan-error-alert');
     const errText = document.getElementById('scan-error-text');
     
-    c.innerHTML = '<div class="text-center"><div class="spinner-border"></div><p class="mt-2">Загрузка...</p></div>';
-    errAlert.style.display = 'none';
+    if(c) c.innerHTML = '<div class="text-center"><div class="spinner-border"></div><p class="mt-2">Загрузка...</p></div>';
+    if(errAlert) errAlert.style.display = 'none';
+    
     m.show();
     
     try{
         const r = await fetch(`/api/scans/${id}/results`);
         const d = await r.json();
         
-        // 🔥 Показываем ошибку если статус failed
         if(d.job.status === 'failed' && d.job.error_message){
-            errAlert.style.display = 'block';
-            errText.textContent = d.job.error_message;
+            if(errAlert) errAlert.style.display = 'block';
+            if(errText) errText.textContent = d.job.error_message;
         }
         
         let h = `<h6>#${d.job.id} - ${d.job.scan_type.toUpperCase()}</h6>`;
@@ -4633,43 +5077,49 @@ async function viewScanResults(id){
         h += `<hr>`;
         
         if(d.job.status === 'failed'){
-            h += '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Сканирование завершилось с ошибкой. Смотрите детали выше.</div>';
-        } else if(d.results.length === 0){
+            h += '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Сканирование завершилось с ошибкой.</div>';
+        } else if(!d.results || d.results.length === 0){
             h += '<p class="text-muted">Нет результатов</p>';
         } else {
             h += `<p><strong>Найдено хостов:</strong> ${d.results.length}</p><div class="list-group">`;
             d.results.forEach(x=>{
-                h += `<div class="list-group-item"><div class="d-flex justify-content-between"><h6 class="mb-1">${x.ip}</h6><small>${x.scanned_at}</small></div><p class="mb-1"><strong>Порты:</strong> ${x.ports.join(', ')||'Нет'}</p>${x.os && x.os !== '-' ? `<p class="mb-0"><strong>ОС:</strong> ${x.os}</p>`:''}</div>`;
+                h += `<div class="list-group-item"><div class="d-flex justify-content-between"><h6 class="mb-1">${x.ip}</h6><small>${x.scanned_at}</small></div><p class="mb-1"><strong>Порты:</strong> ${x.ports && x.ports.join ? x.ports.join(', ') : 'Нет'}</p>${x.os && x.os !== '-' ? `<p class="mb-0"><strong>ОС:</strong> ${x.os}</p>`:''}</div>`;
             });
             h += '</div>';
         }
-        c.innerHTML = h;
+        if(c) c.innerHTML = h;
     }catch(err){ 
-        errAlert.style.display = 'block';
-        errText.textContent = `Ошибка загрузки результатов: ${err.message}`;
+        if(errAlert) errAlert.style.display = 'block';
+        if(errText) errText.textContent = `Ошибка загрузки результатов: ${err.message}`;
     }
 }
 
-// 🔥 Показ полной ошибки в отдельном модальном окне
-function showScanError(jobId, errorMsg){
-    const m = new bootstrap.Modal(document.getElementById('scanErrorModal'));
+export function showScanError(jobId, errorMsg){
+    const modalId = 'scanErrorModal';
+    const modalEl = document.getElementById(modalId);
+    if(!modalEl) return alert(errorMsg);
+
+    const m = new bootstrap.Modal(modalEl);
     const c = document.getElementById('scan-error-content');
-    c.innerHTML = `
-        <div class="alert alert-danger">
-            <h6><i class="bi bi-exclamation-triangle"></i> Ошибка сканирования #${jobId}:</h6>
-            <pre class="mb-0" style="white-space:pre-wrap;max-height:400px;overflow-y:auto">${errorMsg}</pre>
-        </div>
-        <div class="mt-3">
-            <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText(\`${errorMsg.replace(/`/g, '\\`')}\`)">
-                <i class="bi bi-clipboard"></i> Копировать ошибку
-            </button>
-        </div>
-    `;
+    const safeMsg = errorMsg ? errorMsg.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$') : 'Неизвестная ошибка';
+    
+    if(c) {
+        c.innerHTML = `
+            <div class="alert alert-danger">
+                <h6><i class="bi bi-exclamation-triangle"></i> Ошибка сканирования #${jobId}:</h6>
+                <pre class="mb-0" style="white-space:pre-wrap;max-height:400px;overflow-y:auto">${safeMsg}</pre>
+            </div>
+            <div class="mt-3">
+                <button class="btn btn-sm btn-outline-secondary" onclick="navigator.clipboard.writeText('${safeMsg}')">
+                    <i class="bi bi-clipboard"></i> Копировать ошибку
+                </button>
+            </div>
+        `;
+    }
     m.show();
 }
 
-// 🔥 Обновление истории с кликабельной ошибкой
-async function updateScanHistory(){
+export async function updateScanHistory(){
     try{
         const res = await fetch('/api/scans/history');
         if(!res.ok) return;
@@ -4686,7 +5136,6 @@ async function updateScanHistory(){
                 badge.textContent = j.status;
                 badge.className = `badge status-badge bg-${j.status==='running'?'warning text-dark':j.status==='completed'?'success':'danger'}`;
                 
-                // 🔥 Делаем ошибку кликабельной
                 if(j.error_message){
                     badge.style.cursor = 'pointer';
                     badge.setAttribute('title', 'Нажмите для просмотра детали ошибки');
@@ -4704,112 +5153,427 @@ async function updateScanHistory(){
     }catch(e){console.warn('History poll error:',e);}
 }
 
-// 🔥 Обновление дерева групп (вызывать после сканирования и при загрузке)
-async function refreshGroupTree() {
+export async function pollActiveScans() {
     try {
-        // Получаем актуальное дерево
+        const res = await fetch('/api/scans/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        
+        if (data.active && data.active.length > 0) {
+            if (typeof updateScanHistory === 'function') {
+                updateScanHistory();
+            }
+        }
+    } catch (e) {
+        console.warn('⚠️ Ошибка проверки сканирований:', e);
+    }
+}
+
+// Экспорт глобальных функций
+window.viewScanResults = viewScanResults;
+window.showScanError = showScanError;
+```
+
+### 📄 `static/js/modules/theme.js`
+
+```javascript
+// static/js/modules/theme.js
+export function initTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-bs-theme', savedTheme === 'dark' ? 'dark' : 'light');
+    updateThemeIcon(savedTheme);
+}
+
+export function toggleTheme() {
+    const html = document.documentElement;
+    const newTheme = html.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+    document.body.classList.add('theme-transition');
+    html.setAttribute('data-bs-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme);
+    setTimeout(() => document.body.classList.remove('theme-transition'), 300);
+}
+
+function updateThemeIcon(theme) {
+    const toggle = document.querySelector('.theme-toggle');
+    if (!toggle) return;
+    const moon = toggle.querySelector('.bi-moon');
+    const sun = toggle.querySelector('.bi-sun');
+    if(moon) moon.style.display = theme === 'dark' ? 'none' : 'block';
+    if(sun) sun.style.display = theme === 'dark' ? 'block' : 'none';
+}
+```
+
+### 📄 `static/js/modules/tree.js`
+
+```javascript
+// static/js/modules/tree.js
+import { renderAssets } from './assets.js';
+
+let currentFilter = { groupId: null, ungrouped: false };
+let treeListenerAttached = false;
+
+// 🔒 Безопасная нормализация ID (приводим всё к строке, null -> 'null')
+const normId = (val) => (val === null || val === undefined) ? 'null' : String(val);
+
+export async function refreshGroupTree() {
+    try {
         const res = await fetch('/api/groups/tree');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         
-        // Обновляем счётчик "Без группы"
-        const ungroupedRes = await fetch('/api/assets?ungrouped=true');
-        const ungroupedAssets = await ungroupedRes.json();
-        const ungroupedEl = document.getElementById('ungrouped-count');
-        if (ungroupedEl) ungroupedEl.textContent = ungroupedAssets.length;
-        
-        // Обновляем счётчики у каждой группы в дереве
-        data.flat.forEach(g => {
-            const node = document.querySelector(`.tree-node[data-id="${g.id}"]`);
-            if (node) {
-                const badge = node.querySelector('.badge');
-                if (badge) {
-                    // Плавное обновление числа
-                    const oldCount = parseInt(badge.textContent) || 0;
-                    const newCount = g.count || 0;
-                    if (oldCount !== newCount) {
-                        badge.classList.add('bg-warning', 'text-dark');
-                        setTimeout(() => {
-                            badge.textContent = newCount;
-                            badge.classList.remove('bg-warning', 'text-dark');
-                        }, 300);
-                    }
+        if (!data.flat || !Array.isArray(data.flat)) {
+            console.error('❌ Неверный формат данных дерева:', data);
+            return;
+        }
+
+        const treeContainer = document.getElementById('group-tree');
+        if (!treeContainer) return;
+
+        // Сохраняем активный узел до перерисовки
+        const activeNode = treeContainer.querySelector('.tree-node.active');
+        const activeId = activeNode ? normId(activeNode.dataset.id) : null;
+        const isUngrouped = !!document.querySelector('.tree-node[data-id="ungrouped"].active');
+
+        // 🌳 Рекурсивный рендер дерева
+        const buildTreeHtml = (nodes, parentId = null) => {
+            const pIdStr = normId(parentId);
+            // Ищем прямых детей текущего родителя
+            const children = nodes.filter(n => normId(n.parent_id) === pIdStr);
+            if (children.length === 0) return '';
+
+            let html = '';
+            children.forEach(node => {
+                const nIdStr = normId(node.id);
+                // ✅ ИСПРАВЛЕНО: Проверяем наличие детей строго по совпадению ID
+                const hasChildren = nodes.some(n => normId(n.parent_id) === nIdStr);
+                
+                const isDynamic = node.is_dynamic;
+                const typeIcon = isDynamic ? '<i class="bi bi-funnel ms-1 text-muted" title="Динамическая группа"></i>' : '';
+
+                html += `<li>`;
+                html += `
+                    <div class="tree-node" data-id="${node.id}">
+                        ${hasChildren ? '<span class="caret"></span>' : '<span class="caret-spacer"></span>'}
+                        <i class="bi bi-folder folder-icon"></i>
+                        <span class="group-name" data-id="${node.id}" data-type="${isDynamic ? 'dynamic' : 'manual'}">
+                            ${node.name} ${typeIcon}
+                        </span>
+                        <span class="badge bg-secondary ms-auto">${node.asset_count ?? node.count ?? 0}</span>
+                        <span class="group-actions ms-2">
+                            <button type="button" class="btn-action" onclick="window.showRenameModal(${node.id})" title="Редактировать">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button type="button" class="btn-action text-danger" onclick="window.showDeleteModal(${node.id})" title="Удалить">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </span>
+                    </div>
+                `;
+
+                if (hasChildren) {
+                    const childrenHtml = buildTreeHtml(nodes, node.id);
+                    if (childrenHtml) html += `<ul class="nested">${childrenHtml}</ul>`;
                 }
+                html += `</li>`;
+            });
+
+            return html;
+        };
+
+        const ungroupedHtml = `
+            <li>
+                <div class="tree-node" data-id="ungrouped">
+                    <span class="caret-spacer"></span>
+                    <i class="bi bi-inbox folder-icon"></i>
+                    <span class="group-name" data-id="ungrouped">Без группы</span>
+                    <span class="badge bg-secondary ms-auto">${data.ungrouped_count || 0}</span>
+                </div>
+            </li>
+        `;
+
+        // Рендерим в контейнер
+        treeContainer.innerHTML = `<ul>${ungroupedHtml + buildTreeHtml(data.flat)}</ul>`;
+
+        // ♻️ Восстановление состояния (выделение + раскрытие родителей)
+        if (isUngrouped) {
+            const n = treeContainer.querySelector('.tree-node[data-id="ungrouped"]');
+            if (n) n.classList.add('active');
+        } else if (activeId) {
+            const targetId = activeId === 'null' ? 'ungrouped' : activeId;
+            const node = treeContainer.querySelector(`.tree-node[data-id="${targetId}"]`);
+            if (node) {
+                node.classList.add('active');
+                let el = node.closest('li');
+                while (el) {
+                    const parentUl = el.parentElement;
+                    if (parentUl && parentUl.classList.contains('nested')) {
+                        parentUl.classList.add('active');
+                        const grandLi = parentUl.closest('li');
+                        if (grandLi) {
+                            const caret = grandLi.querySelector(':scope > .tree-node > .caret');
+                            if (caret) caret.classList.add('down');
+                        }
+                        el = grandLi;
+                    } else break;
+                }
+                node.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
-        });
-        
-        console.log('✅ Дерево групп обновлено');
+        }
+
+        // Инициализируем обработчики кликов
+        initTreeTogglers();
     } catch (e) {
-        console.warn('⚠️ Ошибка обновления дерева групп:', e);
+        console.error('❌ Ошибка обновления дерева групп:', e);
     }
 }
 
-let lastCompletedScans = new Set();
+export async function loadAssets(groupId = null, ungrouped = false) {
+    let url;
+    if (ungrouped) url = '/api/assets?ungrouped=true';
+    else if (groupId) url = `/api/assets?group_id=${parseInt(groupId)}`;
+    else url = '/api/assets';
+    try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        renderAssets(await res.json());
+        currentFilter = { groupId, ungrouped };
+    } catch (e) { console.error('❌ Ошибка загрузки активов:', e); }
+}
 
-function pollActiveScans(){
-    fetch('/api/scans/status').then(r=>r.json()).then(d=>{
-        const c=document.getElementById('active-scans');
+export function filterByGroup(groupId) {
+    document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
+    const activeNode = document.querySelector(`.tree-node[data-id="${groupId}"]`);
+    if (activeNode) activeNode.classList.add('active');
+    if (groupId === 'ungrouped') loadAssets(null, true);
+    else loadAssets(parseInt(groupId), false);
+}
+
+export function initTreeTogglers() {
+    if (treeListenerAttached) return; // 🛡️ Защита от дублирования при поллинге/обновлении
+    const treeContainer = document.getElementById('group-tree');
+    if (!treeContainer) return;
+
+    treeContainer.addEventListener('click', function(e) {
+        // ✅ Игнорируем клики по кнопкам действий
+        if (e.target.closest('.group-actions') || e.target.closest('.btn-action')) return;
+
+        // 1. Клик по стрелке (раскрытие/сворачивание)
+        const caret = e.target.closest('.caret');
+        if (caret) {
+            e.preventDefault(); e.stopPropagation();
+            const parentLi = caret.closest('li');
+            if (parentLi) {
+                const nestedUl = parentLi.querySelector(':scope > ul.nested');
+                if (nestedUl) nestedUl.classList.toggle('active');
+            }
+            caret.classList.toggle('down');
+            return;
+        }
+
+        // 2. Клик по названию группы
+        const groupSpan = e.target.closest('.group-name');
+        if (groupSpan) filterByGroup(groupSpan.dataset.id);
+    });
+
+    treeListenerAttached = true;
+}
+
+export function getCurrentFilter() { return currentFilter; }
+```
+
+### 📄 `static/js/modules/utils.js`
+
+```javascript
+// static/js/modules/utils.js
+
+/**
+ * Заполняет выпадающие списки родительских групп с визуальной иерархией.
+ */
+export async function populateParentSelect(excludeIds = [], selectedId = null) {
+    try {
+        const res = await fetch('/api/groups/tree');
+        if (!res.ok) throw new Error('Failed to fetch tree');
+        const data = await res.json();
         
-        // 🔥 Проверяем завершённые сканирования
-        fetch('/api/scans/history').then(hr=>hr.json()).then(history=>{
-            history.forEach(j=>{
-                if(j.status === 'completed' && !lastCompletedScans.has(j.id)){
-                    lastCompletedScans.add(j.id);
-                    // 🔥 Обновляем дерево групп при завершении сканирования
-                    refreshGroupTree();
+        if (!data.flat) return;
+
+        // Построение дерева
+        const buildTree = (parentId) => {
+            return data.flat
+                .filter(g => g.parent_id == parentId)
+                .map(g => ({
+                    ...g,
+                    children: buildTree(g.id)
+                }));
+        };
+        const tree = buildTree(null);
+
+        // Генерация опций
+        const generateOptions = (nodes, level = 0) => {
+            let options = '';
+            nodes.forEach(node => {
+                if (excludeIds.includes(String(node.id))) return;
+
+                const indent = '    '; // 4 пробела
+                const prefix = level > 0 ? '└─ ' : '';
+                const label = (indent.repeat(level)) + prefix + node.name;
+                
+                const option = document.createElement('option');
+                option.value = node.id;
+                option.text = label; 
+                if (selectedId !== null && String(node.id) === String(selectedId)) {
+                    option.selected = true;
+                }
+                
+                options += option.outerHTML;
+                
+                if (node.children && node.children.length > 0) {
+                    options += generateOptions(node.children, level + 1);
                 }
             });
+            return options;
+        };
+
+        const baseOption = '<option value="">-- Корень --</option>';
+        const optionsContent = baseOption + generateOptions(tree);
+
+        const selectors = [
+            '#edit-group-parent',   
+            '#move-group-parent',   
+            '#delete-move-assets'   
+        ];
+
+        selectors.forEach(sel => {
+            const el = document.querySelector(sel);
+            if (el) {
+                // 1. Сначала очищаем и заполняем контент
+                el.innerHTML = optionsContent;
+                
+                // 2. Явно добавляем класс для стилей (важно для всех страниц)
+                el.classList.add('hierarchy-select');
+                
+                // 3. Принудительно задаем стиль через JS, если CSS по какой-то причине не применился
+                el.style.fontFamily = "'Consolas', 'Monaco', 'Courier New', monospace";
+                
+                // 4. Восстанавливаем выбор
+                const currentVal = selectedId !== null ? selectedId : el.getAttribute('data-last-value') || el.value;
+                if (currentVal) {
+                    el.value = currentVal;
+                } else {
+                    el.value = ""; // Сброс на "-- Корень --" если ничего не выбрано
+                }
+                
+                // Сохраняем текущее значение для возможного следующего открытия
+                el.setAttribute('data-last-value', el.value);
+            }
+        });
+
+    } catch (e) {
+        console.error('Ошибка загрузки дерева групп:', e);
+    }
+}
+
+export function closeModalById(modalId) {
+    const modalEl = document.getElementById(modalId);
+    if (!modalEl) return;
+
+    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+    
+    if (modalInstance) {
+        modalInstance.hide();
+    } else {
+        modalEl.classList.remove('show');
+        modalEl.removeAttribute('aria-modal');
+        modalEl.removeAttribute('role');
+        modalEl.style.display = '';
+        
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) backdrop.remove();
+        
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    }
+
+    const form = modalEl.querySelector('form');
+    if (form) form.reset();
+}
+
+// 🔥 ДОБАВЛЯЕМ СТИЛЬ ДЛЯ СОХРАНЕНИЯ ПРОБЕЛОВ В SELECT
+if (!document.getElementById('hierarchy-select-style')) {
+    const style = document.createElement('style');
+    style.id = 'hierarchy-select-style';
+    style.textContent = `
+        select.hierarchy-select, 
+        select.hierarchy-select option {
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            white-space: pre;
+        }
+    `;
+    document.head.appendChild(style);
+}
+```
+
+### 📄 `static/js/modules/wazuh.js`
+
+```javascript
+// static/js/modules/wazuh.js
+
+export function initWazuhFilter() {
+    const dsFilter = document.getElementById('data-source-filter');
+    if(dsFilter) {
+        dsFilter.addEventListener('change', function() {
+            const p = new URLSearchParams(window.location.search); 
+            p.set('data_source', this.value); 
+            window.location.search = p.toString();
+        });
+    }
+}
+
+export async function saveWazuhConfig() {
+    const urlInput = document.getElementById('wazuh-url');
+    const userInput = document.getElementById('wazuh-user');
+    const passInput = document.getElementById('wazuh-pass');
+    
+    if(!urlInput || !userInput || !passInput) return;
+    
+    const config = {
+        url: urlInput.value.trim(),
+        username: userInput.value.trim(),
+        password: passInput.value
+    };
+    
+    try {
+        const res = await fetch('/api/wazuh/config', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(config)
         });
         
-        if(d.active?.length){
-            let h='<div class="row">';
-            d.active.forEach(j=>{
-                const cls=j.status==='running'?'progress-bar-striped progress-bar-animated':'';
-                const b=j.scan_type==='rustscan'?'bg-danger':'bg-info text-dark';
-                const s=j.status==='running'?'bg-warning text-dark':j.status==='paused'?'bg-info text-dark':'bg-secondary';
-                h+=`<div class="col-md-6 mb-3"><div class="card border-${j.status==='failed'?'danger':j.status==='running'?'warning':'info'}"><div class="card-body"><div class="d-flex justify-content-between align-items-center mb-2"><h6 class="mb-0"><span class="badge ${b} me-2">${j.scan_type.toUpperCase()}</span>${j.target}</h6><span class="badge ${s}">${j.status}</span></div><div class="progress mb-2" style="height:6px"><div class="progress-bar ${cls}" style="width:${j.progress}%"></div></div><small>${j.current_target&&j.status==='running'?`📡 ${j.current_target}<br>`:''}Прогресс: ${j.progress}%</small></div></div></div>`;
-            });
-            h+='</div>'; c.innerHTML=h;
-        } else c.innerHTML='<p class="text-muted mb-0"><i class="bi bi-check-circle"></i> Нет активных сканирований</p>';
-    }).catch(e=>console.warn('⚠️ Active poll error:',e));
-}
-
-// 🔥 Отслеживание завершённых сканирований для обновления групп
-let lastKnownCompleted = new Set();
-
-function checkCompletedScans() {
-    fetch('/api/scans/history')
-        .then(r => r.json())
-        .then(history => {
-            history.forEach(j => {
-                // Если сканирование завершено и мы его ещё не обработали
-                if (j.status === 'completed' && !lastKnownCompleted.has(j.id)) {
-                    lastKnownCompleted.add(j.id);
-                    console.log(`🔄 Сканирование #${j.id} завершено, обновляем группы...`);
-                    refreshGroupTree();
-                }
-            });
-        })
-        .catch(e => console.warn('⚠️ Ошибка проверки сканирований:', e));
-}
-
-// В функции pollActiveScans добавьте вызов checkCompletedScans():
-function pollActiveScans(){
-    fetch('/api/scans/status').then(r=>r.json()).then(d=>{
-        // ... существующий код для активных сканирований ...
+        if(!res.ok) throw new Error('Ошибка сохранения конфигурации');
         
-        // 🔥 Проверяем завершённые сканирования
-        checkCompletedScans();
-        
-    }).catch(e=>console.warn('⚠️ Active poll error:',e));
+        alert('Конфигурация Wazuh сохранена');
+    } catch(e) {
+        console.error('Ошибка сохранения Wazuh:', e);
+        alert(e.message);
+    }
 }
 
-// 🔥 Экспорт в глобальную область
-window.showRenameModal = showRenameModal;
-window.showMoveModal = showMoveModal;
-window.showDeleteModal = showDeleteModal;
-window.refreshGroupTree = refreshGroupTree;
-window.filterByGroup = filterByGroup;
+export async function testWazuhConnection() {
+    try {
+        const res = await fetch('/api/wazuh/test');
+        const data = await res.json();
+        
+        if(data.success) {
+            alert('✅ Подключение к Wazuh успешно!');
+        } else {
+            alert('❌ Ошибка подключения: ' + (data.error || 'Неизвестная ошибка'));
+        }
+    } catch(e) {
+        alert('❌ Ошибка подключения: ' + e.message);
+    }
+}
 ```
 
 ### 📄 `static/css/style.css`
@@ -4847,7 +5611,140 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 .filter-group { border: 1px solid var(--border-color); padding: 1rem; border-radius: 0.5rem; margin-bottom: 0.75rem; background: var(--bg-card); position: relative; }
 .filter-condition { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; background: var(--bg-body); padding: 0.5rem; border-radius: 0.375rem; }
 @media (max-width: 768px) { .sidebar { display: none !important; } }
+.group-actions {
+    display: flex;
+    gap: 4px;
+    opacity: 0; /* Скрыты по умолчанию */
+    transition: opacity 0.2s;
+}
 
+.tree-node:hover .group-actions {
+    opacity: 1; /* Показываем при наведении на группу */
+}
+
+.btn-action {
+    background: transparent;
+    border: none;
+    padding: 2px 4px;
+    cursor: pointer;
+    color: inherit;
+    border-radius: 4px;
+}
+
+.btn-action:hover {
+    background-color: var(--bg-hover);
+    color: var(--bs-primary);
+}
+
+.btn-action.text-danger:hover {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: var(--bs-danger);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   СТИЛИ ДЛЯ ДЕРЕВА ГРУПП
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Контейнер дерева групп */
+#group-tree {
+    padding: 0.25rem 0;
+}
+
+#group-tree ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+#group-tree ul.nested {
+    padding-left: 1.5rem;
+    margin-top: 0.25rem;
+}
+
+/* Скрытие/отображение вложенных списков */
+#group-tree ul.nested {
+    display: none;
+}
+
+#group-tree ul.nested.active {
+    display: block;
+}
+
+#group-tree li {
+    margin: 0.125rem 0;
+    position: relative;
+}
+
+/* Элемент дерева (узел) */
+.tree-node {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* Индикатор раскрытия/сворачивания (caret) */
+.caret {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.caret::before {
+    content: "▶";
+    font-size: 0.625rem;
+    display: inline-block;
+}
+
+.caret.down {
+    transform: rotate(90deg);
+}
+
+/* Пустой спейсер вместо caret для листовых узлов */
+.caret-spacer {
+    display: inline-block;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex-shrink: 0;
+}
+
+/* Иконка папки для группы */
+.tree-node .folder-icon {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.tree-node:hover .folder-icon {
+    color: var(--bs-primary);
+}
+
+.tree-node.active .folder-icon {
+    color: var(--bs-primary);
+}
+
+/* Название группы */
+.tree-node .group-name {
+    flex-grow: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Бейдж с количеством активов */
+.tree-node .badge {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    min-width: 1.5rem;
+    justify-content: center;
+}
 ```
 
 ### 📄 `templates/asset_detail.html`
@@ -4958,7 +5855,7 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
                         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-ports">🔌 Порты</button>
                     </li>
                     <li class="nav-item">
-                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-osquery">📦 OSquery</button>
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-inventory">📦 Инвентаризация</button>
                     </li>
                     <li class="nav-item">
                         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-scans">🔍 Сканирования</button>
@@ -5037,46 +5934,16 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 
                             <div class="col-lg-4">
                                 <div class="card mb-4">
-                                    <div class="card-header"><i class="bi bi-lightning"></i> Действия</div>
+                                    <div class="card-header"><i class="bi bi-info-circle"></i> Дополнительная информация</div>
                                     <div class="card-body">
-                                        <div class="d-grid gap-2">
-                                            <button class="btn btn-outline-primary" onclick="navigator.clipboard.writeText('{{ asset.ip_address }}'); alert('IP скопирован в буфер')">
-                                                <i class="bi bi-clipboard"></i> Копировать IP
-                                            </button>
-                                            <a href="ssh://{{ asset.ip_address }}" class="btn btn-outline-dark" target="_blank" rel="noopener">
-                                                <i class="bi bi-terminal"></i> SSH
-                                            </a>
-                                            <a href="http://{{ asset.ip_address }}" class="btn btn-outline-info" target="_blank" rel="noopener">
-                                                <i class="bi bi-globe"></i> Браузер (HTTP)
-                                            </a>
-                                            <a href="https://{{ asset.ip_address }}" class="btn btn-outline-info" target="_blank" rel="noopener">
-                                                <i class="bi bi-globe"></i> Браузер (HTTPS)
-                                            </a>
-                                            <a href="{{ url_for('scans.scans_page') }}" class="btn btn-outline-danger">
-                                                <i class="bi bi-radar"></i> Запустить сканирование
-                                            </a>
-                                            <a href="{{ url_for('scans.scans_page') }}" class="btn btn-outline-secondary">
-                                                <i class="bi bi-list-task"></i> Все сканирования
-                                            </a>
+                                        <div class="mb-3">
+                                            <small class="text-muted">DNS имена</small>
+                                            <div class="fw-medium">{{ asset.dns_names or '—' }}</div>
                                         </div>
-                                    </div>
-                                </div>
-
-                                <div class="card mb-4">
-                                    <div class="card-header"><i class="bi bi-hdd-network"></i> Сканеры</div>
-                                    <div class="card-body">
-                                        {% if asset.scanners_used %}
-                                            {% set scanners = asset.scanners_used | fromjson %}
-                                            <div class="d-flex flex-wrap gap-2">
-                                                {% for scanner in scanners %}
-                                                    <span class="badge bg-{{ 'danger' if scanner == 'rustscan' else 'info' }} fs-6">
-                                                        {{ '🚀' if scanner == 'rustscan' else '🔍' }} {{ scanner.upper() }}
-                                                    </span>
-                                                {% endfor %}
-                                            </div>
-                                        {% else %}
-                                            <p class="text-muted mb-0 small">Нет данных о сканерах</p>
-                                        {% endif %}
+                                        <div class="mb-3">
+                                            <small class="text-muted">Последнее сканирование</small>
+                                            <div class="fw-medium">{{ asset.last_scanned.strftime('%Y-%m-%d %H:%M') if asset.last_scanned else '—' }}</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -5217,8 +6084,8 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
                         {% endif %}
                     </div>
 
-                    <!-- Tab: OSquery -->
-                    <div class="tab-pane fade" id="tab-osquery">
+                    <!-- Tab: Инвентаризация -->
+                    <div class="tab-pane fade" id="tab-inventory">
                         <div class="card {% if asset.osquery_status == 'online' %}border-success{% else %}border-secondary{% endif %}">
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <span><i class="bi bi-hdd-stack"></i> Инвентаризация OSquery</span>
@@ -5301,8 +6168,6 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
                                             <th>Дата</th>
                                             <th>Тип</th>
                                             <th>Статус</th>
-                                            <th>Порты</th>
-                                            <th>ОС</th>
                                             <th>Действия</th>
                                         </tr>
                                     </thead>
@@ -5329,8 +6194,6 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
                                                         <span class="badge bg-success">completed</span>
                                                     {% endif %}
                                                 </td>
-                                                <td><small>{{ (result.ports | fromjson | join(', ')) if result.ports else '—' }}</small></td>
-                                                <td><small>{{ result.os_detection or '—' }}</small></td>
                                                 <td>
                                                     <button class="btn btn-sm btn-outline-primary" onclick="alert('Порты: {{ (result.ports | fromjson | join(', ')) if result.ports else 'Нет' }}\nОС: {{ result.os_detection or '—' }}')">
                                                         <i class="bi bi-eye"></i>
@@ -5340,7 +6203,7 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
                                             {% endfor %}
                                         {% else %}
                                             <tr>
-                                                <td colspan="6" class="text-center py-4 text-muted">
+                                                <td colspan="4" class="text-center py-4 text-muted">
                                                     <i class="bi bi-inbox fs-1 d-block mb-2"></i>
                                                     Нет результатов сканирований
                                                 </td>
@@ -5357,11 +6220,11 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}" type="module"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Инициализация темы
-            if (typeof initTheme === 'function') initTheme();
+            if (typeof window.initTheme === 'function') window.initTheme();
             
             // Автопереключение на вкладку с ошибками если есть
             const urlParams = new URLSearchParams(window.location.search);
@@ -5544,7 +6407,7 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}" type="module"></script>
 </body>
 </html>
 ```
@@ -5555,7 +6418,8 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8"> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Asset Manager{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
@@ -5564,32 +6428,30 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 </head>
 <body>
     {% block content %}{% endblock %}
+
+    {% include 'components/modals.html' %}
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-<!-- 🔥 Глобальное обновление дерева групп -->
-{% block extra_js %}{% endblock %}
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        // Инициализация темы
-        if (typeof initTheme === 'function') initTheme();
-        
-        // 🔥 Обновляем дерево групп при загрузке любой страницы
-        if (typeof refreshGroupTree === 'function') {
-            refreshGroupTree();
-            // И каждые 30 секунд для фоновой синхронизации
-            setInterval(refreshGroupTree, 30000);
-        }
-        
-        // Запуск поллинга активных сканирований
-        if (typeof pollActiveScans === 'function') {
-            pollActiveScans();
-            setInterval(pollActiveScans, 5000);
-        }
-    });
-</script>
+    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
+    {% block extra_js %}{% endblock %}
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Ждем загрузки модуля
+            setTimeout(() => {
+                if (typeof window.initTheme === 'function') window.initTheme();
+                
+                const activeScansEl = document.getElementById('active-scans');
+                if (activeScansEl && typeof window.pollActiveScans === 'function') {
+                    window.pollActiveScans();
+                    setInterval(window.pollActiveScans, 5000);
+                }
+            }, 100);
+        });
+    </script>
 </body>
 </html>
-
 ```
 
 ### 📄 `templates/create.html`
@@ -5675,7 +6537,7 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}" type="module"></script>
     <script>
         function initTheme() {
             const savedTheme = localStorage.getItem('theme') || 'light';
@@ -5778,7 +6640,7 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}" type="module"></script>
     <script>
         function initTheme() {
             const savedTheme = localStorage.getItem('theme') || 'light';
@@ -5904,17 +6766,6 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    // Инициализация при загрузке страницы
-    document.addEventListener('DOMContentLoaded', () => {
-        // Убедимся, что функции из main.js доступны глобально
-        if (typeof window.initTheme === 'function') window.initTheme();
-        if (typeof window.initFilterRoot === 'function') window.initFilterRoot();
-        if (typeof window.initTreeTogglers === 'function') window.initTreeTogglers();
-        if (typeof window.initAssetSelection === 'function') window.initAssetSelection();
-        if (typeof window.initFilterFieldDatalist === 'function') window.initFilterFieldDatalist();
-    });
-</script>
 {% endblock %}
 ```
 
@@ -6028,140 +6879,142 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 ### 📄 `templates/scans.html`
 
 ```html
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Сканирования | Asset Manager</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
-</head>
-<body>
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Sidebar -->
-            <div class="col-md-3 col-lg-2 sidebar p-3 d-none d-md-block">
-                <h5 class="mb-3"><i class="bi bi-folder-tree"></i> Группы</h5>
+{% extends "base.html" %}
+
+{% block title %}Сканирования | Asset Manager{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <!-- Sidebar (Группы) -->
+        <div class="col-md-3 col-lg-2 d-none d-md-block">
+            <div class="sticky-top" style="top: 20px;">
                 {% include 'components/group_tree.html' %}
             </div>
+        </div>
 
-            <!-- Main Content -->
-            <div class="col-md-9 col-lg-10 p-4">
-                <nav class="navbar navbar-light mb-4 px-3">
-                    <span class="navbar-brand mb-0 h1"><i class="bi bi-wifi"></i> Сканирования</span>
-                    <div class="d-flex align-items-center">
-                        <button class="theme-toggle me-2" onclick="toggleTheme()" aria-label="Переключить тему">
-                            <i class="bi bi-moon"></i><i class="bi bi-sun"></i>
-                        </button>
-                        <a href="{{ url_for('main.index') }}" class="btn btn-outline-dark"><i class="bi bi-arrow-left"></i> На главную</a>
-                    </div>
-                </nav>
-
-                <!-- Flash Messages -->
-                {% with messages = get_flashed_messages(with_categories=true) %}
-                    {% if messages %}
-                        {% for c, m in messages %}
-                        <div class="alert alert-{{ c }} alert-dismissible fade show" role="alert">
-                            {{ m }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                        {% endfor %}
-                    {% endif %}
-                {% endwith %}
-
-                <!-- Profiles -->
-                <div class="card mb-3 bg-light">
-                    <div class="card-body py-2 d-flex align-items-center gap-3 flex-wrap">
-                        <label class="fw-bold mb-0"><i class="bi bi-collection"></i> Профили:</label>
-                        <select id="scan-profile-select" class="form-select form-select-sm" style="width: 250px;">
-                            <option value="">-- Без профиля --</option>
-                            {% for p in profiles %}
-                                <option value="{{ p.id }}" data-json='{{ p.to_dict()|tojson|forceescape }}'>{{ p.name }} ({{ p.scan_type }})</option>
-                            {% endfor %}
-                        </select>
-                        <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#saveProfileModal">
-                            <i class="bi bi-save"></i> Сохранить
-                        </button>
-                        <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteCurrentProfile()">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
+        <!-- Main Content -->
+        <div class="col-md-9 col-lg-10">
+            <nav class="navbar navbar-light mb-4 px-0">
+                <span class="navbar-brand mb-0 h1"><i class="bi bi-wifi"></i> Сканирования</span>
+                <div class="d-flex align-items-center">
+                    <button class="theme-toggle me-2" onclick="toggleTheme()" aria-label="Переключить тему">
+                        <i class="bi bi-moon"></i><i class="bi bi-sun"></i>
+                    </button>
+                    <a href="{{ url_for('main.index') }}" class="btn btn-outline-dark btn-sm"><i class="bi bi-arrow-left"></i> На главную</a>
                 </div>
+            </nav>
 
-                <!-- Scan Form -->
-                <div class="card mb-4">
-                    <div class="card-header"><i class="bi bi-plus-circle"></i> Новое сканирование</div>
-                    <div class="card-body">
-                        <form id="scanForm">
-                            <div class="row mb-3">
-                                <div class="col-md-6">
-                                    <label class="form-label">Тип сканирования</label>
-                                    <select id="scan-type" class="form-select" onchange="toggleScanOptions()">
-                                        <option value="rustscan">🚀 Rustscan</option>
-                                        <option value="nmap">🔍 Nmap</option>
-                                        <option value="nslookup">🌐 Nslookup (DNS)</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label">Метод выбора цели</label>
-                                    <select id="target-method" class="form-select" onchange="toggleTargetInput()">
-                                        <option value="ip">IP / CIDR</option>
-                                        <option value="group">Группа активов</option>
-                                        <option value="text">Список доменов</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="mb-3" id="target-ip-section">
-                                <label class="form-label">Цель</label>
-                                <input type="text" id="scan-target" class="form-control" placeholder="192.168.1.0/24 или 10.0.0.5">
-                            </div>
-                            <div class="mb-3" id="target-group-section" style="display: none;">
-                                <label class="form-label">Группа активов</label>
-                                <select id="scan-group" class="form-select">
-                                    <option value="">-- Выберите группу --</option>
-                                    <option value="ungrouped">📂 Без группы</option>
-                                    {% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for c, m in messages %}
+                    <div class="alert alert-{{ c }} alert-dismissible fade show" role="alert">
+                        {{ m }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Scan Form -->
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header bg-primary text-white"><i class="bi bi-plus-circle"></i> Новое сканирование</div>
+                <div class="card-body">
+                    <form id="scanForm">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Тип сканирования</label>
+                                <select id="scan-type" class="form-select" onchange="toggleScanOptions()">
+                                    <option value="rustscan">🚀 Rustscan (Быстрый)</option>
+                                    <option value="nmap">🔍 Nmap (Глубокий)</option>
+                                    <option value="nslookup">🌐 Nslookup (DNS)</option>
                                 </select>
                             </div>
-                            <div class="mb-3" id="target-text-section" style="display: none;">
-                                <label class="form-label">Список доменов (каждый с новой строки)</label>
-                                <textarea id="scan-target-text" class="form-control" rows="6" placeholder="example.com&#10;google.com&#10;github.com"></textarea>
+                            <div class="col-md-6">
+                                <label class="form-label">Метод выбора цели</label>
+                                <select id="target-method" class="form-select" onchange="toggleTargetInput()">
+                                    <option value="ip">IP / CIDR</option>
+                                    <option value="group">Группа активов</option>
+                                    <option value="text">Список доменов</option>
+                                </select>
                             </div>
-                            <div class="mb-3" id="ports-section" style="display: none;">
-                                <label class="form-label">Порты (для Nmap)</label>
-                                <input type="text" id="scan-ports" class="form-control" placeholder="22,80,443 или 1-1000">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label"><i class="bi bi-sliders"></i> Кастомные аргументы</label>
-                                <input type="text" id="scan-custom-args" class="form-control" placeholder="--batch-size 500 (Rustscan) или -sS -T4 (Nmap)">
-                            </div>
-                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                                <button type="button" class="btn btn-secondary" onclick="resetScanForm()"><i class="bi bi-arrow-counterclockwise"></i> Сброс</button>
-                                <button type="submit" class="btn btn-primary"><i class="bi bi-play-fill"></i> Запустить</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-
-                <!-- Active Scans -->
-                <div class="card mb-4">
-                    <div class="card-header"><i class="bi bi-activity"></i> Активные сканирования</div>
-                    <div class="card-body">
-                        <div id="active-scans">
-                            <p class="text-muted mb-0"><i class="bi bi-check-circle"></i> Нет активных сканирований</p>
                         </div>
-                    </div>
+                        
+                        <!-- Цели -->
+                        <div class="mb-3" id="target-ip-section">
+                            <label class="form-label">Цель (IP или диапазон)</label>
+                            <input type="text" id="scan-target" class="form-control" placeholder="192.168.1.0/24">
+                        </div>
+                        <div class="mb-3" id="target-group-section" style="display: none;">
+                            <label class="form-label">Группа активов</label>
+                            <select id="scan-group" class="form-select">
+                                <option value="">-- Выберите группу --</option>
+                                <option value="ungrouped">📂 Без группы</option>
+                                {% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3" id="target-text-section" style="display: none;">
+                            <label class="form-label">Список доменов (каждый с новой строки)</label>
+                            <textarea id="scan-target-text" class="form-control" rows="4" placeholder="example.com&#10;google.com"></textarea>
+                        </div>
+                        
+                        <!-- Доп. настройки -->
+                        <div class="mb-3" id="dns-server-section" style="display: none;">
+                            <label class="form-label">DNS-сервер</label>
+                            <input type="text" id="scan-dns-server" class="form-control" value="77.88.8.8">
+                        </div>
+                        <div class="mb-3" id="ports-section" style="display: none;">
+                            <label class="form-label">Порты</label>
+                            <input type="text" id="scan-ports" class="form-control" placeholder="22,80,443 или 1-1000">
+                        </div>
+                        <div class="mb-3" id="nslookup-args-section" style="display: none;">
+                            <label class="form-label">Аргументы nslookup</label>
+                            <input type="text" id="scan-nslookup-args" class="form-control" placeholder="-querytype=A">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label"><i class="bi bi-sliders"></i> Кастомные аргументы</label>
+                            <input type="text" id="scan-custom-args" class="form-control" placeholder="--batch-size 500">
+                        </div>
+                        
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-secondary" onclick="resetScanForm()"><i class="bi bi-arrow-counterclockwise"></i> Сброс</button>
+                            <button type="submit" class="btn btn-primary"><i class="bi bi-play-fill"></i> Запустить</button>
+                        </div>
+                    </form>
                 </div>
+            </div>
 
-                <!-- History -->
-                <div class="card">
-                    <div class="card-header"><i class="bi bi-clock-history"></i> История сканирований</div>
-                    <div class="card-body p-0">
-                        <table class="table table-hover mb-0" id="history-table">
+            <!-- Активные сканирования (Основной блок) -->
+            <div class="card mb-4 shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-activity"></i> Активные сканирования</h5>
+                    <button class="btn btn-sm btn-light" onclick="pollActiveScans()"><i class="bi bi-arrow-clockwise"></i></button>
+                </div>
+                <div class="card-body" id="active-scans">
+                    <p class="text-muted mb-0 text-center"><i class="bi bi-check-circle"></i> Нет активных сканирований</p>
+                </div>
+            </div>
+
+            <!-- История -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> История сканирований</h5>
+                    <button class="btn btn-sm btn-light" onclick="updateScanHistory()"><i class="bi bi-arrow-clockwise"></i></button>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm mb-0" id="history-table">
                             <thead class="table-light">
-                                <tr><th>ID</th><th>Тип</th><th>Цель</th><th>Статус</th><th>Прогресс</th><th>Начало</th><th>Действия</th></tr>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Тип</th>
+                                    <th>Цель</th>
+                                    <th>Статус</th>
+                                    <th>Прогресс</th>
+                                    <th>Начало</th>
+                                    <th>Действия</th>
+                                </tr>
                             </thead>
                             <tbody>
                                 {% for job in scan_jobs %}
@@ -6176,24 +7029,27 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
                                         </span>
                                     </td>
                                     <td>
-                                        <div class="progress" style="width:100px"><div class="progress-bar" style="width:{{ job.progress }}%"></div></div>
-                                        <small class="progress-text">{{ job.progress }}%</small>
+                                        <div class="progress" style="width:80px"><div class="progress-bar" style="width:{{ job.progress }}%"></div></div>
+                                        <small>{{ job.progress }}%</small>
                                     </td>
-                                    <td>{{ job.started_at.strftime('%Y-%m-%d %H:%M') if job.started_at else '-' }}</td>
+                                    <td>{{ job.started_at.strftime('%H:%M:%S') if job.started_at else '-' }}</td>
                                     <td>
                                         {% if job.status=='pending' %}
-                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'delete')"><i class="bi bi-trash"></i></button>
+                                            <!-- Кнопка удаления для Pending -->
+                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'delete')" title="Удалить"><i class="bi bi-trash"></i></button>
+                                        
                                         {% elif job.status=='running' %}
-                                            <button class="btn btn-sm btn-outline-warning" onclick="controlScan('{{ job.id }}', 'pause')"><i class="bi bi-pause-fill"></i></button>
-                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'stop')"><i class="bi bi-stop-fill"></i></button>
-                                        {% elif job.status=='paused' %}
-                                            <button class="btn btn-sm btn-outline-success" onclick="controlScan('{{ job.id }}', 'resume')"><i class="bi bi-play-fill"></i></button>
-                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'stop')"><i class="bi bi-stop-fill"></i></button>
+                                            <!-- УДАЛЕНО: Кнопка Pause -->
+                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'stop')" title="Остановить"><i class="bi bi-stop-fill"></i></button>
+                                            <button class="btn btn-sm btn-outline-success" onclick="controlScan('{{ job.id }}', 'rerun')" title="Повторить"><i class="bi bi-arrow-clockwise"></i></button>
+                                        
                                         {% elif job.status in ['completed','failed','stopped'] %}
-                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'delete')"><i class="bi bi-trash"></i></button>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="controlScan('{{ job.id }}', 'delete')" title="Удалить"><i class="bi bi-trash"></i></button>
+                                            <button class="btn btn-sm btn-outline-success" onclick="controlScan('{{ job.id }}', 'rerun')" title="Повторить"><i class="bi bi-arrow-clockwise"></i></button>
                                         {% endif %}
+                                        
                                         {% if job.status!='pending' %}
-                                            <button class="btn btn-sm btn-outline-info" onclick="viewScanResults('{{ job.id }}')"><i class="bi bi-eye"></i></button>
+                                            <button class="btn btn-sm btn-outline-info" onclick="viewScanResults('{{ job.id }}')" title="Результаты"><i class="bi bi-eye"></i></button>
                                         {% endif %}
                                     </td>
                                 </tr>
@@ -6207,210 +7063,284 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
             </div>
         </div>
     </div>
+</div>
 
-    <!-- Modals -->
-    <div class="modal fade" id="scanResultsModal" tabindex="-1">
-        <div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Результаты</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div id="scan-results-content"></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button></div></div></div>
+<!-- Modals -->
+<div class="modal fade" id="scanResultsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Результаты</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body"><div id="scan-results-content"></div></div>
+            <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button></div>
+        </div>
     </div>
-    <div class="modal fade" id="saveProfileModal" tabindex="-1">
-        <div class="modal-dialog modal-sm"><div class="modal-content"><div class="modal-header"><h6>💾 Сохранить профиль</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="text" id="profile-name-input" class="form-control" placeholder="Название" required></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button><button type="button" class="btn btn-primary" onclick="saveProfile()">Сохранить</button></div></div></div>
-    </div>
+</div>
 
-    <!-- Групповые модальные окна (обязательно!) -->
-    {% include 'components/modals.html' %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}" type="module"></script>
+<script>
+    // === УПРАВЛЕНИЕ ФОРМОЙ ===
+    function toggleTargetInput(){
+        const m = document.getElementById('target-method').value;
+        document.getElementById('target-ip-section').style.display = (m === 'text' || m === 'group') ? 'none' : 'block';
+        document.getElementById('target-group-section').style.display = (m === 'group') ? 'block' : 'none';
+        document.getElementById('target-text-section').style.display = (m === 'text') ? 'block' : 'none';
+    }
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <script>
-        // === УПРАВЛЕНИЕ ФОРМОЙ ===
-        function toggleTargetInput(){
-            const m=document.getElementById('target-method').value;
-            document.getElementById('target-ip-section').style.display=m==='text'||m==='group'?'none':'block';
-            document.getElementById('target-group-section').style.display=m==='group'?'block':'none';
-            document.getElementById('target-text-section').style.display=m==='text'?'block':'none';
-        }
-        function toggleScanOptions(){
-            const t=document.getElementById('scan-type').value;
-            document.getElementById('ports-section').style.display=t==='nmap'?'block':'none';
-            // Для nslookup всегда показываем текстовое поле
-            if(t==='nslookup'){
-                document.getElementById('target-method').value='text';
-                toggleTargetInput();
-            }
-        }
-        function resetScanForm(){
-            document.getElementById('scanForm').reset();
-            toggleTargetInput(); toggleScanOptions();
-        }
+    function toggleScanOptions(){
+        const t = document.getElementById('scan-type').value;
+        const portsSec = document.getElementById('ports-section');
+        const dnsSec = document.getElementById('dns-server-section');
+        const nsArgsSec = document.getElementById('nslookup-args-section');
+        const targetMethod = document.getElementById('target-method');
 
-        // === ЗАПУСК СКАНИРОВАНИЯ ===
-        document.getElementById('scanForm').addEventListener('submit', async e=>{
-            e.preventDefault();
-            const t=document.getElementById('scan-type').value;
-            const m=document.getElementById('target-method').value;
-            
-            // Обработка nslookup
-            if(t==='nslookup'){
-                const targetText=document.getElementById('scan-target-text').value;
-                if(!targetText||!targetText.trim()){alert('⚠️ Введите список доменов');return;}
-                try{
-                    const res=await fetch(`/api/scans/nslookup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({target_text:targetText})});
-                    const d=await res.json();
-                    if(res.ok){ alert(`✅ ${d.message}`); location.reload(); } else alert(`❌ ${d.error}`);
-                }catch(err){ alert(`❌ Ошибка сети: ${err.message}`); }
+        portsSec.style.display = (t === 'nmap' || t === 'rustscan') ? 'block' : 'none';
+        dnsSec.style.display = (t === 'nslookup') ? 'block' : 'none';
+        nsArgsSec.style.display = (t === 'nslookup') ? 'block' : 'none';
+
+        // Автоматическое переключение на "Список доменов" для nslookup
+        if(t === 'nslookup'){
+            targetMethod.value = 'text';
+            toggleTargetInput();
+        }
+    }
+
+    function resetScanForm(){
+        document.getElementById('scanForm').reset();
+        toggleTargetInput(); 
+        toggleScanOptions();
+    }
+
+    // === ЗАПУСК СКАНИРОВАНИЯ ===
+    document.getElementById('scanForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const t = document.getElementById('scan-type').value;
+        const m = document.getElementById('target-method').value;
+        
+        let url = '';
+        let payload = {};
+
+        if(t === 'nslookup'){
+            const targetText = document.getElementById('scan-target-text').value;
+            if(!targetText || !targetText.trim()){
+                alert('⚠️ Введите список доменов');
                 return;
             }
+            url = '/api/scans/nslookup';
+            payload = {
+                targets: targetText,
+                dns_server: document.getElementById('scan-dns-server').value || '77.88.8.8',
+                nslookup_args: document.getElementById('scan-nslookup-args').value || ''
+            };
+        } else {
+            // Rustscan или Nmap
+            let targetVal = null;
+            if(m === 'ip') targetVal = document.getElementById('scan-target').value;
+            else if(m === 'group') targetVal = 'group:' + document.getElementById('scan-group').value;
             
-            const tg=m==='ip'?document.getElementById('scan-target').value:null;
-            const gr=m==='group'?document.getElementById('scan-group').value:null;
-            if(m==='ip'&&!tg){alert('⚠️ Укажите цель');return;}
-            if(m==='group'&&!gr){alert('⚠️ Выберите группу');return;}
-            
-            const body={target:tg, group_id:gr};
-            if(t==='nmap' && document.getElementById('scan-ports').value) body.ports=document.getElementById('scan-ports').value;
-            if(document.getElementById('scan-custom-args').value) body.custom_args=document.getElementById('scan-custom-args').value;
-            
-            try{
-                const res=await fetch(`/api/scans/${t}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-                const d=await res.json();
-                if(res.ok){ alert(`✅ ${d.message}`); location.reload(); } else alert(`❌ ${d.error}`);
-            }catch(err){ alert(`❌ Ошибка сети: ${err.message}`); }
-        });
+            if(!targetVal){
+                alert('⚠️ Укажите цель');
+                return;
+            }
 
-        // === ПРОСМОТР РЕЗУЛЬТАТОВ ===
-        async function viewScanResults(id){
-            const m=new bootstrap.Modal(document.getElementById('scanResultsModal'));
-            const c=document.getElementById('scan-results-content');
-            c.innerHTML='<div class="text-center"><div class="spinner-border"></div><p class="mt-2">Загрузка...</p></div>';
-            m.show();
-            try{
-                const r=await fetch(`/api/scans/${id}/results`);
-                const d=await r.json();
-                let h=`<h6>#${d.job.id} - ${d.job.scan_type.toUpperCase()}</h6><p><strong>Цель:</strong> ${d.job.target}</p><p><strong>Статус:</strong> ${d.job.status}</p><hr>`;
+            if(t === 'rustscan') url = '/api/scans/rustscan';
+            else if(t === 'nmap') url = '/api/scans/nmap';
+
+            payload = {
+                target: targetVal,
+                ports: document.getElementById('scan-ports').value || '-',
+                extra_args: document.getElementById('scan-custom-args').value || ''
+            };
+            if(t === 'nmap') payload.scripts = document.getElementById('scan-ports').value; // Упрощено
+        }
+
+        try{
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const d = await res.json();
+            if(res.ok){ 
+                alert(`✅ ${d.message || 'Запущено'}`); 
+                location.reload(); 
+            } else {
+                alert(`❌ ${d.error}`);
+            }
+        } catch(err){ 
+            alert(`❌ Ошибка сети: ${err.message}`); 
+        }
+    });
+
+    // === ПРОСМОТР РЕЗУЛЬТАТОВ ===
+    async function viewScanResults(id){
+        const m = new bootstrap.Modal(document.getElementById('scanResultsModal'));
+        const c = document.getElementById('scan-results-content');
+        c.innerHTML = '<div class="text-center"><div class="spinner-border"></div><p class="mt-2">Загрузка...</p></div>';
+        m.show();
+        
+        try{
+            const r = await fetch(`/api/scans/${id}/results`);
+            const d = await r.json();
+            
+            let h = `<h6>#${d.job.id} - ${d.job.scan_type.toUpperCase()}</h6>`;
+            h += `<p><strong>Цель:</strong> ${d.job.target}</p>`;
+            h += `<p><strong>Статус:</strong> <span class="badge bg-${d.job.status==='completed'?'success':'danger'}">${d.job.status}</span></p>`;
+            
+            if(d.job.error_message){
+                h += `<div class="alert alert-danger"><pre class="mb-0">${d.job.error_message}</pre></div>`;
+            }
+
+            if(d.job.scan_type === 'nslookup' && d.job.nslookup_output){
+                h += `<pre class="bg-light p-3 border rounded" style="max-height:400px;overflow:auto;">${d.job.nslookup_output.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`;
+            } else if(d.results && d.results.length > 0) {
+                h += `<p><strong>Найдено хостов:</strong> ${d.results.length}</p>`;
+                h += `<ul class="list-group">`;
+                d.results.forEach(x => {
+                    h += `<li class="list-group-item"><strong>${x.ip}</strong> ${x.domain ? '('+x.domain+')' : ''}</li>`;
+                });
+                h += `</ul>`;
+            } else {
+                h += '<p class="text-muted">Нет деталей результатов</p>';
+            }
+            
+            c.innerHTML = h;
+        } catch(err){ 
+            c.innerHTML = `<div class="alert alert-danger">❌ ${err.message}</div>`; 
+        }
+    }
+
+    // === УПРАВЛЕНИЕ ЗАДАНИЯМИ (Удаление, Стоп, Реран) ===
+    async function controlScan(id, action){
+        if(action === 'delete' && !confirm('Удалить запись о сканировании?')) return;
+        if(action === 'stop' && !confirm('Остановить сканирование?')) return;
+        if(action === 'rerun' && !confirm('Повторить сканирование?')) return;
+
+        try{
+            let url, method, body;
+            
+            if(action === 'delete'){
+                url = `/api/scans/${id}`;
+                method = 'DELETE';
+                body = null;
+            } else {
+                url = `/api/scans/${id}/control`;
+                method = 'POST';
+                body = JSON.stringify({action: action});
+            }
+
+            const r = await fetch(url, {
+                method: method,
+                headers: {'Content-Type': 'application/json'},
+                body: body
+            });
+            
+            const d = await r.json();
+            if(r.ok){
+                if(action === 'delete'){
+                    const row = document.getElementById(`scan-row-${id}`);
+                    if(row) row.remove();
+                    if (typeof window.pollActiveScans === 'function') { window.pollActiveScans(); }
+                } else {
+                    location.reload();
+                }
+            } else {
+                alert(`❌ ${d.error}`);
+            }
+        } catch(err){ 
+            alert(`❌ Ошибка: ${err.message}`); 
+        }
+    }
+
+    // === ПОЛЛИНГ АКТИВНЫХ (Обновляет и основной блок, и сайдбар) ===
+    function pollActiveScans(){
+        fetch('/api/scans/status')
+        .then(r => r.json())
+        .then(d => {
+            const mainContainer = document.getElementById('active-scans');
+            const sidebarContainer = document.getElementById('sidebar-active-scans');
+            
+            if(!mainContainer) return;
+
+            if(d.active && d.active.length > 0){
+                let html = '<div class="row g-2">';
+                d.active.forEach(j => {
+                    const badgeClass = j.status === 'running' ? 'bg-warning text-dark' : 'bg-info';
+                    const progressClass = j.status === 'running' ? 'progress-bar-striped progress-bar-animated' : '';
+                    
+                    const cardHtml = `
+                        <div class="col-md-6 col-lg-12">
+                            <div class="card border-${j.status==='running'?'warning':'info'} h-100">
+                                <div class="card-body p-2">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <small class="fw-bold">${j.scan_type.toUpperCase()}</small>
+                                        <span class="badge ${badgeClass}">${j.status}</span>
+                                    </div>
+                                    <div class="progress mb-1" style="height: 6px;">
+                                        <div class="progress-bar ${progressClass}" style="width: ${j.progress}%"></div>
+                                    </div>
+                                    <small class="text-truncate d-block" title="${j.target}">${j.target}</small>
+                                    <small class="text-muted">${j.progress}%</small>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    html += cardHtml;
+                });
+                html += '</div>';
                 
-                // Обработка nslookup
-                if(d.job.scan_type==='nslookup'){
-                    if(d.job.nslookup_output){
-                        h+=`<pre class="bg-light p-3" style="max-height:400px;overflow:auto;">${d.job.nslookup_output.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`;
-                        h+=`<a href="/scans/${id}/download/text" class="btn btn-outline-primary mt-2"><i class="bi bi-download"></i> Скачать результаты</a>`;
-                    } else {
-                        h+='<p class="text-muted">Нет результатов</p>';
-                    }
-                }
-                else if(d.results.length===0) {
-                    h+='<p class="text-muted">Нет результатов</p>';
-                }
-                else{
-                    h+=`<p><strong>Хостов:</strong> ${d.results.length}</p><div class="list-group">`;
-                    d.results.forEach(x=>{
-                        h+=`<div class="list-group-item"><div class="d-flex justify-content-between"><h6 class="mb-1">${x.ip}</h6><small>${x.scanned_at}</small></div><p class="mb-1"><strong>Порты:</strong> ${x.ports.join(', ')||'Нет'}</p></div>`;
-                    });
-                    h+='</div>';
-                }
-                c.innerHTML=h;
-            }catch(err){ c.innerHTML=`<div class="alert alert-danger">❌ ${err.message}</div>`; }
-        }
+                mainContainer.innerHTML = html;
+                if(sidebarContainer) sidebarContainer.innerHTML = html;
+            } else {
+                const emptyMsg = '<p class="text-muted mb-0 text-center"><i class="bi bi-check-circle"></i> Нет активных сканирований</p>';
+                mainContainer.innerHTML = emptyMsg;
+                if(sidebarContainer) sidebarContainer.innerHTML = emptyMsg;
+            }
+        })
+        .catch(e => console.warn('Poll error:', e));
+    }
 
-        // === УПРАВЛЕНИЕ ЗАДАНИЯМИ ===
-        async function controlScan(id, action){
-            if(action==='delete' && !confirm('Удалить запись?')) return;
-            if(action==='stop' && !confirm('Остановить сканирование?')) return;
-            try{
-                const r=await fetch(`/api/scans/${id}/control`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action})});
-                const d=await r.json();
-                if(r.ok) location.reload(); else alert(`❌ ${d.error}`);
-            }catch(err){ alert(`❌ Ошибка: ${err.message}`); }
-        }
-
-        // === ПРОФИЛИ ===
-        async function saveProfile(){
-            const n=document.getElementById('profile-name-input').value;
-            if(!n) return alert('Введите название');
-            const p={name:n, scan_type:document.getElementById('scan-type').value, target_method:document.getElementById('target-method').value, ports:document.getElementById('scan-ports').value, custom_args:document.getElementById('scan-custom-args').value};
-            const r=await fetch('/api/scans/profiles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)});
-            if(r.ok) location.reload(); else alert('❌ Ошибка сохранения');
-        }
-        async function deleteCurrentProfile(){
-            const id=document.getElementById('scan-profile-select').value;
-            if(!id) return alert('Выберите профиль');
-            if(!confirm('Удалить профиль?')) return;
-            await fetch(`/api/scans/profiles/${id}`,{method:'DELETE'});
-            location.reload();
-        }
-
-        // === ПОЛЛИНГ АКТИВНЫХ И ИСТОРИИ ===
-        function pollActiveScans(){
-            fetch('/api/scans/status').then(r=>r.json()).then(d=>{
-                const c=document.getElementById('active-scans');
-                if(d.active?.length){
-                    let h='<div class="row">';
-                    d.active.forEach(j=>{
-                        const cls=j.status==='running'?'progress-bar-striped progress-bar-animated':'';
-                        const b=j.scan_type==='rustscan'?'bg-danger':'bg-info text-dark';
-                        const s=j.status==='running'?'bg-warning text-dark':j.status==='paused'?'bg-info text-dark':'bg-secondary';
-                        h+=`<div class="col-md-6 mb-3"><div class="card border-${j.status==='failed'?'danger':j.status==='running'?'warning':'info'}"><div class="card-body"><div class="d-flex justify-content-between align-items-center mb-2"><h6 class="mb-0"><span class="badge ${b} me-2">${j.scan_type.toUpperCase()}</span>${j.target}</h6><span class="badge ${s}">${j.status}</span></div><div class="progress mb-2" style="height:6px"><div class="progress-bar ${cls}" style="width:${j.progress}%"></div></div><small>${j.current_target&&j.status==='running'?`📡 ${j.current_target}<br>`:''}Прогресс: ${j.progress}%</small></div></div></div>`;
-                    });
-                    h+='</div>'; c.innerHTML=h;
-                } else c.innerHTML='<p class="text-muted mb-0"><i class="bi bi-check-circle"></i> Нет активных сканирований</p>';
-            }).catch(e=>console.warn('⚠️ Active poll error:',e));
-        }
-
-        async function updateScanHistory(){
-            try{
-                const res=await fetch('/api/scans/history');
-                if(!res.ok) return;
-                const jobs=await res.json();
-                const tbody=document.querySelector('#history-table tbody');
-                if(!tbody) return;
-
-                jobs.forEach(j=>{
-                    const row=document.getElementById(`scan-row-${j.id}`);
-                    if(!row){
-                        // Если строки нет, просто перезагрузим для простоты (или можно добавить динамически)
-                        // Для надежности оставим частичное обновление существующих строк
-                        return; 
-                    }
-                    const badge=row.querySelector('.status-badge');
-                    if(badge){
-                        badge.textContent=j.status;
-                        badge.className=`badge status-badge bg-${j.status==='running'?'warning text-dark':j.status==='completed'?'success':'danger'}`;
+    // === ОБНОВЛЕНИЕ ИСТОРИИ (Частичное) ===
+    async function updateScanHistory(){
+        try{
+            const res = await fetch('/api/scans/history');
+            if(!res.ok) return;
+            const jobs = await res.json();
+            
+            jobs.forEach(j => {
+                const row = document.getElementById(`scan-row-${j.id}`);
+                if(row){
+                    const badge = row.querySelector('.status-badge');
+                    if(badge && badge.textContent !== j.status){
+                        badge.textContent = j.status;
+                        badge.className = `badge status-badge bg-${j.status==='running'?'warning text-dark':j.status==='completed'?'success':'danger'}`;
                         if(j.error_message){
-                            badge.setAttribute('data-bs-toggle','tooltip');
-                            badge.setAttribute('title',j.error_message.replace(/\n/g,' ').replace(/"/g,'&quot;'));
-                            new bootstrap.Tooltip(badge);
+                            badge.setAttribute('data-bs-toggle', 'tooltip');
+                            badge.setAttribute('title', j.error_message);
                         }
                     }
-                    const bar=row.querySelector('.progress-bar');
-                    const txt=row.querySelector('.progress-text');
-                    if(bar) bar.style.width=`${j.progress}%`;
-                    if(txt) txt.textContent=`${j.progress}%`;
-                });
-            }catch(e){console.warn('History poll error:',e);}
-        }
-
-        // === ИНИЦИАЛИЗАЦИЯ ===
-        document.addEventListener('DOMContentLoaded',()=>{
-            toggleTargetInput(); toggleScanOptions();
-            pollActiveScans(); setInterval(pollActiveScans, 5000);
-            updateScanHistory(); setInterval(updateScanHistory, 8000);
-            
-            // Профили
-            const ps=document.getElementById('scan-profile-select');
-            if(ps) ps.addEventListener('change',function(){
-                const o=this.options[this.selectedIndex];
-                if(o.dataset.json){
-                    const p=JSON.parse(o.dataset.json);
-                    document.getElementById('scan-type').value=p.scan_type;
-                    document.getElementById('target-method').value=p.target_method||'ip';
-                    toggleTargetInput(); toggleScanOptions();
-                    document.getElementById('scan-ports').value=p.ports||'';
-                    document.getElementById('scan-custom-args').value=p.custom_args||'';
+                    const bar = row.querySelector('.progress-bar');
+                    const txt = row.querySelector('small'); 
+                    if(bar) bar.style.width = `${j.progress}%`;
+                    if(txt && txt.textContent.includes('%')) txt.textContent = `${j.progress}%`;
                 }
             });
-        });
-    </script>
-</body>
-</html>
+        } catch(e){ console.warn('History update error', e); }
+    }
+
+    // === ИНИЦИАЛИЗАЦИЯ ===
+    document.addEventListener('DOMContentLoaded', () => {
+        toggleTargetInput(); 
+        toggleScanOptions();
+        
+ if (typeof window.pollActiveScans === 'function') { window.pollActiveScans(); }
+        setInterval(window.pollActiveScans, 3000);
+
+        if (typeof window.updateScanHistory === 'function') { window.updateScanHistory(); }
+        setInterval(window.updateScanHistory, 5000);
+    });
+</script>
+{% endblock %}
 ```
 
 ### 📄 `templates/utilities.html`
@@ -6483,97 +7413,10 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
             <i class="bi bi-plus-lg"></i>
         </button>
     </div>
-
-    <!-- Дерево групп -->
-    <div class="group-tree" id="groupTree">
-        <ul class="list-group list-group-flush">
-            <!-- 🔹 Группа "Без группы" -->
-            <li class="list-group-item px-0 border-0">
-                <div class="group-item d-flex align-items-center justify-content-between py-2 {% if current_filter == 'ungrouped' or current_filter is none %}active{% endif %}" 
-                     data-group-id="ungrouped" 
-                     data-bs-toggle="tooltip" 
-                     title="Активы без группы">
-                    <div class="d-flex align-items-center flex-grow-1" 
-                         style="cursor:pointer" 
-                         onclick="filterByGroup('ungrouped')">
-                        <span class="me-2" style="width:16px"></span>
-                        <i class="bi bi-folder-minus-fill text-muted me-2"></i>
-                        <span class="group-name flex-grow-1">Без группы</span>
-                        <span class="badge bg-light text-dark rounded-pill ms-2 group-count" id="ungrouped-count">
-                            {{ ungrouped_count if ungrouped_count is defined else 0 }}
-                        </span>
-                    </div>
-                </div>
-            </li>
-
-            <!-- 🔹 Статические и динамические группы -->
-            {% if group_tree %}
-                {% macro render_groups(nodes, level=0) %}
-                    {% for node in nodes %}
-                    <li class="list-group-item px-0 border-0" style="padding-left:{{ level * 20 }}px !important">
-                        <div class="group-item d-flex align-items-center justify-content-between py-2 {% if node.is_dynamic %}group-dynamic{% endif %} {% if current_filter == node.id|string %}active{% endif %}" 
-                             data-group-id="{{ node.id }}" 
-                             data-bs-toggle="tooltip" 
-                             title="{% if node.is_dynamic %}Динамическая группа (по фильтру){% else %}Статическая группа{% endif %}">
-                            
-                            <div class="d-flex align-items-center flex-grow-1" 
-                                 style="cursor:pointer" 
-                                 onclick="filterByGroup({{ node.id }})">
-                                
-                                <!-- Иконка сворачивания/разворачивания -->
-                                {% if node.children %}
-                                    <i class="bi bi-caret-right-fill me-2 text-muted group-toggle" 
-                                       data-group-id="{{ node.id }}" 
-                                       onclick="event.stopPropagation(); toggleGroup(this, {{ node.id }})"
-                                       title="Развернуть/свернуть"></i>
-                                {% else %}
-                                    <span class="me-2" style="width:16px"></span>
-                                {% endif %}
-                                
-                                <!-- Иконка типа группы -->
-                                <i class="bi {% if node.is_dynamic %}bi-lightning-charge-fill text-warning{% else %}bi-folder-fill text-primary{% endif %} me-2"
-                                   title="{% if node.is_dynamic %}Динамическая{% else %}Статическая{% endif %}"></i>
-                                
-                                <!-- Название группы -->
-                                <span class="group-name flex-grow-1 text-truncate" title="{{ node.name }}">
-                                    {{ node.name }}
-                                </span>
-                                
-                                <!-- 🔥 Счётчик активов с data-атрибутом для обновления -->
-                                <span class="badge bg-light text-dark rounded-pill ms-2 group-count" 
-                                      data-group-id="{{ node.id }}">
-                                    {{ node.count }}
-                                </span>
-                            </div>
-                            
-                            <!-- 🔹 Кнопки действий (появляются при наведении) -->
-                            <div class="group-actions btn-group">
-                                <button class="btn btn-sm btn-link text-muted p-0 me-1" 
-                                        onclick="event.stopPropagation(); showRenameModal({{ node.id }})" 
-                                        title="Переименовать">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-sm btn-link text-muted p-0" 
-                                        onclick="event.stopPropagation(); showMoveModal({{ node.id }})" 
-                                        title="Переместить">
-                                    <i class="bi bi-arrow-left-right"></i>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- 🔹 Вложенные группы (скрыты по умолчанию) -->
-                        {% if node.children %}
-                            <ul class="list-group list-group-flush ms-3 d-none" id="group-children-{{ node.id }}">
-                                {{ render_groups(node.children, level + 1) }}
-                            </ul>
-                        {% endif %}
-                    </li>
-                    {% endfor %}
-                {% endmacro %}
-                
-                {{ render_groups(group_tree) }}
-            {% endif %}
-        </ul>
+    
+    <!-- Дерево групп (будет заполнено через JS) -->
+    <div id="group-tree" class="group-tree">
+        <div class="text-muted small"><i class="bi bi-hourglass-split"></i> Загрузка...</div>
     </div>
 
     <!-- 🔹 Кнопка создания корневой группы -->
@@ -6582,146 +7425,23 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
             <i class="bi bi-plus-lg me-1"></i>Новая группа
         </button>
     </div>
+    <div class="mt-4 pt-3 border-top">
+    <h6 class="text-uppercase text-muted small fw-bold mb-3">
+        <i class="bi bi-activity me-2"></i>Активные сканирования
+    </h6>
+    <div id="active-scans">
+        <div class="text-center text-muted small py-2">
+            <i class="bi bi-check-circle"></i> Нет активных задач
+        </div>
+    </div>
 </div>
-
-<!-- 🔹 Стили для компонента -->
-<style>
-    .group-tree-container {
-        background: var(--bg-body);
-        border-radius: 0.5rem;
-        padding: 0.5rem;
-    }
-    
-    .group-tree .list-group-item {
-        background: transparent;
-        border: none;
-        padding-left: 0 !important;
-    }
-    
-    .group-item {
-        border-radius: 0.375rem;
-        transition: all 0.2s ease;
-        margin-bottom: 0.25rem;
-    }
-    
-    .group-item:hover {
-        background: var(--bg-hover);
-    }
-    
-    .group-item.active {
-        background: rgba(13, 110, 253, 0.1);
-        border-left: 3px solid var(--bs-primary);
-    }
-    
-    .group-item.active .group-name {
-        color: var(--bs-primary);
-        font-weight: 600;
-    }
-    
-    .group-dynamic {
-        border-left: 2px solid var(--bs-warning);
-        padding-left: 8px !important;
-    }
-    
-    .group-toggle {
-        transition: transform 0.2s ease;
-        cursor: pointer;
-        font-size: 0.75rem;
-    }
-    
-    .group-toggle:hover {
-        color: var(--bs-primary) !important;
-    }
-    
-    .group-toggle.rotated {
-        transform: rotate(90deg);
-    }
-    
-    .group-actions {
-        opacity: 0;
-        transition: opacity 0.2s ease;
-    }
-    
-    .group-item:hover .group-actions {
-        opacity: 1;
-    }
-    
-    .group-actions .btn-link {
-        text-decoration: none;
-        font-size: 0.875rem;
-        padding: 0 0.25rem;
-    }
-    
-    .group-actions .btn-link:hover {
-        color: var(--bs-primary) !important;
-    }
-    
-    .group-count {
-        font-size: 0.75rem;
-        min-width: 24px;
-        text-align: center;
-        transition: all 0.3s ease;
-    }
-    
-    .group-count.bg-warning {
-        animation: pulse 0.5s ease;
-    }
-    
-    @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.2); }
-        100% { transform: scale(1); }
-    }
-    
-    .list-group .list-group {
-        margin-top: 0.25rem;
-    }
-    
-    .text-truncate {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        max-width: 150px;
-    }
-    
-    @media (max-width: 768px) {
-        .group-actions {
-            opacity: 1;
-        }
-        .text-truncate {
-            max-width: 100px;
-        }
-    }
-</style>
-
-<!-- 🔹 Скрипты для компонента -->
-<script>
-    // Переключение сворачивания/разворачивания вложенных групп
-    function toggleGroup(element, groupId) {
-        const children = document.getElementById(`group-children-${groupId}`);
-        if (children) {
-            children.classList.toggle('d-none');
-            element.classList.toggle('bi-caret-right-fill');
-            element.classList.toggle('bi-caret-down-fill');
-            element.classList.toggle('rotated');
-        }
-    }
-    
-    // Инициализация тултипов после загрузки
-    document.addEventListener('DOMContentLoaded', () => {
-        if (typeof bootstrap !== 'undefined') {
-            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
-        }
-    });
-</script>
+</div>
 ```
 
 ### 📄 `templates/components/modals.html`
 
 ```html
-<div class="modal fade" id="scanModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><form action="{{ url_for('main.import_scan') }}" method="post" enctype="multipart/form-data"><div class="modal-header"><h5>Импорт Nmap</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="mb-3"><label>XML файл</label><input type="file" name="file" class="form-control" accept=".xml" required></div><div class="mb-3"><label>Группа</label><select name="group_id" class="form-select"><option value="">Без группы</option>{% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}</select></div></div><div class="modal-footer"><button type="submit" class="btn btn-primary">Загрузить</button></div></form></div></div></div>
-<!-- Группы: Редактирование -->
+<!-- Универсальное окно создания/редактирования группы -->
 <div class="modal fade" id="groupEditModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -6732,38 +7452,227 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
                 </div>
                 <div class="modal-body">
                     <input type="hidden" id="edit-group-id">
-                    <div class="mb-3">
-                        <label>Название</label>
-                        <input type="text" id="edit-group-name" class="form-control" required>
+
+                    <!-- 🔥 Переключатель режимов -->
+                    <div class="btn-group w-100 mb-3" role="group">
+                        <input type="radio" class="btn-check" name="groupMode" id="modeManual" value="manual" checked
+                            onchange="toggleGroupMode()">
+                        <label class="btn btn-outline-primary" for="modeManual">📝 Ручная</label>
+
+                        <input type="radio" class="btn-check" name="groupMode" id="modeCidr" value="cidr"
+                            onchange="toggleGroupMode()">
+                        <label class="btn btn-outline-primary" for="modeCidr">🌐 По CIDR</label>
+
+                        <input type="radio" class="btn-check" name="groupMode" id="modeDynamic" value="dynamic"
+                            onchange="toggleGroupMode()">
+                        <label class="btn btn-outline-primary" for="modeDynamic">⚡ Динамическая</label>
                     </div>
-                    <div class="mb-3">
-                        <label>Родитель</label>
-                        <select id="edit-group-parent" class="form-select">
-                            <option value="">-- Корень --</option>
-                            {% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
-                        </select>
+
+                    <!-- Секция: Общие поля (Имя + Родитель) -->
+                    <div id="sectionCommon">
+                        <div class="mb-3">
+                            <label class="form-label">Название группы</label>
+                            <input type="text" id="edit-group-name" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Родительская группа</label>
+                            <!-- ✅ ИСПРАВЛЕНО: Убран цикл Jinja. Список будет заполнен через JS (populateParentSelect) -->
+                            <select id="edit-group-parent" class="form-select hierarchy-select">
+                                <option value="">-- Корень --</option>
+                            </select>
+                            <div class="form-text small text-muted">
+                                Выберите родительскую группу для вложенности.
+                            </div>
+                        </div>
                     </div>
-                    <!-- 🔥 ДОБАВЛЕНО: Переключатель динамической группы -->
-                    <div class="mb-3 form-check form-switch">
-                        <input class="form-check-input" type="checkbox" id="edit-group-dynamic">
-                        <label class="form-check-label" for="edit-group-dynamic">Динамическая группа (по фильтру)</label>
+
+                    <!-- Секция: CIDR -->
+                    <div id="sectionCidr" style="display:none;">
+                        <div class="alert alert-info small">
+                            Будут созданы подгруппы для каждой подсети указанного диапазона.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Сеть (CIDR)</label>
+                            <input type="text" id="cidr-network" class="form-control" placeholder="192.168.0.0/16">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Маска подгрупп</label>
+                            <select id="cidr-mask" class="form-select">
+                                <option value="8">/8 (Класс A, ~16 млн хостов)</option>
+                                <option value="12">/12 (Класс B частный, ~1 млн хостов)</option>
+                                <option value="16">/16 (Класс B, 65 тыс. хостов)</option>
+                                <option value="20">/20 (4096 хостов)</option>
+                                <option value="22">/22 (1024 хоста)</option>
+                                <option value="23">/23 (512 хостов)</option>
+                                <option value="24" selected>/24 (256 хостов, стандарт)</option>
+                                <option value="25">/25 (128 хостов)</option>
+                                <option value="26">/26 (64 хоста)</option>
+                                <option value="27">/27 (32 хоста)</option>
+                                <option value="28">/28 (16 хостов)</option>
+                                <option value="29">/29 (8 хостов)</option>
+                                <option value="30">/30 (4 хоста, point-to-point)</option>
+                            </select>
+                            <div class="form-text small text-muted">
+                                Выберите размер создаваемых подгрупп. Чем меньше число, тем больше хостов в группе.
+                            </div>
+                        </div>
                     </div>
-                    <div id="dynamic-filter-section" class="mb-3" style="display:none">
-                        <label>Правила фильтра</label>
-                        <div id="group-filter-root" class="filter-group"></div>
+
+                    <!-- Секция: Динамическая -->
+                    <div id="sectionDynamic" style="display:none;">
+                        <div class="alert alert-warning small">
+                            Активы будут добавляться автоматически при совпадении с правилами.
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold">Правила фильтрации:</label>
+                            <div id="group-filter-root" class="border rounded p-2 bg-light" style="min-height: 60px;">
+                                <!-- Правила добавляются через JS -->
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-success mt-2"
+                                onclick="addDynamicRule()">
+                                <i class="bi bi-plus-circle"></i> Добавить правило
+                            </button>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                     <button type="submit" class="btn btn-primary">Сохранить</button>
                 </div>
             </form>
         </div>
     </div>
-</div><div class="modal fade" id="groupMoveModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><form id="groupMoveForm"><div class="modal-header"><h5>Переместить</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" id="move-group-id"><div class="mb-3"><label>Новый родитель</label><select id="move-group-parent" class="form-select"></select></div></div><div class="modal-footer"><button type="submit" class="btn btn-primary">Переместить</button></div></form></div></div></div>
-<div class="modal fade" id="groupDeleteModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="text-danger">Удаление</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" id="delete-group-id"><p class="text-warning"><i class="bi bi-exclamation-triangle"></i> Вы уверены?</p><div class="mb-3"><label>Перенести активы:</label><select id="delete-move-assets" class="form-select"></select></div></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button><button type="button" class="btn btn-danger" onclick="confirmDeleteGroup()">Удалить</button></div></div></div></div>
-<div class="modal fade" id="bulkDeleteModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="text-danger">Удаление активов</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><p>Удалить <strong id="bulk-delete-count">0</strong> активов?</p></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button><button type="button" class="btn btn-danger" onclick="executeBulkDelete()">Удалить</button></div></div></div></div>
-<div class="modal fade" id="wazuhModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h6>⚙️ Настройка Wazuh API</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="mb-2"><label>URL API</label><input type="text" id="waz-url" class="form-control form-control-sm" placeholder="https://manager:55000"></div><div class="mb-2"><label>Логин</label><input type="text" id="waz-user" class="form-control form-control-sm" placeholder="wazuh"></div><div class="mb-2"><label>Пароль</label><input type="password" id="waz-pass" class="form-control form-control-sm" placeholder="••••••"></div><div class="form-check form-switch mb-2"><input class="form-check-input" type="checkbox" id="waz-ssl"><label class="form-check-label small">Проверять SSL</label></div><div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="waz-active" checked><label class="form-check-label small">Включить интеграцию</label></div><button class="btn btn-sm btn-success w-100" onclick="saveWazuhConfig()">💾 Сохранить и синхронизировать</button><div id="waz-status" class="mt-2 small text-center text-muted"></div></div></div></div></div>
-<!-- 🔥 НОВОЕ: Модальное окно для просмотра ошибок -->
+</div>
+
+<!-- Заглушка для старого ID создания (перенаправляет на groupEditModal) -->
+<div class="modal fade" id="groupCreateModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-body text-center p-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 small text-muted">Открытие мастера...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Перемещение группы -->
+<div class="modal fade" id="groupMoveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="groupMoveForm">
+                <div class="modal-header">
+                    <h5>Переместить группу</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="move-group-id">
+                    <div class="mb-3">
+                        <label class="form-label">Новый родитель</label>
+                        <select id="move-group-parent" class="form-select"></select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Переместить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Удаление группы -->
+<div class="modal fade" id="groupDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="text-danger">Удаление группы</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="delete-group-id">
+                <p class="text-warning"><i class="bi bi-exclamation-triangle"></i> Вы уверены?</p>
+                <div class="mb-3">
+                    <label class="form-label">Перенести активы в:</label>
+                    <select id="delete-move-assets" class="form-select">
+                        <option value="">-- Удалить активы вместе с группой --</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteGroup()">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     МОДАЛЬНЫЕ ОКНА АКТИВОВ (МАССОВОЕ УДАЛЕНИЕ)
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="text-danger">Удаление активов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Удалить <strong id="bulk-delete-count">0</strong> выбранных активов?</p>
+                <p class="text-muted small">Это действие нельзя отменить.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" onclick="executeBulkDelete()">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     МОДАЛЬНЫЕ ОКНА WAZUH
+     ═══════════════════════════════════════════════════════════════ -->
+<div class="modal fade" id="wazuhModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">⚙️ Настройка Wazuh API</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label small">URL API</label>
+                    <input type="text" id="waz-url" class="form-control form-control-sm"
+                        placeholder="https://manager:55000">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Логин</label>
+                    <input type="text" id="waz-user" class="form-control form-control-sm" placeholder="wazuh">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Пароль</label>
+                    <input type="password" id="waz-pass" class="form-control form-control-sm" placeholder="••••••">
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="waz-ssl">
+                    <label class="form-check-label small">Проверять SSL сертификат</label>
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="waz-active" checked>
+                    <label class="form-check-label small">Включить интеграцию</label>
+                </div>
+                <button class="btn btn-sm btn-success w-100" onclick="saveWazuhConfig()">
+                    💾 Сохранить и синхронизировать
+                </button>
+                <div id="waz-status" class="mt-2 small text-center text-muted"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════
+     МОДАЛЬНЫЕ ОКНА СКАНИРОВАНИЯ (РЕЗУЛЬТАТЫ И ОШИБКИ)
+     ═══════════════════════════════════════════════════════════════ -->
 <div class="modal fade" id="scanErrorModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -6780,6 +7689,7 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
         </div>
     </div>
 </div>
+
 <div class="modal fade" id="scanResultsModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -6789,10 +7699,11 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
             </div>
             <div class="modal-body">
                 <div id="scan-results-content"></div>
-                <!-- 🔥 Блок для отображения ошибок -->
+                <!-- Блок для отображения ошибок внутри результатов -->
                 <div id="scan-error-alert" class="alert alert-danger mt-3" style="display:none">
                     <h6><i class="bi bi-exclamation-triangle"></i> Ошибка выполнения:</h6>
-                    <pre id="scan-error-text" class="mb-0" style="white-space:pre-wrap;max-height:300px;overflow-y:auto"></pre>
+                    <pre id="scan-error-text" class="mb-0"
+                        style="white-space:pre-wrap;max-height:300px;overflow-y:auto"></pre>
                 </div>
             </div>
             <div class="modal-footer">
@@ -6801,9 +7712,40 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
         </div>
     </div>
 </div>
+
+<!-- Импорт сканирования (Nmap XML) -->
+<div class="modal fade" id="scanModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="{{ url_for('main.import_scan') }}" method="post" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title">Импорт Nmap XML</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">XML файл</label>
+                        <input type="file" name="file" class="form-control" accept=".xml" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Группа назначения</label>
+                        <select name="group_id" class="form-select">
+                            <option value="">Без группы</option>
+                            {% for g in all_groups %}<option value="{{ g.id }}">{{ g.name }}</option>{% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Загрузить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 ```
 
 ---
 
-✅ **Экспорт завершён.** Файл содержит 36 файлов общим размером 414.8 KB.
+✅ **Экспорт завершён.** Файл содержит 44 файлов общим размером 423.1 KB.
 💡 **Совет:** Скопируйте содержимое этого файла целиком в новое окно чата для сохранения контекста разработки.
