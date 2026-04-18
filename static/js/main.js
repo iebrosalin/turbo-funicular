@@ -39,15 +39,15 @@ import { refreshGroupTree, loadAssets } from './modules/tree.js';
     // ═══════════════════════════════════════════════════════════════
     // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
     // ═══════════════════════════════════════════════════════════════
-    var currentGroupId = null; 
-    var contextMenu = null;
-    var editModal, createModal, moveModal, deleteModal, bulkDeleteModalInstance;
-    var lastSelectedIndex = -1; 
-    var selectedAssetIds = new Set();
-
-    // Экспорт глобальных переменных для доступа из модулей
-    window.currentGroupId = currentGroupId;
-    window.selectedAssetIds = selectedAssetIds;
+    window.currentGroupId = null; 
+    window.contextMenu = null;
+    window.editModal = null;
+    window.createModal = null;
+    window.moveModal = null;
+    window.deleteModal = null;
+    window.bulkDeleteModalInstance = null;
+    window.lastSelectedIndex = -1; 
+    window.selectedAssetIds = new Set();
 
     // ═══════════════════════════════════════════════════════════════
     // ИНИЦИАЛИЗАЦИЯ
@@ -60,7 +60,7 @@ import { refreshGroupTree, loadAssets } from './modules/tree.js';
         initWazuhFilter();
         initContextMenu();
         
-        contextMenu = document.getElementById('group-context-menu');
+        window.contextMenu = document.getElementById('group-context-menu');
         
         setInterval(pollActiveScans, 5000);
         pollActiveScans();
@@ -73,13 +73,13 @@ import { refreshGroupTree, loadAssets } from './modules/tree.js';
                     cb.checked=true; 
                     const row = cb.closest('tr');
                     if(row) row.classList.add('selected');
-                    selectedAssetIds.add(cb.value); 
+                    window.selectedAssetIds.add(cb.value); 
                 }); 
                 const tb = document.getElementById('bulk-toolbar');
                 if(tb) {
-                    tb.style.display = selectedAssetIds.size > 0 ? 'flex' : 'none';
+                    tb.style.display = window.selectedAssetIds.size > 0 ? 'flex' : 'none';
                     const countEl = document.getElementById('selected-count');
-                    if(countEl) countEl.textContent = selectedAssetIds.size;
+                    if(countEl) countEl.textContent = window.selectedAssetIds.size;
                 }
             } 
         });

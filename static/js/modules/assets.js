@@ -9,10 +9,10 @@ export function initAssetSelection() {
         document.querySelectorAll('.asset-checkbox').forEach(cb => {
             cb.checked = this.checked; 
             toggleRowSelection(cb.closest('tr'), this.checked);
-            if(this.checked) selectedAssetIds.add(cb.value); 
-            else selectedAssetIds.delete(cb.value);
+            if(this.checked) window.selectedAssetIds.add(cb.value); 
+            else window.selectedAssetIds.delete(cb.value);
         });
-        lastSelectedIndex = this.checked ? getRowIndex(document.querySelectorAll('.asset-checkbox').pop().closest('tr')) : -1;
+        window.lastSelectedIndex = this.checked ? getRowIndex(document.querySelectorAll('.asset-checkbox').pop().closest('tr')) : -1;
         updateBulkToolbar(); 
         updateSelectAllCheckbox();
     });
@@ -26,9 +26,9 @@ export function initAssetSelection() {
         if(!row || e.target.closest('a, button, .asset-checkbox')) return;
         const cb = row.querySelector('.asset-checkbox');
         if(cb) { 
-            if(e.shiftKey && lastSelectedIndex >= 0) { 
+            if(e.shiftKey && window.lastSelectedIndex >= 0) { 
                 e.preventDefault(); 
-                selectRange(lastSelectedIndex, getRowIndex(row)); 
+                selectRange(window.lastSelectedIndex, getRowIndex(row)); 
             } else { 
                 cb.checked = !cb.checked; 
                 handleCheckboxChange(cb); 
@@ -37,20 +37,17 @@ export function initAssetSelection() {
     });
 }
 
-let selectedAssetIds = new Set();
-let lastSelectedIndex = -1;
-
 function handleCheckboxChange(cb) {
     const row = cb.closest('tr'); 
     const id = cb.value; 
     const checked = cb.checked;
     toggleRowSelection(row, checked);
     if(checked) { 
-        selectedAssetIds.add(id); 
-        lastSelectedIndex = getRowIndex(row); 
+        window.selectedAssetIds.add(id); 
+        window.lastSelectedIndex = getRowIndex(row); 
     } else { 
-        selectedAssetIds.delete(id); 
-        if(lastSelectedIndex === getRowIndex(row)) lastSelectedIndex = -1; 
+        window.selectedAssetIds.delete(id); 
+        if(window.lastSelectedIndex === getRowIndex(row)) window.lastSelectedIndex = -1; 
     }
     updateBulkToolbar(); 
     updateSelectAllCheckbox();
@@ -73,7 +70,7 @@ function selectRange(start, end) {
             if(cb && !cb.checked) { 
                 cb.checked = true; 
                 toggleRowSelection(row, true); 
-                selectedAssetIds.add(cb.value); 
+                window.selectedAssetIds.add(cb.value); 
             }
         }
     }); 
@@ -85,9 +82,9 @@ function clearSelection() {
     document.querySelectorAll('#assets-body .asset-checkbox:checked').forEach(cb => { 
         cb.checked = false; 
         toggleRowSelection(cb.closest('tr'), false); 
-        selectedAssetIds.delete(cb.value); 
+        window.selectedAssetIds.delete(cb.value); 
     });
-    lastSelectedIndex = -1; 
+    window.lastSelectedIndex = -1; 
     updateBulkToolbar(); 
     updateSelectAllCheckbox();
 }
@@ -104,7 +101,7 @@ function updateSelectAllCheckbox() {
 
 function updateBulkToolbar() {
     const tb = document.getElementById('bulk-toolbar'); 
-    const c = selectedAssetIds.size;
+    const c = window.selectedAssetIds.size;
     if(tb) {
         tb.style.display = c > 0 ? 'flex' : 'none'; 
         const countEl = document.getElementById('selected-count');
@@ -113,15 +110,15 @@ function updateBulkToolbar() {
 }
 
 export function confirmBulkDelete() {
-    if(selectedAssetIds.size === 0) return;
+    if(window.selectedAssetIds.size === 0) return;
     const countEl = document.getElementById('bulk-delete-count');
-    if(countEl) countEl.textContent = selectedAssetIds.size;
-    const bulkDeleteModalInstance = bootstrap.Modal.getInstance(document.getElementById('bulkDeleteModal'));
-    if(bulkDeleteModalInstance) bulkDeleteModalInstance.show();
+    if(countEl) countEl.textContent = window.selectedAssetIds.size;
+    const modalInstance = bootstrap.Modal.getInstance(document.getElementById('bulkDeleteModal'));
+    if(modalInstance) modalInstance.show();
 }
 
 export async function executeBulkDelete() {
-    const ids = Array.from(selectedAssetIds);
+    const ids = Array.from(window.selectedAssetIds);
     await fetch('/api/assets/bulk-delete', { 
         method: 'POST', 
         headers: {'Content-Type': 'application/json'}, 
