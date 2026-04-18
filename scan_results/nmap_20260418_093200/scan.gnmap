@@ -1,5 +1,0 @@
-# Nmap 7.98 scan initiated Sat Apr 18 09:32:00 2026 as: /usr/lib/nmap/nmap --privileged -p 5000 -sV -sC -O -v -oA scan_results/nmap_20260418_093200/scan 10.250.95.39
-# Ports scanned: TCP(1;5000) UDP(0;) SCTP(0;) PROTOCOLS(0;)
-Host: 10.250.95.39 (Kali-Infosec.fsa.local)	Status: Up
-Host: 10.250.95.39 (Kali-Infosec.fsa.local)	Ports: 5000/open/tcp//http//Werkzeug httpd 3.0.3 (Python 3.13.11)/	OS: Linux 5.0 - 6.2	Seq Index: 262	IP ID Seq: All zeros
-# Nmap done at Sat Apr 18 09:32:09 2026 -- 1 IP address (1 host up) scanned in 8.45 seconds
