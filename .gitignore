@@ -1,36 +1,44 @@
-scan_results/
-
-# Python compiled files
+```
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Dependencies
-.venv/
-venv/
-env/
+# Database
+instance/app.db
+
+# Logs
+*.log
+
+# Environment
 .env
 .env.local
 *.env.*
 
-# Logs and temporary files
-*.log
-*.tmp
-*.swp
-*.swo
+# Dependencies
+.venv/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Coverage reports
+# Coverage
 .coverage
-htmlcov/
 coverage/
+htmlcov/
 
-# IDE specific
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS generated files
+# OS
 .DS_Store
 Thumbs.db
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+```

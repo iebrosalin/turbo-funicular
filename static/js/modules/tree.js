@@ -20,6 +20,7 @@ export async function refreshGroupTree() {
         // Функция для построения дерева (рекурсивная)
         const buildTreeHtml = (nodes, parentId = null) => {
             // Фильтруем узлы, которые являются прямыми детьми текущего родителя
+            // Используем == для нестрогого сравнения (важно для null/undefined и строк/чисел)
             const children = nodes.filter(n => n.parent_id == parentId);
             
             if (children.length === 0) return '';
@@ -28,6 +29,7 @@ export async function refreshGroupTree() {
             
             children.forEach(node => {
                 // Проверяем, есть ли у этого узла дети (для отображения стрелки)
+                // Используем == для нестрогого сравнения (важно для null/undefined и строк/чисел)
                 const hasChildren = nodes.some(n => n.parent_id == node.id);
                 
                 // Формируем HTML узла
@@ -173,16 +175,8 @@ function initTreeTogglers() {
                 const nestedUl = parentLi.querySelector('ul.nested');
 
                 if (nestedUl) {
-                    // Переключаем видимость напрямую через style.display
-                    const isVisible = nestedUl.style.display === 'block';
-
-                    if (isVisible) {
-                        nestedUl.style.display = 'none';
-                        nestedUl.classList.remove('active');
-                    } else {
-                        nestedUl.style.display = 'block';
-                        nestedUl.classList.add('active');
-                    }
+                    // Переключаем класс active для показа/скрытия вложенного списка
+                    nestedUl.classList.toggle('active');
                 }
             }
 

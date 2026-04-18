@@ -86,9 +86,8 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     display: none;
 }
 
-#group-tree ul.nested.active,
-#group-tree ul.nested[style*="display: block"] {
-    display: block !important;
+#group-tree ul.nested.active {
+    display: block;
 }
 
 #group-tree li {
