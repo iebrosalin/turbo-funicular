@@ -1,18 +1,24 @@
 from flask import Blueprint, request, jsonify, render_template, current_app
 from models import db, Asset, Group, ScanJob, ScanResult
 from utils import create_asset_if_not_exists, update_asset_dns_names
+from utils.scan_queue import scan_queue_manager, utility_scan_queue_manager
 import json
 import os
 import threading
 import traceback
 from datetime import datetime
-from scanner import run_rustscan_scan, run_nmap_scan, run_nslookup_scan
+from scanner import NmapScanner, RustscanScanner, DigScanner
 
 scans_bp = Blueprint('scans', __name__)
 
 # ────────────────────────────────────────────────────────────────
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ────────────────────────────────────────────────────────────────
+
+def init_scan_queue(app):
+    """Инициализация менеджеров очередей сканирований"""
+    scan_queue_manager.start_worker(app)
+    utility_scan_queue_manager.start_worker(app)
 
 def run_scan_wrapper(app, func, job_id, *args):
     """
@@ -75,7 +81,44 @@ def get_active_scans_status():
             'current_target': j.current_target,
             'created_at': j.created_at.strftime('%Y-%m-%d %H:%M:%S') if j.created_at else None
         })
-    return jsonify({'active': jobs_data})
+    
+    # Добавляем информацию об очередях
+    nmap_queue_status = scan_queue_manager.get_queue_status()
+    utility_queue_status = utility_scan_queue_manager.get_queue_status()
+    
+    return jsonify({
+        'active': jobs_data, 
+        'nmap_queue': nmap_queue_status,
+        'utility_queue': utility_queue_status
+    })
+
+@scans_bp.route('/api/scan-queue/status')
+def get_queue_status():
+    """Получение статуса очередей сканирований"""
+    return jsonify({
+        'nmap_queue': scan_queue_manager.get_queue_status(),
+        'utility_queue': utility_scan_queue_manager.get_queue_status()
+    })
+
+@scans_bp.route('/api/scan-queue/<int:job_id>', methods=['DELETE'])
+def remove_from_queue(job_id):
+    """Удаление задачи из очереди nmap/rustscan"""
+    if scan_queue_manager.remove_from_queue(job_id):
+        job = ScanJob.query.get(job_id)
+        if job and job.status == 'pending':
+            job.status = 'cancelled'
+            db.session.commit()
+        return jsonify({'success': True, 'message': 'Задача удалена из очереди nmap/rustscan'})
+    
+    # Пробуем удалить из очереди утилит
+    if utility_scan_queue_manager.remove_from_queue(job_id):
+        job = ScanJob.query.get(job_id)
+        if job and job.status == 'pending':
+            job.status = 'cancelled'
+            db.session.commit()
+        return jsonify({'success': True, 'message': 'Задача удалена из очереди утилит'})
+    
+    return jsonify({'error': 'Задача не найдена в очередях'}), 404
 
 @scans_bp.route('/api/scans/history')
 def get_scan_history():
@@ -100,6 +143,8 @@ def start_rustscan():
     target = data.get('target')
     ports = data.get('ports', '-')
     args = data.get('extra_args', '')
+    run_nmap_after = data.get('run_nmap_after', False)
+    nmap_args = data.get('nmap_args', '')
     
     if not target:
         return jsonify({'error': 'Не указана цель'}), 400
@@ -109,21 +154,24 @@ def start_rustscan():
         target=target,
         status='pending',
         progress=0,
-        scan_parameters=json.dumps({'ports': ports, 'args': args})
+        scan_parameters=json.dumps({'ports': ports, 'args': args, 'run_nmap_after': run_nmap_after, 'nmap_args': nmap_args})
     )
     db.session.add(job)
     db.session.commit()
     
-    # Получаем текущее приложение и передаем в поток
+    # Добавляем задачу в очередь вместо прямого запуска в потоке
     app = current_app._get_current_object()
-    t = threading.Thread(
-        target=run_scan_wrapper, 
-        args=(app, run_rustscan_scan, job.id, target, ports, args)
+    scan_queue_manager.add_to_queue(
+        job.id, 
+        'rustscan', 
+        target, 
+        ports=ports, 
+        custom_args=args,
+        run_nmap_after=run_nmap_after,
+        nmap_args=nmap_args
     )
-    t.daemon = True
-    t.start()
     
-    return jsonify({'job_id': job.id, 'status': 'started', 'message': 'Сканирование запущено'})
+    return jsonify({'job_id': job.id, 'status': 'queued', 'message': 'Сканирование добавлено в очередь'})
 
 @scans_bp.route('/api/scans/nmap', methods=['POST'])
 def start_nmap():
@@ -132,36 +180,61 @@ def start_nmap():
     ports = data.get('ports', '-')
     scripts = data.get('scripts', '')
     args = data.get('extra_args', '')
+    known_ports_only = data.get('known_ports_only', False)
+    group_ids = data.get('group_ids', [])
     
-    if not target:
+    # Если выбран режим "только известные порты", игнорируем ручной ввод портов
+    if known_ports_only:
+        ports = '-'  # Будут использованы порты из активов
+    
+    # Проверка: если known_ports_only=True, запрещаем передачу портов в custom_args
+    if known_ports_only and args:
+        import re
+        if '-p' in args or '--port' in args:
+            return jsonify({'error': '⚠️ В режиме "Только известные порты" нельзя указывать порты в дополнительных аргументах'}), 400
+    
+    if not target and not (known_ports_only and group_ids):
         return jsonify({'error': 'Не указана цель'}), 400
         
     job = ScanJob(
         scan_type='nmap',
-        target=target,
+        target=target if target else f"Группы: {', '.join(map(str, group_ids))}",
         status='pending',
         progress=0,
-        scan_parameters=json.dumps({'ports': ports, 'scripts': scripts, 'args': args})
+        scan_parameters=json.dumps({
+            'ports': ports, 
+            'scripts': scripts, 
+            'args': args,
+            'known_ports_only': known_ports_only,
+            'group_ids': group_ids
+        })
     )
     db.session.add(job)
     db.session.commit()
     
+    # Добавляем задачу в очередь вместо прямого запуска в потоке
     app = current_app._get_current_object()
-    t = threading.Thread(
-        target=run_scan_wrapper, 
-        args=(app, run_nmap_scan, job.id, target, ports, scripts, args)
+    scan_queue_manager.add_to_queue(
+        job.id, 
+        'nmap', 
+        target if target else '',
+        ports=ports, 
+        scripts=scripts,
+        custom_args=args,
+        known_ports_only=known_ports_only,
+        group_ids=group_ids if known_ports_only else None
     )
-    t.daemon = True
-    t.start()
     
-    return jsonify({'job_id': job.id, 'status': 'started', 'message': 'Сканирование запущено'})
+    return jsonify({'job_id': job.id, 'status': 'queued', 'message': 'Сканирование добавлено в очередь'})
 
 @scans_bp.route('/api/scans/nslookup', methods=['POST'])
 def start_nslookup():
+    """Запуск сканирования dig (для обратной совместимости endpoint называется nslookup)"""
     data = request.json
     targets = data.get('targets', '') 
     dns_server = data.get('dns_server', '77.88.8.8')
     args = data.get('nslookup_args', '')
+    record_types = data.get('record_types', ['A', 'AAAA', 'MX', 'TXT', 'NS', 'CNAME', 'SOA', 'PTR', 'SRV'])
     
     if not targets or not targets.strip():
         return jsonify({'error': 'Не указаны домены'}), 400
@@ -169,12 +242,13 @@ def start_nslookup():
     params = {
         'targets': targets,
         'dns_server': dns_server,
-        'args': args
+        'args': args,
+        'record_types': record_types
     }
     
     job = ScanJob(
-        scan_type='nslookup',
-        target=f"NSLookup ({len(targets.splitlines())} domains)",
+        scan_type='dig',  # Теперь используем dig
+        target=f"DIG ({len(targets.splitlines())} domains)",
         status='pending',
         progress=0,
         scan_parameters=json.dumps(params)
@@ -182,22 +256,27 @@ def start_nslookup():
     db.session.add(job)
     db.session.commit()
     
+    # Добавляем задачу в очередь утилит
     app = current_app._get_current_object()
-    t = threading.Thread(
-        target=run_scan_wrapper, 
-        args=(app, run_nslookup_scan, job.id, targets, dns_server, args)
+    utility_scan_queue_manager.add_to_queue(
+        job.id, 
+        'dig',  # Используем dig вместо nslookup
+        f"DIG ({len(targets.splitlines())} domains)",
+        targets_text=targets,
+        dns_server=dns_server,
+        cli_args=args,
+        record_types=record_types
     )
-    t.daemon = True
-    t.start()
     
-    return jsonify({'job_id': job.id, 'status': 'started', 'message': 'Сканирование запущено'})
+    return jsonify({'job_id': job.id, 'status': 'queued', 'message': 'Сканирование DNS добавлено в очередь утилит'})
 
 @scans_bp.route('/api/scans/<int:job_id>/results')
 def get_scan_results(job_id):
     job = ScanJob.query.get_or_404(job_id)
     results = []
     
-    if job.scan_type == 'nslookup' and job.nslookup_output:
+    # Поддержка как 'dig', так и 'nslookup' для обратной совместимости
+    if job.scan_type in ['dig', 'nslookup'] and job.nslookup_output:
         lines = job.nslookup_output.split('\n')
         current_ip = None
         current_domain = None
@@ -216,6 +295,28 @@ def get_scan_results(job_id):
                          print(f"Error creating asset: {e}")
                      current_domain = None
     
+    # Собираем информацию о доступных файлах для скачивания
+    download_files = []
+    if job.scan_type == 'rustscan':
+        if job.rustscan_text_path:
+            download_files.append({'type': 'text', 'name': 'RustScan Results (TXT)', 'path': job.rustscan_text_path})
+        if job.rustscan_output:
+            download_files.append({'type': 'raw', 'name': 'RustScan Output (Raw)', 'format': 'text/plain'})
+    elif job.scan_type == 'nmap':
+        if job.nmap_xml_path:
+            download_files.append({'type': 'file', 'name': 'Nmap XML', 'path': job.nmap_xml_path, 'format': 'application/xml'})
+        if job.nmap_grep_path:
+            download_files.append({'type': 'file', 'name': 'Nmap Grepable', 'path': job.nmap_grep_path, 'format': 'text/plain'})
+        if job.nmap_normal_path:
+            download_files.append({'type': 'file', 'name': 'Nmap Normal', 'path': job.nmap_normal_path, 'format': 'text/plain'})
+        if job.nmap_xml_content:
+            download_files.append({'type': 'raw', 'name': 'Nmap XML (Raw)', 'format': 'application/xml'})
+    elif job.scan_type in ['dig', 'nslookup']:
+        if job.nslookup_output:
+            download_files.append({'type': 'raw', 'name': 'DIG Output (Raw)', 'format': 'text/plain'})
+        if job.nslookup_file_path:
+            download_files.append({'type': 'file', 'name': 'DIG Results (File)', 'path': job.nslookup_file_path, 'format': 'text/plain'})
+    
     return jsonify({
         'job': {
             'id': job.id,
@@ -226,10 +327,62 @@ def get_scan_results(job_id):
             'error_message': job.error_message,
             'started_at': job.started_at.strftime('%Y-%m-%d %H:%M:%S') if job.started_at else None,
             'completed_at': job.completed_at.strftime('%Y-%m-%d %H:%M:%S') if job.completed_at else None,
-            'nslookup_output': job.nslookup_output if job.scan_type == 'nslookup' else None
+            'nslookup_output': job.nslookup_output if job.scan_type in ['dig', 'nslookup'] else None
         },
-        'results': results
+        'results': results,
+        'download_files': download_files
     })
+
+@scans_bp.route('/api/scans/<int:job_id>/download/<file_type>')
+def download_scan_file(job_id, file_type):
+    """Скачивание результатов сканирования"""
+    from flask import send_file, abort
+    import os
+    
+    job = ScanJob.query.get_or_404(job_id)
+    
+    file_path = None
+    mime_type = 'text/plain'
+    
+    if file_type == 'rustscan_txt':
+        file_path = job.rustscan_text_path
+    elif file_type == 'rustscan_raw':
+        # Возвращаем raw вывод как файл
+        from io import BytesIO
+        if job.rustscan_output:
+            buf = BytesIO(job.rustscan_output.encode('utf-8'))
+            filename = f"rustscan_job_{job_id}.txt"
+            return send_file(buf, mimetype='text/plain', as_attachment=True, download_name=filename)
+    elif file_type == 'nmap_xml':
+        file_path = job.nmap_xml_path
+        mime_type = 'application/xml'
+    elif file_type == 'nmap_grep':
+        file_path = job.nmap_grep_path
+    elif file_type == 'nmap_normal':
+        file_path = job.nmap_normal_path
+    elif file_type == 'nmap_xml_raw':
+        # Возвращаем raw XML контент как файл
+        from io import BytesIO
+        if job.nmap_xml_content:
+            buf = BytesIO(job.nmap_xml_content.encode('utf-8'))
+            filename = f"nmap_job_{job_id}.xml"
+            return send_file(buf, mimetype='application/xml', as_attachment=True, download_name=filename)
+    elif file_type == 'nslookup_raw' or file_type == 'dig_raw':
+        # Возвращаем raw вывод dig/nslookup как файл
+        from io import BytesIO
+        if job.nslookup_output:
+            buf = BytesIO(job.nslookup_output.encode('utf-8'))
+            filename = f"dig_job_{job_id}.txt"
+            return send_file(buf, mimetype='text/plain', as_attachment=True, download_name=filename)
+    elif file_type == 'nslookup_file' or file_type == 'dig_file':
+        file_path = job.nslookup_file_path
+    
+    if not file_path or not os.path.exists(file_path):
+        return jsonify({'error': 'Файл не найден'}), 404
+    
+    filename = os.path.basename(file_path)
+    return send_file(file_path, mimetype=mime_type, as_attachment=True, download_name=filename)
+
 
 @scans_bp.route('/api/scans/<int:job_id>', methods=['DELETE'])
 def delete_scan_job(job_id):
@@ -251,12 +404,15 @@ def control_scan(job_id):
     action = data.get('action')
     
     if action == 'delete':
+        # Удаляем из очереди если там есть
+        scan_queue_manager.remove_from_queue(job_id)
         db.session.delete(job)
         db.session.commit()
         return jsonify({'success': True})
         
     elif action == 'stop':
-        if job.status == 'running':
+        if job.status in ['running', 'pending']:
+            scan_queue_manager.remove_from_queue(job_id)
             job.status = 'failed'
             job.error_message = 'Остановлено пользователем'
             job.completed_at = datetime.utcnow()
@@ -292,17 +448,39 @@ def control_scan(job_id):
         
         app = current_app._get_current_object()
         
+        # Добавляем в соответствующую очередь вместо прямого запуска
         if job.scan_type == 'rustscan':
-            t = threading.Thread(target=run_scan_wrapper, args=(app, run_rustscan_scan, new_job.id, job.target, params.get('ports', '-'), params.get('args', '')))
+            scan_queue_manager.add_to_queue(
+                new_job.id, 
+                'rustscan', 
+                job.target, 
+                ports=params.get('ports', '-'), 
+                custom_args=params.get('args', ''),
+                run_nmap_after=params.get('run_nmap_after', False),
+                nmap_args=params.get('nmap_args', '')
+            )
         elif job.scan_type == 'nmap':
-            t = threading.Thread(target=run_scan_wrapper, args=(app, run_nmap_scan, new_job.id, job.target, params.get('ports', '-'), params.get('scripts', ''), params.get('args', '')))
-        elif job.scan_type == 'nslookup':
-            t = threading.Thread(target=run_scan_wrapper, args=(app, run_nslookup_scan, new_job.id, params.get('targets', ''), params.get('dns_server', '77.88.8.8'), params.get('args', '')))
+            scan_queue_manager.add_to_queue(
+                new_job.id, 
+                'nmap', 
+                job.target, 
+                ports=params.get('ports', '-'), 
+                scripts=params.get('scripts', ''),
+                custom_args=params.get('args', '')
+            )
+        elif job.scan_type in ['dig', 'nslookup']:
+            utility_scan_queue_manager.add_to_queue(
+                new_job.id,
+                'dig',
+                job.target,
+                targets_text=params.get('targets', ''),
+                dns_server=params.get('dns_server', '77.88.8.8'),
+                cli_args=params.get('args', ''),
+                record_types=params.get('record_types', ['A', 'AAAA', 'MX', 'TXT', 'NS', 'CNAME', 'SOA', 'PTR', 'SRV'])
+            )
         else:
             return jsonify({'error': 'Неизвестный тип'}), 400
             
-        t.daemon = True
-        t.start()
         return jsonify({'success': True, 'new_id': new_job.id})
     
     return jsonify({'error': 'Недопустимое действие'}), 400

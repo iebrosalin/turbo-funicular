@@ -61,6 +61,11 @@ def create_app():
             # Пробрасываем ошибку дальше, чтобы приложение не запустилось в сломанном состоянии
             raise
 
+    # 5. Инициализация менеджера очереди сканирований
+    from routes.scans import init_scan_queue
+    init_scan_queue(app)
+    print("✅ Менеджер очереди сканирований инициализирован")
+
     return app
 
 if __name__ == '__main__':

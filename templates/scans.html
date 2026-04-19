@@ -47,7 +47,7 @@
                                 <select id="scan-type" class="form-select" onchange="toggleScanOptions()">
                                     <option value="rustscan">🚀 Rustscan (Быстрый)</option>
                                     <option value="nmap">🔍 Nmap (Глубокий)</option>
-                                    <option value="nslookup">🌐 Nslookup (DNS)</option>
+                                    <option value="nslookup">🌐 DIG (DNS - все типы записей)</option>
                                 </select>
                             </div>
                             <div class="col-md-6">
@@ -87,13 +87,24 @@
                             <label class="form-label">Порты</label>
                             <input type="text" id="scan-ports" class="form-control" placeholder="22,80,443 или 1-1000">
                         </div>
+                        <div class="mb-3" id="nmap-known-ports-section" style="display: none;">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="nmap-known-ports-only">
+                                <label class="form-check-label" for="nmap-known-ports-only">
+                                    🔍 Сканировать только известные порты из выбранных групп
+                                </label>
+                            </div>
+                            <small class="text-muted">Будут просканированы только те порты, которые уже обнаружены у активов в выбранных группах</small>
+                        </div>
                         <div class="mb-3" id="nslookup-args-section" style="display: none;">
-                            <label class="form-label">Аргументы nslookup</label>
-                            <input type="text" id="scan-nslookup-args" class="form-control" placeholder="-querytype=A">
+                            <label class="form-label">Аргументы dig</label>
+                            <input type="text" id="scan-nslookup-args" class="form-control" placeholder="+short +noall +answer">
+                            <small class="text-muted">Опции для dig (без символа + в начале, если он уже добавлен автоматически)</small>
                         </div>
                         <div class="mb-3">
                             <label class="form-label"><i class="bi bi-sliders"></i> Кастомные аргументы</label>
                             <input type="text" id="scan-custom-args" class="form-control" placeholder="--batch-size 500">
+                            <small class="text-muted" id="custom-args-warning" style="display: none; color: #dc3545;">⚠️ В режиме "Только известные порты" указание портов запрещено</small>
                         </div>
                         
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -212,10 +223,33 @@
         const dnsSec = document.getElementById('dns-server-section');
         const nsArgsSec = document.getElementById('nslookup-args-section');
         const targetMethod = document.getElementById('target-method');
+        const nmapAfterSection = document.getElementById('nmap-after-section');
+        const knownPortsSection = document.getElementById('nmap-known-ports-section');
+        const customArgsWarning = document.getElementById('custom-args-warning');
+        const knownPortsCheckbox = document.getElementById('nmap-known-ports-only');
 
         portsSec.style.display = (t === 'nmap' || t === 'rustscan') ? 'block' : 'none';
         dnsSec.style.display = (t === 'nslookup') ? 'block' : 'none';
         nsArgsSec.style.display = (t === 'nslookup') ? 'block' : 'none';
+        
+        // Показываем опцию "только известные порты" только для nmap
+        if (knownPortsSection) {
+            knownPortsSection.style.display = (t === 'nmap') ? 'block' : 'none';
+        }
+        
+        // Предупреждение о запрете портов в кастомных аргументах
+        if (customArgsWarning) {
+            if (t === 'nmap' && knownPortsCheckbox && knownPortsCheckbox.checked) {
+                customArgsWarning.style.display = 'block';
+            } else {
+                customArgsWarning.style.display = 'none';
+            }
+        }
+        
+        // Показываем опцию запуска nmap после rustscan только для rustscan
+        if (nmapAfterSection) {
+            nmapAfterSection.style.display = (t === 'rustscan') ? 'block' : 'none';
+        }
 
         // Автоматическое переключение на "Список доменов" для nslookup
         if(t === 'nslookup'){
@@ -223,6 +257,37 @@
             toggleTargetInput();
         }
     }
+    
+    // Обработчик изменения чекбокса "Только известные порты"
+    document.addEventListener('DOMContentLoaded', function() {
+        const knownPortsCheckbox = document.getElementById('nmap-known-ports-only');
+        const customArgsWarning = document.getElementById('custom-args-warning');
+        const portsInput = document.getElementById('scan-ports');
+        
+        if (knownPortsCheckbox) {
+            knownPortsCheckbox.addEventListener('change', function() {
+                if (this.checked) {
+                    // Отключаем поле портов
+                    if (portsInput) {
+                        portsInput.disabled = true;
+                        portsInput.placeholder = 'Порты будут взяты из активов';
+                    }
+                    if (customArgsWarning) {
+                        customArgsWarning.style.display = 'block';
+                    }
+                } else {
+                    // Включаем поле портов
+                    if (portsInput) {
+                        portsInput.disabled = false;
+                        portsInput.placeholder = '22,80,443 или 1-1000';
+                    }
+                    if (customArgsWarning) {
+                        customArgsWarning.style.display = 'none';
+                    }
+                }
+            });
+        }
+    });
 
     function resetScanForm(){
         document.getElementById('scanForm').reset();
@@ -265,11 +330,29 @@
             if(t === 'rustscan') url = '/api/scans/rustscan';
             else if(t === 'nmap') url = '/api/scans/nmap';
 
+            const knownPortsOnly = document.getElementById('nmap-known-ports-only')?.checked || false;
+            
             payload = {
                 target: targetVal,
-                ports: document.getElementById('scan-ports').value || '-',
-                extra_args: document.getElementById('scan-custom-args').value || ''
+                ports: knownPortsOnly ? '-' : (document.getElementById('scan-ports').value || '-'),
+                extra_args: document.getElementById('scan-custom-args').value || '',
+                known_ports_only: knownPortsOnly
             };
+            
+            // Если выбран режим "только известные порты", добавляем ID групп
+            if (t === 'nmap' && knownPortsOnly) {
+                const groupSelect = document.getElementById('scan-group');
+                const targetMethod = document.getElementById('target-method');
+                
+                if (targetMethod.value === 'group' && groupSelect.value) {
+                    payload.group_ids = [parseInt(groupSelect.value)];
+                } else if (targetMethod.value === 'ip') {
+                    // Если выбран IP/CIDR, но включен режим известных портов - ошибка
+                    alert('⚠️ Для режима "Только известные порты" необходимо выбрать группу активов');
+                    return;
+                }
+            }
+            
             if(t === 'nmap') payload.scripts = document.getElementById('scan-ports').value; // Упрощено
         }
 
@@ -310,7 +393,45 @@
                 h += `<div class="alert alert-danger"><pre class="mb-0">${d.job.error_message}</pre></div>`;
             }
 
-            if(d.job.scan_type === 'nslookup' && d.job.nslookup_output){
+            // Кнопки скачивания
+            if(d.download_files && d.download_files.length > 0){
+                h += `<div class="mb-3"><strong>Скачать результаты:</strong><div class="d-flex flex-wrap gap-2 mt-2">`;
+                d.download_files.forEach(f => {
+                    let url = '';
+                    if(f.type === 'file' || f.type === 'text'){
+                        const typeMap = {
+                            'rustscan_txt': 'rustscan_txt',
+                            'nmap_xml': 'nmap_xml',
+                            'nmap_grep': 'nmap_grep',
+                            'nmap_normal': 'nmap_normal',
+                            'nslookup_file': 'nslookup_file'
+                        };
+                        for(const [key, val] of Object.entries(typeMap)){
+                            if(f.path.includes(key.replace('_', '')) || f.name.toLowerCase().includes(key.split('_')[0])){
+                                url = `/api/scans/${id}/download/${val}`;
+                                break;
+                            }
+                        }
+                        if(!url){
+                            if(f.name.includes('RustScan')) url = `/api/scans/${id}/download/rustscan_txt`;
+                            else if(f.name.includes('XML')) url = `/api/scans/${id}/download/nmap_xml`;
+                            else if(f.name.includes('Grep')) url = `/api/scans/${id}/download/nmap_grep`;
+                            else if(f.name.includes('Normal')) url = `/api/scans/${id}/download/nmap_normal`;
+                            else if(f.name.includes('DIG') || f.name.includes('Nslookup')) url = `/api/scans/${id}/download/dig_raw`;
+                        }
+                    } else if(f.type === 'raw'){
+                        if(f.name.includes('RustScan')) url = `/api/scans/${id}/download/rustscan_raw`;
+                        else if(f.name.includes('XML')) url = `/api/scans/${id}/download/nmap_xml_raw`;
+                        else if(f.name.includes('DIG') || f.name.includes('Nslookup')) url = `/api/scans/${id}/download/dig_raw`;
+                    }
+                    if(url){
+                        h += `<a href="${url}" class="btn btn-sm btn-outline-primary" download><i class="bi bi-download"></i> ${f.name}</a>`;
+                    }
+                });
+                h += `</div></div>`;
+            }
+
+            if((d.job.scan_type === 'dig' || d.job.scan_type === 'nslookup') && d.job.nslookup_output){
                 h += `<pre class="bg-light p-3 border rounded" style="max-height:400px;overflow:auto;">${d.job.nslookup_output.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`;
             } else if(d.results && d.results.length > 0) {
                 h += `<p><strong>Найдено хостов:</strong> ${d.results.length}</p>`;
