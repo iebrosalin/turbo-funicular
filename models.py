@@ -1,200 +1,251 @@
-from flask_sqlalchemy import SQLAlchemy
+# models.py
+"""
+Модели базы данных для системы управления активами и сканированиями.
+Включает модели для активов, групп, сканирований, сервисов и логов активности.
+"""
 from datetime import datetime
 from extensions import db
+from utils import MOSCOW_TZ
 import json
 
-class Group(db.Model):
-    __tablename__ = 'group'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(120), nullable=False)
-    parent_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=True)
-    is_dynamic = db.Column(db.Boolean, default=False)
-    filter_rules = db.Column(db.Text, nullable=True)  # JSON строка с правилами
+# Таблица многие-ко-многим для связи Активов и Групп
+asset_groups = db.Table('asset_groups',
+    db.Column('asset_id', db.Integer, db.ForeignKey('asset.id'), primary_key=True),
+    db.Column('group_id', db.Integer, db.ForeignKey('asset_group.id'), primary_key=True)
+)
+
+class AssetGroup(db.Model):
+    """Группа активов (например, по отделам, локациям или функциям)"""
+    __tablename__ = 'asset_group'
     
-    # Рекурсивная связь
-    children = db.relationship('Group', backref=db.backref('parent', remote_side=[id]), lazy='dynamic')
-    assets = db.relationship('Asset', backref='group', lazy='dynamic', cascade='all, delete-orphan')
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(MOSCOW_TZ))
+    
+    # Связь с активами
+    assets = db.relationship('Asset', secondary=asset_groups, back_populates='groups')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'assets_count': len(self.assets)
+        }
 
 class Asset(db.Model):
+    """Сетевой актив (хост, сервер, устройство)"""
+    __tablename__ = 'asset'
+    
     id = db.Column(db.Integer, primary_key=True)
-    ip_address = db.Column(db.String(50), nullable=False, index=True)
-    hostname = db.Column(db.String(255), nullable=True)
-    os_info = db.Column(db.String(100), nullable=True)
-    mac_address = db.Column(db.String(50), nullable=True)
-    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=True, index=True)
+    ip_address = db.Column(db.String(45), unique=True, nullable=False, index=True) # Поддержка IPv6
+    hostname = db.Column(db.String(255), index=True)
     
-    # Дополнительные поля
-    device_role = db.Column(db.String(100), nullable=True)
-    device_tags = db.Column(db.Text, nullable=True)  # 🔥 JSON список тегов (добавлено)
-    status = db.Column(db.String(50), default='active')
-    notes = db.Column(db.Text, nullable=True)
+    # Основная информация
+    os_family = db.Column(db.String(50), index=True) # Linux, Windows, etc.
+    os_version = db.Column(db.String(100))
+    device_type = db.Column(db.String(50), default='unknown', index=True) # server, workstation, network_device
     
-    # Поля для DNS (из nslookup)
-    dns_names = db.Column(db.Text, nullable=True)  # JSON список доменов
+    # Статус и метаданные
+    status = db.Column(db.String(20), default='active', index=True) # active, inactive, archived
+    location = db.Column(db.String(100))
+    owner = db.Column(db.String(100))
     
-    # Поля для совместимости со старым кодом и scanner.py
-    data_source = db.Column(db.String(50), default='manual')
-    last_scanned = db.Column(db.DateTime, nullable=True)
-    scanners_used = db.Column(db.Text, nullable=True)  # JSON список сканеров
+    # DNS данные (новые поля)
+    dns_names = db.Column(db.JSON, default=list) # Список всех найденных имен ['host.local', 'web.example.com']
+    fqdn = db.Column(db.String(255)) # Основное полное доменное имя
+    dns_records = db.Column(db.JSON, default=dict) # Словарь записей: {'A': [...], 'MX': [...], ...}
     
-    # Порты от разных сканеров (строки)
-    open_ports = db.Column(db.Text, nullable=True)      # Объединенный список "22/tcp, 80/tcp"
-    ports_list = db.Column(db.Text, nullable=True)      # JSON список портов
+    # Порты (разделение по источникам)
+    rustscan_ports = db.Column(db.JSON, default=list) # Порты от Rustscan [80, 443]
+    nmap_ports = db.Column(db.JSON, default=list) # Порты от Nmap (с деталями или просто список)
+    open_ports = db.Column(db.JSON, default=list) # Объединенный список портов для быстрого доступа
     
-    rustscan_ports = db.Column(db.Text, nullable=True)  # 🔥 Порты только от RustScan (добавлено)
-    nmap_ports = db.Column(db.Text, nullable=True)      # 🔥 Порты только от Nmap (добавлено)
+    # Временные метки сканирований
+    last_rustscan = db.Column(db.DateTime)
+    last_nmap = db.Column(db.DateTime)
+    last_dns_scan = db.Column(db.DateTime)
     
-    # Даты последних сканирований конкретными утилитами
-    last_rustscan = db.Column(db.DateTime, nullable=True)  # 🔥 (добавлено)
-    last_nmap = db.Column(db.DateTime, nullable=True)      # 🔥 (добавлено)
-
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(MOSCOW_TZ))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(MOSCOW_TZ), onupdate=lambda: datetime.now(MOSCOW_TZ))
+    
     # Связи
-    scan_results = db.relationship('ScanResult', backref='asset', lazy='select', cascade='all, delete-orphan')
-    change_log = db.relationship('AssetChangeLog', backref='asset', lazy='select', cascade='all, delete-orphan')
-    services = db.relationship('ServiceInventory', backref='asset', lazy='select', cascade='all, delete-orphan')
+    groups = db.relationship('AssetGroup', secondary=asset_groups, back_populates='assets')
+    services = db.relationship('ServiceInventory', back_populates='asset', cascade='all, delete-orphan')
+    scan_results = db.relationship('ScanResult', back_populates='asset', cascade='all, delete-orphan')
+    activity_logs = db.relationship('ActivityLog', back_populates='asset', cascade='all, delete-orphan')
     
-    # Особое внимание здесь: если это one-to-one, uselist=False обязательно, но lazy не может быть 'dynamic'
-    osquery_inventory = db.relationship('OsqueryInventory', backref='asset', lazy='select', uselist=False, cascade='all, delete-orphan')
+    def update_ports(self, source, ports_data):
+        """Обновление портов из указанного источника"""
+        if source == 'rustscan':
+            self.rustscan_ports = ports_data
+            self.last_rustscan = datetime.now(MOSCOW_TZ)
+        elif source == 'nmap':
+            # ports_data может быть списком портов или списком словарей
+            if isinstance(ports_data, list) and ports_data and isinstance(ports_data[0], dict):
+                self.nmap_ports = [p.get('port') for p in ports_data]
+            else:
+                self.nmap_ports = ports_data
+            self.last_nmap = datetime.now(MOSCOW_TZ)
+        
+        # Обновляем объединенный список (уникальные порты)
+        all_ports = set(self.rustscan_ports or []) | set(self.nmap_ports or [])
+        self.open_ports = sorted(list(all_ports))
+        self.updated_at = datetime.now(MOSCOW_TZ)
 
-class AssetChangeLog(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
-    changed_at = db.Column(db.DateTime, default=datetime.utcnow)
-    field_name = db.Column(db.String(100))
-    old_value = db.Column(db.Text)
-    new_value = db.Column(db.Text)
-    changed_by = db.Column(db.String(100), default='system')
-    # Для совместимости со старым кодом
-    change_type = db.Column(db.String(50), nullable=True)
-    scan_job_id = db.Column(db.Integer, db.ForeignKey('scan_job.id'), nullable=True)
-    notes = db.Column(db.Text, nullable=True)
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'ip_address': self.ip_address,
+            'hostname': self.hostname,
+            'os_family': self.os_family,
+            'os_version': self.os_version,
+            'device_type': self.device_type,
+            'status': self.status,
+            'location': self.location,
+            'owner': self.owner,
+            'dns_names': self.dns_names,
+            'fqdn': self.fqdn,
+            'dns_records': self.dns_records,
+            'open_ports': self.open_ports,
+            'rustscan_ports': self.rustscan_ports,
+            'nmap_ports': self.nmap_ports,
+            'last_rustscan': self.last_rustscan.isoformat() if self.last_rustscan else None,
+            'last_nmap': self.last_nmap.isoformat() if self.last_nmap else None,
+            'last_dns_scan': self.last_dns_scan.isoformat() if self.last_dns_scan else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'groups': [g.name for g in self.groups]
+        }
 
 class ServiceInventory(db.Model):
+    """Детальная информация о сервисах на портах"""
+    __tablename__ = 'service_inventory'
+    
     id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
-    port = db.Column(db.Integer) # Или String если хранится как "22/tcp"
-    protocol = db.Column(db.String(10))
-    service_name = db.Column(db.String(100))
-    version = db.Column(db.String(100))
-    state = db.Column(db.String(50))
-    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
-    # Для совместимости
-    is_active = db.Column(db.Boolean, default=True)
-    # Дополнительные поля из парсера nmap (если используются)
-    product = db.Column(db.String(255), nullable=True)
-    extrainfo = db.Column(db.Text, nullable=True)
-
-class OsqueryInventory(db.Model):
-    __tablename__ = 'osquery_inventory'
-    id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False, unique=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False, index=True)
     
-    # Основная информация из OSquery
-    osquery_version = db.Column(db.String(50))
-    os_name = db.Column(db.String(100))
-    os_version = db.Column(db.String(100))
-    os_build = db.Column(db.String(50))
-    os_platform = db.Column(db.String(50))
-    platform_like = db.Column(db.String(50))
-    code_name = db.Column(db.String(50))
+    port = db.Column(db.Integer, nullable=False)
+    protocol = db.Column(db.String(10), default='tcp') # tcp, udp
+    state = db.Column(db.String(20), default='open') # open, closed, filtered
+    service_name = db.Column(db.String(100)) # http, ssh, mysql
+    product = db.Column(db.String(200)) # Apache httpd
+    version = db.Column(db.String(200)) # 2.4.41
+    extra_info = db.Column(db.String(200)) # Ubuntu
+    script_output = db.Column(db.Text) # Вывод скриптов nmap
     
-    # Система
-    hostname = db.Column(db.String(255))
-    uuid = db.Column(db.String(100))
-    cpu_type = db.Column(db.String(100))
-    cpu_subtype = db.Column(db.String(100))
-    cpu_brand = db.Column(db.String(100))
-    cpu_physical_cores = db.Column(db.Integer)
-    cpu_logical_cores = db.Column(db.Integer)
-    cpu_microcode = db.Column(db.String(50))
+    # SSL сертификат (если есть)
+    ssl_subject = db.Column(db.String(500))
+    ssl_issuer = db.Column(db.String(500))
+    ssl_not_before = db.Column(db.DateTime)
+    ssl_not_after = db.Column(db.DateTime)
     
-    # Память и диск
-    physical_memory = db.Column(db.BigInteger)
-    hardware_vendor = db.Column(db.String(100))
-    hardware_model = db.Column(db.String(100))
-    hardware_version = db.Column(db.String(50))
-    hardware_serial = db.Column(db.String(100))
-    board_vendor = db.Column(db.String(100))
-    board_model = db.Column(db.String(100))
-    board_version = db.Column(db.String(50))
-    board_serial = db.Column(db.String(100))
-    chassis_type = db.Column(db.String(50))
+    discovered_at = db.Column(db.DateTime, default=lambda: datetime.now(MOSCOW_TZ))
     
-    # Статус агента
-    status = db.Column(db.String(20), default='unknown')
-    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
-    config_hash = db.Column(db.String(64))
+    asset = db.relationship('Asset', back_populates='services')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'port': self.port,
+            'protocol': self.protocol,
+            'state': self.state,
+            'service_name': self.service_name,
+            'product': self.product,
+            'version': self.version,
+            'extra_info': self.extra_info,
+            'script_output': self.script_output,
+            'ssl_info': {
+                'subject': self.ssl_subject,
+                'issuer': self.ssl_issuer,
+                'not_before': self.ssl_not_before.isoformat() if self.ssl_not_before else None,
+                'not_after': self.ssl_not_after.isoformat() if self.ssl_not_after else None
+            } if self.ssl_subject else None,
+            'discovered_at': self.discovered_at.isoformat() if self.discovered_at else None
+        }
 
 class ScanJob(db.Model):
+    """Задание на сканирование (очередь и история запусков)"""
+    __tablename__ = 'scan_job'
+    
     id = db.Column(db.Integer, primary_key=True)
-    scan_type = db.Column(db.String(50), nullable=False)
-    target = db.Column(db.String(255), nullable=False)
-    status = db.Column(db.String(20), default='pending')
-    progress = db.Column(db.Integer, default=0)
+    scan_type = db.Column(db.String(50), nullable=False, index=True) # nmap, rustscan, dig
+    target = db.Column(db.String(500), nullable=False) # IP, диапазон или домен
     
-    current_target = db.Column(db.String(255), nullable=True)
-    total_hosts = db.Column(db.Integer, default=0)
-    hosts_processed = db.Column(db.Integer, default=0)
-    error_message = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), default='pending', index=True) # pending, running, completed, failed, stopped, cancelled
+    progress = db.Column(db.Integer, default=0) # Процент выполнения 0-100
     
-    # Вывод сканеров
-    rustscan_output = db.Column(db.Text, nullable=True)
-    rustscan_text_path = db.Column(db.String(500), nullable=True)
+    parameters = db.Column(db.JSON) # Параметры запуска (порты, скрипты, аргументы)
     
-    nmap_xml_path = db.Column(db.String(500), nullable=True)
-    nmap_grep_path = db.Column(db.String(500), nullable=True)
-    nmap_normal_path = db.Column(db.String(500), nullable=True)
+    output_file = db.Column(db.String(500)) # Путь к основному файлу вывода
+    error_message = db.Column(db.Text)
     
-    nmap_xml_content = db.Column(db.Text, nullable=True)
-    nmap_grep_content = db.Column(db.Text, nullable=True)
-    nmap_normal_content = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(MOSCOW_TZ))
+    started_at = db.Column(db.DateTime)
+    completed_at = db.Column(db.DateTime)
     
-    nslookup_output = db.Column(db.Text, nullable=True)
-    nslookup_file_path = db.Column(db.String(500), nullable=True)
+    # Связь с результатами
+    results = db.relationship('ScanResult', back_populates='job', cascade='all, delete-orphan')
     
-    scan_parameters = db.Column(db.Text, nullable=True)
-    
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    started_at = db.Column(db.DateTime, nullable=True)
-    completed_at = db.Column(db.DateTime, nullable=True)
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'scan_type': self.scan_type,
+            'target': self.target,
+            'status': self.status,
+            'progress': self.progress,
+            'parameters': self.parameters,
+            'error_message': self.error_message,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'started_at': self.started_at.isoformat() if self.started_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None
+        }
 
 class ScanResult(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
-    scan_job_id = db.Column(db.Integer, db.ForeignKey('scan_job.id'), nullable=True)
-    scanned_at = db.Column(db.DateTime, default=datetime.utcnow)
+    """Результаты конкретного сканирования хоста"""
+    __tablename__ = 'scan_result'
     
-    ip = db.Column(db.String(50))
-    ports = db.Column(db.Text)
-    os = db.Column(db.String(100), nullable=True)
-    hostname = db.Column(db.String(255), nullable=True)
-    os_detection = db.Column(db.String(100), nullable=True)
-    services = db.Column(db.Text, nullable=True) # JSON
-    scan_type = db.Column(db.String(50), nullable=True) # Для совместимости со старым кодом
-    ip_address = db.Column(db.String(50), nullable=True) # Для совместимости
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.Integer, db.ForeignKey('scan_job.id'), nullable=False, index=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=True, index=True) # Может быть null если актив не создан/найден
+    
+    asset_ip = db.Column(db.String(45), index=True)
+    hostname = db.Column(db.String(255))
+    
+    os_match = db.Column(db.String(200))
+    os_accuracy = db.Column(db.Integer)
+    
+    ports = db.Column(db.JSON, default=list) # Список портов из этого сканирования
+    raw_output = db.Column(db.Text) # Сырой вывод (xml для nmap, text для других)
+    
+    scanned_at = db.Column(db.DateTime, default=lambda: datetime.now(MOSCOW_TZ))
+    
+    job = db.relationship('ScanJob', back_populates='results')
+    asset = db.relationship('Asset', back_populates='scan_results')
 
-class ScanProfile(db.Model):
-    __tablename__ = 'scan_profile'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, unique=True)
-    description = db.Column(db.Text, nullable=True)
+class ActivityLog(db.Model):
+    """Лог изменений и событий системы"""
+    __tablename__ = 'activity_log'
     
-    scan_type = db.Column(db.String(50), nullable=False)
-    targets = db.Column(db.Text, nullable=True)
-    ports = db.Column(db.String(255), nullable=True)
-    timing = db.Column(db.String(10), default='T3')
-    scripts = db.Column(db.Text, nullable=True)
-    extra_args = db.Column(db.Text, nullable=True)
-    
-    is_active = db.Column(db.Boolean, default=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-class WazuhConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    url = db.Column(db.String(255), nullable=False)
-    username = db.Column(db.String(100), nullable=False)
-    password = db.Column(db.String(255), nullable=False)
-    verify_ssl = db.Column(db.Boolean, default=False)
-    is_active = db.Column(db.Boolean, default=True)
-    last_sync = db.Column(db.DateTime, nullable=True)
+    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), index=True)
+    
+    event_type = db.Column(db.String(50), index=True) # port_discovered, service_detected, os_changed, scan_completed
+    description = db.Column(db.Text, nullable=False)
+    details = db.Column(db.JSON) # Детали изменения (старое/новое значение)
+    
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(MOSCOW_TZ), index=True)
+    
+    asset = db.relationship('Asset', back_populates='activity_logs')
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'asset_id': self.asset_id,
+            'event_type': self.event_type,
+            'description': self.description,
+            'details': self.details,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }

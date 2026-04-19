@@ -1,74 +1,95 @@
+# app.py
+"""
+Точка входа приложения Asset Management System.
+Инициализация Flask, базы данных, очередей сканирования и регистрация модулей.
+"""
 import os
-import json
-from flask import Flask
-from extensions import db
-from routes import register_blueprints
+from flask import Flask, render_template
+from extensions import db, migrate
+from models import Asset, AssetGroup, ScanJob, ServiceInventory, ActivityLog, ScanResult
+from utils import MOSCOW_TZ
+from utils.scan_queue import scan_queue_manager, utility_scan_queue_manager
 
-# Фильтр для парсинга JSON в шаблонах
-def fromjson_filter(s):
-    if s is None:
-        return None
-    try:
-        return json.loads(s)
-    except (TypeError, ValueError):
-        return None
+# Импорт蓝图 (Blueprints)
+from routes.dashboard import dashboard_bp
+from routes.scans import scans_bp
+# Предполагается наличие других блюпринтов для активов и групп, если они вынесены
+# from routes.assets import assets_bp 
+# from routes.groups import groups_bp
 
 def create_app():
+    """Фабрика приложения Flask"""
     app = Flask(__name__)
-
-    # Регистрируем пользовательский фильтр
-    app.jinja_env.filters['fromjson'] = fromjson_filter
-
-    # 1. Конфигурация
-    basedir = os.path.abspath(os.path.dirname(__file__))
-    instance_dir = os.path.join(basedir, 'instance')
     
-    if not os.path.exists(instance_dir):
-        os.makedirs(instance_dir)
-
-    db_path = os.path.join(instance_dir, 'app.db')
-    
-    app.config['SECRET_KEY'] = 'dev-secret-key-change-in-production'
-    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
+    # Конфигурация
+    app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///assets.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['UPLOAD_FOLDER'] = os.path.join(basedir, 'uploads')
-    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-
-    # 2. Инициализация расширений (Привязка app к db)
+    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
+    
+    # Инициализация расширений
     db.init_app(app)
-
-    # 3. Регистрация маршрутов
-    register_blueprints(app)
-
-    # 4. Создание таблиц и начальных данных ТОЛЬКО внутри контекста
+    migrate.init_app(app, db)
+    
+    # Регистрация Blueprint'ов
+    app.register_blueprint(dashboard_bp)
+    app.register_blueprint(scans_bp)
+    # app.register_blueprint(assets_bp)
+    # app.register_blueprint(groups_bp)
+    
+    # Создание таблиц БД, если не существуют
     with app.app_context():
+        db.create_all()
+        
+        # Запуск менеджеров очередей
+        # Передаем app контекст в потоки
+        scan_queue_manager.start_worker(app)
+        utility_scan_queue_manager.start_worker(app)
+    
+    # Фильтры Jinja2 для удобного отображения данных
+    @app.template_filter('format_datetime')
+    def format_datetime_filter(value, format='%d.%m.%Y %H:%M'):
+        if not value:
+            return ''
+        return value.strftime(format)
+
+    @app.template_filter('resolve_hostname')
+    def resolve_hostname_filter(ip_address):
+        """Попытка найти первое доменное имя для IP из БД"""
+        # Простая реализация: ищем в таблице Asset актив с таким IP и берем первый dns_name или hostname
+        # В реальном приложении лучше кэшировать это или делать через JOIN в запросе
         try:
-            # Создаем таблицы
-            db.create_all()
-            print(f"✅ Таблицы БД созданы/проверены: {db_path}")
+            asset = Asset.query.filter_by(ip_address=ip_address).first()
+            if asset:
+                if asset.fqdn:
+                    return asset.fqdn
+                if asset.dns_names and len(asset.dns_names) > 0:
+                    return asset.dns_names[0]
+                if asset.hostname:
+                    return asset.hostname
+        except:
+            pass
+        return None
 
-            # Проверка данных теперь безопасна, так как мы внутри контекста
-            # и db уже инициализирован через init_app выше.
-            from models import Group
-            if not Group.query.first():
-                root = Group(name="Root")
-                db.session.add(root)
-                db.session.commit()
-                print("✅ Создана корневая группа 'Root'")
+    @app.route('/')
+    def index_redirect():
+        """Перенаправление с корня на дашборд"""
+        from flask import redirect, url_for
+        return redirect(url_for('dashboard.index'))
 
-        except Exception as e:
-            print(f"❌ Ошибка создания таблиц БД или начальных данных: {e}")
-            # Пробрасываем ошибку дальше, чтобы приложение не запустилось в сломанном состоянии
-            raise
+    @app.errorhandler(404)
+    def not_found_error(error):
+        return render_template('404.html'), 404
+
+    @app.errorhandler(500)
+    def internal_error(error):
+        db.session.rollback()
+        return render_template('500.html'), 500
 
     return app
 
 if __name__ == '__main__':
-    print(f"📁 Текущая директория: {os.getcwd()}")
-    print("🚀 Запуск сервера...")
-    
-    try:
-        app = create_app()
-        app.run(host='0.0.0.0', port=5000, debug=True)
-    except Exception as e:
-        print(f"🛑 Критическая ошибка запуска: {e}")
+    app = create_app()
+    # Отладочный режим только для разработки
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() in ['true', '1', 'yes']
+    app.run(host='0.0.0.0', port=5000, debug=debug_mode)
