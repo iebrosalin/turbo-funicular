@@ -21,7 +21,12 @@ class AssetGroup(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(MOSCOW_TZ))
     
     # Связь с родительской группой (обратная связь)
-    parent = db.relationship('AssetGroup', backref=db.backref('children', remote_side=[id]), foreign_keys=[parent_id])
+    parent = db.relationship(
+        'AssetGroup',
+        backref=db.backref('children', lazy='dynamic'),
+        remote_side='AssetGroup.id',
+        foreign_keys=[parent_id]
+    )
     
     # Связь с активами
     assets = db.relationship('Asset', secondary=asset_groups, back_populates='groups')

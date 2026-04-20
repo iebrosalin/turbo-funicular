@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Asset Management{% endblock %}</title>
     
-    <!-- Bootstrap 5 CSS (Исправлен URL) -->
+    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
@@ -21,6 +21,9 @@
             --text-primary: #212529; --text-secondary: #6c757d; --text-muted: #adb5bd;
             --border-color: #dee2e6; --shadow-sm: 0 0.125rem 0.25rem rgba(0,0,0,0.075); --shadow-md: 0 0.5rem 1rem rgba(0,0,0,0.15);
             --font-primary: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            
+            /* Переменная для ширины сайдбара */
+            --sidebar-width: 280px;
         }
         [data-bs-theme="dark"] {
             --bs-primary: #3d8bfd; --bs-secondary: #6c757d; --bs-success: #20c997; --bs-info: #6edff6; --bs-warning: #ffda6a; --bs-danger: #ea868f;
@@ -31,16 +34,16 @@
         body { background-color: var(--bg-body); color: var(--text-primary); font-family: var(--font-primary); transition: background-color 0.3s ease, color 0.3s ease; overflow-x: hidden; }
         
         /* Layout */
-        .wrapper { display: flex; width: 100%; align-items: stretch; }
+        .wrapper { display: flex; width: 100%; align-items: stretch; position: relative; }
         
         /* Sidebar Styles */
         .sidebar {
-            min-width: 280px;
-            max-width: 280px;
+            min-width: var(--sidebar-width);
+            max-width: var(--sidebar-width);
             min-height: 100vh;
             background: var(--bg-sidebar);
             border-right: 1px solid var(--border-color);
-            transition: all 0.3s ease;
+            transition: none; /* Отключаем transition для плавности при ресайзе */
             display: flex;
             flex-direction: column;
             position: fixed;
@@ -49,12 +52,14 @@
             height: 100%;
             z-index: 1000;
             overflow-y: auto;
+            overflow-x: hidden;
         }
         
         .sidebar-header {
             padding: 1.5rem 1rem;
             border-bottom: 1px solid var(--border-color);
             background: var(--bg-card);
+            flex-shrink: 0;
         }
         
         .sidebar-components {
@@ -74,14 +79,15 @@
             color: var(--text-muted);
             margin-bottom: 0.75rem;
             font-weight: 600;
+            white-space: nowrap;
         }
 
         /* Main Content */
         #content {
             width: 100%;
-            margin-left: 280px; /* Ширина сайдбара */
+            margin-left: var(--sidebar-width);
             padding: 1.5rem;
-            transition: all 0.3s ease;
+            transition: margin-left 0.1s ease-out;
             min-height: 100vh;
         }
 
@@ -206,12 +212,30 @@
             100% { opacity: 1; }
         }
 
+        /* Resizer Handle */
+        .sidebar-resizer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 5px;
+            cursor: col-resize;
+            z-index: 1001;
+            background-color: transparent;
+            transition: background-color 0.2s;
+        }
+        .sidebar-resizer:hover, .sidebar-resizer.resizing {
+            background-color: var(--bs-primary);
+            opacity: 0.5;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .sidebar { margin-left: -280px; }
             .sidebar.active { margin-left: 0; }
             #content { margin-left: 0; }
             #content.active { margin-left: 0; }
+            .sidebar-resizer { display: none; } /* Скрываем ресайзер на мобильных */
         }
         
         /* Scrollbar */
@@ -274,6 +298,9 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Ручка для изменения размера -->
+        <div id="sidebarResizer" class="sidebar-resizer"></div>
     </nav>
 
     <!-- PAGE CONTENT -->
@@ -333,23 +360,78 @@
 {% include 'components/modals_assets.html' %}
 {% include 'components/modals_scans.html' %}
 
-<!-- Bootstrap JS (Исправлен URL) -->
+<!-- Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <!-- Приложение как модуль -->
 <script type="module">
     // Импорт функций из модулей
-    import { refreshGroupTree, initTreeTogglers } from '{{ url_for("static", filename="js/modules/tree.js") }}';
+    import { refreshGroupTree, initTreeTogglers, loadAssets, filterByGroup } from '{{ url_for("static", filename="js/modules/tree.js") }}';
     import { 
         initActiveScans, 
         showCreateGroupModal, 
         showRenameModal, 
         showDeleteModal, 
-        confirmDeleteGroup 
+        confirmDeleteGroup,
+        toggleGroupMode,
+        addDynamicRule,
+        saveGroup,
+        showMoveGroupModal,
+        moveGroup
     } from '{{ url_for("static", filename="js/modules/groups.js") }}';
     
     // Инициализация при загрузке DOM
     document.addEventListener('DOMContentLoaded', () => {
+        // --- Логика изменения размера сайдбара ---
+        const sidebar = document.getElementById('sidebar');
+        const resizer = document.getElementById('sidebarResizer');
+        const content = document.getElementById('content');
+        
+        let isResizing = false;
+
+        // Восстановление ширины из localStorage
+        const savedWidth = localStorage.getItem('sidebarWidth');
+        if (savedWidth) {
+            document.documentElement.style.setProperty('--sidebar-width', savedWidth);
+        }
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            resizer.classList.add('resizing');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none'; // Запрет выделения текста
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+
+            let newWidth = e.clientX;
+            
+            // Ограничения ширины
+            const minWidth = 200;
+            const maxWidth = 600;
+            
+            if (newWidth < minWidth) newWidth = minWidth;
+            if (newWidth > maxWidth) newWidth = maxWidth;
+
+            document.documentElement.style.setProperty('--sidebar-width', `${newWidth}px`);
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                resizer.classList.remove('resizing');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                
+                // Сохранение ширины
+                const currentWidth = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim();
+                localStorage.setItem('sidebarWidth', currentWidth);
+            }
+        });
+        // -----------------------------------------
+
         // Переключение сайдбара на мобильных
         document.getElementById('sidebarCollapse')?.addEventListener('click', () => {
             document.getElementById('sidebar').classList.toggle('active');
@@ -383,17 +465,27 @@
         }
 
         // Запуск дерева групп
-        refreshGroupTree();
+        refreshGroupTree().then(() => {
+            initTreeTogglers();
+        });
         
         // Запуск монитора сканирований
         initActiveScans();
         
         // Экспорт функций в глобальную область видимости для работы onclick в HTML
         window.refreshGroupTree = refreshGroupTree;
+        window.initTreeTogglers = initTreeTogglers;
         window.showCreateGroupModal = showCreateGroupModal;
         window.showRenameModal = showRenameModal;
         window.showDeleteModal = showDeleteModal;
         window.confirmDeleteGroup = confirmDeleteGroup;
+        window.toggleGroupMode = toggleGroupMode;
+        window.addDynamicRule = addDynamicRule;
+        window.saveGroup = saveGroup;
+        window.showMoveGroupModal = showMoveGroupModal;
+        window.moveGroup = moveGroup;
+        window.loadAssets = loadAssets;
+        window.filterByGroup = filterByGroup;
     });
 </script>
 

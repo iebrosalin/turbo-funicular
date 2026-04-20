@@ -292,7 +292,19 @@ def build_group_tree(groups, parent_id=None, depth=0):
                 print(f"Ошибка подсчета динамической группы {group.name}: {e}")
                 count = 0
         else:
-            count = group.assets.count()
+            # group.assets может быть списком или SQLAlchemy отношением
+            # У списка есть метод count(item), у SQLAlchemy отношения - count() без аргументов
+            # Проверяем тип объекта
+            if isinstance(group.assets, list):
+                count = len(group.assets)
+            elif hasattr(group.assets, 'count') and callable(getattr(group.assets, 'count')):
+                try:
+                    count = group.assets.count()
+                except TypeError:
+                    # Если count требует аргумент (список), используем len
+                    count = len(group.assets) if group.assets else 0
+            else:
+                count = len(group.assets) if group.assets else 0
 
         # Добавляем активы из всех вложенных групп
         for child in children:
