@@ -1,5 +1,5 @@
 import ipaddress
-from models import db, Group
+from models import db, AssetGroup as Group
 
 def create_cidr_groups(network_str, mask_prefix, parent_id=None):
     """

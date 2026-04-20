@@ -7,7 +7,7 @@ from .asset import Asset
 from .group import AssetGroup
 from .service import ServiceInventory
 from .scan import ScanJob, ScanResult
-from .log import ActivityLog
+from .log import ActivityLog, AssetChangeLog
 from .integrations import WazuhConfig, OsqueryInventory
 
 __all__ = [
@@ -17,6 +17,7 @@ __all__ = [
     'ScanJob',
     'ScanResult',
     'ActivityLog',
+    'AssetChangeLog',
     'WazuhConfig',
     'OsqueryInventory',
     'asset_groups'

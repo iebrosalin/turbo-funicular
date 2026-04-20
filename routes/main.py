@@ -257,8 +257,18 @@ def api_get_tree():
             flatten(node['children'])
     
     flatten(tree)
-    ungrouped_count = Asset.query.filter(Asset.group_id.is_(None)).count()
-    
+
+    # Подсчет активов без группы (через связь many-to-many)
+    # Используем подзапрос с NOT EXISTS для корректной работы с many-to-many
+    from sqlalchemy import exists
+    subquery = exists().where(
+        db.and_(
+            asset_groups.c.asset_id == Asset.id,
+            asset_groups.c.group_id == AssetGroup.id
+        )
+    )
+    ungrouped_count = Asset.query.filter(~subquery).count()
+
     return jsonify({
         'tree': tree, 
         'flat': flat_list, 

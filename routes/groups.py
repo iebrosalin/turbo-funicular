@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify
 from extensions import db
 from models import AssetGroup, Asset, ActivityLog
 from utils import MOSCOW_TZ
+from models.base import asset_groups
 import ipaddress
 
 # Определяем Blueprint с префиксом /api/groups
