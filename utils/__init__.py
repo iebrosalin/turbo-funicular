@@ -12,7 +12,7 @@ def get_db():
     return db
 
 def get_models():
-    from models import Asset, Group, AssetChangeLog, ServiceInventory, ScanResult
+    from models import Asset, AssetGroup as Group, AssetChangeLog, ServiceInventory, ScanResult
     return Asset, Group, AssetChangeLog, ServiceInventory, ScanResult
 
 # ────────────────────────────────────────────────────────────────

@@ -6,7 +6,7 @@ utilities_bp = Blueprint('utilities', __name__)
 
 @utilities_bp.route('/utilities')
 def utilities_page():
-    from models import Group; from utils import build_group_tree
+    from models import AssetGroup as Group; from utils import build_group_tree
     all_groups = Group.query.all()
     return render_template('utilities.html', group_tree=build_group_tree(all_groups), all_groups=all_groups)
 

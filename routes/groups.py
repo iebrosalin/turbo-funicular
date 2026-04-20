@@ -6,6 +6,7 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
 from models import AssetGroup, Asset, ActivityLog
+from models.base import asset_groups
 from utils import MOSCOW_TZ
 import ipaddress
 

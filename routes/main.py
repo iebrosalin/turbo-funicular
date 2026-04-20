@@ -257,7 +257,9 @@ def api_get_tree():
             flatten(node['children'])
     
     flatten(tree)
-    ungrouped_count = Asset.query.filter(Asset.group_id.is_(None)).count()
+    
+    # Подсчет активов без группы (через связь many-to-many)
+    ungrouped_count = Asset.query.outerjoin(Asset.groups).filter(Asset.id.isnot(None)).group_by(Asset.id).having(db.func.count(Asset.groups) == 0).count()
     
     return jsonify({
         'tree': tree, 
