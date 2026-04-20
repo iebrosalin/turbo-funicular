@@ -1,0 +1,40 @@
+<!-- templates/components/modals_integrations.html -->
+<!-- Модальные окна интеграций (Wazuh) -->
+
+<div class="modal fade" id="wazuhModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">⚙️ Настройка Wazuh API</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <label class="form-label small">URL API</label>
+                    <input type="text" id="waz-url" class="form-control form-control-sm"
+                        placeholder="https://manager:55000">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Логин</label>
+                    <input type="text" id="waz-user" class="form-control form-control-sm" placeholder="wazuh">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label small">Пароль</label>
+                    <input type="password" id="waz-pass" class="form-control form-control-sm" placeholder="••••••">
+                </div>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="waz-ssl">
+                    <label class="form-check-label small">Проверять SSL сертификат</label>
+                </div>
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="waz-active" checked>
+                    <label class="form-check-label small">Включить интеграцию</label>
+                </div>
+                <button class="btn btn-sm btn-success w-100" onclick="saveWazuhConfig()">
+                    💾 Сохранить и синхронизировать
+                </button>
+                <div id="waz-status" class="mt-2 small text-center text-muted"></div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -4,7 +4,7 @@ import { renderAssets } from './assets.js';
 let currentFilter = { groupId: null, ungrouped: false };
 let treeListenerAttached = false;
 
-// 🔒 Безопасная нормализация ID для сравнения
+// Безопасная нормализация ID для сравнения
 const normId = (val) => (val === null || val === undefined) ? 'null' : String(val);
 
 export async function refreshGroupTree() {
@@ -21,7 +21,7 @@ export async function refreshGroupTree() {
         const activeId = activeNode ? normId(activeNode.dataset.id) : null;
         const isUngrouped = !!document.querySelector('.tree-node[data-id="ungrouped"].active');
         
-        // 🌳 Рекурсивный рендер дерева
+        // Рекурсивный рендер дерева
         const buildTreeHtml = (nodes, parentId = null) => {
             const pIdStr = normId(parentId);
             const children = nodes.filter(n => normId(n.parent_id) === pIdStr);
@@ -43,7 +43,6 @@ export async function refreshGroupTree() {
                         ${node.name} ${typeIcon}
                     </span>
                     <span class="badge bg-secondary ms-auto">${node.asset_count ?? node.count ?? 0}</span>
-                    <!-- ✅ Кнопки действий -->
                     <span class="group-actions ms-2">
                         <button type="button" class="btn-action" onclick="window.showRenameModal(${node.id})" title="Редактировать">
                             <i class="bi bi-pencil"></i>
@@ -79,9 +78,12 @@ export async function refreshGroupTree() {
         `;
         
         // Рендерим в контейнер
-        treeContainer.innerHTML = `<ul>${ungroupedHtml + buildTreeHtml(data.flat)}</ul>`;
+        // Примечание: API должно возвращать { flat: [...], ungrouped_count: N }
+        // Если API возвращает просто дерево, логику нужно адаптировать
+        const flatList = data.flat || []; 
+        treeContainer.innerHTML = `<ul>${ungroupedHtml + buildTreeHtml(flatList)}</ul>`;
         
-        // ♻️ Восстановление состояния (выделение + раскрытие родителей)
+        // Восстановление состояния (выделение + раскрытие родителей)
         if (isUngrouped) {
             const n = treeContainer.querySelector('.tree-node[data-id="ungrouped"]');
             if (n) n.classList.add('active');
@@ -109,7 +111,7 @@ export async function refreshGroupTree() {
         initTreeTogglers();
         
     } catch (e) {
-        console.error('❌ Ошибка обновления дерева групп:', e);
+        console.error('Ошибка обновления дерева групп:', e);
         const treeContainer = document.getElementById('group-tree');
         if (treeContainer) {
             treeContainer.innerHTML = '<div class="text-danger small">Ошибка загрузки групп</div>';
@@ -126,10 +128,23 @@ export async function loadAssets(groupId = null, ungrouped = false) {
     try {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        renderAssets(await res.json());
+        const data = await res.json();
+        
+        // Проверка формата данных (как в dashboard-page.js)
+        let assetsArray = [];
+        if (Array.isArray(data)) {
+            assetsArray = data;
+        } else if (data.items && Array.isArray(data.items)) {
+            assetsArray = data.items;
+        } else {
+            console.warn('Неожиданный формат ответа API активов:', data);
+            assetsArray = [];
+        }
+
+        renderAssets(assetsArray);
         currentFilter = { groupId, ungrouped };
     } catch (e) { 
-        console.error('❌ Ошибка загрузки активов:', e); 
+        console.error('Ошибка загрузки активов:', e); 
     }
 }
 
@@ -143,13 +158,13 @@ export function filterByGroup(groupId) {
 }
 
 export function initTreeTogglers() {
-    if (treeListenerAttached) return; // 🛡️ Защита от дублирования
+    if (treeListenerAttached) return; // Защита от дублирования
     
     const treeContainer = document.getElementById('group-tree');
     if (!treeContainer) return;
     
     treeContainer.addEventListener('click', function(e) {
-        // ✅ Игнорируем клики по кнопкам действий
+        // Игнорируем клики по кнопкам действий
         if (e.target.closest('.group-actions') || e.target.closest('.btn-action')) return;
         
         // 1. Клик по стрелке (раскрытие/сворачивание)

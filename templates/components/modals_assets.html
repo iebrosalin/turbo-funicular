@@ -1,0 +1,21 @@
+<!-- templates/components/modals_assets.html -->
+<!-- Модальные окна для управления активами -->
+
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="text-danger">Удаление активов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Удалить <strong id="bulk-delete-count">0</strong> выбранных активов?</p>
+                <p class="text-muted small">Это действие нельзя отменить.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" onclick="executeBulkDelete()">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>

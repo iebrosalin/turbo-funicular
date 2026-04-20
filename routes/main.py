@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from extensions import db
-from models import Group, Asset, AssetChangeLog, ServiceInventory, ScanResult, ScanJob, WazuhConfig
+from models import AssetGroup as Group, Asset, ActivityLog, ServiceInventory, ScanResult, ScanJob
 # Исправленный импорт сканеров из корня проекта (файл scanner.py)
-from scanner import run_rustscan_scan, run_nmap_scan, run_nslookup_scan
+from utils.scan_queue import scan_queue_manager, utility_scan_queue_manager
 from utils import build_group_tree, build_complex_query, format_moscow_time, parse_nmap_xml, generate_asset_taxonomy
 from sqlalchemy import func, and_, or_
 import json

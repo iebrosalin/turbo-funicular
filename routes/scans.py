@@ -14,6 +14,8 @@ from utils.scan_queue import scan_queue_manager, utility_scan_queue_manager
 from utils import MOSCOW_TZ
 import re
 
+# Префикс_blueprint'а: /scans
+# Итоговые пути будут начинаться с /scans/...
 scans_bp = Blueprint('scans', __name__, url_prefix='/scans')
 
 # --- Страницы интерфейса ---
@@ -150,12 +152,11 @@ def start_dig_scan():
         return jsonify({'error': 'Список целей обязателен'}), 400
     
     # Создание записи задания
-    # Нормализуем тип сканирования в 'dig' для новых записей
     scan_type = 'dig' 
     
     new_job = ScanJob(
         scan_type=scan_type,
-        target=targets_text.split()[0] if targets_text else 'Bulk DNS', # Краткое описание
+        target=targets_text.split()[0] if targets_text else 'Bulk DNS',
         status='pending',
         created_at=datetime.now(MOSCOW_TZ),
         parameters={
@@ -172,7 +173,7 @@ def start_dig_scan():
     # Добавление в очередь утилит
     job_id = utility_scan_queue_manager.add_to_queue(
         job_id=new_job.id,
-        scan_type='dig', # Всегда передаем dig внутри очереди
+        scan_type='dig',
         target=targets_text,
         targets_text=targets_text,
         dns_server=dns_server,
@@ -191,33 +192,36 @@ def start_dig_scan():
 @scans_bp.route('/api/scans/status')
 def get_scan_status():
     """Получение статуса всех очередей и последних заданий"""
-    # Статус очередей
-    nmap_queue_status = scan_queue_manager.get_queue_status()
-    utility_queue_status = utility_scan_queue_manager.get_queue_status()
-    
-    # Последние 20 заданий
-    recent_jobs = ScanJob.query.order_by(ScanJob.created_at.desc()).limit(20).all()
-    jobs_data = []
-    for job in recent_jobs:
-        jobs_data.append({
-            'id': job.id,
-            'scan_type': job.scan_type,
-            'target': job.target,
-            'status': job.status,
-            'progress': job.progress,
-            'created_at': job.created_at.isoformat() if job.created_at else None,
-            'started_at': job.started_at.isoformat() if job.started_at else None,
-            'completed_at': job.completed_at.isoformat() if job.completed_at else None,
-            'error_message': job.error_message
+    try:
+        # Статус очередей
+        nmap_queue_status = scan_queue_manager.get_queue_status()
+        utility_queue_status = utility_scan_queue_manager.get_queue_status()
+
+        # Последние 50 заданий
+        recent_jobs = ScanJob.query.order_by(ScanJob.created_at.desc()).limit(50).all()
+        jobs_data = []
+        for job in recent_jobs:
+            jobs_data.append({
+                'id': job.id,
+                'scan_type': job.scan_type,
+                'target': job.target,
+                'status': job.status,
+                'progress': job.progress,
+                'created_at': job.created_at.isoformat() if job.created_at else None,
+                'started_at': job.started_at.isoformat() if job.started_at else None,
+                'completed_at': job.completed_at.isoformat() if job.completed_at else None,
+                'error_message': job.error_message
+            })
+
+        return jsonify({
+            'queues': {
+                'nmap_rustscan': nmap_queue_status,
+                'utilities': utility_queue_status
+            },
+            'recent_jobs': jobs_data
         })
-    
-    return jsonify({
-        'queues': {
-            'nmap_rustscan': nmap_queue_status,
-            'utilities': utility_queue_status
-        },
-        'recent_jobs': jobs_data
-    })
+    except Exception as e:
+        return jsonify({'error': str(e), 'detail': 'Failed to retrieve scan status'}), 500
 
 @scans_bp.route('/api/scan-job/<int:job_id>')
 def get_job_details(job_id):
@@ -234,7 +238,7 @@ def get_job_details(job_id):
             'hostname': res.hostname,
             'os_match': res.os_match,
             'ports_count': len(res.ports) if res.ports else 0,
-            'has_xml': bool(res.raw_output) # Упрощенно
+            'has_xml': bool(res.raw_output)
         })
 
     return jsonify({
@@ -274,9 +278,6 @@ def remove_from_queue(job_id):
         db.session.commit()
         return jsonify({'message': f'Задача #{job_id} удалена из очереди'}), 200
     else:
-        # Возможно, задача уже выполняется или ошибка логики очереди
-        # Помечаем как отмененную в БД, но физически из списка выполнения не убираем (так как она может быть в процессе старта)
-        # В идеале нужен флаг остановки в самом джобе, который проверит воркер
         job.status = 'cancelled'
         job.completed_at = datetime.now(MOSCOW_TZ)
         db.session.commit()
@@ -290,7 +291,7 @@ def stop_job(job_id):
     if job.status != 'running':
         return jsonify({'error': 'Задание не выполняется'}), 400
     
-    job.status = 'stopping' # Флаг для сканера
+    job.status = 'stopping'
     db.session.commit()
     
     return jsonify({'message': f'Отправлен сигнал остановки для задачи #{job_id}'}), 200
@@ -313,7 +314,6 @@ def download_scan_result(job_id, format_type):
     filename = None
     content_type = 'application/octet-stream'
     
-    # Маппинг типов сканирования и доступных форматов
     if job.scan_type == 'nmap':
         if format_type == 'xml':
             filename = 'nmap.xml'
@@ -328,14 +328,9 @@ def download_scan_result(job_id, format_type):
             return _download_zip(job_id, base_dir, ['nmap.xml', 'nmap.gnmap', 'nmap.nmap'])
             
     elif job.scan_type == 'rustscan':
-        if format_type == 'raw':
-            # Ищем файл вывода rustscan (обычно stdout или специальный файл)
-            # В реализации scanner.py мы могли сохранить stdout в файл
-            # Предположим, что это rustscan_output.txt или类似
-            # Если в job.output_file хранится путь, используем его
+        if format_type in ['raw', 'txt']:
             if job.output_file and os.path.exists(job.output_file):
                  return send_file(job.output_file, as_attachment=True, download_name=f'rustscan_{job_id}.txt')
-            # Fallback: пытаемся найти текстовый файл в папке
             for f in os.listdir(base_dir):
                 if f.endswith('.txt') or 'rustscan' in f.lower():
                     filename = f
@@ -343,18 +338,6 @@ def download_scan_result(job_id, format_type):
             if not filename:
                  return jsonify({'error': 'Файл вывода Rustscan не найден'}), 404
             content_type = 'text/plain'
-        elif format_type == 'txt':
-             # То же самое, возможно дублирование с raw, или специфичный форматированный отчет
-             # Для простоты пока вернем тот же файл
-             if job.output_file and os.path.exists(job.output_file):
-                 return send_file(job.output_file, as_attachment=True, download_name=f'rustscan_{job_id}.txt')
-             for f in os.listdir(base_dir):
-                if f.endswith('.txt'):
-                    filename = f
-                    break
-             if not filename:
-                 return jsonify({'error': 'Текстовый отчет не найден'}), 404
-             content_type = 'text/plain'
         elif format_type == 'all':
             files = [f for f in os.listdir(base_dir) if f.endswith('.txt') or 'rustscan' in f.lower()]
             if not files:
@@ -362,8 +345,7 @@ def download_scan_result(job_id, format_type):
             return _download_zip(job_id, base_dir, files)
 
     elif job.scan_type in ['dig', 'nslookup']:
-        if format_type == 'raw':
-            # Dig вывод обычно сохраняется в output_file или в файле внутри папки
+        if format_type in ['raw', 'txt']:
             if job.output_file and os.path.exists(job.output_file):
                 return send_file(job.output_file, as_attachment=True, download_name=f'dig_{job_id}.txt')
             
@@ -373,16 +355,6 @@ def download_scan_result(job_id, format_type):
                     break
             if not filename:
                 return jsonify({'error': 'Вывод Dig не найден'}), 404
-            content_type = 'text/plain'
-        elif format_type == 'txt':
-            if job.output_file and os.path.exists(job.output_file):
-                return send_file(job.output_file, as_attachment=True, download_name=f'dig_{job_id}.txt')
-            for f in os.listdir(base_dir):
-                if f.endswith('.txt'):
-                    filename = f
-                    break
-            if not filename:
-                return jsonify({'error': 'Текстовый файл не найден'}), 404
             content_type = 'text/plain'
         elif format_type == 'all':
             files = [f for f in os.listdir(base_dir) if f.endswith('.txt')]
@@ -410,9 +382,6 @@ def _download_zip(job_id, base_dir, filenames):
             fpath = os.path.join(base_dir, fname)
             if os.path.exists(fpath):
                 zf.write(fpath, fname)
-            else:
-                # Если файл не найден, можно добавить заглушку или пропустить
-                pass
     
     memory_file.seek(0)
     return send_file(
@@ -445,7 +414,6 @@ def delete_job(job_id):
         except Exception:
             pass
             
-    # Удаление записей из БД (каскад должен сработать для ScanResult, если настроен)
     db.session.delete(job)
     db.session.commit()
     

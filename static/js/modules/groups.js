@@ -1,5 +1,4 @@
 // static/js/modules/groups.js
-
 import { populateParentSelect, closeModalById } from './utils.js';
 
 const FILTER_FIELDS = [
@@ -12,6 +11,9 @@ const FILTER_FIELDS = [
 const FILTER_OPS = [
     { value: 'eq', text: '=' }, { value: 'ne', text: '≠' }, { value: 'like', text: 'содержит' }, { value: 'in', text: 'в списке' }
 ];
+
+// Глобальный таймер для опроса сканирований
+let scansPollingInterval = null;
 
 export async function showCreateGroupModal(parentId = null) {
     const modalId = 'groupEditModal';
@@ -184,11 +186,11 @@ export async function saveGroup() {
         closeModalById('groupEditModal');
         
         // Обновляем дерево и список активов
-        if (typeof refreshGroupTree === 'function') {
-            await refreshGroupTree();
+        if (typeof window.refreshGroupTree === 'function') {
+            await window.refreshGroupTree();
         }
-        if (typeof loadAssets === 'function') {
-            await loadAssets();
+        if (typeof window.loadAssets === 'function') {
+            await window.loadAssets();
         }
     } catch (e) {
         console.error('Ошибка сохранения группы:', e);
@@ -222,12 +224,12 @@ export function confirmDeleteGroup() {
     })
     .then(response => {
         if (response.ok) {
-            if (typeof refreshGroupTree === 'function') {
-                refreshGroupTree();
+            if (typeof window.refreshGroupTree === 'function') {
+                window.refreshGroupTree();
             }
-            if (typeof loadAssets === 'function' && window.currentGroupId == groupId) {
+            if (typeof window.loadAssets === 'function' && window.currentGroupId == groupId) {
                 window.currentGroupId = null;
-                loadAssets(); 
+                window.loadAssets(); 
             }
         } else {
             alert('Ошибка при удалении группы');
@@ -267,8 +269,8 @@ export async function moveGroup() {
 
         closeModalById('groupMoveModal');
         
-        if (typeof refreshGroupTree === 'function') {
-            await refreshGroupTree();
+        if (typeof window.refreshGroupTree === 'function') {
+            await window.refreshGroupTree();
         }
     } catch (e) {
         console.error('Ошибка перемещения группы:', e);
@@ -332,4 +334,83 @@ export function initContextMenu() {
 
         this.style.display = 'none';
     });
+}
+
+/**
+ * Инициализация монитора активных сканирований в сайдбаре
+ */
+export function initActiveScans() {
+    const container = document.getElementById('active-scans-list');
+    if (!container) return;
+
+    // Функция обновления списка
+    const updateScans = async () => {
+        try {
+            const res = await fetch('/api/scans/status');
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+
+            const jobs = data.recent_jobs || [];
+            // Фильтруем только активные (running, pending, queued)
+            const activeJobs = jobs.filter(j => ['running', 'pending', 'queued'].includes(j.status));
+
+            if (activeJobs.length === 0) {
+                container.innerHTML = '<div class="text-center text-muted small py-3">Нет активных задач</div>';
+                return;
+            }
+
+            let html = '';
+            activeJobs.forEach(job => {
+                let statusClass = 'status-pending';
+                let statusText = 'Ожидание';
+                
+                if (job.status === 'running') {
+                    statusClass = 'status-running';
+                    statusText = 'Выполняется';
+                } else if (job.status === 'failed') {
+                    statusClass = 'status-failed';
+                    statusText = 'Ошибка';
+                }
+
+                const progress = job.progress || 0;
+                const typeBadge = job.scan_type === 'nmap' ? 'bg-primary' : (job.scan_type === 'rustscan' ? 'bg-warning text-dark' : 'bg-info text-dark');
+
+                html += `
+                <div class="scan-list-item">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                        <span class="badge ${typeBadge} me-1">${job.scan_type.toUpperCase()}</span>
+                        <small class="text-muted">#${job.id}</small>
+                    </div>
+                    <div class="mb-1 text-truncate" title="${job.target}">
+                        <span class="scan-status-dot ${statusClass}"></span>
+                        ${job.target}
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">${statusText}</small>
+                        ${job.status === 'running' ? `<small class="text-primary fw-bold">${progress}%</small>` : ''}
+                    </div>
+                    ${job.status === 'running' ? `
+                    <div class="progress" style="height: 4px; margin-top: 4px;">
+                        <div class="progress-bar" role="progressbar" style="width: ${progress}%"></div>
+                    </div>` : ''}
+                </div>
+                `;
+            });
+
+            container.innerHTML = html;
+
+        } catch (e) {
+            console.error('Ошибка обновления сканирований:', e);
+            container.innerHTML = '<div class="text-danger small p-2">Ошибка загрузки</div>';
+        }
+    };
+
+    // Первоначальная загрузка
+    updateScans();
+
+    // Очистка предыдущего интервала если есть
+    if (scansPollingInterval) clearInterval(scansPollingInterval);
+
+    // Опрос каждые 5 секунд
+    scansPollingInterval = setInterval(updateScans, 5000);
 }

@@ -1,37 +1,403 @@
+<!-- templates/base.html -->
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" data-bs-theme="light">
 <head>
-    <meta charset="UTF-8"> 
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Asset Manager{% endblock %}</title>
+    <title>{% block title %}Asset Management{% endblock %}</title>
+    
+    <!-- Bootstrap 5 CSS (Исправлен URL) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    
+    <style>
+        /* ═══════════════════════════════════════════════════════════════
+           BOOTSTRAP 5 THEME - LIGHT & DARK MODE
+           ═══════════════════════════════════════════════════════════════ */
+        :root {
+            --bs-primary: #0d6efd; --bs-secondary: #6c757d; --bs-success: #198754; --bs-info: #0dcaf0; --bs-warning: #ffc107; --bs-danger: #dc3545;
+            --bg-body: #f8f9fa; --bg-card: #ffffff; --bg-sidebar: #ffffff; --bg-hover: #f1f3f5; --bg-input: #ffffff;
+            --text-primary: #212529; --text-secondary: #6c757d; --text-muted: #adb5bd;
+            --border-color: #dee2e6; --shadow-sm: 0 0.125rem 0.25rem rgba(0,0,0,0.075); --shadow-md: 0 0.5rem 1rem rgba(0,0,0,0.15);
+            --font-primary: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        [data-bs-theme="dark"] {
+            --bs-primary: #3d8bfd; --bs-secondary: #6c757d; --bs-success: #20c997; --bs-info: #6edff6; --bs-warning: #ffda6a; --bs-danger: #ea868f;
+            --bg-body: #212529; --bg-card: #2b3035; --bg-sidebar: #2b3035; --bg-hover: #343a40; --bg-input: #2b3035;
+            --text-primary: #f8f9fa; --text-secondary: #adb5bd; --text-muted: #6c757d;
+            --border-color: #495057; --shadow-sm: 0 0.125rem 0.25rem rgba(0,0,0,0.3); --shadow-md: 0 0.5rem 1rem rgba(0,0,0,0.4);
+        }
+        body { background-color: var(--bg-body); color: var(--text-primary); font-family: var(--font-primary); transition: background-color 0.3s ease, color 0.3s ease; overflow-x: hidden; }
+        
+        /* Layout */
+        .wrapper { display: flex; width: 100%; align-items: stretch; }
+        
+        /* Sidebar Styles */
+        .sidebar {
+            min-width: 280px;
+            max-width: 280px;
+            min-height: 100vh;
+            background: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100%;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        
+        .sidebar-header {
+            padding: 1.5rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-card);
+        }
+        
+        .sidebar-components {
+            padding: 1rem;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            margin-bottom: 1.5rem;
+        }
+        
+        .sidebar-section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* Main Content */
+        #content {
+            width: 100%;
+            margin-left: 280px; /* Ширина сайдбара */
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            min-height: 100vh;
+        }
+
+        /* Navbar inside content */
+        .navbar {
+            background: var(--bg-card) !important;
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 1.5rem;
+        }
+
+        /* Components */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            box-shadow: var(--shadow-sm);
+            transition: all 0.3s ease;
+        }
+        .table { color: var(--text-primary); }
+        .table thead { background: var(--bg-body); border-bottom: 2px solid var(--border-color); }
+        .form-control, .form-select { background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-primary); }
+        
+        /* Tree Styles */
+        .tree-node {
+            cursor: pointer;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.375rem;
+            border-left: 3px solid transparent;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            user-select: none;
+        }
+        .tree-node:hover {
+            background-color: var(--bg-hover);
+            border-left-color: var(--bs-primary);
+            color: var(--text-primary);
+        }
+        .tree-node.active {
+            background: rgba(13, 110, 253, 0.1);
+            border-left-color: var(--bs-primary);
+            color: var(--bs-primary);
+        }
+        
+        #group-tree ul {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;
+        }
+        #group-tree ul.nested {
+            padding-left: 1.5rem;
+            margin-top: 0.25rem;
+            display: none;
+        }
+        #group-tree ul.nested.active {
+            display: block;
+        }
+        #group-tree li { margin: 0.125rem 0; position: relative; }
+        
+        .caret {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.25rem;
+            height: 1.25rem;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            color: var(--text-secondary);
+            flex-shrink: 0;
+        }
+        .caret::before { content: "▶"; font-size: 0.625rem; display: inline-block; }
+        .caret.down { transform: rotate(90deg); }
+        .caret-spacer { display: inline-block; width: 1.25rem; height: 1.25rem; flex-shrink: 0; }
+        .tree-node .folder-icon { color: var(--text-secondary); flex-shrink: 0; }
+        .tree-node:hover .folder-icon, .tree-node.active .folder-icon { color: var(--bs-primary); }
+        .tree-node .group-name { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tree-node .badge { flex-shrink: 0; font-size: 0.75rem; min-width: 1.5rem; justify-content: center; }
+        
+        /* Group Actions */
+        .group-actions {
+            display: flex;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .tree-node:hover .group-actions { opacity: 1; }
+        .btn-action {
+            background: transparent;
+            border: none;
+            padding: 2px 4px;
+            cursor: pointer;
+            color: inherit;
+            border-radius: 4px;
+        }
+        .btn-action:hover { background-color: var(--bg-hover); color: var(--bs-primary); }
+        .btn-action.text-danger:hover { background-color: rgba(220, 53, 69, 0.1); color: var(--bs-danger); }
+
+        /* Scan List in Sidebar */
+        .scan-list-item {
+            font-size: 0.85rem;
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .scan-list-item:last-child { border-bottom: none; }
+        .scan-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-running { background-color: var(--bs-primary); animation: pulse 1.5s infinite; }
+        .status-pending { background-color: var(--bs-warning); }
+        .status-failed { background-color: var(--bs-danger); }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar { margin-left: -280px; }
+            .sidebar.active { margin-left: 0; }
+            #content { margin-left: 0; }
+            #content.active { margin-left: 0; }
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-body); }
+        ::-webkit-scrollbar-thumb { background: var(--bs-secondary); border-radius: 4px; }
+    </style>
+    
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    {% block content %}{% endblock %}
 
-    {% include 'components/modals.html' %}
+<div class="wrapper">
+    <!-- SIDEBAR -->
+    <nav id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+            <h4 class="mb-0"><i class="bi bi-hdd-network me-2"></i>AssetMgr</h4>
+        </div>
+        
+        <div class="sidebar-components">
+            <!-- Навигация -->
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">Меню</div>
+                <ul class="list-unstyled components mb-0">
+                    <li>
+                        <a href="/" class="tree-node {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+                            <i class="bi bi-speedometer2 folder-icon"></i>
+                            <span class="group-name">Дашборд</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="/scans/" class="tree-node {% if request.endpoint and 'scans' in request.endpoint %}active{% endif %}">
+                            <i class="bi bi-radar folder-icon"></i>
+                            <span class="group-name">Сканирования</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
-    
-    {% block extra_js %}{% endblock %}
-    
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Ждем загрузки модуля
-            setTimeout(() => {
-                if (typeof window.initTheme === 'function') window.initTheme();
+            <!-- Дерево групп -->
+            <div class="sidebar-section">
+                <div class="d-flex justify-content-between align-items-center sidebar-section-title">
+                    <span>Группы активов</span>
+                    <button class="btn btn-sm btn-link p-0" onclick="window.showCreateGroupModal()" title="Создать группу">
+                        <i class="bi bi-plus-circle"></i>
+                    </button>
+                </div>
+                <div id="group-tree">
+                    <!-- Заполняется через JS (modules/tree.js) -->
+                    <div class="text-center text-muted small py-3">Загрузка...</div>
+                </div>
+            </div>
+
+            <!-- Активные сканирования -->
+            <div class="sidebar-section">
+                <div class="sidebar-section-title">Активные задачи</div>
+                <div id="active-scans-list">
+                    <!-- Заполняется через JS (modules/groups.js) -->
+                    <div class="text-center text-muted small py-3">Нет активных задач</div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- PAGE CONTENT -->
+    <div id="content">
+        <!-- Верхняя панель -->
+        <nav class="navbar navbar-expand-lg">
+            <div class="container-fluid">
+                <button type="button" id="sidebarCollapse" class="btn btn-outline-secondary btn-sm">
+                    <i class="bi bi-list"></i>
+                </button>
                 
-                const activeScansEl = document.getElementById('active-scans');
-                if (activeScansEl && typeof window.pollActiveScans === 'function') {
-                    window.pollActiveScans();
-                    setInterval(window.pollActiveScans, 5000);
-                }
-            }, 100);
+                <div class="ms-auto d-flex align-items-center">
+                    <!-- Тема -->
+                    <button class="btn btn-sm btn-outline-secondary me-2" id="themeToggle" title="Переключить тему">
+                        <i class="bi bi-moon-stars-fill"></i>
+                    </button>
+                    
+                    <!-- Профиль / Выход -->
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-person-circle"></i> Admin
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="#">Профиль</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/logout">Выход</a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Основной контент страницы -->
+        <main>
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            {% block content %}{% endblock %}
+        </main>
+        
+        <footer class="mt-5 pt-3 border-top text-center text-muted small">
+            &copy; 2026 Asset Management System. Version 2.0
+        </footer>
+    </div>
+</div>
+
+<!-- Модальные окна -->
+{% include 'components/modals_groups.html' %}
+{% include 'components/modals_assets.html' %}
+{% include 'components/modals_scans.html' %}
+
+<!-- Bootstrap JS (Исправлен URL) -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Приложение как модуль -->
+<script type="module">
+    // Импорт функций из модулей
+    import { refreshGroupTree, initTreeTogglers } from '{{ url_for("static", filename="js/modules/tree.js") }}';
+    import { 
+        initActiveScans, 
+        showCreateGroupModal, 
+        showRenameModal, 
+        showDeleteModal, 
+        confirmDeleteGroup 
+    } from '{{ url_for("static", filename="js/modules/groups.js") }}';
+    
+    // Инициализация при загрузке DOM
+    document.addEventListener('DOMContentLoaded', () => {
+        // Переключение сайдбара на мобильных
+        document.getElementById('sidebarCollapse')?.addEventListener('click', () => {
+            document.getElementById('sidebar').classList.toggle('active');
+            document.getElementById('content').classList.toggle('active');
         });
-    </script>
+
+        // Переключение темы
+        const themeToggle = document.getElementById('themeToggle');
+        const htmlEl = document.documentElement;
+        const icon = themeToggle.querySelector('i');
+        
+        // Проверка сохраненной темы
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        htmlEl.setAttribute('data-bs-theme', savedTheme);
+        updateIcon(savedTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = htmlEl.getAttribute('data-bs-theme');
+            const next = current === 'light' ? 'dark' : 'light';
+            htmlEl.setAttribute('data-bs-theme', next);
+            localStorage.setItem('theme', next);
+            updateIcon(next);
+        });
+
+        function updateIcon(theme) {
+            if (theme === 'dark') {
+                icon.classList.replace('bi-moon-stars-fill', 'bi-sun-fill');
+            } else {
+                icon.classList.replace('bi-sun-fill', 'bi-moon-stars-fill');
+            }
+        }
+
+        // Запуск дерева групп
+        refreshGroupTree();
+        
+        // Запуск монитора сканирований
+        initActiveScans();
+        
+        // Экспорт функций в глобальную область видимости для работы onclick в HTML
+        window.refreshGroupTree = refreshGroupTree;
+        window.showCreateGroupModal = showCreateGroupModal;
+        window.showRenameModal = showRenameModal;
+        window.showDeleteModal = showDeleteModal;
+        window.confirmDeleteGroup = confirmDeleteGroup;
+    });
+</script>
+
+{% block extra_js %}{% endblock %}
+
 </body>
 </html>
