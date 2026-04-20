@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from extensions import db
-from models import AssetGroup as Group, Asset, ActivityLog, ServiceInventory, ScanResult, ScanJob
+from models import AssetGroup as Group, Asset, ActivityLog, ServiceInventory, ScanResult, ScanJob, asset_groups
 # Исправленный импорт сканеров из корня проекта (файл scanner.py)
 from utils.scan_queue import scan_queue_manager, utility_scan_queue_manager
 from utils import build_group_tree, build_complex_query, format_moscow_time, parse_nmap_xml, generate_asset_taxonomy
@@ -264,7 +264,7 @@ def api_get_tree():
     subquery = exists().where(
         db.and_(
             asset_groups.c.asset_id == Asset.id,
-            asset_groups.c.group_id == AssetGroup.id
+            asset_groups.c.group_id == Group.id
         )
     )
     ungrouped_count = Asset.query.filter(~subquery).count()
