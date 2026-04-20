@@ -81,7 +81,7 @@ def get_assets_api():
                     except:
                         query = query.join(asset_groups).filter(asset_groups.c.group_id == group_id_int)
                 else:
-                    query = query.filter(Asset.group_id == group_id_int)
+                    query = query.join(asset_groups).filter(asset_groups.c.group_id == group_id_int)
             except ValueError:
                 return jsonify({'error': 'Invalid group_id'}), 400
                 
