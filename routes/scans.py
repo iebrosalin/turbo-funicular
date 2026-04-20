@@ -16,8 +16,7 @@ import re
 
 # Префикс_blueprint'а: /scans
 # Итоговые пути будут начинаться с /scans/...
-scans_bp = Blueprint('scans', __name__, url_prefix='/scans')
-
+scans_bp = Blueprint('scans', __name__)
 # --- Страницы интерфейса ---
 
 @scans_bp.route('/')

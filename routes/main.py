@@ -68,7 +68,7 @@ def get_assets_api():
     
     # Обработка фильтра "Без группы"
     if ungrouped and ungrouped.lower() == 'true':
-        query = query.filter(Asset.group_id.is_(None))
+        query = query.outerjoin(asset_groups).filter(asset_groups.c.asset_id.is_(None))
     else:
         group_id = request.args.get('group_id')
         if group_id and group_id != 'all':
@@ -77,9 +77,9 @@ def get_assets_api():
                 group = Group.query.get(group_id_int)
                 if group and group.is_dynamic and group.filter_rules:
                     try:
-                        query = build_complex_query(Asset, json.loads(group.filter_rules), query)
+                        query = query.join(asset_groups).filter(asset_groups.c.group_id == group_id_int)
                     except:
-                        query = query.filter(Asset.group_id == group_id_int)
+                        query = query.join(asset_groups).filter(asset_groups.c.group_id == group_id_int)
                 else:
                     query = query.filter(Asset.group_id == group_id_int)
             except ValueError:
