@@ -15,7 +15,9 @@ class AssetGroup(db.Model):
     
     # Иерархия: ссылка на родительскую группу
     parent_id = db.Column(db.Integer, db.ForeignKey('asset_group.id'), nullable=True, index=True)
-    
+       # Динамические группы
+    is_dynamic = db.Column(db.Boolean, default=False)
+    filter_rules = db.Column(db.Text)  # JSON с правилами фильтрации
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(MOSCOW_TZ))
     
     # Связь с родительской группой (обратная связь)

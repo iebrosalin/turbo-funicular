@@ -12,10 +12,7 @@ from utils.scan_queue import scan_queue_manager, utility_scan_queue_manager
 
 # Импорт蓝图 (Blueprints)
 from routes.dashboard import dashboard_bp
-from routes.scans import scans_bp
-# Предполагается наличие других блюпринтов для активов и групп, если они вынесены
-# from routes.assets import assets_bp 
-# from routes.groups import groups_bp
+from routes.main import main_bp, groups_bp
 
 def create_app():
     """Фабрика приложения Flask"""
@@ -32,10 +29,10 @@ def create_app():
     migrate.init_app(app, db)
     
     # Регистрация Blueprint'ов
+    app.register_blueprint(main_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(scans_bp)
-    # app.register_blueprint(assets_bp)
-    # app.register_blueprint(groups_bp)
+    app.register_blueprint(groups_bp)
     
     # Создание таблиц БД, если не существуют
     with app.app_context():
