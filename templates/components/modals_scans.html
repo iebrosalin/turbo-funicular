@@ -60,9 +60,11 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Группа назначения</label>
-                        <select name="group_id" id="import-group-id" class="form-select hierarchy-select">
-                            <option value="">Без группы</option>
-                        </select>
+                        <div id="import-group-tree" class="group-tree-selector" style="max-height: 200px; overflow-y: auto; border: 1px solid #ced4da; border-radius: 0.25rem; padding: 0.5rem;">
+                            <div class="group-tree-item" data-id="">Без группы</div>
+                        </div>
+                        <input type="hidden" name="group_id" id="import-group-id" value="">
+                        <div class="form-text">Загрузите файл результата сканирования Nmap в формате XML (-oX).</div>
                     </div>
                     <div id="import-progress" class="progress mt-3" style="display:none;">
                         <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>

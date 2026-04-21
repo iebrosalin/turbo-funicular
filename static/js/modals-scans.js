@@ -134,41 +134,89 @@ async function updateImportGroupList() {
         };
         const tree = buildTree(null);
 
-        // Генерация опций с отступами через padding-left
-        const generateOptions = (nodes, level = 0) => {
-            let options = [];
+        // Генерация div-элементов с отступами через margin-left
+        const generateTreeItems = (nodes, level = 0) => {
+            let items = [];
             nodes.forEach(node => {
                 const indentPx = level * INDENT_PER_LEVEL;
                 
-                const option = document.createElement('option');
-                option.value = node.id;
-                option.text = node.name;
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'group-tree-item';
+                itemDiv.textContent = node.name;
+                itemDiv.dataset.id = node.id;
                 // Применяем отступ через стиль
-                option.style.paddingLeft = indentPx + 'px';
-                options.push(option);
+                itemDiv.style.marginLeft = indentPx + 'px';
+                itemDiv.style.cursor = 'pointer';
+                itemDiv.style.padding = '4px 8px';
+                itemDiv.style.borderRadius = '4px';
+                itemDiv.onmouseover = () => itemDiv.style.backgroundColor = '#e9ecef';
+                itemDiv.onmouseout = (e) => {
+                    if (!e.currentTarget.classList.contains('selected')) {
+                        itemDiv.style.backgroundColor = '';
+                    }
+                };
+                itemDiv.onclick = () => {
+                    // Снимаем выделение со всех
+                    document.querySelectorAll('.group-tree-item').forEach(el => {
+                        el.classList.remove('selected');
+                        el.style.backgroundColor = '';
+                    });
+                    // Выделяем текущий
+                    itemDiv.classList.add('selected');
+                    itemDiv.style.backgroundColor = '#0d6efd';
+                    itemDiv.style.color = 'white';
+                    // Устанавливаем значение в скрытый input
+                    document.getElementById('import-group-id').value = node.id;
+                };
+                
+                items.push(itemDiv);
 
                 if (node.children && node.children.length > 0) {
-                    options = options.concat(generateOptions(node.children, level + 1));
+                    items = items.concat(generateTreeItems(node.children, level + 1));
                 }
             });
-            return options;
+            return items;
         };
         
-        const select = document.getElementById('import-group-id');
-        if (!select) return;
+        const treeContainer = document.getElementById('import-group-tree');
+        if (!treeContainer) return;
 
         // Сохраняем текущее значение
-        const currentVal = select.value;
+        const currentVal = document.getElementById('import-group-id')?.value || '';
         
-        // Очищаем кроме первого элемента
-        select.innerHTML = '<option value="">Без группы</option>';
+        // Очищаем контейнер, оставляем только "Без группы"
+        treeContainer.innerHTML = '<div class="group-tree-item" data-id="">Без группы</div>';
         
-        const options = generateOptions(tree);
-        options.forEach(opt => select.appendChild(opt));
+        const items = generateTreeItems(tree);
+        items.forEach(item => treeContainer.appendChild(item));
 
-        // Восстанавливаем значение если возможно
-        if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {
-            select.value = currentVal;
+        // Добавляем обработчик для "Без группы"
+        const noGroupItem = treeContainer.querySelector('.group-tree-item[data-id=""]');
+        if (noGroupItem) {
+            noGroupItem.style.cursor = 'pointer';
+            noGroupItem.style.padding = '4px 8px';
+            noGroupItem.style.borderRadius = '4px';
+            noGroupItem.onclick = () => {
+                document.querySelectorAll('.group-tree-item').forEach(el => {
+                    el.classList.remove('selected');
+                    el.style.backgroundColor = '';
+                    el.style.color = '';
+                });
+                noGroupItem.classList.add('selected');
+                noGroupItem.style.backgroundColor = '#0d6efd';
+                noGroupItem.style.color = 'white';
+                document.getElementById('import-group-id').value = '';
+            };
+        }
+
+        // Восстанавливаем выделение если возможно
+        if (currentVal) {
+            const selectedItem = treeContainer.querySelector(`.group-tree-item[data-id="${currentVal}"]`);
+            if (selectedItem) {
+                selectedItem.click();
+            } else {
+                noGroupItem?.click();
+            }
         }
     } catch (e) {
         console.error('Не удалось обновить список групп для импорта', e);
