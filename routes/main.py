@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from extensions import db
-from models import AssetGroup as Group, Asset, ActivityLog, ServiceInventory, ScanResult, ScanJob, asset_groups
+from models import AssetGroup as Group, Asset, ActivityLog, ServiceInventory, ScanResult, ScanJob, asset_groups, AssetChangeLog
 # Исправленный импорт сканеров из корня проекта (файл scanner.py)
 from utils.scan_queue import scan_queue_manager, utility_scan_queue_manager
 from utils import build_group_tree, build_complex_query, format_moscow_time, parse_nmap_xml, generate_asset_taxonomy
@@ -16,7 +16,6 @@ from werkzeug.utils import secure_filename
 MOSCOW_TZ = timezone(timedelta(hours=3))
 
 main_bp = Blueprint('main', __name__)
-groups_bp = Blueprint('groups', __name__)
 
 # ────────────────────────────────────────────────────────────────
 # УТИЛИТЫ ДЛЯ CIDR (Локальная реализация)
@@ -124,96 +123,8 @@ def get_analytics():
     return jsonify([{'label': r[0] or 'Unknown', 'value': r[1]} for r in results])
 
 # ────────────────────────────────────────────────────────────────
-# API ГРУПП
+# API ГРУПП (удалено, теперь обрабатывается в routes/groups.py)
 # ────────────────────────────────────────────────────────────────
-
-@groups_bp.route('/api/groups', methods=['POST'])
-def api_create_group():
-    data = request.json
-    name = data.get('name')
-    parent_id = data.get('parent_id')
-    is_dynamic = data.get('is_dynamic', False)
-    filter_rules = data.get('filter_rules', [])
-    cidr_network = data.get('cidr_network')
-    cidr_mask = data.get('cidr_mask')
-    
-    if parent_id == '':
-        parent_id = None
-    
-    # Обработка CIDR
-    if cidr_network:
-        try:
-            created_count = create_cidr_groups_logic(cidr_network, int(cidr_mask or 24), parent_id)
-            return jsonify({'success': True, 'message': f'Создано {created_count} групп', 'count': created_count}), 201
-        except Exception as e:
-            return jsonify({'error': str(e)}), 400
-    
-    # Обработка динамической группы
-    filter_query = None
-    if is_dynamic and filter_rules:
-        filter_query = json.dumps(filter_rules)
-    
-    if not name and not cidr_network:
-        return jsonify({'error': 'Имя обязательно'}), 400
-    
-    # Если это не CIDR (который создает несколько групп), создаем одну
-    if not cidr_network:
-        new_group = Group(
-            name=name,
-            parent_id=parent_id,
-            filter_rules=filter_query, # Используем поле filter_rules
-            is_dynamic=is_dynamic
-        )
-        db.session.add(new_group)
-        db.session.commit()
-        return jsonify({'id': new_group.id, 'name': new_group.name, 'is_dynamic': is_dynamic}), 201
-        
-    return jsonify({'error': 'Неизвестный режим создания'}), 400
-
-@groups_bp.route('/api/groups/<int:group_id>', methods=['GET', 'PUT', 'DELETE'])
-def group_actions(group_id):
-    group = Group.query.get_or_404(group_id)
-
-    if request.method == 'GET':
-        rules = []
-        if group.filter_rules:
-            try: rules = json.loads(group.filter_rules)
-            except: pass
-            
-        return jsonify({
-            'id': group.id,
-            'name': group.name,
-            'parent_id': group.parent_id,
-            'is_dynamic': group.is_dynamic,
-            'filter_rules': rules
-        })
-
-    if request.method == 'PUT':
-        data = request.json
-        group.name = data.get('name', group.name)
-        
-        p_id = data.get('parent_id')
-        group.parent_id = p_id if p_id != '' else None
-        
-        if 'is_dynamic' in data:
-            group.is_dynamic = data['is_dynamic']
-            
-        if 'filter_rules' in data:
-            group.filter_rules = json.dumps(data['filter_rules']) if data['filter_rules'] else None
-            
-        db.session.commit()
-        return jsonify({'status': 'success'})
-
-    if request.method == 'DELETE':
-        move_to_id = request.args.get('move_to')
-        if move_to_id:
-            Asset.query.filter_by(group_id=group_id).update({'group_id': move_to_id})
-        else:
-            Asset.query.filter_by(group_id=group_id).update({'group_id': None})
-            
-        db.session.delete(group)
-        db.session.commit()
-        return jsonify({'status': 'success'})
 
 @main_bp.route('/api/groups/<int:id>', methods=['DELETE'])
 def api_delete_group(id):
@@ -283,7 +194,7 @@ def api_get_tree():
 def asset_detail(id):
     asset = Asset.query.get_or_404(id)
     all_groups = Group.query.all()
-    services = ServiceInventory.query.filter_by(asset_id=id).all() # Убрал is_active если нет такого поля
+    services = ServiceInventory.query.filter_by(asset_id=id).all()
     return render_template('asset_detail.html', asset=asset, all_groups=all_groups, services=services)
 
 @main_bp.route('/asset/<int:id>/history')
@@ -469,18 +380,5 @@ def scan_asset_nmap(id):
     db.session.add(scan_job)
     db.session.commit()
     
-    # Запуск в фоне
-    thread = threading.Thread(target=run_nmap_scan, args=(scan_job.id, asset.ip_address, None, ''))
-    thread.daemon = True
-    thread.start()
-    
     flash(f'Nmap сканирование запущено для {asset.ip_address}', 'info')
     return redirect(url_for('main.asset_detail', id=id))
-
-# ────────────────────────────────────────────────────────────────
-# РЕГИСТРАЦИЯ BLUEPRINTS
-# ────────────────────────────────────────────────────────────────
-
-def register_blueprints(app):
-    app.register_blueprint(main_bp)
-    app.register_blueprint(groups_bp)

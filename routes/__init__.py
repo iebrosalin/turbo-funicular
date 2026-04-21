@@ -1,4 +1,5 @@
-from .main import main_bp, groups_bp
+from .main import main_bp
+from .groups import groups_bp
 from .scans import scans_bp
 from .wazuh import wazuh_bp
 from .osquery import osquery_bp

@@ -153,17 +153,36 @@ document.addEventListener('DOMContentLoaded', function() {
             groupSelect.disabled = true;
 
             try {
-                const response = await fetch('/api/groups/');
+                // Используем endpoint дерева для получения информации о вложенности
+                const response = await fetch('/api/groups/tree');
                 if (response.ok) {
-                    const groups = await response.json();
-                    groups.forEach(group => {
+                    const data = await response.json();
+                    const flatGroups = data.flat || [];
+                    
+                    flatGroups.forEach(g => {
                         const option = document.createElement('option');
-                        option.value = group.id;
-                        option.textContent = group.name;
+                        option.value = g.id;
+
+                        // Формируем отступы и значки в зависимости от глубины (бесконечный уровень)
+                        const depth = g.depth || 0;
+                        let prefix = '';
+                        let icon = '📁 '; // Иконка для корневого уровня
+
+                        if (depth > 0) {
+                            // Создаем отступы для любого уровня вложенности
+                            for (let i = 0; i < depth; i++) {
+                                prefix += '    '; // 4 пробела на уровень
+                            }
+                            prefix += '└─ '; // Символ соединения
+                            icon = '📂 '; // Иконка для всех вложенных уровней
+                        }
+
+                        option.textContent = `${prefix}${icon}${g.name}`;
                         groupSelect.appendChild(option);
                     });
+                    
                     // Восстанавливаем выбор, если он был валидным
-                    if (currentValue && groups.some(g => g.id == currentValue)) {
+                    if (currentValue && flatGroups.some(g => g.id == currentValue)) {
                         groupSelect.value = currentValue;
                     }
                 }
@@ -206,17 +225,33 @@ async function submitScan(url, payload, scanName) {
  */
 async function loadGroups() {
     try {
-        // Предполагается, что endpoint /api/groups существует и возвращает список групп
-        const response = await fetch('/api/groups'); 
+        // Используем endpoint дерева для получения информации о вложенности
+        const response = await fetch('/api/groups/tree');
         if (response.ok) {
-            const groups = await response.json();
+            const data = await response.json();
+            const flatGroups = data.flat || [];
             const select = document.getElementById('nmap-groups');
             if (select) {
                 select.innerHTML = '';
-                groups.forEach(g => {
+                flatGroups.forEach(g => {
                     const option = document.createElement('option');
                     option.value = g.id;
-                    option.textContent = g.name;
+
+                    // Формируем отступы и значки в зависимости от глубины (бесконечный уровень)
+                    const depth = g.depth || 0;
+                    let prefix = '';
+                    let icon = '📁 '; // Иконка для корневого уровня
+
+                    if (depth > 0) {
+                        // Создаем отступы для любого уровня вложенности
+                        for (let i = 0; i < depth; i++) {
+                            prefix += '    '; // 4 пробела на уровень
+                        }
+                        prefix += '└─ '; // Символ соединения
+                        icon = '📂 '; // Иконка для всех вложенных уровней
+                    }
+
+                    option.textContent = `${prefix}${icon}${g.name}`;
                     select.appendChild(option);
                 });
             }

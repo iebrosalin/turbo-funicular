@@ -12,7 +12,8 @@ from utils.scan_queue import scan_queue_manager, utility_scan_queue_manager
 
 # Импорт蓝图 (Blueprints)
 from routes.dashboard import dashboard_bp
-from routes.main import main_bp, groups_bp
+from routes.main import main_bp
+from routes.groups import groups_bp
 from routes.scans import scans_bp
 
 
