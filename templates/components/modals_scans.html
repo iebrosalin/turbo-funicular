@@ -60,12 +60,12 @@
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Группа назначения</label>
-                        <select name="group_id" id="import-group-id" class="form-select">
+                        <select name="group_id" id="import-group-id" class="form-select hierarchy-select">
                             <option value="">Без группы</option>
                             <!-- Заполняется динамически или через Jinja если доступно в контексте -->
                             {% if all_groups %}
                                 {% for g in all_groups %}
-                                    <option value="{{ g.id }}">{{ g.name }}</option>
+                                    <option value="{{ g.id }}">{% if g.depth > 0 %}{{ '  ' * g.depth }}└─ {% endif %}{{ g.name }}</option>
                                 {% endfor %}
                             {% endif %}
                         </select>

@@ -47,7 +47,20 @@ def create_cidr_groups_logic(network_str, mask_bits, parent_id=None, group_name_
 @main_bp.route('/')
 def index():
     all_groups = Group.query.all()
+    # Построение плоского списка групп с depth для отображения вложенности
     group_tree = build_group_tree(all_groups)
+    flat_groups_with_depth = []
+    def flatten(nodes):
+        for node in nodes:
+            flat_groups_with_depth.append({
+                'id': node['id'],
+                'name': node['name'],
+                'depth': node.get('depth', 0),
+                'parent_id': node.get('parent_id')
+            })
+            flatten(node['children'])
+    flatten(group_tree)
+
     assets = Asset.query.all()
     ungrouped_count = Asset.query.filter(Asset.group_id.is_(None)).count()
     
@@ -57,7 +70,7 @@ def index():
     elif not current_filter or current_filter == 'all': 
         current_filter = 'ungrouped'
         
-    return render_template('index.html', assets=assets, group_tree=group_tree, all_groups=all_groups, ungrouped_count=ungrouped_count, current_filter=current_filter)
+        return render_template('index.html', assets=assets, group_tree=group_tree, all_groups=flat_groups_with_depth, ungrouped_count=ungrouped_count, current_filter=current_filter)
 
 @main_bp.route('/api/assets', methods=['GET'])
 def get_assets_api():
@@ -193,15 +206,38 @@ def api_get_tree():
 @main_bp.route('/asset/<int:id>')
 def asset_detail(id):
     asset = Asset.query.get_or_404(id)
-    all_groups = Group.query.all()
+    all_groups_raw = Group.query.all()
+    group_tree_temp = build_group_tree(all_groups_raw)
+    all_groups = []
+    def flatten(nodes):
+        for node in nodes:
+            all_groups.append({
+                'id': node['id'],
+                'name': node['name'],
+                'depth': node.get('depth', 0),
+                'parent_id': node.get('parent_id')
+            })
+            flatten(node['children'])
+    flatten(group_tree_temp)
     services = ServiceInventory.query.filter_by(asset_id=id).all()
     return render_template('asset_detail.html', asset=asset, all_groups=all_groups, services=services)
 
 @main_bp.route('/asset/<int:id>/history')
 def asset_history(id):
     asset = Asset.query.get_or_404(id)
-    all_groups = Group.query.all()
-    group_tree = build_group_tree(all_groups)
+    all_groups_raw = Group.query.all()
+    group_tree = build_group_tree(all_groups_raw)
+    all_groups = []
+    def flatten(nodes):
+        for node in nodes:
+            all_groups.append({
+                'id': node['id'],
+                'name': node['name'],
+                'depth': node.get('depth', 0),
+                'parent_id': node.get('parent_id')
+            })
+            flatten(node['children'])
+    flatten(group_tree)
     changes = AssetChangeLog.query.filter_by(asset_id=id).order_by(AssetChangeLog.changed_at.desc()).all()
     services = ServiceInventory.query.filter_by(asset_id=id).all()
     return render_template('asset_history.html', asset=asset, changes=changes, services=services, group_tree=group_tree, all_groups=all_groups)
@@ -209,7 +245,19 @@ def asset_history(id):
 @main_bp.route('/asset/<int:id>/taxonomy')
 def asset_taxonomy(id):
     asset = Asset.query.get_or_404(id)
-    all_groups = Group.query.all()
+    all_groups_raw = Group.query.all()
+    group_tree_temp = build_group_tree(all_groups_raw)
+    all_groups = []
+    def flatten(nodes):
+        for node in nodes:
+            all_groups.append({
+                'id': node['id'],
+                'name': node['name'],
+                'depth': node.get('depth', 0),
+                'parent_id': node.get('parent_id')
+            })
+            flatten(node['children'])
+    flatten(group_tree_temp)
     services = ServiceInventory.query.filter_by(asset_id=id).all()
     taxonomy_data = generate_asset_taxonomy(asset, services)
     return render_template('asset_taxonomy.html', asset=asset, taxonomy=taxonomy_data, all_groups=all_groups)

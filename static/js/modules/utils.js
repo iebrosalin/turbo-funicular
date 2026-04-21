@@ -28,9 +28,8 @@ export async function populateParentSelect(excludeIds = [], selectedId = null) {
             nodes.forEach(node => {
                 if (excludeIds.includes(String(node.id))) return;
 
-                const indent = '    '; // 4 пробела
-                const prefix = level > 0 ? '└─ ' : '';
-                const label = (indent.repeat(level)) + prefix + node.name;
+                const indent = '  '; // 2 пробела на уровень
+                const label = indent.repeat(level) + node.name;
                 
                 const option = document.createElement('option');
                 option.value = node.id;

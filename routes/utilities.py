@@ -7,8 +7,20 @@ utilities_bp = Blueprint('utilities', __name__)
 @utilities_bp.route('/utilities')
 def utilities_page():
     from models import AssetGroup as Group; from utils import build_group_tree
-    all_groups = Group.query.all()
-    return render_template('utilities.html', group_tree=build_group_tree(all_groups), all_groups=all_groups)
+    all_groups_raw = Group.query.all()
+    group_tree = build_group_tree(all_groups_raw)
+    all_groups = []
+    def flatten(nodes):
+        for node in nodes:
+            all_groups.append({
+                'id': node['id'],
+                'name': node['name'],
+                'depth': node.get('depth', 0),
+                'parent_id': node.get('parent_id')
+            })
+            flatten(node['children'])
+    flatten(group_tree)
+    return render_template('utilities.html', group_tree=group_tree, all_groups=all_groups)
 
 @utilities_bp.route('/utilities/nmap-to-rustscan', methods=['POST'])
 def nmap_to_rustscan():
