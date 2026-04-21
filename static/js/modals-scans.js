@@ -5,6 +5,10 @@
 
 document.addEventListener('DOMContentLoaded', function() {
     initScanImportForm();
+    // Загружаем список групп при загрузке страницы
+    if (typeof updateImportGroupList === 'function') {
+        updateImportGroupList();
+    }
 });
 
 /**
@@ -110,6 +114,8 @@ function showResultsModal(htmlContent, errorText = null) {
  * Динамическое обновление списка групп в модалке импорта (если нужно)
  */
 async function updateImportGroupList() {
+    const INDENT_PER_LEVEL = 24; // пикселей на каждый уровень
+    
     try {
         const res = await fetch('/api/groups/tree');
         if (!res.ok) return;
@@ -128,16 +134,17 @@ async function updateImportGroupList() {
         };
         const tree = buildTree(null);
 
-        // Генерация опций с отступами
+        // Генерация опций с отступами через padding-left
         const generateOptions = (nodes, level = 0) => {
             let options = [];
             nodes.forEach(node => {
-                const indent = '    '; // 4 пробела на уровень
-                const label = indent.repeat(level) + (level > 0 ? '└─ ' : '') + node.name;
-
+                const indentPx = level * INDENT_PER_LEVEL;
+                
                 const option = document.createElement('option');
                 option.value = node.id;
-                option.text = label;
+                option.text = node.name;
+                // Применяем отступ через стиль
+                option.style.paddingLeft = indentPx + 'px';
                 options.push(option);
 
                 if (node.children && node.children.length > 0) {

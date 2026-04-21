@@ -4,6 +4,9 @@ import { renderAssets } from './assets.js';
 let currentFilter = { groupId: null, ungrouped: false };
 let treeListenerAttached = false;
 
+// Константа отступа на каждый уровень вложенности (в пикселях)
+const INDENT_PER_LEVEL = 24;
+
 // Безопасная нормализация ID для сравнения
 const normId = (val) => (val === null || val === undefined) ? 'null' : String(val);
 
@@ -21,8 +24,8 @@ export async function refreshGroupTree() {
         const activeId = activeNode ? normId(activeNode.dataset.id) : null;
         const isUngrouped = !!document.querySelector('.tree-node[data-id="ungrouped"].active');
         
-        // Рекурсивный рендер дерева
-        const buildTreeHtml = (nodes, parentId = null) => {
+        // Рекурсивный рендер дерева с передачей глубины
+        const buildTreeHtml = (nodes, parentId = null, depth = 0) => {
             const pIdStr = normId(parentId);
             const children = nodes.filter(n => normId(n.parent_id) === pIdStr);
             if (children.length === 0) return '';
@@ -34,28 +37,29 @@ export async function refreshGroupTree() {
                 const isDynamic = node.is_dynamic;
                 const typeIcon = isDynamic ? '<i class="bi bi-funnel ms-1 text-muted" title="Динамическая группа"></i>' : '';
                 
+                // Вычисляем отступ на основе глубины
+                const indentPx = depth * INDENT_PER_LEVEL;
+                
                 html += `<li>`;
-                html += `
-                <div class="tree-node" data-id="${node.id}">
-                    ${hasChildren ? '<span class="caret"></span>' : '<span class="caret-spacer"></span>'}
-                    <i class="bi bi-folder folder-icon"></i>
-                    <span class="group-name" data-id="${node.id}" data-type="${isDynamic ? 'dynamic' : 'manual'}">
-                        ${node.name} ${typeIcon}
-                    </span>
-                    <span class="badge bg-secondary ms-auto">${node.asset_count ?? node.count ?? 0}</span>
-                    <span class="group-actions ms-2">
-                        <button type="button" class="btn-action" onclick="window.showRenameModal(${node.id})" title="Редактировать">
-                            <i class="bi bi-pencil"></i>
-                        </button>
-                        <button type="button" class="btn-action text-danger" onclick="window.showDeleteModal(${node.id})" title="Удалить">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </span>
-                </div>
-                `;
+                html += `\n                <div class="tree-node" data-id="${node.id}" style="margin-left: ${indentPx}px;">`;
+                html += `\n                    ${hasChildren ? '<span class="caret"></span>' : '<span class="caret-spacer"></span>'}`;
+                html += `\n                    <i class="bi bi-folder folder-icon"></i>`;
+                html += `\n                    <span class="group-name" data-id="${node.id}" data-type="${isDynamic ? 'dynamic' : 'manual'}">`;
+                html += `\n                        ${node.name} ${typeIcon}`;
+                html += `\n                    </span>`;
+                html += `\n                    <span class="badge bg-secondary ms-auto">${node.asset_count ?? node.count ?? 0}</span>`;
+                html += `\n                    <span class="group-actions ms-2">`;
+                html += `\n                        <button type="button" class="btn-action" onclick="window.showRenameModal(${node.id})" title="Редактировать">`;
+                html += `\n                            <i class="bi bi-pencil"></i>`;
+                html += `\n                        </button>`;
+                html += `\n                        <button type="button" class="btn-action text-danger" onclick="window.showDeleteModal(${node.id})" title="Удалить">`;
+                html += `\n                            <i class="bi bi-trash"></i>`;
+                html += `\n                        </button>`;
+                html += `\n                    </span>`;
+                html += `\n                </div>`;
                 
                 if (hasChildren) {
-                    const childrenHtml = buildTreeHtml(nodes, node.id);
+                    const childrenHtml = buildTreeHtml(nodes, node.id, depth + 1);
                     if (childrenHtml) {
                         html += `<ul class="nested">${childrenHtml}</ul>`;
                     }

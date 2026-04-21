@@ -1,9 +1,11 @@
 // static/js/modules/utils.js
 
 /**
- * Заполняет выпадающие списки родительских групп с визуальной иерархией.
+ * Заполняет выпадающие списки родительских групп с визуальной иерархией через JS.
  */
 export async function populateParentSelect(excludeIds = [], selectedId = null) {
+    const INDENT_PER_LEVEL = 24; // пикселей на каждый уровень
+    
     try {
         const res = await fetch('/api/groups/tree');
         if (!res.ok) throw new Error('Failed to fetch tree');
@@ -22,18 +24,20 @@ export async function populateParentSelect(excludeIds = [], selectedId = null) {
         };
         const tree = buildTree(null);
 
-        // Генерация опций
+        // Генерация опций с отступами через padding-left
         const generateOptions = (nodes, level = 0) => {
             let options = '';
             nodes.forEach(node => {
                 if (excludeIds.includes(String(node.id))) return;
 
-                const indent = '    '; // 4 пробела на уровень для лучшей видимости вложенности
-                const label = indent.repeat(level) + node.name;
+                const indentPx = level * INDENT_PER_LEVEL;
                 
                 const option = document.createElement('option');
                 option.value = node.id;
-                option.text = label; 
+                option.text = node.name;
+                // Применяем отступ через стиль
+                option.style.paddingLeft = indentPx + 'px';
+                
                 if (selectedId !== null && String(node.id) === String(selectedId)) {
                     option.selected = true;
                 }
@@ -65,10 +69,7 @@ export async function populateParentSelect(excludeIds = [], selectedId = null) {
                 // 2. Явно добавляем класс для стилей (важно для всех страниц)
                 el.classList.add('hierarchy-select');
                 
-                // 3. Принудительно задаем стиль через JS, если CSS по какой-то причине не применился
-                el.style.fontFamily = "'Consolas', 'Monaco', 'Courier New', monospace";
-                
-                // 4. Восстанавливаем выбор
+                // 3. Восстанавливаем выбор
                 const currentVal = selectedId !== null ? selectedId : el.getAttribute('data-last-value') || el.value;
                 if (currentVal) {
                     el.value = currentVal;

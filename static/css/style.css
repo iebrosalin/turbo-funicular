@@ -77,7 +77,7 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 }
 
 #group-tree ul.nested {
-    padding-left: 1.5rem;
+    padding-left: 0;
     margin-top: 0.25rem;
 }
 
@@ -202,13 +202,7 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
    СТИЛИ ДЛЯ ВЫПАДАЮЩИХ СПИСКОВ С ИЕРАРХИЕЙ ГРУПП
    ═══════════════════════════════════════════════════════════════ */
 
-/* Сохранение пробелов для отображения вложенности групп */
-select.hierarchy-select,
-select.hierarchy-select option {
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
-    white-space: pre !important;
-}
-
+/* Отступы для опций с иерархией задаются через JS (padding-left) */
 select.hierarchy-select {
     letter-spacing: 0;
 }
