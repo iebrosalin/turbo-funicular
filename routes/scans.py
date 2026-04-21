@@ -11,12 +11,12 @@ import zipfile
 from extensions import db
 from models import ScanJob, Asset, ServiceInventory, ScanResult, ActivityLog
 from utils.scan_queue import scan_queue_manager, utility_scan_queue_manager
-from utils import MOSCOW_TZ
+from utils import MOSCOW_TZ, parse_nmap_xml, create_asset_if_not_exists, log_asset_change
 import re
 
 # Префикс_blueprint'а: /scans
 # Итоговые пути будут начинаться с /scans/...
-scans_bp = Blueprint('scans', __name__)
+scans_bp = Blueprint('scans', __name__, url_prefix='/scans')
 # --- Страницы интерфейса ---
 
 @scans_bp.route('/')
@@ -417,3 +417,78 @@ def delete_job(job_id):
     db.session.commit()
     
     return jsonify({'message': f'Задание #{job_id} и файлы удалены'}), 200
+
+
+# --- API: Импорт XML Nmap ---
+
+@scans_bp.route('/api/scans/import-xml', methods=['POST'])
+def import_nmap_xml():
+    """Импорт результатов сканирования Nmap из XML файла"""
+    from utils.nmap_xml_importer import NmapXmlImporter
+
+    if 'xml_file' not in request.files:
+        return jsonify({'error': 'Файл не найден'}), 400
+
+    file = request.files['xml_file']
+    if file.filename == '':
+        return jsonify({'error': 'Файл не выбран'}), 400
+
+    if not file.filename.endswith('.xml'):
+        return jsonify({'error': 'Файл должен быть в формате XML'}), 400
+
+    group_id = request.form.get('group_id')
+    if group_id:
+        try:
+            group_id = int(group_id)
+        except ValueError:
+            group_id = None
+
+    # Сохранение временного файла
+    import tempfile
+    temp_dir = tempfile.gettempdir()
+    temp_path = os.path.join(temp_dir, f'nmap_import_{datetime.now(MOSCOW_TZ).strftime("%Y%m%d_%H%M%S")}.xml')
+
+    try:
+        file.save(temp_path)
+
+        # Создание записи задания для импорта
+        new_job = ScanJob(
+            scan_type='nmap_import',
+            target=f'Import: {file.filename}',
+            status='running',
+            progress=0,
+            created_at=datetime.now(MOSCOW_TZ),
+            parameters={
+                'original_filename': file.filename,
+                'group_id': group_id
+            }
+        )
+        db.session.add(new_job)
+        db.session.flush()
+        job_id = new_job.id
+
+        # Импорт
+        importer = NmapXmlImporter(scans_bp.app)
+        result = importer.import_file(temp_path, job_id=job_id, group_id=group_id)
+
+        # Удаление временного файла
+        os.remove(temp_path)
+
+        return jsonify({
+            'message': 'Импорт завершен успешно',
+            'hosts_added': result['hosts_added'],
+            'hosts_updated': result['hosts_updated'],
+            'services_added': result['services_added'],
+            'services_updated': result['services_updated'],
+            'errors': result['errors']
+        }), 200
+
+    except FileNotFoundError as e:
+        return jsonify({'error': str(e)}), 400
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        # Удаление временного файла при ошибке
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return jsonify({'error': f'Ошибка импорта: {str(e)}'}), 500

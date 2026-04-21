@@ -346,7 +346,7 @@ export function initActiveScans() {
     // Функция обновления списка
     const updateScans = async () => {
         try {
-            const res = await fetch('/api/scans/status');
+            const res = await fetch('/scans/api/scans/status');
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
 

@@ -133,6 +133,47 @@ document.addEventListener('DOMContentLoaded', function() {
             await submitScan('/scans/api/scans/dig', payload, 'Dig');
         });
     }
+
+    // --- Обработчик импорта XML Nmap ---
+    const importXmlBtn = document.getElementById('import-xml-btn');
+    if (importXmlBtn) {
+        importXmlBtn.addEventListener('click', handleXmlImport);
+    }
+
+    // Загрузка групп при открытии модального окна импорта
+    const importXmlModal = document.getElementById('importXmlModal');
+    if (importXmlModal) {
+        importXmlModal.addEventListener('show.bs.modal', async function () {
+            const groupSelect = document.getElementById('import-group');
+            if (!groupSelect) return;
+
+            // Сохраняем текущее состояние
+            const currentValue = groupSelect.value;
+            groupSelect.innerHTML = '<option value="">Не добавлять в группу</option>';
+            groupSelect.disabled = true;
+
+            try {
+                const response = await fetch('/api/groups/');
+                if (response.ok) {
+                    const groups = await response.json();
+                    groups.forEach(group => {
+                        const option = document.createElement('option');
+                        option.value = group.id;
+                        option.textContent = group.name;
+                        groupSelect.appendChild(option);
+                    });
+                    // Восстанавливаем выбор, если он был валидным
+                    if (currentValue && groups.some(g => g.id == currentValue)) {
+                        groupSelect.value = currentValue;
+                    }
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки групп:', error);
+            } finally {
+                groupSelect.disabled = false;
+            }
+        });
+    }
 });
 
 /**
@@ -341,5 +382,68 @@ async function stopJob(id) {
         loadJobs();
     } catch(e) { 
         alert('Ошибка при остановке: ' + e); 
+    }
+}
+
+
+/**
+ * Обработка импорта XML Nmap
+ */
+async function handleXmlImport() {
+    const fileInput = document.getElementById('xml-file');
+    const groupSelect = document.getElementById('import-group');
+
+    if (!fileInput.files.length) {
+        alert('Выберите XML файл для импорта');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('xml_file', fileInput.files[0]);
+
+    if (groupSelect.value) {
+        formData.append('group_id', groupSelect.value);
+    }
+
+    const btn = document.getElementById('import-xml-btn');
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Импорт...';
+
+    try {
+        const response = await fetch('/scans/api/scans/import-xml', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert(`Импорт завершен!\n\n` +
+                  `Добавлено хостов: ${data.hosts_added}\n` +
+                  `Обновлено хостов: ${data.hosts_updated}\n` +
+                  `Добавлено сервисов: ${data.services_added}\n` +
+                  `Обновлено сервисов: ${data.services_updated}`);
+
+            // Закрытие модального окна
+            const modal = bootstrap.Modal.getInstance(document.getElementById('importXmlModal'));
+            if (modal) {
+                modal.hide();
+            }
+
+            // Очистка формы
+            fileInput.value = '';
+            groupSelect.selectedIndex = 0;
+
+            // Обновление истории заданий
+            loadJobs();
+        } else {
+            alert(`Ошибка импорта: ${data.error}`);
+        }
+    } catch (err) {
+        alert('Ошибка соединения: ' + err);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
     }
 }

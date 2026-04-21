@@ -54,6 +54,15 @@
             <button class="nav-link" id="dig-tab" data-bs-toggle="tab" data-bs-target="#dig-pane" type="button" role="tab">Dig (DNS)</button>
         </li>
     </ul>
+    
+    <!-- Кнопка импорта XML -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#importXmlModal">
+                <i class="bi bi-upload"></i> Импорт XML Nmap
+            </button>
+        </div>
+    </div>
 
     <div class="tab-content" id="scanTabsContent">
         
@@ -192,6 +201,42 @@
         </div>
     </div>
 
+    <!-- Модальное окно импорта XML -->
+    <div class="modal fade" id="importXmlModal" tabindex="-1" aria-labelledby="importXmlModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="importXmlModalLabel">
+                        <i class="bi bi-upload"></i> Импорт XML Nmap
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="import-xml-form" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="xml-file" class="form-label">Выберите XML файл</label>
+                            <input type="file" class="form-control" id="xml-file" name="xml_file" accept=".xml" required>
+                            <div class="form-text">Файл должен быть в формате XML вывода Nmap (-oX)</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="import-group" class="form-label">Группа для активов (опционально)</label>
+                            <select class="form-select" id="import-group" name="group_id">
+                                <option value="">Не добавлять в группу</option>
+                                <!-- Заполняется JS -->
+                            </select>
+                            <div class="form-text">Импортированные активы будут добавлены в выбранную группу</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-success" id="import-xml-btn">
+                        <i class="bi bi-upload"></i> Импортировать
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- История заданий -->
     <div class="row mt-5">
         <div class="col-12">
