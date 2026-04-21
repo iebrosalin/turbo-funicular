@@ -65,8 +65,7 @@
                             <!-- Заполняется динамически или через Jinja если доступно в контексте -->
                             {% if all_groups %}
                                 {% for g in all_groups %}
-                                    <option value="{{ g.id }}">{% if g.depth > 0 %}{{ '  ' * g.depth }}└─ {% endif %}{{ g.name }}</option>
-                                {% endfor %}
+                                    <option value="{{ g.id }}">{% if g.depth > 0 %}{{ '    ' * g.depth }}└─ {% endif %}{{ g.name }}</option>                                {% endfor %}
                             {% endif %}
                         </select>
                     </div>

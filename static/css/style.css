@@ -196,3 +196,19 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     height: 1.25rem;
     flex-shrink: 0;
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   СТИЛИ ДЛЯ ВЫПАДАЮЩИХ СПИСКОВ С ИЕРАРХИЕЙ ГРУПП
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Сохранение пробелов для отображения вложенности групп */
+select.hierarchy-select,
+select.hierarchy-select option {
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+    white-space: pre !important;
+}
+
+select.hierarchy-select {
+    letter-spacing: 0;
+}

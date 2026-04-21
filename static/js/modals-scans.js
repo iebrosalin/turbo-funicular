@@ -111,9 +111,41 @@ function showResultsModal(htmlContent, errorText = null) {
  */
 async function updateImportGroupList() {
     try {
-        const response = await fetch('/api/groups');
-        if (!response.ok) return;
-        const groups = await response.json();
+        const res = await fetch('/api/groups/tree');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (!data.flat) return;
+
+        // Построение дерева
+        const buildTree = (parentId) => {
+            return data.flat
+                .filter(g => g.parent_id == parentId)
+                .map(g => ({
+                    ...g,
+                    children: buildTree(g.id)
+                }));
+        };
+        const tree = buildTree(null);
+
+        // Генерация опций с отступами
+        const generateOptions = (nodes, level = 0) => {
+            let options = [];
+            nodes.forEach(node => {
+                const indent = '    '; // 4 пробела на уровень
+                const label = indent.repeat(level) + (level > 0 ? '└─ ' : '') + node.name;
+
+                const option = document.createElement('option');
+                option.value = node.id;
+                option.text = label;
+                options.push(option);
+
+                if (node.children && node.children.length > 0) {
+                    options = options.concat(generateOptions(node.children, level + 1));
+                }
+            });
+            return options;
+        };
         
         const select = document.getElementById('import-group-id');
         if (!select) return;
@@ -124,12 +156,8 @@ async function updateImportGroupList() {
         // Очищаем кроме первого элемента
         select.innerHTML = '<option value="">Без группы</option>';
         
-        groups.forEach(g => {
-            const option = document.createElement('option');
-            option.value = g.id;
-            option.textContent = g.name;
-            select.appendChild(option);
-        });
+        const options = generateOptions(tree);
+        options.forEach(opt => select.appendChild(opt));
 
         // Восстанавливаем значение если возможно
         if (currentVal && Array.from(select.options).some(o => o.value === currentVal)) {

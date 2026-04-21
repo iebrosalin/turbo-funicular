@@ -56,8 +56,7 @@
                                 <select name="group_id" class="form-select hierarchy-select">
                                     <option value="">-- Без группы --</option>
                                     {% for g in all_groups %}
-                                        <option value="{{ g.id }}" {% if asset.group_id == g.id %}selected{% endif %}>{% if g.depth > 0 %}{{ '  ' * g.depth }}└─ {% endif %}{{ g.name }}</option>
-                                    {% endfor %}
+                                        <option value="{{ g.id }}" {% if asset.group_id == g.id %}selected{% endif %}>{% if g.depth > 0 %}{{ '    ' * g.depth }}└─ {% endif %}{{ g.name }}</option>                                    {% endfor %}
                                 </select>
                             </div>
                             

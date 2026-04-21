@@ -28,7 +28,7 @@ export async function populateParentSelect(excludeIds = [], selectedId = null) {
             nodes.forEach(node => {
                 if (excludeIds.includes(String(node.id))) return;
 
-                const indent = '  '; // 2 пробела на уровень
+                const indent = '    '; // 4 пробела на уровень для лучшей видимости вложенности
                 const label = indent.repeat(level) + node.name;
                 
                 const option = document.createElement('option');
@@ -110,18 +110,4 @@ export function closeModalById(modalId) {
 
     const form = modalEl.querySelector('form');
     if (form) form.reset();
-}
-
-// 🔥 ДОБАВЛЯЕМ СТИЛЬ ДЛЯ СОХРАНЕНИЯ ПРОБЕЛОВ В SELECT
-if (!document.getElementById('hierarchy-select-style')) {
-    const style = document.createElement('style');
-    style.id = 'hierarchy-select-style';
-    style.textContent = `
-        select.hierarchy-select, 
-        select.hierarchy-select option {
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            white-space: pre;
-        }
-    `;
-    document.head.appendChild(style);
 }
