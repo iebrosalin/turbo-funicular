@@ -33,3 +33,26 @@
         </div>
     </div>
 </div>
+<!-- Скрипт для инициализации дерева групп и активных сканирований -->
+<script type="module">
+    import { refreshGroupTree, initTreeTogglers } from '{{ url_for("static", filename="js/modules/tree.js") }}';
+    import { initActiveScans, showCreateGroupModal } from '{{ url_for("static", filename="js/modules/groups.js") }}';
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Инициализация дерева групп
+        refreshGroupTree().then(() => {
+            if (typeof window.initTreeTogglers === 'function') {
+                window.initTreeTogglers();
+            } else {
+                initTreeTogglers();
+            }
+        });
+
+        // Инициализация монитора сканирований
+        initActiveScans();
+
+        // Экспорт функций в глобальную область видимости
+        window.showCreateGroupModal = showCreateGroupModal;
+        window.refreshGroupTree = refreshGroupTree;
+    });
+</script>

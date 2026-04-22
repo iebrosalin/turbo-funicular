@@ -26,39 +26,52 @@ def list_groups():
 def get_group_tree():
     """
     Получение плоского списка групп для построения дерева на клиенте.
-    Возвращает список всех групп с полями id, name, parent_id, asset_count.
+    Возвращает список всех групп с полями id, name, parent_id, asset_count, depth.
     JS сам построит иерархию.
     """
     try:
+        from utils import build_group_tree
+
+        # Получаем все группы
         groups = AssetGroup.query.order_by(AssetGroup.name).all()
-        
-        # Подсчет количества активов в каждой группе (оптимизировано)
-        # Создаем словарь {group_id: count}
-        asset_counts = db.session.query(
-            db.func.count(asset_groups.c.asset_id).label('count'),
-            asset_groups.c.group_id
-        ).group_by(asset_groups.c.group_id).all()
-        
-        count_map = {row.group_id: row.count for row in asset_counts}
-        
-        result = []
-        for g in groups:
-            result.append({
-                'id': g.id,
-                'name': g.name,
-                'parent_id': g.parent_id,
-                'asset_count': count_map.get(g.id, 0),
-                'is_dynamic': 'DYNAMIC_RULES' in (g.description or '') # Простая эвристика
-            })
-            
-        # Добавляем статистику для "Без группы" (активы, не входящие ни в одну группу)
-        # Это требует более сложного запроса, пока вернем 0 или посчитаем отдельно если нужно
-        # Для простоты пока оставим только группы. 
-        # Если нужно точно считать "ungrouped", это делается через запрос к Asset где нет связей в asset_groups
-        
+
+        # Строим дерево с depth используя существующую утилиту
+        tree = build_group_tree(groups)
+
+        # Преобразуем дерево в плоский список с сохранением depth
+        def flatten_tree(tree_nodes, result=None):
+            if result is None:
+                result = []
+            for node in tree_nodes:
+                # Создаем копию узла без children для плоского списка
+                flat_node = {
+                    'id': node['id'],
+                    'name': node['name'],
+                    'parent_id': node['parent_id'],
+                    'asset_count': node.get('asset_count', 0),
+                    'is_dynamic': node.get('is_dynamic', False),
+                    'depth': node.get('depth', 0)
+                }
+                result.append(flat_node)
+                # Рекурсивно добавляем дочерние элементы
+                if node.get('children'):
+                    flatten_tree(node['children'], result)
+            return result
+
+        result = flatten_tree(tree)
+
+        # Подсчет количества активов для "Без группы"
+        ungrouped_count = db.session.query(
+            db.func.count(asset_groups.c.asset_id)
+        ).filter(
+            ~asset_groups.c.asset_id.in_(
+                db.session.query(asset_groups.c.asset_id).distinct()
+            )
+        ).scalar() or 0
+
         return jsonify({
             'flat': result,
-            'ungrouped_count': 0 # Заглушка, можно реализовать отдельным запросом
+            'ungrouped_count': ungrouped_count
         })
         
     except Exception as e:
