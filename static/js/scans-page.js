@@ -358,6 +358,9 @@ async function loadJobs() {
             if (job.status === 'running') {
                 actions += `<button class="btn btn-sm btn-outline-warning" onclick="stopJob(${job.id})" title="Остановить"><i class="bi bi-stop-fill"></i></button> `;
             }
+                        if (['completed', 'failed', 'stopped', 'cancelled'].includes(job.status)) {
+                actions += `<button class="btn btn-sm btn-outline-primary" onclick="retryJob(${job.id})" title="Повторить"><i class="bi bi-arrow-clockwise"></i></button> `;
+            }
             if (job.status === 'completed') {
                 actions += `
                     <div class="btn-group btn-group-sm">
@@ -367,6 +370,9 @@ async function loadJobs() {
                         </ul>
                     </div>
                 `;
+            }
+                        if (job.status !== 'pending' && job.status !== 'queued' && job.status !== 'running') {
+                actions += `<button class="btn btn-sm btn-outline-danger" onclick="deleteJob(${job.id})" title="Удалить из истории"><i class="bi bi-trash"></i></button> `;
             }
 
             tr.innerHTML = `
@@ -443,6 +449,38 @@ async function stopJob(id) {
         loadJobs();
     } catch(e) { 
         alert('Ошибка при остановке: ' + e); 
+    }
+}
+
+
+/**
+ * Повторное выполнение завершённой/неудачной задачи
+ */
+async function retryJob(id) {
+    if (!confirm('Повторить задачу?')) return;
+    try {
+        const res = await fetch(`/scans/api/scan-job/${id}/retry`, {method: 'POST'});
+        const data = await res.json();
+        alert(data.message);
+        loadJobs();
+        updateQueueStatus();
+    } catch(e) {
+        alert('Ошибка при повторе: ' + e);
+    }
+}
+
+/**
+ * Удаление задачи из истории
+ */
+async function deleteJob(id) {
+    if (!confirm('Удалить задачу из истории?')) return;
+    try {
+        const res = await fetch(`/scans/api/scan-job/${id}`, {method: 'DELETE'});
+        const data = await res.json();
+        alert(data.message);
+        loadJobs();
+    } catch(e) {
+        alert('Ошибка при удалении: ' + e);
     }
 }
 

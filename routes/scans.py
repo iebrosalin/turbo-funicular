@@ -294,6 +294,64 @@ def stop_job(job_id):
     db.session.commit()
     
     return jsonify({'message': f'Отправлен сигнал остановки для задачи #{job_id}'}), 200
+@scans_bp.route('/api/scan-job/<int:job_id>/retry', methods=['POST'])
+def retry_job(job_id):
+    """Повторное выполнение завершенного или неудачного задания с теми же параметрами"""
+    job = ScanJob.query.get_or_404(job_id)
+
+    # Разрешаем повтор только для завершенных или неудачных задач
+    if job.status not in ['completed', 'failed', 'stopped', 'cancelled']:
+        return jsonify({'error': 'Можно повторить только завершенные, неудачные или остановленные задачи'}), 400
+
+    # Создаем новую запись задания с теми же параметрами
+    new_job = ScanJob(
+        scan_type=job.scan_type,
+        target=job.target,
+        status='pending',
+        created_at=datetime.now(MOSCOW_TZ),
+        parameters=job.parameters,
+        progress=0
+    )
+
+    db.session.add(new_job)
+    db.session.commit()
+
+    # Добавляем в соответствующую очередь
+    params = job.parameters or {}
+
+    if job.scan_type in ['nmap', 'rustscan']:
+        new_job_id = scan_queue_manager.add_to_queue(
+            job_id=new_job.id,
+            scan_type=job.scan_type,
+            target=job.target,
+            ports=params.get('ports', ''),
+            scripts=params.get('scripts', ''),
+            custom_args=params.get('custom_args', ''),
+            run_nmap_after=params.get('run_nmap_after', False),
+            nmap_args=params.get('nmap_args', ''),
+            known_ports_only=params.get('known_ports_only', False),
+            group_ids=params.get('group_ids')
+        )
+    elif job.scan_type in ['dig', 'nslookup']:
+        new_job_id = utility_scan_queue_manager.add_to_queue(
+            job_id=new_job.id,
+            scan_type=job.scan_type,
+            target=job.target,
+            targets_text=params.get('targets_text', ''),
+            dns_server=params.get('dns_server', '77.88.8.8'),
+            cli_args=params.get('cli_args', ''),
+            record_types=params.get('record_types')
+        )
+    else:
+        db.session.delete(new_job)
+        db.session.commit()
+        return jsonify({'error': f'Неподдерживаемый тип сканирования: {job.scan_type}'}), 400
+
+    return jsonify({
+        'message': f'Задача #{job_id} добавлена на повторение как задача #{new_job_id}',
+        'new_job_id': new_job_id,
+        'status': 'pending'
+    }), 202
 
 # --- API: Скачивание результатов ---
 
