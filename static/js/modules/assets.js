@@ -1,6 +1,11 @@
 // static/js/modules/assets.js
 
 export function initAssetSelection() {
+    // Инициализация глобального множества выбранных активов, если ещё не создано
+    if (!window.selectedAssetIds) {
+        window.selectedAssetIds = new Set();
+    }
+    
     const tbody = document.getElementById('assets-body'); 
     if (!tbody) return;
     
@@ -101,7 +106,7 @@ function updateSelectAllCheckbox() {
 
 function updateBulkToolbar() {
     const tb = document.getElementById('bulk-toolbar'); 
-    const c = window.selectedAssetIds.size;
+    const c = window.selectedAssetIds ? window.selectedAssetIds.size : 0;
     if(tb) {
         tb.style.display = c > 0 ? 'flex' : 'none'; 
         const countEl = document.getElementById('selected-count');

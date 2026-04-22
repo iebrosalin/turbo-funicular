@@ -114,7 +114,7 @@ def get_assets_api():
         'ports': a.open_ports,
         'group': a.groups[0].name if a.groups else 'Без группы',
         'last_scan': format_moscow_time(a.last_nmap or a.last_rustscan, '%Y-%m-%d %H:%M'),
-        'dns_names': json.loads(a.dns_names) if a.dns_names else []
+        'dns_names': a.dns_names if isinstance(a.dns_names, list) else (json.loads(a.dns_names) if a.dns_names else [])
     } for a in assets]
     
     return jsonify(data)
