@@ -8,7 +8,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     dnsutils \
     gcc \
     libpq-dev \
+    curl \
+    wget \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Установка rustscan
+# Исправлено: -qO- заменено на -q -O rustscan.deb, чтобы сохранить файл, а не вывести в консоль
+RUN wget -q -O rustscan.deb https://github.com/RustScan/RustScan/releases/latest/download/rustscan_2.2.3_amd64.deb \
+    && dpkg -i rustscan.deb || apt-get install -f -y \
+    && rm -f rustscan.deb
 
 # Копирование файлов зависимостей
 COPY requirements.txt .

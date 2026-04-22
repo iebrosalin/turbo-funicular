@@ -4,9 +4,8 @@ services:
   web:
     build: .
     container_name: asset_management
+    network_mode: host
 #    restart: unless-stopped
-    ports:
-      - "5000:5000"
     environment:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
       - DATABASE_URL=${DATABASE_URL:-sqlite:////app/instance/assets.db}
@@ -16,18 +15,12 @@ services:
       - .:/app
       # Сохранение базы данных SQLite между перезапусками (поверх примонтированного кода)
       - app_data:/app/instance
-    networks:
-      - app_network
     # Ограничение ресурсов (опционально)
     deploy:
       resources:
         limits:
           cpus: '1.0'
           memory: 512M
-
-networks:
-  app_network:
-    driver: bridge
 
 volumes:
   app_data:

@@ -469,6 +469,12 @@ async function retryJob(id) {
     }
 }
 
+// Экспорт функций в глобальную область видимости для использования из onclick handlers
+window.retryJob = retryJob;
+window.removeJob = removeJob;
+window.stopJob = stopJob;
+window.deleteJob = deleteJob;
+
 /**
  * Удаление задачи из истории
  */
