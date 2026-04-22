@@ -15,7 +15,7 @@ from models import Asset, AssetGroup, ScanJob, ServiceInventory, ActivityLog, Sc
 from utils import MOSCOW_TZ
 from utils.scan_queue import scan_queue_manager, utility_scan_queue_manager
 
-# Импорт蓝图 (Blueprints)
+# Импорт blueprint (Blueprints)
 from routes.dashboard import dashboard_bp
 from routes.main import main_bp
 from routes.groups import groups_bp

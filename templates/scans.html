@@ -170,11 +170,17 @@
         <div class="tab-pane fade" id="dig-pane" role="tabpanel">
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <form id="dig-form">
+                    <form id="dig-form" enctype="multipart/form-data">
                         <div class="row g-3">
                             <div class="col-md-12">
                                 <label for="dig-targets" class="form-label">Список доменов/IP (каждый с новой строки)</label>
                                 <textarea class="form-control scan-input" id="dig-targets" data-scan-type="dig" rows="5" placeholder="example.com&#10;google.com&#10;192.168.1.1"></textarea>
+                                <div class="form-text">Или загрузите файл со списком DNS-имен.</div>
+                            </div>
+                            <div class="col-md-12">
+                                <label for="dig-file" class="form-label">Загрузить файл со списком DNS-имен</label>
+                                <input type="file" class="form-control" id="dig-file" accept=".txt,.csv,.lst" placeholder="">
+                                <div class="form-text">Поддерживаемые форматы: .txt, .csv, .lst (одно имя в каждой строке)</div>
                             </div>
                             <div class="col-md-6">
                                 <label for="dig-server" class="form-label">DNS Сервер</label>

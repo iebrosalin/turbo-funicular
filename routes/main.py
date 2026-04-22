@@ -62,8 +62,9 @@ def index():
     flatten(group_tree)
 
     assets = Asset.query.all()
-    ungrouped_count = Asset.query.filter(Asset.group_id.is_(None)).count()
-    
+    # Подсчет активов без групп (many-to-many связь)
+    ungrouped_count = Asset.query.outerjoin(asset_groups).filter(asset_groups.c.asset_id.is_(None)).count()
+        
     current_filter = request.args.get('group_id')
     if request.args.get('ungrouped') == 'true': 
         current_filter = 'ungrouped'
@@ -109,10 +110,10 @@ def get_assets_api():
         'id': a.id, 
         'ip': a.ip_address, 
         'hostname': a.hostname, 
-        'os': a.os_info, 
-        'ports': a.open_ports, 
-        'group': a.group.name if a.group else 'Без группы', 
-        'last_scan': format_moscow_time(a.last_scanned if hasattr(a, 'last_scanned') else None, '%Y-%m-%d %H:%M'),
+        'os': a.os_family,
+        'ports': a.open_ports,
+        'group': a.groups[0].name if a.groups else 'Без группы',
+        'last_scan': format_moscow_time(a.last_nmap or a.last_rustscan, '%Y-%m-%d %H:%M'),
         'dns_names': json.loads(a.dns_names) if a.dns_names else []
     } for a in assets]
     
@@ -121,7 +122,7 @@ def get_assets_api():
 @main_bp.route('/api/analytics', methods=['GET'])
 def get_analytics():
     filters_raw = request.args.get('filters')
-    group_by_field = request.args.get('group_by', 'os_info')
+    group_by_field = request.args.get('group_by', 'os_family')
     
     query = Asset.query
     if filters_raw:
@@ -130,7 +131,7 @@ def get_analytics():
         except:
             pass
             
-    group_col = getattr(Asset, group_by_field, Asset.os_info)
+    group_col = getattr(Asset, group_by_field, Asset.os_family)
     results = db.session.query(group_col, func.count(Asset.id).label('count')).group_by(group_col).all()
     
     return jsonify([{'label': r[0] or 'Unknown', 'value': r[1]} for r in results])
@@ -145,7 +146,17 @@ def api_delete_group(id):
     group = Group.query.get_or_404(id)
     move_to_id = request.args.get('move_to')
     if move_to_id:
-        Asset.query.filter_by(group_id=id).update({'group_id': move_to_id})
+        # Перемещение активов из удаляемой группы в новую (many-to-many)
+        assets_with_old_group = Asset.query.join(asset_groups).filter(asset_groups.c.group_id == id).all()
+        new_group = Group.query.get(move_to_id)
+        for asset in assets_with_old_group:
+            # Удаляем старую связь
+            if new_group in asset.groups:
+                asset.groups.remove(group)
+            else:
+                asset.groups.remove(group)
+                if new_group:
+                    asset.groups.append(new_group)
     db.session.delete(group)
     db.session.commit()
     return jsonify({'success': True})
@@ -323,14 +334,27 @@ def bulk_move_assets():
     if not asset_ids:
         return jsonify({'error': 'No IDs provided'}), 400
         
-    moved_count = Asset.query.filter(Asset.id.in_(asset_ids)).update({'group_id': group_id}, synchronize_session=False)
+    # Обновление связи many-to-many
+    assets = Asset.query.filter(Asset.id.in_(asset_ids)).all()
+    for asset in assets:
+        if group_id:
+            # Добавить связь с группой, если её ещё нет
+            existing_group_ids = [g.id for g in asset.groups]
+            if group_id not in existing_group_ids:
+                group = Group.query.get(group_id)
+                if group:
+                    asset.groups.append(group)
+        else:
+            # Удалить все связи с группами
+            asset.groups = []
     db.session.commit()
-    return jsonify({'success': True, 'moved': moved_count})
+    return jsonify({'success': True, 'moved': len(assets)})
 
 @main_bp.route('/asset/<int:id>/delete')
 def delete_asset(id):
     asset = Asset.query.get_or_404(id)
-    group_id = asset.group_id
+    # Получаем ID первой группы актива для редиректа (many-to-many)
+    group_id = asset.groups[0].id if asset.groups else None
     db.session.delete(asset)
     db.session.commit()
     flash(f'Актив {asset.ip_address} удалён', 'warning')
@@ -352,7 +376,12 @@ def update_asset_notes(id):
 def update_asset_group(id):
     asset = Asset.query.get_or_404(id)
     group_id = request.form.get('group_id')
-    asset.group_id = int(group_id) if group_id and group_id.strip() else None
+    # Обновление связи many-to-many: удаляем все группы и добавляем новую
+    asset.groups = []
+    if group_id and group_id.strip():
+        group = Group.query.get(int(group_id))
+        if group:
+            asset.groups.append(group)
     db.session.commit()
     flash('Группа обновлена', 'success')
     return redirect(url_for('main.asset_detail', id=id))
@@ -389,24 +418,30 @@ def import_scan():
                 existing = Asset.query.filter_by(ip_address=data['ip_address']).first()
                 if existing:
                     existing.hostname = data.get('hostname')
-                    existing.os_info = data.get('os_info')
+                    existing.os_family = data.get('os_info')
                     existing.open_ports = data.get('open_ports')
                     if hasattr(existing, 'last_scanned'):
                         existing.last_scanned = datetime.now(MOSCOW_TZ)
                     if hasattr(existing, 'status'):
                         existing.status = data.get('status')
-                    if group_id and not existing.group_id:
-                        existing.group_id = group_id
+                    if group_id:
+                        # Добавить группу к активу (many-to-many)
+                        group = Group.query.get(group_id)
+                        if group and group not in existing.groups:
+                            existing.groups.append(group)
                     updated_count += 1
                 else:
                     new_asset = Asset(
                         ip_address=data['ip_address'],
                         hostname=data.get('hostname'),
-                        os_info=data.get('os_info'),
+                        os_family=data.get('os_info'),
                         open_ports=data.get('open_ports'),
-                        status=data.get('status', 'up'),
-                        group_id=group_id
+                        status=data.get('status', 'up')
                     )
+                    if group_id:
+                        group = Group.query.get(group_id)
+                        if group:
+                            new_asset.groups.append(group)
                     db.session.add(new_asset)
                     created_count += 1
             

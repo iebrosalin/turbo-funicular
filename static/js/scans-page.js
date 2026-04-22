@@ -111,10 +111,36 @@ document.addEventListener('DOMContentLoaded', function() {
     if (digForm) {
         digForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            const targetsText = document.getElementById('dig-targets').value.trim();
+            
+            let targetsText = document.getElementById('dig-targets').value.trim();
+            const fileInput = document.getElementById('dig-file');
+
+            // Если загружен файл, читаем его содержимое
+            if (fileInput && fileInput.files && fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                try {
+                    const fileContent = await readFileAsText(file);
+                    const fileTargets = fileContent.split('\n')
+                        .map(line => line.trim())
+                        .filter(line => line && !line.startsWith('#'));
+
+                    // Объединяем с текстовым полем, если есть
+                    if (targetsText) {
+                        const textTargets = targetsText.split('\n')
+                            .map(line => line.trim())
+                            .filter(line => line);
+                        fileTargets.push(...textTargets);
+                    }
+
+                    targetsText = fileTargets.join('\n');
+                } catch (error) {
+                    alert('Ошибка чтения файла: ' + error.message);
+                    return;
+                }
+            }
+
             if (!targetsText) {
-                alert('Введите список целей');
-                return;
+                alert('Введите список целей или загрузите файл');
             }
 
             let recordTypes = null;

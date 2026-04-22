@@ -378,3 +378,17 @@ function handleKeydown(e) {
 // Экспорт функций для использования в других модулях
 window.initScanAutocomplete = initScanAutocomplete;
 window.hideScanSuggestions = hideSuggestions;
+
+/**
+ * Читает файл как текст (Promise wrapper для FileReader)
+ * @param {File} file - Файл для чтения
+ * @returns {Promise<string>} - Содержимое файла
+ */
+window.readFileAsText = function(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => resolve(event.target.result);
+        reader.onerror = (error) => reject(error);
+        reader.readAsText(file);
+    });
+};

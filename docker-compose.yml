@@ -4,7 +4,7 @@ services:
   web:
     build: .
     container_name: asset_management
-    restart: unless-stopped
+#    restart: unless-stopped
     ports:
       - "5000:5000"
     environment:
@@ -12,10 +12,10 @@ services:
       - DATABASE_URL=${DATABASE_URL:-sqlite:////app/instance/assets.db}
       - FLASK_DEBUG=${FLASK_DEBUG:-False}
     volumes:
-      # Сохранение базы данных SQLite между перезапусками
+      # Монтирование исходного кода для разработки (изменения локально применяются сразу)
+      - .:/app
+      # Сохранение базы данных SQLite между перезапусками (поверх примонтированного кода)
       - app_data:/app/instance
-      # Опционально: монтирование исходного кода для разработки
-      # - .:/app
     networks:
       - app_network
     # Ограничение ресурсов (опционально)
