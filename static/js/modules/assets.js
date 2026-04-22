@@ -157,8 +157,8 @@ export function initFilterFieldDatalist() {
     }
 }
 
-export function renderAssets(data) {
-    const tb = document.getElementById('assets-body'); 
+export function renderAssets(data, targetTableId = 'assets-body') {
+    const tb = document.getElementById(targetTableId); 
     if(!tb) return;
     tb.innerHTML = ''; 
     clearSelection();
@@ -177,6 +177,9 @@ export function renderAssets(data) {
             <td><a href="/asset/${a.id}" class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></a></td>`;
         tb.appendChild(tr);
     });
+    
+    // Инициализация выбора активов после рендеринга
+    initAssetSelection();
 }
 
 // Экспорт для доступа из main.js

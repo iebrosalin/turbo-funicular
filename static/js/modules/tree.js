@@ -11,7 +11,7 @@ const INDENT_PER_LEVEL = 24;
 const normId = (val) => (val === null || val === undefined) ? 'null' : String(val);
 
 export async function refreshGroupTree() {
-        console.log('refreshGroupTree: начало выполнения');
+    console.log('refreshGroupTree: начало выполнения');
     try {
         const res = await fetch('/api/groups/tree');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -121,7 +121,7 @@ export async function refreshGroupTree() {
             }
         }
         
-        // Инициализируем обработчики кликов
+        // Инициализируем обработчики кликов - вызываем всегда после перерисовки
         initTreeTogglers();
         console.log('refreshGroupTree: initTreeTogglers вызван');
 
@@ -134,7 +134,7 @@ export async function refreshGroupTree() {
     }
 }
 
-export async function loadAssets(groupId = null, ungrouped = false) {
+export async function loadAssets(groupId = null, ungrouped = false, targetTableId = 'assets-body', assetsContainerId = 'assets-container') {
     let url;
     if (ungrouped) url = '/api/assets?ungrouped=true';
     else if (groupId) url = `/api/assets?group_id=${parseInt(groupId)}`;
@@ -156,29 +156,42 @@ export async function loadAssets(groupId = null, ungrouped = false) {
             assetsArray = [];
         }
 
-        renderAssets(assetsArray);
+        // Показываем контейнер с активами если он существует и передан его ID
+        if (assetsContainerId) {
+            const container = document.getElementById(assetsContainerId);
+            if (container) {
+                container.style.display = 'block';
+            }
+        }
+
+        renderAssets(assetsArray, targetTableId);
         currentFilter = { groupId, ungrouped };
     } catch (e) { 
         console.error('Ошибка загрузки активов:', e); 
     }
 }
 
-export function filterByGroup(groupId) {
+export function filterByGroup(groupId, targetTableId = 'assets-body', assetsContainerId = 'assets-container') {
     document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
     const activeNode = document.querySelector(`.tree-node[data-id="${groupId}"]`);
     if (activeNode) activeNode.classList.add('active');
     
-    if (groupId === 'ungrouped') loadAssets(null, true);
-    else loadAssets(parseInt(groupId), false);
+    if (groupId === 'ungrouped') loadAssets(null, true, targetTableId, assetsContainerId);
+    else loadAssets(parseInt(groupId), false, targetTableId, assetsContainerId);
 }
 
 export function initTreeTogglers() {
-    if (treeListenerAttached) return; // Защита от дублирования
+    // Сбрасываем флаг, чтобы можно было переназначить обработчики при обновлении дерева
+    treeListenerAttached = false;
     
     const treeContainer = document.getElementById('group-tree');
     if (!treeContainer) return;
     
-    treeContainer.addEventListener('click', function(e) {
+    // Удаляем старый контейнер и создаём новый, чтобы сбросить все обработчики
+    const newTreeContainer = treeContainer.cloneNode(true);
+    treeContainer.parentNode.replaceChild(newTreeContainer, treeContainer);
+    
+    newTreeContainer.addEventListener('click', function(e) {
         // Игнорируем клики по кнопкам действий
         if (e.target.closest('.group-actions') || e.target.closest('.btn-action')) return;
         
@@ -198,7 +211,25 @@ export function initTreeTogglers() {
         // 2. Клик по названию группы
         const groupSpan = e.target.closest('.group-name');
         if (groupSpan) {
-            filterByGroup(groupSpan.dataset.id);
+            // Определяем, на какой странице находимся, и передаём правильные параметры
+            const assetsContainer = document.getElementById('assets-container');
+            const assetsTableBodyStd = document.getElementById('assets-body');
+            const assetsTableBodyScan = document.getElementById('assets-table-body');
+            
+            let targetTableId = 'assets-body';
+            let assetsContainerId = 'assets-container';
+            
+            if (assetsTableBodyScan) {
+                targetTableId = 'assets-table-body';
+            } else if (assetsTableBodyStd) {
+                targetTableId = 'assets-body';
+            }
+            
+            if (!assetsContainer) {
+                assetsContainerId = null; // Не показываем контейнер, если его нет
+            }
+            
+            filterByGroup(groupSpan.dataset.id, targetTableId, assetsContainerId);
         }
     });
     

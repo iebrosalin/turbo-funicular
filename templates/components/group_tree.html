@@ -71,5 +71,13 @@
         window.refreshGroupTree = refreshGroupTree;
         window.showRenameModal = showRenameModal;
         window.showDeleteModal = showDeleteModal;
+        
+        // Экспорт filterByGroup и loadAssets для SPA функционала на странице сканирований
+        if (typeof window.filterByGroup === 'undefined') {
+            import('{{ url_for("static", filename="js/modules/tree.js") }}').then(module => {
+                window.filterByGroup = module.filterByGroup;
+                window.loadAssets = module.loadAssets;
+            });
+        }
     });
 </script>
