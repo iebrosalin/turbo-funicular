@@ -4,6 +4,11 @@
 Инициализация Flask, базы данных, очередей сканирования и регистрация модулей.
 """
 import os
+from dotenv import load_dotenv
+
+# Загрузка переменных окружения из .env файла
+load_dotenv()
+
 from flask import Flask, render_template
 from extensions import db, migrate
 from models import Asset, AssetGroup, ScanJob, ServiceInventory, ActivityLog, ScanResult
@@ -108,11 +113,11 @@ def create_app():
     """Фабрика приложения Flask"""
     app = Flask(__name__)
     
-    # Конфигурация
+    # Конфигурация из переменных окружения (загружаются из .env файла)
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///assets.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
+    app.config['MAX_CONTENT_LENGTH'] = int(os.environ.get('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))  # 16MB max upload
     
     # Инициализация расширений
     db.init_app(app)
