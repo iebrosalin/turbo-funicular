@@ -382,6 +382,8 @@
     
     // Инициализация при загрузке DOM
     document.addEventListener('DOMContentLoaded', () => {
+        console.log('DOM загружен, инициализация...');
+
         // --- Логика изменения размера сайдбара ---
         const sidebar = document.getElementById('sidebar');
         const resizer = document.getElementById('sidebarResizer');
@@ -465,6 +467,7 @@
         }
 
         // Запуск дерева групп
+        console.log('Вызов refreshGroupTree...');
         refreshGroupTree().then(() => {
             initTreeTogglers();
         });

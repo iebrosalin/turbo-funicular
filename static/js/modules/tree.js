@@ -11,10 +11,12 @@ const INDENT_PER_LEVEL = 24;
 const normId = (val) => (val === null || val === undefined) ? 'null' : String(val);
 
 export async function refreshGroupTree() {
+        console.log('refreshGroupTree: начало выполнения');
     try {
         const res = await fetch('/api/groups/tree');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
+        console.log('refreshGroupTree: данные получены:', data);
         
         const treeContainer = document.getElementById('group-tree');
         if (!treeContainer) return;
@@ -86,7 +88,9 @@ export async function refreshGroupTree() {
         // Если API возвращает просто дерево, логику нужно адаптировать
         const flatList = data.flat || []; 
         treeContainer.innerHTML = `<ul>${ungroupedHtml + buildTreeHtml(flatList)}</ul>`;
-        
+        console.log('refreshGroupTree: innerHTML установлен, содержимое:', treeContainer.innerHTML.substring(0, 200));
+
+        console.log('refreshGroupTree: HTML отрендерен')
         // Восстановление состояния (выделение + раскрытие родителей)
         if (isUngrouped) {
             const n = treeContainer.querySelector('.tree-node[data-id="ungrouped"]');
@@ -113,7 +117,8 @@ export async function refreshGroupTree() {
         
         // Инициализируем обработчики кликов
         initTreeTogglers();
-        
+        console.log('refreshGroupTree: initTreeTogglers вызван');
+
     } catch (e) {
         console.error('Ошибка обновления дерева групп:', e);
         const treeContainer = document.getElementById('group-tree');

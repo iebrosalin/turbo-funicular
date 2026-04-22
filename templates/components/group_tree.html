@@ -26,7 +26,7 @@
         <h6 class="text-uppercase text-muted small fw-bold mb-3">
             <i class="bi bi-activity me-2"></i>Активные сканирования
         </h6>
-        <div id="active-scans">
+        <div id="active-scans-list">
             <div class="text-center text-muted small py-2">
                 <i class="bi bi-check-circle"></i> Нет активных задач
             </div>
@@ -39,17 +39,25 @@
     import { initActiveScans, showCreateGroupModal } from '{{ url_for("static", filename="js/modules/groups.js") }}';
 
     document.addEventListener('DOMContentLoaded', () => {
-        // Инициализация дерева групп
-        refreshGroupTree().then(() => {
-            if (typeof window.initTreeTogglers === 'function') {
-                window.initTreeTogglers();
-            } else {
-                initTreeTogglers();
-            }
-        });
+        // Инициализация дерева групп (только если это не было сделано в base.html)
+        const treeContainer = document.getElementById('group-tree');
+        if (treeContainer && !window.groupTreeInitialized) {
+            window.groupTreeInitialized = true;
+            refreshGroupTree().then(() => {
+                if (typeof window.initTreeTogglers === 'function') {
+                    window.initTreeTogglers();
+                } else {
+                    initTreeTogglers();
+                }
+            });
+        }
 
-        // Инициализация монитора сканирований
-        initActiveScans();
+        // Инициализация монитора сканирований (только если это не было сделано в base.html)
+        const scansContainer = document.getElementById('active-scans-list');
+        if (scansContainer && !window.activeScansInitialized) {
+            window.activeScansInitialized = true;
+            initActiveScans();
+        }
 
         // Экспорт функций в глобальную область видимости
         window.showCreateGroupModal = showCreateGroupModal;
