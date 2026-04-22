@@ -182,6 +182,20 @@ export async function loadAssets(groupId = null, ungrouped = false, targetTableI
 }
 
 export function filterByGroup(groupId, targetTableId = 'assets-body', assetsContainerId = 'assets-container') {
+        // Проверяем, находимся ли мы на странице сканирований
+    const isScansPage = document.getElementById('assets-table-body') !== null;
+
+    // Если мы на странице сканирований, делаем редирект на главную страницу с фильтром
+    if (isScansPage) {
+        if (groupId === 'ungrouped') {
+            window.location.href = '/?ungrouped=true';
+        } else {
+            window.location.href = `/?group_id=${parseInt(groupId)}`;
+        }
+        return;
+    }
+
+    // Для других страниц (dashboard) используем старый SPA-подход
     document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
     const activeNode = document.querySelector(`.tree-node[data-id="${groupId}"]`);
     if (activeNode) activeNode.classList.add('active');
