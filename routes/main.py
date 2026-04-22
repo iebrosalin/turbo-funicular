@@ -72,7 +72,7 @@ def index():
         current_filter = 'ungrouped'
         
     return render_template('index.html', assets=assets, group_tree=group_tree, all_groups=flat_groups_with_depth, ungrouped_count=ungrouped_count, current_filter=current_filter)
-    
+        
 @main_bp.route('/api/assets', methods=['GET'])
 def get_assets_api():
     query = Asset.query

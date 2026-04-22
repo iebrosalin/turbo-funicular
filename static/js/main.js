@@ -74,6 +74,19 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers } from '.
         refreshGroupTree()
             .then(() => {
                 initTreeTogglers();
+
+                // 🔍 Обработка URL-параметров для фильтрации активов (group_id, ungrouped)
+                const urlParams = new URLSearchParams(window.location.search);
+                const groupIdParam = urlParams.get('group_id');
+                const ungroupedParam = urlParams.get('ungrouped');
+
+                if (ungroupedParam === 'true') {
+                    // Фильтр "Без группы"
+                    filterByGroup('ungrouped', 'assets-body', null);
+                } else if (groupIdParam && groupIdParam !== 'all') {
+                    // Фильтр по конкретной группе
+                    filterByGroup(groupIdParam, 'assets-body', null);
+                }
             })
             .catch(err => {
                 console.error('❌ Ошибка инициализации дерева групп:', err);

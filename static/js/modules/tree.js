@@ -156,7 +156,7 @@ export async function loadAssets(groupId = null, ungrouped = false, targetTableI
             assetsArray = [];
         }
 
-        // Показываем контейнер с активами и скрываем основной контент страницы сканирований
+        // Показываем контейнер с активами только если он существует (для страницы сканирований)
         if (assetsContainerId) {
             const container = document.getElementById(assetsContainerId);
             if (container) {
@@ -182,11 +182,11 @@ export async function loadAssets(groupId = null, ungrouped = false, targetTableI
 }
 
 export function filterByGroup(groupId, targetTableId = 'assets-body', assetsContainerId = 'assets-container') {
-        // Проверяем, находимся ли мы на странице сканирований
-    const isScansPage = document.getElementById('assets-table-body') !== null;
+    // Проверяем, находимся ли мы на главной странице (index.html)
+    const isIndexPage = document.getElementById('assets-body') !== null;
 
-    // Если мы на странице сканирований, делаем редирект на главную страницу с фильтром
-    if (isScansPage) {
+    // Если мы НЕ на главной странице, делаем редирект на главную с фильтром
+    if (!isIndexPage) {
         if (groupId === 'ungrouped') {
             window.location.href = '/?ungrouped=true';
         } else {
@@ -195,13 +195,15 @@ export function filterByGroup(groupId, targetTableId = 'assets-body', assetsCont
         return;
     }
 
-    // Для других страниц (dashboard) используем старый SPA-подход
+    // Для главной страницы используем SPA-подход (без перезагрузки)
+    // Подсвечиваем активную группу в дереве
     document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
     const activeNode = document.querySelector(`.tree-node[data-id="${groupId}"]`);
     if (activeNode) activeNode.classList.add('active');
-    
-    if (groupId === 'ungrouped') loadAssets(null, true, targetTableId, assetsContainerId);
-    else loadAssets(parseInt(groupId), false, targetTableId, assetsContainerId);
+
+    // Загружаем активы (на index.html assetsContainerId должен быть null)
+    if (groupId === 'ungrouped') loadAssets(null, true, targetTableId, null);
+    else loadAssets(parseInt(groupId), false, targetTableId, null);
 }
 
 export function initTreeTogglers() {
