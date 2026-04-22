@@ -28,14 +28,20 @@ export async function refreshGroupTree() {
         
         // Рекурсивный рендер дерева с передачей глубины
         const buildTreeHtml = (nodes, parentId = null, depth = 0) => {
-            const pIdStr = normId(parentId);
-            const children = nodes.filter(n => normId(n.parent_id) === pIdStr);
+            const pIdStr = parentId === null ? 'null' : String(parentId);
+            const children = nodes.filter(n => {
+                const nParentId = n.parent_id === null ? 'null' : String(n.parent_id);
+                return nParentId === pIdStr;
+            });
             if (children.length === 0) return '';
             
             let html = '';
             children.forEach(node => {
-                const nIdStr = normId(node.id);
-                const hasChildren = nodes.some(n => normId(n.parent_id) === nIdStr);
+                const nIdStr = node.id === null ? 'null' : String(node.id);
+                const hasChildren = nodes.some(n => {
+                    const nParentId = n.parent_id === null ? 'null' : String(n.parent_id);
+                    return nParentId === nIdStr;
+                });
                 const isDynamic = node.is_dynamic;
                 const typeIcon = isDynamic ? '<i class="bi bi-funnel ms-1 text-muted" title="Динамическая группа"></i>' : '';
                 
