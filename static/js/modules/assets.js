@@ -1,29 +1,29 @@
 // static/js/modules/assets.js
 
-export function initAssetSelection() {
+export function initAssetSelection(targetTableId = 'assets-body') {
     // Инициализация глобального множества выбранных активов, если ещё не создано
     if (!window.selectedAssetIds) {
         window.selectedAssetIds = new Set();
     }
     
-    const tbody = document.getElementById('assets-body'); 
+    const tbody = document.getElementById(targetTableId); 
     if (!tbody) return;
     
     const selAll = document.getElementById('select-all');
     if(selAll) selAll.addEventListener('change', function() {
         document.querySelectorAll('.asset-checkbox').forEach(cb => {
             cb.checked = this.checked; 
-            toggleRowSelection(cb.closest('tr'), this.checked);
+            toggleRowSelection(cb.closest('tr'), this.checked, targetTableId);
             if(this.checked) window.selectedAssetIds.add(cb.value); 
             else window.selectedAssetIds.delete(cb.value);
         });
-        window.lastSelectedIndex = this.checked ? getRowIndex(document.querySelectorAll('.asset-checkbox').pop().closest('tr')) : -1;
+        window.lastSelectedIndex = this.checked ? getRowIndex(document.querySelectorAll('.asset-checkbox').pop().closest('tr'), targetTableId) : -1;
         updateBulkToolbar(); 
-        updateSelectAllCheckbox();
+        updateSelectAllCheckbox(targetTableId);
     });
     
     tbody.addEventListener('change', e => { 
-        if(e.target.classList.contains('asset-checkbox')) handleCheckboxChange(e.target); 
+        if(e.target.classList.contains('asset-checkbox')) handleCheckboxChange(e.target, targetTableId); 
     });
     
     tbody.addEventListener('click', e => {
@@ -33,29 +33,29 @@ export function initAssetSelection() {
         if(cb) { 
             if(e.shiftKey && window.lastSelectedIndex >= 0) { 
                 e.preventDefault(); 
-                selectRange(window.lastSelectedIndex, getRowIndex(row)); 
+                selectRange(window.lastSelectedIndex, getRowIndex(row, targetTableId), targetTableId); 
             } else { 
                 cb.checked = !cb.checked; 
-                handleCheckboxChange(cb); 
+                handleCheckboxChange(cb, targetTableId); 
             } 
         }
     });
 }
 
-function handleCheckboxChange(cb) {
+function handleCheckboxChange(cb, targetTableId = 'assets-body') {
     const row = cb.closest('tr'); 
     const id = cb.value; 
     const checked = cb.checked;
     toggleRowSelection(row, checked);
     if(checked) { 
         window.selectedAssetIds.add(id); 
-        window.lastSelectedIndex = getRowIndex(row); 
+        window.lastSelectedIndex = getRowIndex(row, targetTableId); 
     } else { 
         window.selectedAssetIds.delete(id); 
-        if(window.lastSelectedIndex === getRowIndex(row)) window.lastSelectedIndex = -1; 
+        if(window.lastSelectedIndex === getRowIndex(row, targetTableId)) window.lastSelectedIndex = -1; 
     }
     updateBulkToolbar(); 
-    updateSelectAllCheckbox();
+    updateSelectAllCheckbox(targetTableId);
 }
 
 function toggleRowSelection(row, isSel) { 
@@ -63,13 +63,13 @@ function toggleRowSelection(row, isSel) {
     else row.classList.remove('selected'); 
 }
 
-function getRowIndex(row) { 
-    return Array.from(document.querySelectorAll('#assets-body .asset-row')).indexOf(row); 
+function getRowIndex(row, targetTableId = 'assets-body') { 
+    return Array.from(document.querySelectorAll(`#${targetTableId} .asset-row`)).indexOf(row); 
 }
 
-function selectRange(start, end) {
+function selectRange(start, end, targetTableId = 'assets-body') {
     const [s, e] = start <= end ? [start, end] : [end, start];
-    document.querySelectorAll('#assets-body .asset-row').forEach((row, i) => {
+    document.querySelectorAll(`#${targetTableId} .asset-row`).forEach((row, i) => {
         if(i >= s && i <= e) {
             const cb = row.querySelector('.asset-checkbox');
             if(cb && !cb.checked) { 
@@ -80,24 +80,24 @@ function selectRange(start, end) {
         }
     }); 
     updateBulkToolbar(); 
-    updateSelectAllCheckbox();
+    updateSelectAllCheckbox(targetTableId);
 }
 
-function clearSelection() {
-    document.querySelectorAll('#assets-body .asset-checkbox:checked').forEach(cb => { 
+function clearSelection(targetTableId = 'assets-body') {
+    document.querySelectorAll(`#${targetTableId} .asset-checkbox:checked`).forEach(cb => { 
         cb.checked = false; 
         toggleRowSelection(cb.closest('tr'), false); 
         window.selectedAssetIds.delete(cb.value); 
     });
     window.lastSelectedIndex = -1; 
     updateBulkToolbar(); 
-    updateSelectAllCheckbox();
+    updateSelectAllCheckbox(targetTableId);
 }
 
-function updateSelectAllCheckbox() {
+function updateSelectAllCheckbox(targetTableId = 'assets-body') {
     const selAll = document.getElementById('select-all'); 
-    const cbs = document.querySelectorAll('#assets-body .asset-checkbox');
-    const checked = document.querySelectorAll('#assets-body .asset-checkbox:checked').length;
+    const cbs = document.querySelectorAll(`#${targetTableId} .asset-checkbox`);
+    const checked = document.querySelectorAll(`#${targetTableId} .asset-checkbox:checked`).length;
     if(selAll && cbs.length > 0) { 
         selAll.checked = checked === cbs.length; 
         selAll.indeterminate = checked > 0 && checked < cbs.length; 
@@ -161,7 +161,7 @@ export function renderAssets(data, targetTableId = 'assets-body') {
     const tb = document.getElementById(targetTableId); 
     if(!tb) return;
     tb.innerHTML = ''; 
-    clearSelection();
+    clearSelection(targetTableId);
     if(data.length===0) { 
         tb.innerHTML='<tr><td colspan="7" class="text-center py-4 text-muted"><i class="bi bi-inbox fs-1 d-block mb-2"></i>Ничего не найдено</td></tr>'; 
         return; 
@@ -179,7 +179,7 @@ export function renderAssets(data, targetTableId = 'assets-body') {
     });
     
     // Инициализация выбора активов после рендеринга
-    initAssetSelection();
+    initAssetSelection(targetTableId);
 }
 
 // Экспорт для доступа из main.js

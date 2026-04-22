@@ -274,7 +274,12 @@
     <!-- Таблица активов группы (SPA функционал) -->
     <div class="row mt-5" id="assets-container" style="display: none;">
         <div class="col-12">
-            <h4><i class="bi bi-hdd-network"></i> Активы группы</h4>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4><i class="bi bi-hdd-network"></i> Активы группы</h4>
+                <button class="btn btn-outline-secondary btn-sm" id="back-to-scans-btn">
+                    <i class="bi bi-arrow-left"></i> Вернуться к сканированиям
+                </button>
+            </div>
             <div class="table-responsive">
                 <table class="table table-striped table-hover" id="assets-table">
                     <thead>
@@ -306,5 +311,32 @@
     // Экспорт в глобальную область видимости для использования из tree.js
     window.filterByGroup = filterByGroup;
     window.loadAssets = loadAssets;
+    
+    // Обработчик кнопки "Вернуться к сканированиям"
+    document.addEventListener('DOMContentLoaded', function() {
+        const backBtn = document.getElementById('back-to-scans-btn');
+        if (backBtn) {
+            backBtn.addEventListener('click', function() {
+                // Скрываем контейнер с активами
+                const assetsContainer = document.getElementById('assets-container');
+                if (assetsContainer) {
+                    assetsContainer.style.display = 'none';
+                }
+                // Показываем формы сканирований и статус очередей
+                const scanForms = document.querySelector('.tab-content');
+                const queueStatus = document.getElementById('queue-status-container');
+                const scanTabs = document.getElementById('scanTabs');
+                const importBtn = document.querySelector('[data-bs-target="#importXmlModal"]');
+                
+                if (scanForms) scanForms.classList.remove('d-none');
+                if (queueStatus) queueStatus.classList.remove('d-none');
+                if (scanTabs) scanTabs.classList.remove('d-none');
+                if (importBtn) importBtn.closest('.row')?.classList.remove('d-none');
+                
+                // Снимаем выделение с групп
+                document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
+            });
+        }
+    });
 </script>
 {% endblock %}

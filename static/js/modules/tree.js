@@ -156,11 +156,21 @@ export async function loadAssets(groupId = null, ungrouped = false, targetTableI
             assetsArray = [];
         }
 
-        // Показываем контейнер с активами если он существует и передан его ID
+        // Показываем контейнер с активами и скрываем основной контент страницы сканирований
         if (assetsContainerId) {
             const container = document.getElementById(assetsContainerId);
             if (container) {
                 container.style.display = 'block';
+                // Скрываем формы сканирований и статус очередей при просмотре активов
+                const scanForms = document.querySelector('.tab-content');
+                const queueStatus = document.getElementById('queue-status-container');
+                const scanTabs = document.getElementById('scanTabs');
+                const importBtn = document.querySelector('[data-bs-target="#importXmlModal"]');
+                
+                if (scanForms) scanForms.classList.add('d-none');
+                if (queueStatus) queueStatus.classList.add('d-none');
+                if (scanTabs) scanTabs.classList.add('d-none');
+                if (importBtn) importBtn.closest('.row')?.classList.add('d-none');
             }
         }
 
