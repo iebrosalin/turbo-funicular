@@ -218,6 +218,16 @@ class DigScanner:
             if not job:
                 return
 
+            # Получаем группу "Без группы"
+            no_group = AssetGroup.query.filter_by(name="Без группы").first()
+            if not no_group:
+                # Если группы не существует, создаем её
+                no_group = AssetGroup(name="Без группы", group_type="manual")
+                db.session.add(no_group)
+                db.session.flush()
+
+
+
             # Список для хранения всех пар (IP, данные) для последующей группировки
             ip_data_list = []
 

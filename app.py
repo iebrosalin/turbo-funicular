@@ -21,92 +21,11 @@ from routes.main import main_bp
 from routes.groups import groups_bp
 from routes.scans import scans_bp
 
-
 def _init_debug_groups():
     """
-    Создает набор базовых групп активов для отладки.
-    Выполняется только если в БД еще нет групп.
-    Все данные создаются только на стороне клиента через API.
+    Функция отключена - создание тестовых групп удалено.
     """
-    # Проверяем, есть ли уже группы
-    existing_groups = AssetGroup.query.count()
-    if existing_groups > 0:
-        return  # Группы уже существуют, не создаем дубликаты
-
-    # Создаем иерархию групп для тестирования дерева
-    debug_groups = [
-        # Корневые группы
-        {'name': 'Инфраструктура', 'description': 'Основная инфраструктура компании', 'parent_id': None},
-        {'name': 'Серверы', 'description': 'Физические и виртуальные серверы', 'parent_id': None},
-        {'name': 'Сеть', 'description': 'Сетевое оборудование', 'parent_id': None},
-        {'name': 'Рабочие станции', 'description': 'Компьютеры пользователей', 'parent_id': None},
-
-        # Подгруппы Инфраструктуры
-        {'name': 'ЦОД', 'description': 'Центр обработки данных', 'parent_name': 'Инфраструктура'},
-        {'name': 'Облако', 'description': 'Облачные сервисы', 'parent_name': 'Инфраструктура'},
-
-        # Подгруппы Серверы
-        {'name': 'Linux', 'description': 'Серверы на базе Linux', 'parent_name': 'Серверы'},
-        {'name': 'Windows', 'description': 'Серверы на базе Windows', 'parent_name': 'Серверы'},
-        {'name': 'Базы данных', 'description': 'Серверы СУБД', 'parent_name': 'Серверы'},
-
-        # Подгруппы Сеть
-        {'name': 'Маршрутизаторы', 'description': 'Роутеры и шлюзы', 'parent_name': 'Сеть'},
-        {'name': 'Коммутаторы', 'description': 'Свитчи', 'parent_name': 'Сеть'},
-        {'name': 'Firewall', 'description': 'Межсетевые экраны', 'parent_name': 'Сеть'},
-
-        # Подгруппы Рабочие станции
-        {'name': 'Отдел разработки', 'description': 'Компьютеры разработчиков', 'parent_name': 'Рабочие станции'},
-        {'name': 'Отдел продаж', 'description': 'Компьютеры менеджеров', 'parent_name': 'Рабочие станции'},
-        {'name': 'Бухгалтерия', 'description': 'Компьютеры бухгалтерии', 'parent_name': 'Рабочие станции'},
-
-        # Вложенные подгруппы (3 уровень)
-        {'name': 'Production', 'description': 'Продакшен серверы', 'parent_name': 'Linux'},
-        {'name': 'Staging', 'description': 'Тестовые серверы', 'parent_name': 'Linux'},
-        {'name': 'PostgreSQL', 'description': 'Серверы PostgreSQL', 'parent_name': 'Базы данных'},
-        {'name': 'MySQL', 'description': 'Серверы MySQL', 'parent_name': 'Базы данных'},
-    ]
-
-    # Словарь для хранения созданных групп по имени
-    created_groups = {}
-
-    # Сначала создаем корневые группы (без parent_name)
-    for group_data in debug_groups:
-        if group_data.get('parent_name') is None:
-            new_group = AssetGroup(
-                name=group_data['name'],
-                description=group_data['description'],
-                parent_id=None
-            )
-            db.session.add(new_group)
-            created_groups[group_data['name']] = new_group
-
-    db.session.commit()
-
-    # Затем создаем подгруппы
-    for group_data in debug_groups:
-        parent_name = group_data.get('parent_name')
-        if parent_name:
-            parent_group = created_groups.get(parent_name)
-            if parent_group:
-                new_group = AssetGroup(
-                    name=group_data['name'],
-                    description=group_data['description'],
-                    parent_id=parent_group.id
-                )
-                db.session.add(new_group)
-                created_groups[group_data['name']] = new_group
-
-    # Логирование создания
-    log = ActivityLog(
-        asset_id=None,
-        event_type='system_init',
-        description='Созданы базовые группы для отладки',
-        details={'groups_count': len(debug_groups)}
-    )
-    db.session.add(log)
-
-    db.session.commit()
+    pass
 
 
 def create_app():
