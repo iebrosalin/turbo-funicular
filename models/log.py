@@ -7,8 +7,8 @@ class ActivityLog(db.Model):
     __tablename__ = 'activity_log'
     
     id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), index=True)
-    
+    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id', ondelete='CASCADE'), index=True)
+
     event_type = db.Column(db.String(50), index=True) # port_discovered, service_detected, os_changed, scan_completed
     description = db.Column(db.Text, nullable=False)
     details = db.Column(db.JSON) # Детали изменения (старое/новое значение)
@@ -32,8 +32,8 @@ class AssetChangeLog(db.Model):
     __tablename__ = 'asset_change_log'
 
     id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), index=True)
-
+    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id', ondelete='CASCADE'), index=True)
+    
     change_type = db.Column(db.String(50))  # type of change
     field_name = db.Column(db.String(100))  # which field changed
     old_value = db.Column(db.Text)  # previous value (JSON string)
@@ -44,7 +44,7 @@ class AssetChangeLog(db.Model):
 
     changed_at = db.Column(db.DateTime, default=lambda: datetime.now(MOSCOW_TZ), index=True)
 
-    asset = db.relationship('Asset', backref='change_logs')
+    asset = db.relationship('Asset', backref=db.backref('change_logs', cascade='all, delete-orphan'))
     scan_job = db.relationship('ScanJob', backref='change_logs')
 
     def to_dict(self):

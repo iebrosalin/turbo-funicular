@@ -7,8 +7,8 @@ class ServiceInventory(db.Model):
     __tablename__ = 'service_inventory'
     
     id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False, index=True)
-    
+    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id', ondelete='CASCADE'), nullable=False, index=True)
+        
     port = db.Column(db.Integer, nullable=False)
     protocol = db.Column(db.String(10), default='tcp') # tcp, udp
     state = db.Column(db.String(20), default='open') # open, closed, filtered

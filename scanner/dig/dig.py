@@ -9,7 +9,7 @@ import re
 import os
 from datetime import datetime
 from extensions import db
-from models import Asset, ScanJob, ActivityLog
+from models import Asset, ScanJob, ActivityLog, AssetGroup
 from utils import MOSCOW_TZ
 
 class DigScanner:
@@ -137,7 +137,39 @@ class DigScanner:
         """Парсинг вывода dig для конкретного типа записи"""
         records = []
         lines = output.split('\n')
-        
+
+        # Проверка на короткий формат (+short) - просто список записей без заголовков
+        is_short_format = all(
+            not line.strip().startswith(';') and
+            not line.strip().startswith(';;') and
+            'SECTION' not in line
+            for line in lines if line.strip()
+        )
+
+        if is_short_format:
+            # Короткий формат: каждая строка - это значение записи
+            for line in lines:
+                line = line.strip()
+                if line and not line.startswith(';'):
+                    # Для MX записей формат: priority server
+                    if record_type == 'MX':
+                        parts = line.split()
+                        if len(parts) >= 2:
+                            records.append({
+                                'name': query_target.rstrip('.'),
+                                'ttl': 0,
+                                'type': record_type,
+                                'data': parts[1].rstrip('.')
+                            })
+                    else:
+                        records.append({
+                            'name': query_target.rstrip('.'),
+                            'ttl': 0,
+                            'type': record_type,
+                            'data': line.rstrip('.')
+                        })
+            return records
+
         in_answer = False
         current_ttl = None
         
@@ -185,6 +217,7 @@ class DigScanner:
             job = ScanJob.query.get(job_id)
             if not job:
                 return
+
             # Список для хранения всех пар (IP, данные) для последующей группировки
             ip_data_list = []
 
@@ -275,10 +308,16 @@ class DigScanner:
                 if not asset:
                     # Создаем новый актив
                     # Используем первое имя как hostname
+                    # Актив создается в группе "Без группы"
                     hostname = next(iter(names))
                     asset = Asset(ip_address=ip_addr, hostname=hostname)
+                    asset.groups = [no_group]
                     db.session.add(asset)
                     db.session.flush()
+                else:
+                    # Актив уже существует - оставляем его только в группе "Без группы"
+                    # Удаляем все другие группы и оставляем только "Без группы"
+                    asset.groups = [no_group]
 
                 # Обновление DNS данных (объединяем с существующими)
                 existing_records = asset.dns_records or {}

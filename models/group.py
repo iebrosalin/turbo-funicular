@@ -36,13 +36,25 @@ class AssetGroup(db.Model):
         Преобразование в словарь.
         :param include_children: Если True, рекурсивно включает дочерние группы.
         """
+        import json
+
+        # Парсим filter_rules из JSON строки если есть
+        parsed_filter_rules = None
+        if self.filter_rules:
+            try:
+                parsed_filter_rules = json.loads(self.filter_rules)
+            except (json.JSONDecodeError, TypeError):
+                parsed_filter_rules = []
+
         data = {
             'id': self.id,
             'name': self.name,
             'description': self.description,
             'parent_id': self.parent_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'assets_count': len(self.assets)
+            'assets_count': len(self.assets),
+            'is_dynamic': self.is_dynamic,
+            'filter_rules': parsed_filter_rules or []
         }
         
         if include_children and self.children:

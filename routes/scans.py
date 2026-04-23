@@ -146,7 +146,9 @@ def start_dig_scan():
     dns_server = data.get('dns_server', '77.88.8.8').strip()
     cli_args = data.get('cli_args', '').strip()
     record_types = data.get('record_types') # Может быть списком или None
-    
+    group_ids = data.get('group_ids', []) # ID групп для добавления активов
+
+
     if not targets_text:
         return jsonify({'error': 'Список целей обязателен'}), 400
     
@@ -162,7 +164,8 @@ def start_dig_scan():
             'targets_text': targets_text,
             'dns_server': dns_server,
             'cli_args': cli_args,
-            'record_types': record_types
+            'record_types': record_types,
+            'group_ids': group_ids
         }
     )
     
@@ -177,7 +180,8 @@ def start_dig_scan():
         targets_text=targets_text,
         dns_server=dns_server,
         cli_args=cli_args,
-        record_types=record_types
+        record_types=record_types,
+        group_ids=group_ids if group_ids else None
     )
     
     return jsonify({

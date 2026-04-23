@@ -9,6 +9,8 @@ from models import AssetGroup, Asset, ActivityLog
 from utils import MOSCOW_TZ
 from models.base import asset_groups
 import ipaddress
+import json
+
 
 # Определяем Blueprint с префиксом /api/groups
 groups_bp = Blueprint('groups', __name__, url_prefix='/api/groups')
@@ -97,6 +99,8 @@ def create_group():
     
     parent_id = data.get('parent_id')
     description = data.get('description', '')
+    mode = data.get('mode')
+
     
     # Валидация parent_id если передан
     if parent_id:
@@ -109,6 +113,18 @@ def create_group():
         description=description,
         parent_id=parent_id
     )
+        # Обработка режима и правил фильтрации
+    if mode == 'dynamic':
+        filter_rules = data.get('filter_rules', [])
+        new_group.is_dynamic = True
+        new_group.filter_rules = json.dumps(filter_rules)
+    elif mode == 'cidr':
+        cidr_network = data.get('cidr_network')
+        cidr_mask = data.get('cidr_mask')
+        if cidr_network and cidr_mask:
+            description = f"CIDR: {cidr_network}/{cidr_mask}"
+            new_group.description = description
+
     
     db.session.add(new_group)
     
@@ -125,6 +141,13 @@ def create_group():
     
     return jsonify(new_group.to_dict()), 201
 
+@groups_bp.route('/<int:group_id>', methods=['GET'])
+def get_group(group_id):
+    """Получение информации о группе по ID"""
+    group = AssetGroup.query.get_or_404(group_id)
+    return jsonify(group.to_dict())
+
+
 @groups_bp.route('/<int:group_id>', methods=['PUT'])
 def update_group(group_id):
     """Обновление информации о группе"""
@@ -140,8 +163,16 @@ def update_group(group_id):
             return jsonify({'error': 'Группа с таким именем уже существует'}), 400
         group.name = name
     
-    if 'description' in data:
-        group.description = data['description']
+    parent_id = data.get('parent_id')
+    mode = data.get('mode')
+
+    # Обработка имени
+    if name and name != group.name:
+        if AssetGroup.query.filter_by(name=name).first():
+            return jsonify({'error': 'Группа с таким именем уже существует'}), 400
+        group.name = name
+
+    # Обработка родительской группы
     
     if 'parent_id' in data:
         new_parent_id = data['parent_id']
@@ -161,7 +192,19 @@ def update_group(group_id):
                 return jsonify({'error': 'Новая родительская группа не найдена'}), 404
         
         group.parent_id = new_parent_id
-    
+    # Обработка режима (dynamic/cidr/manual) и правил фильтрации
+    if mode == 'dynamic':
+        filter_rules = data.get('filter_rules', [])
+        group.is_dynamic = True
+        group.filter_rules = json.dumps(filter_rules)
+    elif mode == 'manual':
+        group.is_dynamic = False
+        group.filter_rules = None
+    elif mode == 'cidr':
+        # CIDR режим обрабатывается отдельно через generate_cidr_groups
+        pass
+
+
     db.session.commit()
     
     return jsonify(group.to_dict())

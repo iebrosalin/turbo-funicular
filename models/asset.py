@@ -47,7 +47,7 @@ class Asset(db.Model):
     
     # Связи
     # secondary=asset_groups связывает с AssetGroup через таблицу многие-ко-многим
-    groups = db.relationship('AssetGroup', secondary=asset_groups, back_populates='assets')
+    groups = db.relationship('AssetGroup', secondary=asset_groups, back_populates='assets', cascade='all, delete')
     
     # Прямые связи один-ко-многим с каскадным удалением
     services = db.relationship('ServiceInventory', back_populates='asset', cascade='all, delete-orphan')

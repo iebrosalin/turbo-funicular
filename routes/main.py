@@ -333,6 +333,16 @@ def bulk_move_assets():
         
     if not asset_ids:
         return jsonify({'error': 'No IDs provided'}), 400
+
+    # Сначала удаляем связи many-to-many с группами
+    for asset_id in asset_ids:
+        asset = Asset.query.get(asset_id)
+        if asset:
+            asset.groups = []  # Очищаем связи с группами
+
+    db.session.commit()
+
+    # Теперь удаляем сами активы (каскадно удалятся связанные записи)
         
     # Обновление связи many-to-many
     assets = Asset.query.filter(Asset.id.in_(asset_ids)).all()
@@ -355,6 +365,15 @@ def delete_asset(id):
     asset = Asset.query.get_or_404(id)
     # Получаем ID первой группы актива для редиректа (many-to-many)
     group_id = asset.groups[0].id if asset.groups else None
+    # Сначала удаляем связи many-to-many с группами
+    for asset_id in asset_ids:
+        asset = Asset.query.get(asset_id)
+        if asset:
+            asset.groups = []  # Очищаем связи с группами
+
+    db.session.commit()
+
+    # Теперь удаляем сами активы (каскадно удалятся связанные записи)
     db.session.delete(asset)
     db.session.commit()
     flash(f'Актив {asset.ip_address} удалён', 'warning')

@@ -5,7 +5,7 @@ services:
     build: .
     container_name: asset_management
     network_mode: host
-#    restart: unless-stopped
+    restart: unless-stopped
     environment:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
       - DATABASE_URL=${DATABASE_URL:-sqlite:////app/instance/assets.db}

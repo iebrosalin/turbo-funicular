@@ -45,8 +45,8 @@ class ScanResult(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     job_id = db.Column(db.Integer, db.ForeignKey('scan_job.id'), nullable=False, index=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=True, index=True) # Может быть null если актив не создан/найден
-    
+    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id', ondelete='CASCADE'), nullable=True, index=True) # Может быть null если актив не создан/найден
+        
     asset_ip = db.Column(db.String(45), index=True)
     hostname = db.Column(db.String(255))
     

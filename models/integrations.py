@@ -21,8 +21,8 @@ class OsqueryInventory(db.Model):
     __tablename__ = 'osquery_inventory'
     
     id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False, index=True)
-    
+    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id', ondelete='CASCADE'), nullable=False, index=True)
+        
     hostname = db.Column(db.String(255))
     os_version = db.Column(db.String(100))
     platform = db.Column(db.String(50))
