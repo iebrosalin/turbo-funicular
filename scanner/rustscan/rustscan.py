@@ -44,7 +44,8 @@ class RustscanScanner:
             self._update_job_status('running', started=True)
             
             # Формирование команды
-            cmd = ['rustscan', '-a', target]
+            # Добавляем --ulimit и уменьшаем batch size для стабильной работы в контейнере
+            cmd = ['rustscan', '-a', target, '--ulimit', '5000', '-b', '1000']
             
             if ports:
                 cmd.extend(['-p', ports])

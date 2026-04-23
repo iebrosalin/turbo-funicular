@@ -11,13 +11,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     wget \
     ca-certificates \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Установка rustscan
-# Исправлено: -qO- заменено на -q -O rustscan.deb, чтобы сохранить файл, а не вывести в консоль
-RUN wget -q -O rustscan.deb https://github.com/RustScan/RustScan/releases/latest/download/rustscan_2.2.3_amd64.deb \
-    && dpkg -i rustscan.deb || apt-get install -f -y \
-    && rm -f rustscan.deb
+# RustScan теперь распространяется в zip-архиве с .deb файлом внутри
+RUN wget -q -O rustscan.deb.zip https://github.com/bee-san/RustScan/releases/download/2.4.1/rustscan.deb.zip \
+    && unzip rustscan.deb.zip \
+    && dpkg -i rustscan_*.deb || apt-get install -f -y \
+    && rm -f rustscan.deb.zip rustscan.tmp*-stripped rustscan_*.deb
 
 # Копирование файлов зависимостей
 COPY requirements.txt .
