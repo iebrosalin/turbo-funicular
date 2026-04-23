@@ -69,3 +69,51 @@
         </div>
     </div>
 </div>
+
+
+<!-- Modal for bulk delete assets -->
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1" aria-labelledby="bulkDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-danger"><i class="bi bi-trash"></i> Подтверждение удаления</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Вы уверены, что хотите удалить <strong id="bulk-delete-count">0</strong> выбранных активов?</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> Это действие нельзя отменить. Все данные об активах будут безвозвратно удалены.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" onclick="executeBulkDelete()">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for bulk move assets -->
+<div class="modal fade" id="bulkMoveModal" tabindex="-1" aria-labelledby="bulkMoveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title"><i class="bi bi-folder2-open"></i> Переместить активы</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Выбрано активов: <strong id="bulk-move-count">0</strong></p>
+                <div class="mb-3">
+                    <label for="target-group-select" class="form-label">Выберите целевую группу:</label>
+                    <select class="form-select" id="target-group-select">
+                        <option value="">-- Без группы --</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="executeBulkMove()">Переместить</button>
+            </div>
+        </div>
+    </div>
+</div>

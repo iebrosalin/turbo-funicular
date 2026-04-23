@@ -119,8 +119,13 @@ export function confirmBulkDelete() {
     if(window.selectedAssetIds.size === 0) return;
     const countEl = document.getElementById('bulk-delete-count');
     if(countEl) countEl.textContent = window.selectedAssetIds.size;
-    const modalInstance = bootstrap.Modal.getInstance(document.getElementById('bulkDeleteModal'));
-    if(modalInstance) modalInstance.show();
+
+    const modalEl = document.getElementById('bulkDeleteModal');
+    let modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (!modalInstance) {
+        modalInstance = new bootstrap.Modal(modalEl);
+    }
+    modalInstance.show();
 }
 
 export async function executeBulkDelete() {
@@ -144,8 +149,12 @@ export async function executeBulkDelete() {
 
 export function confirmBulkMove() {
     if(window.selectedAssetIds.size === 0) return;
-    const countEl = document.getElementById('bulk-move-count');
-    if(countEl) countEl.textContent = window.selectedAssetIds.size;
+        const modalEl = document.getElementById('bulkMoveModal');
+        let modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (!modalInstance) {
+            modalInstance = new bootstrap.Modal(modalEl);
+        }
+        modalInstance.show();
 
     // Загрузка списка групп для селекта
     loadGroupsForMoveModal().then(() => {
