@@ -84,7 +84,7 @@ function selectRange(start, end, targetTableId = 'assets-body') {
     updateSelectAllCheckbox(targetTableId);
 }
 
-function clearSelection(targetTableId = 'assets-body') {
+export function clearSelection(targetTableId = 'assets-body') {
     document.querySelectorAll(`#${targetTableId} .asset-checkbox:checked`).forEach(cb => { 
         cb.checked = false; 
         toggleRowSelection(cb.closest('tr'), false); 

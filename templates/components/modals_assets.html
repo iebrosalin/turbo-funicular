@@ -1,46 +1,71 @@
-<!-- templates/components/modals_assets.html -->
-<!-- Модальные окна для управления активами -->
-
-<div class="modal fade" id="bulkDeleteModal" tabindex="-1">
+<!-- Modal for deleting asset group -->
+<div class="modal fade" id="deleteGroupModal" tabindex="-1" aria-labelledby="deleteGroupModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="text-danger">Удаление активов</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h4 class="modal-title text-danger">⚠️ Подтверждение удаления</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p>Удалить <strong id="bulk-delete-count">0</strong> выбранных активов?</p>
-                <p class="text-muted small">Это действие нельзя отменить.</p>
+                <p>Вы уверены, что хотите удалить группу <strong id="delete-group-name"></strong>?</p>
+
+                <label for="delete-move-assets" class="form-label mt-2"><strong>Выберите действие для активов:</strong></label>
+                <select class="form-select" id="delete-move-assets">
+                    <!-- Options will be populated by JavaScript -->
+                </select>
+                <small class="form-text text-muted">
+                    • <strong>Пустое значение</strong> — активы будут <span class="text-danger">удалены вместе с группой</span><br>
+                    • <strong>Другая группа</strong> — активы будут <span class="text-success">перемещены</span> в выбранную группу
+                </small>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-danger" onclick="executeBulkDelete()">Удалить</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete-group">Удалить</button>
             </div>
         </div>
     </div>
 </div>
 
-
-<!-- Модальное окно для перемещения в группу -->
-<div class="modal fade" id="bulkMoveModal" tabindex="-1">
+<!-- Modal for creating/editing asset group -->
+<div class="modal fade" id="groupModal" tabindex="-1" aria-labelledby="groupModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="text-primary"><i class="bi bi-folder2-open"></i> Перемещение активов</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <h4 class="modal-title" id="modalTitle">Создать новую группу</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <p>Переместить <strong id="bulk-move-count">0</strong> выбранных активов в группу:</p>
-                <select class="form-select" id="target-group-select">
-                    <option value="">-- Без группы --</option>
-                    <!-- Опции будут загружены через JS -->
-                </select>
-                <p class="text-muted small mt-2">Выбранные активы будут добавлены в указанную группу. Если выбрана группа "Без группы", все связи с группами будут удалены.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-primary" onclick="executeBulkMove()"><i class="bi bi-arrow-right-circle"></i> Переместить</button>
-            </div>
+            <form id="groupForm">
+                <div class="modal-body">
+                    <input type="hidden" id="groupId">
+
+                    <div class="mb-3">
+                        <label for="groupName" class="form-label">Название группы</label>
+                        <input type="text" class="form-control" id="groupName" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="parentGroupId" class="form-label">Родительская группа</label>
+                        <select class="form-select" id="parentGroupId">
+                            <option value="">Нет (корневая группа)</option>
+                            <!-- Options will be populated by JavaScript -->
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="groupDescription" class="form-label">Описание</label>
+                        <textarea class="form-control" id="groupDescription" rows="3"></textarea>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="isGlobalGroup">
+                        <label class="form-check-label" for="isGlobalGroup">Глобальная группа</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

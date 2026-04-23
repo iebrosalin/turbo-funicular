@@ -7,7 +7,7 @@ import {
 } from './modules/groups.js';
 import {
     initAssetSelection, confirmBulkDelete, executeBulkDelete,
-        confirmBulkMove, executeBulkMove,
+        confirmBulkMove, executeBulkMove, clearSelection,
     initFilterFieldDatalist, renderAssets
 } from './modules/assets.js';
 import { viewScanResults, showScanError, updateScanHistory, pollActiveScans } from './modules/scans.js';
@@ -124,9 +124,10 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers } from '.
         window.showMoveGroupModal = showMoveGroupModal;
         window.moveGroup = moveGroup;
         window.confirmBulkDelete = confirmBulkDelete;
+        window.executeBulkDelete = executeBulkDelete;
         window.confirmBulkMove = confirmBulkMove;
         window.executeBulkMove = executeBulkMove;
-        window.executeBulkDelete = executeBulkDelete;
+        window.clearSelection = clearSelection;
         window.refreshGroupTree = refreshGroupTree;
         window.loadAssets = loadAssets;
         window.filterByGroup = filterByGroup;
