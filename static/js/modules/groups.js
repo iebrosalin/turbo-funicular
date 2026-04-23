@@ -1,4 +1,3 @@
-// static/js/modules/groups.js
 import { populateParentSelect, closeModalById } from './utils.js';
 
 const FILTER_FIELDS = [
@@ -14,6 +13,52 @@ const FILTER_OPS = [
 
 // Глобальный таймер для опроса сканирований
 let scansPollingInterval = null;
+
+/**
+ * Инициализация обработчиков кликов для статических элементов дерева ("Все активы", "Без группы")
+ */
+export function initGroupTreeStaticListeners() {
+    const handleStaticClick = (groupId) => {
+        // Снимаем активный класс со всех узлов
+        document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active'));
+        
+        // Находим элемент и добавляем активный класс
+        const targetElement = document.querySelector(`.tree-node[data-id="${groupId}"]`);
+        if (targetElement) {
+            targetElement.classList.add('active');
+        }
+
+        // Вызываем фильтрацию
+        if (typeof window.filterByGroup === 'function') {
+            window.filterByGroup(groupId);
+        } else {
+            console.warn('Функция window.filterByGroup еще не загружена.');
+        }
+    };
+
+    // Обработчик для "Все активы"
+    const allNode = document.querySelector('.tree-node[data-id="all"]');
+    if (allNode) {
+        // Клонируем чтобы сбросить старые слушатели и избежать дублей
+        const newAllNode = allNode.cloneNode(true);
+        allNode.parentNode.replaceChild(newAllNode, allNode);
+        newAllNode.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleStaticClick('all');
+        });
+    }
+
+    // Обработчик для "Без группы"
+    const ungroupedNode = document.querySelector('.tree-node[data-id="ungrouped"]');
+    if (ungroupedNode) {
+        const newUngroupedNode = ungroupedNode.cloneNode(true);
+        ungroupedNode.parentNode.replaceChild(newUngroupedNode, ungroupedNode);
+        newUngroupedNode.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleStaticClick('ungrouped');
+        });
+    }
+}
 
 export async function showCreateGroupModal(parentId = null) {
     const modalId = 'groupEditModal';
@@ -298,6 +343,7 @@ export function initContextMenu() {
 
         const groupId = treeNode.dataset.id;
         const isUngrouped = groupId === 'ungrouped';
+        const isAll = groupId === 'all';
 
         ctx.style.display = 'block';
         ctx.style.left = e.pageX + 'px';
@@ -308,10 +354,13 @@ export function initContextMenu() {
         const moveItem = ctx.querySelector('[data-action="move"]');
         const deleteItem = ctx.querySelector('[data-action="delete"]');
 
-        if(createItem) createItem.style.display = isUngrouped ? 'none' : 'block';
-        if(renameItem) renameItem.style.display = isUngrouped ? 'none' : 'block';
-        if(moveItem) moveItem.style.display = isUngrouped ? 'none' : 'block';
-        if(deleteItem) deleteItem.style.display = isUngrouped ? 'none' : 'block';
+        // Скрываем действия для системных узлов "Все активы" и "Без группы"
+        const isSystemNode = isUngrouped || isAll;
+
+        if(createItem) createItem.style.display = isSystemNode ? 'none' : 'block';
+        if(renameItem) renameItem.style.display = isSystemNode ? 'none' : 'block';
+        if(moveItem) moveItem.style.display = isSystemNode ? 'none' : 'block';
+        if(deleteItem) deleteItem.style.display = isSystemNode ? 'none' : 'block';
 
         ctx.dataset.groupId = groupId;
     });

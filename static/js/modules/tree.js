@@ -1,265 +1,316 @@
-// static/js/modules/tree.js
-import { renderAssets } from './assets.js';
+/**
+ * Модуль управления деревом групп и фильтрацией активов
+ */
 
-let currentFilter = { groupId: null, ungrouped: false };
-let treeListenerAttached = false;
+// Глобальное состояние для текущей выбранной группы (опционально)
+let currentGroupId = null;
 
-// Константа отступа на каждый уровень вложенности (в пикселях)
-const INDENT_PER_LEVEL = 24;
-
-// Безопасная нормализация ID для сравнения
-const normId = (val) => (val === null || val === undefined) ? 'null' : String(val);
-
-export async function refreshGroupTree() {
-    console.log('refreshGroupTree: начало выполнения');
-    try {
-        const res = await fetch('/api/groups/tree');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        console.log('refreshGroupTree: данные получены:', data);
-        
-        const treeContainer = document.getElementById('group-tree');
-        if (!treeContainer) return;
-        
-        // Сохраняем состояние активного узла до перерисовки
-        const activeNode = treeContainer.querySelector('.tree-node.active');
-        const activeId = activeNode ? normId(activeNode.dataset.id) : null;
-        const isUngrouped = !!document.querySelector('.tree-node[data-id="ungrouped"].active');
-        
-        // Рекурсивный рендер дерева с передачей глубины
-        const buildTreeHtml = (nodes, parentId = null, depth = 0) => {
-            const pIdStr = parentId === null ? 'null' : String(parentId);
-            const children = nodes.filter(n => {
-                const nParentId = n.parent_id === null ? 'null' : String(n.parent_id);
-                return nParentId === pIdStr;
-            });
-            if (children.length === 0) return '';
-            
-            let html = '';
-            children.forEach(node => {
-                const nIdStr = node.id === null ? 'null' : String(node.id);
-                const hasChildren = nodes.some(n => {
-                    const nParentId = n.parent_id === null ? 'null' : String(n.parent_id);
-                    return nParentId === nIdStr;
-                });
-                const isDynamic = node.is_dynamic;
-                const typeIcon = isDynamic ? '<i class="bi bi-funnel ms-1 text-muted" title="Динамическая группа"></i>' : '';
-                
-                // Вычисляем отступ на основе глубины
-                const indentPx = depth * INDENT_PER_LEVEL;
-
-                html += `<li>`;
-                html += `\n                <div class="tree-node" data-id="${node.id}" style="margin-left: ${indentPx}px;">`;
-                html += `\n                    ${hasChildren ? '<span class="caret"></span>' : '<span class="caret-spacer"></span>'}`;
-                html += `\n                    <i class="bi bi-folder folder-icon"></i>`;
-                html += `\n                    <span class="group-name" data-id="${node.id}" data-type="${isDynamic ? 'dynamic' : 'manual'}">`;
-                html += `\n                        ${node.name} ${typeIcon}`;
-                html += `\n                    </span>`;
-                html += `\n                    <span class="badge bg-secondary ms-auto">${node.asset_count ?? node.count ?? 0}</span>`;
-                html += `\n                    <span class="group-actions ms-2">`;
-                html += `\n                        <button type="button" class="btn-action" onclick="window.showRenameModal(${node.id})" title="Редактировать">`;
-                html += `\n                            <i class="bi bi-pencil"></i>`;
-                html += `\n                        </button>`;
-                html += `\n                        <button type="button" class="btn-action text-danger" onclick="window.showDeleteModal(${node.id})" title="Удалить">`;
-                html += `\n                            <i class="bi bi-trash"></i>`;
-                html += `\n                        </button>`;
-                html += `\n                    </span>`;
-                html += `\n                </div>`;
-
-                if (hasChildren) {
-                    const childrenHtml = buildTreeHtml(nodes, node.id, depth + 1);
-                    if (childrenHtml) {
-                        html += `<ul class="nested">${childrenHtml}</ul>`;
-                    }
-                }
-                html += `</li>`;
-            });
-            return html;
-        };
-        
-        // Узел "Без группы"
-        const ungroupedHtml = `
-        <li>
-            <div class="tree-node" data-id="ungrouped">
-                <span class="caret-spacer"></span>
-                <i class="bi bi-inbox folder-icon"></i>
-                <span class="group-name" data-id="ungrouped">Без группы</span>
-                <span class="badge bg-secondary ms-auto">${data.ungrouped_count || 0}</span>
-            </div>
-        </li>
-        `;
-        
-        // Рендерим в контейнер
-        // Примечание: API должно возвращать { flat: [...], ungrouped_count: N }
-        // Если API возвращает просто дерево, логику нужно адаптировать
-        const flatList = data.flat || []; 
-        treeContainer.innerHTML = `<ul>${ungroupedHtml + buildTreeHtml(flatList)}</ul>`;
-        console.log('refreshGroupTree: innerHTML установлен, содержимое:', treeContainer.innerHTML.substring(0, 200));
-
-        console.log('refreshGroupTree: HTML отрендерен')
-        // Восстановление состояния (выделение + раскрытие родителей)
-        if (isUngrouped) {
-            const n = treeContainer.querySelector('.tree-node[data-id="ungrouped"]');
-            if (n) n.classList.add('active');
-        } else if (activeId) {
-            const node = treeContainer.querySelector(`.tree-node[data-id="${activeId}"]`);
-            if (node) {
-                node.classList.add('active');
-                let el = node.closest('li');
-                while (el) {
-                    const parentUl = el.parentElement;
-                    if (parentUl && parentUl.classList.contains('nested')) {
-                        parentUl.classList.add('active');
-                        const grandLi = parentUl.closest('li');
-                        if (grandLi) {
-                            const caret = grandLi.querySelector(':scope > .tree-node > .caret');
-                            if (caret) caret.classList.add('down');
-                        }
-                        el = grandLi;
-                    } else break;
-                }
-            }
-        }
-        
-        // Инициализируем обработчики кликов - вызываем всегда после перерисовки
-        initTreeTogglers();
-        console.log('refreshGroupTree: initTreeTogglers вызван');
-
-    } catch (e) {
-        console.error('Ошибка обновления дерева групп:', e);
-        const treeContainer = document.getElementById('group-tree');
-        if (treeContainer) {
-            treeContainer.innerHTML = '<div class="text-danger small">Ошибка загрузки групп</div>';
-        }
-    }
-}
-
-export async function loadAssets(groupId = null, ungrouped = false, targetTableId = 'assets-body', assetsContainerId = 'assets-container') {
-    let url;
-    if (ungrouped) url = '/api/assets?ungrouped=true';
-    else if (groupId) url = `/api/assets?group_id=${parseInt(groupId)}`;
-    else url = '/api/assets';
-    
-    try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        
-        // Проверка формата данных (как в dashboard-page.js)
-        let assetsArray = [];
-        if (Array.isArray(data)) {
-            assetsArray = data;
-        } else if (data.items && Array.isArray(data.items)) {
-            assetsArray = data.items;
-        } else {
-            console.warn('Неожиданный формат ответа API активов:', data);
-            assetsArray = [];
-        }
-
-        // Показываем контейнер с активами только если он существует (для страницы сканирований)
-        if (assetsContainerId) {
-            const container = document.getElementById(assetsContainerId);
-            if (container) {
-                container.style.display = 'block';
-                // Скрываем формы сканирований и статус очередей при просмотре активов
-                const scanForms = document.querySelector('.tab-content');
-                const queueStatus = document.getElementById('queue-status-container');
-                const scanTabs = document.getElementById('scanTabs');
-                const importBtn = document.querySelector('[data-bs-target="#importXmlModal"]');
-                
-                if (scanForms) scanForms.classList.add('d-none');
-                if (queueStatus) queueStatus.classList.add('d-none');
-                if (scanTabs) scanTabs.classList.add('d-none');
-                if (importBtn) importBtn.closest('.row')?.classList.add('d-none');
-            }
-        }
-
-        renderAssets(assetsArray, targetTableId);
-        currentFilter = { groupId, ungrouped };
-    } catch (e) { 
-        console.error('Ошибка загрузки активов:', e); 
-    }
-}
-
-export function filterByGroup(groupId, targetTableId = 'assets-body', assetsContainerId = 'assets-container') {
-    // Проверяем, находимся ли мы на главной странице (index.html)
-    const isIndexPage = document.getElementById('assets-body') !== null;
-
-    // Если мы НЕ на главной странице, делаем редирект на главную с фильтром
-    if (!isIndexPage) {
-        if (groupId === 'ungrouped') {
-            window.location.href = '/?ungrouped=true';
-        } else {
-            window.location.href = `/?group_id=${parseInt(groupId)}`;
-        }
+/**
+ * Отрисовка дерева групп внутри контейнера #group-tree-root
+ * ВАЖНО: Эта функция очищает ТОЛЬКО #group-tree-root, не затрагивая 
+ * статические элементы "Все активы" и "Без группы", которые лежат выше/ниже в #group-tree.
+ * 
+ * @param {Array} groups - Массив объектов групп {id, name, depth, ...}
+ * @param {Object} counts - Объект счетчиков {groupId: count, ungrouped: count}
+ */
+export function renderTree(groups, counts) {
+    const container = document.getElementById('group-tree-root');
+    if (!container) {
+        console.error('Контейнер #group-tree-root не найден');
         return;
     }
 
-    // Для главной страницы используем SPA-подход (без перезагрузки)
-    // Подсвечиваем активную группу в дереве
-    document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
-    const activeNode = document.querySelector(`.tree-node[data-id="${groupId}"]`);
-    if (activeNode) activeNode.classList.add('active');
+    // Очищаем ТОЛЬКО контейнер для динамических групп
+    container.innerHTML = '';
 
-    // Загружаем активы (на index.html assetsContainerId должен быть null)
-    if (groupId === 'ungrouped') loadAssets(null, true, targetTableId, null);
-    else loadAssets(parseInt(groupId), false, targetTableId, null);
+    // Вспомогательная функция для создания HTML элемента узла
+    function createNodeElement(group, depth) {
+        const node = document.createElement('div');
+        node.className = 'tree-node';
+        node.dataset.id = group.id;
+        // Отступ зависит от глубины вложенности
+        node.style.paddingLeft = `${depth * 20}px`;
+
+        // Иконка папки
+        const icon = document.createElement('i');
+        icon.className = 'bi bi-folder folder-icon';
+        node.appendChild(icon);
+
+        // Название группы
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'group-name';
+        nameSpan.textContent = group.name;
+        nameSpan.dataset.id = group.id;
+        node.appendChild(nameSpan);
+
+        // Бейдж с количеством
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-secondary ms-auto';
+        badge.id = `count-${group.id}`;
+        badge.textContent = counts[group.id] !== undefined ? counts[group.id] : 0;
+        node.appendChild(badge);
+
+        return node;
+    }
+
+    if (Array.isArray(groups)) {
+        groups.forEach(group => {
+            const el = createNodeElement(group, group.depth || 0);
+            container.appendChild(el);
+            
+            // Навешиваем обработчик клика на каждую группу
+            el.addEventListener('click', (e) => {
+                e.stopPropagation();
+                handleGroupClick(group.id);
+            });
+        });
+    }
+    
+    // Обновляем счетчик "Все активы" (сумма всех групп + без группы)
+    const allCount = Object.values(counts).reduce((a, b) => a + b, 0) + (counts['ungrouped'] || 0);
+    const allBadge = document.getElementById('count-all');
+    if (allBadge) {
+        allBadge.textContent = allCount;
+    }
+
+    // Обновляем счетчик "Без группы"
+    const ungroupedBadge = document.getElementById('count-ungrouped');
+    if (ungroupedBadge) {
+        ungroupedBadge.textContent = counts['ungrouped'] || 0;
+    }
 }
 
-export function initTreeTogglers() {
-    // Сбрасываем флаг, чтобы можно было переназначить обработчики при обновлении дерева
-    treeListenerAttached = false;
+/**
+ * Обработчик клика по группе (динамической или статической)
+ * @param {string|number} groupId - ID группы, 'all' или 'ungrouped'
+ */
+function handleGroupClick(groupId) {
+    // Снимаем активный класс со всех узлов
+    document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active'));
     
-    const treeContainer = document.getElementById('group-tree');
-    if (!treeContainer) return;
-    
-    // Удаляем старый контейнер и создаём новый, чтобы сбросить все обработчики
-    const newTreeContainer = treeContainer.cloneNode(true);
-    treeContainer.parentNode.replaceChild(newTreeContainer, treeContainer);
-    
-    newTreeContainer.addEventListener('click', function(e) {
-        // Игнорируем клики по кнопкам действий
-        if (e.target.closest('.group-actions') || e.target.closest('.btn-action')) return;
+    let targetElement;
+    // Находим элемент, по которому кликнули
+    if (groupId === 'all') {
+        targetElement = document.querySelector('.tree-node[data-id="all"]');
+    } else if (groupId === 'ungrouped') {
+        targetElement = document.querySelector('.tree-node[data-id="ungrouped"]');
+    } else {
+        targetElement = document.querySelector(`.tree-node[data-id="${groupId}"]`);
+    }
+
+    // Добавляем активный класс
+    if (targetElement) {
+        targetElement.classList.add('active');
+    }
+
+    // Вызываем глобальную функцию фильтрации таблицы активов
+    if (typeof window.filterByGroup === 'function') {
+        window.filterByGroup(groupId);
+    } else {
+        // Если глобальная функция еще не определена, вызываем локальную логику
+        filterByGroup(groupId);
+    }
+}
+
+/**
+ * Инициализация обработчиков для СТАТИЧЕСКИХ элементов ("Все активы", "Без группы").
+ * Вызывается после загрузки DOM или обновления дерева.
+ */
+export function initGroupTreeStaticListeners() {
+    const allNode = document.querySelector('.tree-node[data-id="all"]');
+    if (allNode) {
+        // Удаляем старые слушатели клонированием (простой способ сброса без утечек)
+        const newAllNode = allNode.cloneNode(true);
+        allNode.parentNode.replaceChild(newAllNode, allNode);
         
-        // 1. Клик по стрелке (раскрытие/сворачивание)
-        const caret = e.target.closest('.caret');
-        if (caret) {
-            e.preventDefault(); e.stopPropagation();
-            const parentLi = caret.closest('li');
-            if (parentLi) {
-                const nestedUl = parentLi.querySelector(':scope > ul.nested');
-                if (nestedUl) nestedUl.classList.toggle('active');
-            }
-            caret.classList.toggle('down');
+        newAllNode.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleGroupClick('all');
+        });
+    }
+
+    const ungroupedNode = document.querySelector('.tree-node[data-id="ungrouped"]');
+    if (ungroupedNode) {
+        const newUngroupedNode = ungroupedNode.cloneNode(true);
+        ungroupedNode.parentNode.replaceChild(newUngroupedNode, ungroupedNode);
+
+        newUngroupedNode.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleGroupClick('ungrouped');
+        });
+    }
+}
+
+/**
+ * Загрузка активов с сервера и рендеринг таблицы
+ * Реализована внутри модуля, чтобы не зависеть от импорта assets.js
+ * 
+ * @param {number|null} groupId - ID группы или null (для всех или без группы)
+ * @param {boolean} isUngrouped - true если запрашиваем активы БЕЗ группы
+ * @param {string} targetTableId - ID элемента tbody, куда вставлять строки
+ * @param {string|null} assetsContainerId - ID контейнера (резерв)
+ */
+export async function loadAssets(groupId = null, isUngrouped = false, targetTableId = 'assets-body', assetsContainerId = null) {
+    const tbody = document.getElementById(targetTableId);
+    if (!tbody) {
+        console.warn(`Таблица с ID ${targetTableId} не найдена. Прерывание загрузки.`);
+        return;
+    }
+
+    // Показываем индикатор загрузки
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Загрузка активов...</p></td></tr>';
+
+    // Формируем параметры запроса
+    const params = new URLSearchParams();
+    
+    if (isUngrouped) {
+        // Вариант 1: Явный флаг (если бэкенд поддерживает ?ungrouped=true)
+        params.append('ungrouped', 'true');
+        // Вариант 2: Явный null (если бэкенд поддерживает ?group_id=null) - более надежно
+        params.append('group_id', 'null'); 
+    } else if (groupId !== null && groupId !== 'all') {
+        params.append('group_id', String(groupId));
+    }
+    // Если groupId === null и isUngrouped === false -> загружаем все (параметры пустые)
+
+    const queryString = params.toString();
+    const url = `/api/assets${queryString ? '?' + queryString : ''}`;
+
+    try {
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`Ошибка сервера: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const assets = Array.isArray(data) ? data : (data.assets || []);
+
+        // Очищаем таблицу
+        tbody.innerHTML = '';
+
+        if (assets.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Активы не найдены</td></tr>';
             return;
         }
-        
-        // 2. Клик по названию группы
-        const groupSpan = e.target.closest('.group-name');
-        if (groupSpan) {
-            // Определяем, на какой странице находимся, и передаём правильные параметры
-            const assetsContainer = document.getElementById('assets-container');
-            const assetsTableBodyStd = document.getElementById('assets-body');
-            const assetsTableBodyScan = document.getElementById('assets-table-body');
+
+        // Рендеринг строк
+        assets.forEach(asset => {
+            const tr = document.createElement('tr');
             
-            let targetTableId = 'assets-body';
-            let assetsContainerId = 'assets-container';
+            // Определение статуса OSquery для иконки
+            const osqueryIcon = asset.osquery_status === 'online' 
+                ? '<i class="bi bi-pc-display text-success" title="OSquery Online"></i>' 
+                : '<i class="bi bi-pc-display text-muted" title="OSquery Offline"></i>';
+
+            // Формирование строки таблицы (адаптируйте колонки под вашу верстку)
+            tr.innerHTML = `
+                <td>${osqueryIcon}</td>
+                <td><strong>${asset.ip_address || 'N/A'}</strong></td>
+                <td>${asset.hostname || '<span class="text-muted">-</span>'}</td>
+                <td>${asset.os_info || '<span class="text-muted">-</span>'}</td>
+                <td><small>${asset.open_ports || '<span class="text-muted">-</span>'}</small></td>
+                <td>${asset.group_name ? `<span class="badge bg-light text-dark border">${asset.group_name}</span>` : '<span class="badge bg-secondary">Без группы</span>'}</td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary" onclick="window.editAsset(${asset.id})" title="Редактировать">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                </td>
+            `;
             
-            if (assetsTableBodyScan) {
-                targetTableId = 'assets-table-body';
-            } else if (assetsTableBodyStd) {
-                targetTableId = 'assets-body';
-            }
-            
-            if (!assetsContainer) {
-                assetsContainerId = null; // Не показываем контейнер, если его нет
-            }
-            
-            filterByGroup(groupSpan.dataset.id, targetTableId, assetsContainerId);
-        }
-    });
-    
-    treeListenerAttached = true;
+            // Добавляем обработчик клика на строку (опционально, для перехода к деталям)
+            tr.style.cursor = 'pointer';
+            tr.addEventListener('click', (e) => {
+                // Игнорируем клик по кнопкам действий
+                if (e.target.closest('button')) return;
+                window.location.href = `/asset/${asset.id}`;
+            });
+
+            tbody.appendChild(tr);
+        });
+
+    } catch (error) {
+        console.error('Ошибка загрузки активов:', error);
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Ошибка загрузки: ${error.message}</td></tr>`;
+    }
 }
 
-export function getCurrentFilter() { return currentFilter; }
+/**
+ * Глобальная функция обновления дерева групп
+ * Доступна из window для вызова из HTML
+ */
+window.refreshGroupTree = function() {
+    return fetch('/api/groups/tree')
+        .then(response => {
+            if (!response.ok) throw new Error('Network response was not ok');
+            return response.json();
+        })
+        .then(data => {
+            // Поддержка разных форматов ответа API
+            let groups = [];
+            let counts = {};
+
+            if (Array.isArray(data)) {
+                groups = data;
+            } else if (data.groups) {
+                groups = data.groups;
+                counts = data.counts || {};
+            }
+
+            renderTree(groups, counts);
+            
+            // Перепривязываем слушатели к статическим элементам после перерисовки
+            initGroupTreeStaticListeners();
+            
+            return Promise.resolve();
+        })
+        .catch(err => console.error('Ошибка загрузки дерева групп:', err));
+};
+
+/**
+ * Функция фильтрации активов (SPA)
+ * Вызывается при клике на элементы дерева
+ * 
+ * @param {string|number|null} groupId - ID группы, 'all', 'ungrouped'
+ * @param {boolean} isUngrouped - Устаревший флаг, логика определяется через groupId
+ * @param {string} targetTableId - ID tbody
+ * @param {string|null} assetsContainerId - Резерв
+ */
+export function filterByGroup(groupId, isUngrouped = false, targetTableId = 'assets-body', assetsContainerId = null) {
+    currentGroupId = groupId;
+
+    // Визуальное выделение активной группы
+    document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
+    let activeNode;
+    if (groupId === 'all') activeNode = document.querySelector('.tree-node[data-id="all"]');
+    else if (groupId === 'ungrouped') activeNode = document.querySelector('.tree-node[data-id="ungrouped"]');
+    else activeNode = document.querySelector(`.tree-node[data-id="${groupId}"]`);
+    
+    if (activeNode) activeNode.classList.add('active');
+
+    // Логика определения параметров для loadAssets
+    if (groupId === 'ungrouped') {
+        // Активы без группы
+        loadAssets(null, true, targetTableId, assetsContainerId);
+    } else if (groupId === 'all') {
+        // Все активы
+        loadAssets(null, false, targetTableId, assetsContainerId);
+    } else {
+        // Конкретная группа
+        loadAssets(parseInt(groupId), false, targetTableId, assetsContainerId);
+    }
+}
+
+// Экспорт функций в глобальную область видимости для доступа из HTML и других модулей
+window.initGroupTreeStaticListeners = initGroupTreeStaticListeners;
+window.filterByGroup = filterByGroup;
+window.loadAssets = loadAssets;
+
+/**
+ * Инициализация обработчиков сворачивания/разворачивания (заглушка)
+ */
+export function initTreeTogglers() {
+    // Здесь может быть логика для стрелочек сворачивания, если она потребуется в будущем
+    // Сейчас функционал сворачивания не реализован в базовой версии
+}
+window.initTreeTogglers = initTreeTogglers;
