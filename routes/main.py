@@ -119,6 +119,104 @@ def get_assets_api():
     
     return jsonify(data)
 
+@main_bp.route('/api/assets/<int:asset_id>', methods=['GET'])
+def get_asset_api(asset_id):
+    """Получить данные одного актива по ID"""
+    asset = Asset.query.get_or_404(asset_id)
+    
+    return jsonify({
+        'id': asset.id,
+        'ip_address': asset.ip_address,
+        'hostname': asset.hostname or '',
+        'os_info': asset.os_info or '',
+        'open_ports': asset.open_ports or '',
+        'group_id': asset.groups[0].id if asset.groups else None,
+        'notes': asset.notes or ''
+    })
+
+@main_bp.route('/api/assets', methods=['POST'])
+def create_asset_api():
+    """Создать новый актив"""
+    data = request.get_json()
+    
+    if not data or not data.get('ip_address'):
+        return jsonify({'error': 'IP адрес обязателен'}), 400
+    
+    # Проверка на дубликат IP
+    existing = Asset.query.filter_by(ip_address=data['ip_address']).first()
+    if existing:
+        return jsonify({'error': 'Актив с таким IP уже существует'}), 409
+    
+    new_asset = Asset(
+        ip_address=data['ip_address'],
+        hostname=data.get('hostname', ''),
+        os_info=data.get('os_info', ''),
+        open_ports=data.get('open_ports', ''),
+        notes=data.get('notes', '')
+    )
+    
+    db.session.add(new_asset)
+    db.session.flush()
+    
+    # Привязка к группе если указана
+    group_id = data.get('group_id')
+    if group_id:
+        group = Group.query.get(int(group_id))
+        if group:
+            new_asset.groups.append(group)
+    
+    db.session.commit()
+    
+    # Логирование
+    ActivityLog.log_action('create', 'asset', new_asset.id, f"Создан актив {new_asset.ip_address}")
+    
+    return jsonify({'id': new_asset.id, 'message': 'Актив успешно создан'}), 201
+
+@main_bp.route('/api/assets/<int:asset_id>', methods=['PUT'])
+def update_asset_api(asset_id):
+    """Обновить существующий актив"""
+    asset = Asset.query.get_or_404(asset_id)
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'Нет данных для обновления'}), 400
+    
+    # Обновление полей
+    if 'ip_address' in data:
+        # Проверка на дубликат IP (если IP меняется)
+        if data['ip_address'] != asset.ip_address:
+            existing = Asset.query.filter_by(ip_address=data['ip_address']).first()
+            if existing and existing.id != asset_id:
+                return jsonify({'error': 'Актив с таким IP уже существует'}), 409
+        asset.ip_address = data['ip_address']
+    
+    if 'hostname' in data:
+        asset.hostname = data['hostname']
+    if 'os_info' in data:
+        asset.os_info = data['os_info']
+    if 'open_ports' in data:
+        asset.open_ports = data['open_ports']
+    if 'notes' in data:
+        asset.notes = data['notes']
+    
+    # Обновление группы
+    if 'group_id' in data:
+        # Удаляем все текущие группы
+        asset.groups.clear()
+        
+        group_id = data.get('group_id')
+        if group_id:
+            group = Group.query.get(int(group_id))
+            if group:
+                asset.groups.append(group)
+    
+    db.session.commit()
+    
+    # Логирование
+    ActivityLog.log_action('update', 'asset', asset.id, f"Обновлен актив {asset.ip_address}")
+    
+    return jsonify({'id': asset.id, 'message': 'Актив успешно обновлен'})
+
 @main_bp.route('/api/analytics', methods=['GET'])
 def get_analytics():
     filters_raw = request.args.get('filters')

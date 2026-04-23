@@ -266,3 +266,159 @@ export function renderAssets(data, targetTableId = 'assets-body') {
 
 // Экспорт для доступа из main.js
 window.renderAssets = renderAssets;
+
+/**
+ * Показать модальное окно создания/редактирования актива
+ * @param {number|null} assetId - ID актива для редактирования или null для создания
+ */
+export async function showAssetModal(assetId = null) {
+    const modalEl = document.getElementById('assetModal');
+    const modalTitle = document.getElementById('assetModalTitle');
+    const form = document.getElementById('assetForm');
+    const assetIdInput = document.getElementById('assetId');
+    
+    if (!modalEl || !form) {
+        console.error('❌ Модальное окно assetModal не найдено');
+        return;
+    }
+
+    // Сброс формы
+    form.reset();
+    assetIdInput.value = '';
+
+    if (assetId) {
+        // Режим редактирования
+        modalTitle.innerHTML = '<i class="bi bi-pencil"></i> Редактировать актив';
+        assetIdInput.value = assetId;
+
+        // Загрузка данных актива
+        try {
+            const response = await fetch(`/api/assets/${assetId}`);
+            if (!response.ok) throw new Error('Failed to load asset');
+            const asset = await response.json();
+
+            document.getElementById('assetIpAddress').value = asset.ip_address || '';
+            document.getElementById('assetHostname').value = asset.hostname || '';
+            document.getElementById('assetOsInfo').value = asset.os_info || '';
+            document.getElementById('assetOpenPorts').value = asset.open_ports || '';
+            document.getElementById('assetNotes').value = asset.notes || '';
+            
+            // Загрузка групп и установка выбранной
+            await loadGroupsForAssetModal(asset.group_id);
+        } catch (error) {
+            console.error('Ошибка загрузки актива:', error);
+            alert('Не удалось загрузить данные актива');
+            return;
+        }
+    } else {
+        // Режим создания
+        modalTitle.innerHTML = '<i class="bi bi-plus-circle"></i> Новый актив';
+        await loadGroupsForAssetModal(null);
+    }
+
+    // Показ модального окна
+    let modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (!modalInstance) {
+        modalInstance = new bootstrap.Modal(modalEl);
+    }
+    modalInstance.show();
+}
+
+/**
+ * Загрузка списка групп для модального окна актива
+ */
+async function loadGroupsForAssetModal(selectedGroupId = null) {
+    const select = document.getElementById('assetGroupId');
+    if (!select) return;
+
+    try {
+        const response = await fetch('/api/groups/tree');
+        if (!response.ok) throw new Error('Failed to load groups');
+        
+        const groups = await response.json();
+        
+        // Очищаем селект
+        select.innerHTML = '<option value="">-- Без группы --</option>';
+        
+        // Рекурсивная функция для добавления групп с отступами
+        function addGroupOptions(groupList, depth = 0) {
+            if (!Array.isArray(groupList)) return;
+            
+            groupList.forEach(g => {
+                const option = document.createElement('option');
+                option.value = g.id;
+                const indent = depth > 0 ? '    '.repeat(depth) + '└─ ' : '';
+                option.textContent = indent + (g.name || g.group_name || `Группа ${g.id}`);
+                select.appendChild(option);
+                
+                // Рекурсивно добавляем дочерние группы
+                if (g.children && g.children.length > 0) {
+                    addGroupOptions(g.children, depth + 1);
+                }
+            });
+        }
+        
+        addGroupOptions(groups);
+        
+        // Устанавливаем выбранную группу
+        if (selectedGroupId && select.querySelector(`option[value="${selectedGroupId}"]`)) {
+            select.value = selectedGroupId;
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки групп:', error);
+    }
+}
+
+/**
+ * Обработчик отправки формы создания/редактирования актива
+ */
+export async function saveAsset(event) {
+    event.preventDefault();
+    
+    const assetId = document.getElementById('assetId').value;
+    const formData = {
+        ip_address: document.getElementById('assetIpAddress').value,
+        hostname: document.getElementById('assetHostname').value,
+        os_info: document.getElementById('assetOsInfo').value,
+        open_ports: document.getElementById('assetOpenPorts').value,
+        group_id: document.getElementById('assetGroupId').value || null,
+        notes: document.getElementById('assetNotes').value
+    };
+
+    try {
+        const url = assetId ? `/api/assets/${assetId}` : '/api/assets';
+        const method = assetId ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(formData)
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to save asset');
+        }
+        
+        // Закрытие модального окна
+        const modalEl = document.getElementById('assetModal');
+        const modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) {
+            modalInstance.hide();
+        }
+        
+        // Перезагрузка списка активов
+        if (typeof window.loadAssets === 'function') {
+            window.loadAssets();
+        } else {
+            location.reload();
+        }
+    } catch (error) {
+        console.error('Ошибка сохранения актива:', error);
+        alert('Не удалось сохранить актив: ' + error.message);
+    }
+}
+
+// Экспорт функций для глобального доступа
+window.showAssetModal = showAssetModal;
+window.saveAsset = saveAsset;

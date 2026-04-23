@@ -8,7 +8,7 @@ import {
 import {
     initAssetSelection, confirmBulkDelete, executeBulkDelete,
         confirmBulkMove, executeBulkMove, clearSelection,
-    initFilterFieldDatalist, renderAssets
+    initFilterFieldDatalist, renderAssets, showAssetModal, saveAsset
 } from './modules/assets.js';
 import { viewScanResults, showScanError, updateScanHistory, pollActiveScans } from './modules/scans.js';
 import { initWazuhFilter, saveWazuhConfig, testWazuhConnection } from './modules/wazuh.js';
@@ -47,6 +47,62 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers } from '.
         // 🖱️ Контекстное меню
         initContextMenu();
 
+        // --- Логика изменения размера сайдбара ---
+        const sidebar = document.getElementById('sidebar');
+        const resizer = document.getElementById('sidebarResizer');
+        const content = document.getElementById('content');
+        
+        let isResizing = false;
+
+        // Восстановление ширины из localStorage
+        const savedWidth = localStorage.getItem('sidebarWidth');
+        if (savedWidth) {
+            document.documentElement.style.setProperty('--sidebar-width', savedWidth);
+        }
+
+        resizer.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            resizer.classList.add('resizing');
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none'; // Запрет выделения текста
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+
+            let newWidth = e.clientX;
+            
+            // Ограничения ширины
+            const minWidth = 200;
+            const maxWidth = 600;
+            
+            if (newWidth < minWidth) newWidth = minWidth;
+            if (newWidth > maxWidth) newWidth = maxWidth;
+
+            document.documentElement.style.setProperty('--sidebar-width', `${newWidth}px`);
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (isResizing) {
+                isResizing = false;
+                resizer.classList.remove('resizing');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+                
+                // Сохранение ширины
+                const currentWidth = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim();
+                localStorage.setItem('sidebarWidth', currentWidth);
+            }
+        });
+        // -----------------------------------------
+
+        // Переключение сайдбара на мобильных
+        document.getElementById('sidebarCollapse')?.addEventListener('click', () => {
+            document.getElementById('sidebar').classList.toggle('active');
+            document.getElementById('content').classList.toggle('active');
+        });
+
         // 📝 Обработчик формы редактирования/создания группы
         const groupEditForm = document.getElementById('groupEditForm');
         if (groupEditForm) {
@@ -62,6 +118,15 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers } from '.
             groupMoveForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 moveGroup();
+            });
+        }
+
+        // 🛠️ Обработчик формы создания/редактирования актива
+        const assetForm = document.getElementById('assetForm');
+        if (assetForm) {
+            assetForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                saveAsset(e);
             });
         }
         // 🔗 Ссылка на контекстное меню
@@ -137,5 +202,7 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers } from '.
         window.testWazuhConnection = testWazuhConnection;
         window.closeModalById = closeModalById; // ✅ Добавлено: утилита закрытия модалок
         window.populateParentSelect = populateParentSelect; // ✅ Добавлено: для динамических селектов
+        window.showAssetModal = showAssetModal; // ✅ Добавлено: для создания/редактирования активов
+        window.saveAsset = saveAsset; // ✅ Добавлено: обработчик формы актива
     });
 })();

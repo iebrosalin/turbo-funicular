@@ -306,14 +306,35 @@
 <script src="{{ url_for('static', filename='js/scans-page.js') }}" type="module"></script>
 <script type="module">
     // Импорт функций дерева для SPA функционала
-    import { filterByGroup, loadAssets } from '{{ url_for("static", filename="js/modules/tree.js") }}';
-    
+    import { filterByGroup, loadAssets, refreshGroupTree, initTreeTogglers } from '{{ url_for("static", filename="js/modules/tree.js") }}';
+
     // Экспорт в глобальную область видимости для использования из tree.js
     window.filterByGroup = filterByGroup;
     window.loadAssets = loadAssets;
-    
-    // Обработчик кнопки "Вернуться к сканированиям"
+    window.refreshGroupTree = refreshGroupTree;
+    window.initTreeTogglers = initTreeTogglers;
+
+    // Инициализация дерева групп при загрузке страницы
     document.addEventListener('DOMContentLoaded', function() {
+        // Инициализируем дерево групп
+        refreshGroupTree().then(() => {
+            initTreeTogglers();
+
+            // Обработка URL-параметров для фильтрации активов
+            const urlParams = new URLSearchParams(window.location.search);
+            const groupIdParam = urlParams.get('group_id');
+            const ungroupedParam = urlParams.get('ungrouped');
+
+            if (ungroupedParam === 'true') {
+                // Фильтр "Без группы" - используем assets-table-body для страницы сканирований
+                filterByGroup('ungrouped', 'assets-table-body', 'assets-container');
+            } else if (groupIdParam && groupIdParam !== 'all') {
+                // Фильтр по конкретной группе
+                filterByGroup(groupIdParam, 'assets-table-body', 'assets-container');
+            }
+        });
+
+        // Обработчик кнопки "Вернуться к сканированиям"
         const backBtn = document.getElementById('back-to-scans-btn');
         if (backBtn) {
             backBtn.addEventListener('click', function() {
