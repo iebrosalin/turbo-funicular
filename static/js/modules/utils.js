@@ -2,8 +2,11 @@
 
 /**
  * Заполняет выпадающие списки родительских групп с визуальной иерархией.
+ * @param {Array} excludeIds - Массив ID для исключения
+ * @param {number|null} selectedId - Выбранный ID
+ * @param {boolean} forDeleteModal - Флаг для модального окна удаления (добавляет опцию удаления активов)
  */
-export async function populateParentSelect(excludeIds = [], selectedId = null) {
+export async function populateParentSelect(excludeIds = [], selectedId = null, forDeleteModal = false) {
     try {
         const res = await fetch('/api/groups/tree');
         if (!res.ok) throw new Error('Failed to fetch tree');
