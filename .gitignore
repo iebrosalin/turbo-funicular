@@ -1,13 +1,15 @@
-scan_results/
-scanner_output/
-instance/
-
-# Python compiled files
+```gitignore
+# Python
 __pycache__/
-*/__pycache__/
 *.pyc
 *.pyo
 *.pyd
+*.py~
+*.py.class
+*.pyc.class
+
+# Database
+instance/
 
 # Dependencies
 .venv/
@@ -15,29 +17,5 @@ venv/
 env/
 .env
 .env.local
-*.env.*
-
-# Logs and temporary files
-*.log
-*.tmp
-*.swp
-*.swo
-
-# Coverage reports
-.coverage
-htmlcov/
-coverage/
-
-# IDE specific
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS generated files
-.DS_Store
-Thumbs.db
-
-.env
-.env.local
 .env.*
+```

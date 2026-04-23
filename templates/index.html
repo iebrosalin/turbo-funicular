@@ -10,6 +10,9 @@
             <nav class="navbar navbar-light mb-4 px-3">
                 <span class="navbar-brand mb-0 h1"><i class="bi bi-shield-check"></i> Asset Manager</span>
                 <div class="d-flex align-items-center flex-wrap gap-2">
+                    <button class="btn btn-success me-2" onclick="showAssetModal(null)">
+                        <i class="bi bi-plus-lg"></i> Добавить актив
+                    </button>
                     <button class="theme-toggle me-2" onclick="toggleTheme()" aria-label="Переключить тему">
                         <i class="bi bi-moon"></i><i class="bi bi-sun"></i>
                     </button>
@@ -96,6 +99,7 @@
 
 <!-- Модальные окна -->
 {% include 'components/modals.html' %}
+{% include 'components/modals_assets.html' %}
 {% endblock %}
 
 {% block extra_js %}
