@@ -55,9 +55,13 @@ export async function populateParentSelect(excludeIds = [], selectedId = null, f
 
         const selectors = [
             '#edit-group-parent',   
-            '#move-group-parent',   
-            '#delete-move-assets'   
+            '#move-group-parent'
         ];
+
+        // Для модального окна удаления используем отдельный селектор
+        if (forDeleteModal) {
+            selectors.push('#delete-move-assets');
+        }  
 
         selectors.forEach(sel => {
             const el = document.querySelector(sel);
