@@ -11,13 +11,14 @@ export function initAssetSelection(targetTableId = 'assets-body') {
     
     const selAll = document.getElementById('select-all');
     if(selAll) selAll.addEventListener('change', function() {
-        document.querySelectorAll('.asset-checkbox').forEach(cb => {
+        const checkboxes = document.querySelectorAll('.asset-checkbox');
+        checkboxes.forEach(cb => {
             cb.checked = this.checked; 
             toggleRowSelection(cb.closest('tr'), this.checked, targetTableId);
             if(this.checked) window.selectedAssetIds.add(cb.value); 
             else window.selectedAssetIds.delete(cb.value);
         });
-        window.lastSelectedIndex = this.checked ? getRowIndex(document.querySelectorAll('.asset-checkbox').pop().closest('tr'), targetTableId) : -1;
+        window.lastSelectedIndex = this.checked && checkboxes.length > 0 ? getRowIndex(checkboxes[checkboxes.length - 1].closest('tr'), targetTableId) : -1;
         updateBulkToolbar(); 
         updateSelectAllCheckbox(targetTableId);
     });
@@ -137,6 +138,78 @@ export async function executeBulkDelete() {
         modalInstance.hide();
     }
     
+    location.reload();
+}
+
+
+export function confirmBulkMove() {
+    if(window.selectedAssetIds.size === 0) return;
+    const countEl = document.getElementById('bulk-move-count');
+    if(countEl) countEl.textContent = window.selectedAssetIds.size;
+
+    // Загрузка списка групп для селекта
+    loadGroupsForMoveModal().then(() => {
+        const modalInstance = bootstrap.Modal.getInstance(document.getElementById('bulkMoveModal'));
+        if(modalInstance) modalInstance.show();
+    });
+}
+
+async function loadGroupsForMoveModal() {
+    const select = document.getElementById('target-group-select');
+    if(!select) return;
+
+    // Сохраняем текущее значение
+    const currentValue = select.value;
+
+    try {
+        const response = await fetch('/api/groups');
+        if(!response.ok) throw new Error('Failed to load groups');
+
+        const groups = await response.json();
+
+        // Очищаем и заполняем селект
+        select.innerHTML = '<option value="">-- Без группы --</option>';
+
+        if(Array.isArray(groups)) {
+            groups.forEach(g => {
+                const option = document.createElement('option');
+                option.value = g.id;
+                option.textContent = g.name || g.group_name || `Группа ${g.id}`;
+                select.appendChild(option);
+            });
+        }
+
+        // Восстанавливаем значение если возможно
+        if(currentValue && select.querySelector(`option[value="${currentValue}"]`)) {
+            select.value = currentValue;
+        }
+    } catch(error) {
+        console.error('Ошибка загрузки групп:', error);
+        // Даже при ошибке показываем модальное окно с опцией "Без группы"
+    }
+}
+
+export async function executeBulkMove() {
+    const select = document.getElementById('target-group-select');
+    if(!select) return;
+
+    const groupId = select.value;
+    const ids = Array.from(window.selectedAssetIds);
+
+    await fetch('/api/assets/bulk-move', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids, group_id: groupId})
+    });
+
+    clearSelection();
+
+    const modalEl = document.getElementById('bulkMoveModal');
+    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstance) {
+        modalInstance.hide();
+    }
+
     location.reload();
 }
 

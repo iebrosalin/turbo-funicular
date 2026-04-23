@@ -172,7 +172,7 @@ def delete_group(group_id):
     group = AssetGroup.query.get_or_404(group_id)
     data = request.get_json() or {}
     
-    move_to_id = data.get('move_assets_to')
+    move_to_id = data.get('move_to_id')
     
     if group.assets:
         if move_to_id:

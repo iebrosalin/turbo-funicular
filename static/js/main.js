@@ -7,6 +7,7 @@ import {
 } from './modules/groups.js';
 import {
     initAssetSelection, confirmBulkDelete, executeBulkDelete,
+        confirmBulkMove, executeBulkMove,
     initFilterFieldDatalist, renderAssets
 } from './modules/assets.js';
 import { viewScanResults, showScanError, updateScanHistory, pollActiveScans } from './modules/scans.js';
@@ -123,6 +124,8 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers } from '.
         window.showMoveGroupModal = showMoveGroupModal;
         window.moveGroup = moveGroup;
         window.confirmBulkDelete = confirmBulkDelete;
+        window.confirmBulkMove = confirmBulkMove;
+        window.executeBulkMove = executeBulkMove;
         window.executeBulkDelete = executeBulkDelete;
         window.refreshGroupTree = refreshGroupTree;
         window.loadAssets = loadAssets;

@@ -185,78 +185,132 @@ class DigScanner:
             job = ScanJob.query.get(job_id)
             if not job:
                 return
+            # Список для хранения всех пар (IP, данные) для последующей группировки
+            ip_data_list = []
 
             for target, data in results.items():
                 # Нормализация target (удаление @server если есть)
                 clean_target = target.split('@')[0] if '@' in target else target
-                
-                # Поиск или создание актива
-                asset = Asset.query.filter_by(ip_address=clean_target).first()
-                if not asset:
-                    # Пробуем найти по имени, если target - домен
-                    # Или создаем новый, если это домен и мы хотим его хранить как актив
-                    # Для простоты создаем запись с доменом в hostname, IP пока unknown
-                    # В реальном сценарии лучше сначала резолвить домен в IP
-                    import socket
-                    try:
-                        ip_addr = socket.gethostbyname(clean_target)
-                        asset = Asset.query.filter_by(ip_address=ip_addr).first()
-                        if not asset:
-                            asset = Asset(ip_address=ip_addr, hostname=clean_target)
-                            db.session.add(asset)
-                            db.session.flush() # Чтобы получить ID
-                    except socket.gaierror:
-                        # Не удалось резолвить, создаем фиктивный или пропускаем
-                        # Для DNS сканирования доменов без IP создадим запись с IP='domain'
-                        # Но модель требует IP. Создадим с заглушкой или пропустим.
-                        # Лучше создать актив с IP из A записи, если она есть в результатах
-                        a_records = data['records'].get('A', [])
-                        if a_records:
-                            ip_addr = a_records[0]['data']
-                            asset = Asset.query.filter_by(ip_address=ip_addr).first()
-                            if not asset:
-                                asset = Asset(ip_address=ip_addr, hostname=clean_target)
-                                db.session.add(asset)
-                                db.session.flush()
-                        else:
-                            continue # Пропускаем, если нет IP
 
-                # Обновление DNS данных
-                if data['records']:
-                    # Объединяем с существующими записями
-                    existing_records = asset.dns_records or {}
-                    for rtype, recs in data['records'].items():
-                        if rtype not in existing_records:
-                            existing_records[rtype] = []
-                        # Добавляем только уникальные
-                        current_data = [r.get('data') for r in existing_records[rtype]]
-                        for rec in recs:
-                            if rec.get('data') not in current_data:
-                                existing_records[rtype].append(rec)
-                    
-                    asset.dns_records = existing_records
-                    asset.last_dns_scan = datetime.now(MOSCOW_TZ)
-                    
-                    # Обновление dns_names и fqdn
-                    all_names = set(asset.dns_names or [])
-                    all_names.update(data['names'])
-                    if clean_target not in all_names:
-                        all_names.add(clean_target)
-                    asset.dns_names = list(all_names)
-                    
-                    # Установка FQDN если есть CNAME или просто первое имя
-                    cname_records = existing_records.get('CNAME', [])
-                    if cname_records:
-                        asset.fqdn = cname_records[0].get('data', asset.fqdn)
-                    elif not asset.fqdn and all_names:
-                        asset.fqdn = next(iter(all_names))
+                # Сбор ВСЕХ IP-адресов из A, AAAA и MX записей
+                all_ips = set()
+
+                # Получаем записи
+                a_records = data['records'].get('A', [])
+                aaaa_records = data['records'].get('AAAA', [])
+                mx_records = data['records'].get('MX', [])
+
+                # 1. Если есть A записи - добавляем ВСЕ IP из A записей
+                if a_records:
+                    for rec in a_records:
+                        all_ips.add(rec['data'])
+                # 2. Если нет A, но есть AAAA - добавляем ВСЕ IP из AAAA записей
+                elif aaaa_records:
+                    for rec in aaaa_records:
+                        all_ips.add(rec['data'])
+                # 3. Если нет ни A, ни AAAA, но есть MX - резолвим имена серверов в IP
+                elif mx_records:
+                    for mx_rec in mx_records:
+                        mx_data = mx_rec.get('data', '')
+                        mx_parts = mx_data.split()
+                        if len(mx_parts) >= 2:
+                            mx_server = mx_parts[1]
+                        else:
+                            mx_server = mx_data
+
+                        # Резолвинг MX сервера в IP
+                        try:
+                            import socket
+                            ip_addr = socket.gethostbyname(mx_server.rstrip('.'))
+                            all_ips.add(ip_addr)
+                        except socket.gaierror:
+                            continue
+
+                # Если нет ни одного IP, пропускаем target
+                if not all_ips:
+                    continue
+
+                # Для каждого IP создаём запись для последующей обработки
+                for ip_addr in all_ips:
+                    ip_data_list.append({
+                        'ip': ip_addr,
+                        'target': clean_target,
+                        'names': data['names'],
+                        'records': data['records']
+                    })
+
+            # Группировка данных по IP-адресам для создания/обновления активов
+            ip_to_names = {}
+            ip_to_records = {}
+            ip_to_targets = {}
+
+            for item in ip_data_list:
+                ip_addr = item['ip']
+
+                if ip_addr not in ip_to_names:
+                    ip_to_names[ip_addr] = set()
+                    ip_to_records[ip_addr] = {}
+                    ip_to_targets[ip_addr] = set()
+
+                # Добавляем имена доменов
+                ip_to_names[ip_addr].update(item['names'])
+                ip_to_names[ip_addr].add(item['target'])
+
+                # Добавляем target в список целей для этого IP
+                ip_to_targets[ip_addr].add(item['target'])
+
+                # Объединяем DNS записи
+                for rtype, recs in item['records'].items():
+                    if rtype not in ip_to_records[ip_addr]:
+                        ip_to_records[ip_addr][rtype] = []
+                    current_data = [r.get('data') for r in ip_to_records[ip_addr][rtype]]
+                    for rec in recs:
+                        if rec.get('data') not in current_data:
+                            ip_to_records[ip_addr][rtype].append(rec)
+
+            # Обработка всех сгруппированных данных по IP
+            for ip_addr, names in ip_to_names.items():
+                # Поиск или создание актива по IP
+                asset = Asset.query.filter_by(ip_address=ip_addr).first()
+                if not asset:
+                    # Создаем новый актив
+                    # Используем первое имя как hostname
+                    hostname = next(iter(names))
+                    asset = Asset(ip_address=ip_addr, hostname=hostname)
+                    db.session.add(asset)
+                    db.session.flush()
+
+                # Обновление DNS данных (объединяем с существующими)
+                existing_records = asset.dns_records or {}
+                for rtype, recs in ip_to_records[ip_addr].items():
+                    if rtype not in existing_records:
+                        existing_records[rtype] = []
+                    current_data = [r.get('data') for r in existing_records[rtype]]
+                    for rec in recs:
+                        if rec.get('data') not in current_data:
+                            existing_records[rtype].append(rec)
+
+                asset.dns_records = existing_records
+                asset.last_dns_scan = datetime.now(MOSCOW_TZ)
+
+                # Обновление dns_names - добавляем все имена для этого IP
+                all_names = set(asset.dns_names or [])
+                all_names.update(names)
+                asset.dns_names = list(all_names)
+
+                # Установка FQDN если есть CNAME или просто первое имя
+                cname_records = existing_records.get('CNAME', [])
+                if cname_records:
+                    asset.fqdn = cname_records[0].get('data', asset.fqdn)
+                elif not asset.fqdn and all_names:
+                    asset.fqdn = next(iter(all_names))
 
                 # Логирование
                 log = ActivityLog(
                     asset_id=asset.id,
                     event_type='dns_scan_completed',
-                    description=f"Выполнено DNS сканирование. Найдено записей: {sum(len(v) for v in data['records'].values())}",
-                    details={'types': list(data['records'].keys())}
+                    description=f"Выполнено DNS сканирование. Доменных имен: {len(names)}, записей: {sum(len(v) for v in ip_to_records[ip_addr].values())}",
+                    details={'types': list(ip_to_records[ip_addr].keys()), 'domains': list(names)}
                 )
                 db.session.add(log)
 

@@ -19,3 +19,28 @@
         </div>
     </div>
 </div>
+
+
+<!-- Модальное окно для перемещения в группу -->
+<div class="modal fade" id="bulkMoveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="text-primary"><i class="bi bi-folder2-open"></i> Перемещение активов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Переместить <strong id="bulk-move-count">0</strong> выбранных активов в группу:</p>
+                <select class="form-select" id="target-group-select">
+                    <option value="">-- Без группы --</option>
+                    <!-- Опции будут загружены через JS -->
+                </select>
+                <p class="text-muted small mt-2">Выбранные активы будут добавлены в указанную группу. Если выбрана группа "Без группы", все связи с группами будут удалены.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="executeBulkMove()"><i class="bi bi-arrow-right-circle"></i> Переместить</button>
+            </div>
+        </div>
+    </div>
+</div>

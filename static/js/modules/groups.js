@@ -205,7 +205,8 @@ export async function showDeleteModal(id) {
 
     document.getElementById('delete-group-id').value = id;
     
-    await populateParentSelect([String(id)]);
+    // Заполняем селект всеми группами кроме удаляемой
+    await populateParentSelect([String(id)], null);
     
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
     modal.show();
