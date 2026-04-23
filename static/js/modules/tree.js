@@ -207,16 +207,16 @@ export function filterByGroup(groupId, targetTableId = 'assets-body', assetsCont
 }
 
 export function initTreeTogglers() {
-    // Сбрасываем флаг, чтобы можно было переназначить обработчики при обновлении дерева
-    treeListenerAttached = false;
-    
     const treeContainer = document.getElementById('group-tree');
     if (!treeContainer) return;
-    
-    // Удаляем старый контейнер и создаём новый, чтобы сбросить все обработчики
-    const newTreeContainer = treeContainer.cloneNode(true);
+
+    // Удаляем существующий обработчик, клонируя элемент без данных
+    const newTreeContainer = treeContainer.cloneNode(false);
+    // Копируем содержимое вручную, чтобы сохранить структуру
+    newTreeContainer.innerHTML = treeContainer.innerHTML;
     treeContainer.parentNode.replaceChild(newTreeContainer, treeContainer);
-    
+
+    // Навешиваем обработчик кликов
     newTreeContainer.addEventListener('click', function(e) {
         // Игнорируем клики по кнопкам действий
         if (e.target.closest('.group-actions') || e.target.closest('.btn-action')) return;
@@ -258,7 +258,7 @@ export function initTreeTogglers() {
             filterByGroup(groupSpan.dataset.id, targetTableId, assetsContainerId);
         }
     });
-    
+
     treeListenerAttached = true;
 }
 

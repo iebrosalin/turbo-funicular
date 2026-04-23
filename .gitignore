@@ -1,21 +1,50 @@
-```gitignore
-# Python
-__pycache__/
+# Compiled and build artifacts
 *.pyc
-*.pyo
-*.pyd
-*.py~
-*.py.class
-*.pyc.class
-
-# Database
-instance/
+__pycache__/
+*.o
+*.obj
+*.class
+*.exe
+*.dll
+*.so
+*.a
+*.out
 
 # Dependencies
-.venv/
+node_modules/
 venv/
-env/
+.venv/
 .env
 .env.local
 .env.*
-```
+
+# Build directories
+dist/
+build/
+target/
+*.egg-info/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Python
+.mypy_cache/
+.pytest_cache/
+*.pyc
+__pycache__/
+
+# System
+.DS_Store
+Thumbs.db
