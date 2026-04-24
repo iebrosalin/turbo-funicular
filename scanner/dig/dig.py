@@ -319,8 +319,8 @@ class DigScanner:
                     asset = Asset(ip_address=ip_addr, hostname=hostname)
                     # Добавляем в группу "Без группы" только если она существует
                     if no_group:
-                    db.session.add(asset)
-                    db.session.flush()
+                        db.session.add(asset)
+                        db.session.flush()
                     # Если у актива есть группы, НЕ добавляем его в "Без группы"
                     # и НЕ удаляем из существующих групп
 

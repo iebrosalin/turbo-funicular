@@ -112,10 +112,10 @@ function handleGroupClick(groupId) {
 
     // Вызываем глобальную функцию фильтрации таблицы активов
     if (typeof window.filterByGroup === 'function') {
-        window.filterByGroup(groupId);
+        window.filterByGroup(groupId, false, 'assets-body', null);
     } else {
         // Если глобальная функция еще не определена, вызываем локальную логику
-        filterByGroup(groupId);
+        filterByGroup(groupId, false, 'assets-body', null);
     }
 }
 

@@ -148,10 +148,10 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers } from '.
 
                 if (ungroupedParam === 'true') {
                     // Фильтр "Без группы"
-                    filterByGroup('ungrouped', 'assets-body', null);
+                    filterByGroup('ungrouped', true, 'assets-body', null);
                 } else if (groupIdParam && groupIdParam !== 'all') {
                     // Фильтр по конкретной группе
-                    filterByGroup(groupIdParam, 'assets-body', null);
+                    filterByGroup(groupIdParam, false, 'assets-body', null);
                 }
             })
             .catch(err => {

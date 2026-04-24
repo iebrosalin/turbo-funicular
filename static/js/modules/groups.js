@@ -30,7 +30,7 @@ export function initGroupTreeStaticListeners() {
 
         // Вызываем фильтрацию
         if (typeof window.filterByGroup === 'function') {
-            window.filterByGroup(groupId);
+            window.filterByGroup(groupId, false, 'assets-body', null);
         } else {
             console.warn('Функция window.filterByGroup еще не загружена.');
         }
@@ -334,6 +334,11 @@ export function initContextMenu() {
     document.addEventListener('contextmenu', function(e) {
         const treeNode = e.target.closest('.tree-node');
         if (!treeNode) return;
+
+        // Проверяем, что элемент находится внутри дерева групп активов (#group-tree)
+        // Это предотвращает появление контекстного меню на других элементах сайдбара
+        const groupTree = document.getElementById('group-tree');
+        if (!groupTree || !groupTree.contains(treeNode)) return;
 
         const ctx = document.getElementById('group-context-menu');
         if (!ctx) return;
