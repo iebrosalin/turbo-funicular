@@ -15,6 +15,12 @@
             <span class="group-name" data-id="all">Все активы</span>
             <span class="badge bg-primary ms-auto" id="count-all">0</span>
         </div>
+                <!-- Статический элемент: Без группы (НЕ удаляется при обновлении) -->
+        <div class="tree-node" data-id="ungrouped" style="margin-top: 5px; border-top: 1px solid var(--bs-border-color); padding-top: 5px;">
+            <i class="bi bi-inbox folder-icon"></i>
+            <span class="group-name" data-id="ungrouped">Без группы</span>
+            <span class="badge bg-secondary ms-auto" id="count-ungrouped">0</span>
+        </div>
 
         <!-- Динамический контейнер для вложенных групп (Очищается JS) -->
         <div id="group-tree-root" style="padding-left: 0;">
@@ -22,12 +28,6 @@
             <div class="text-center text-muted small py-3">Загрузка...</div>
         </div>
 
-        <!-- Статический элемент: Без группы (НЕ удаляется при обновлении) -->
-        <div class="tree-node" data-id="ungrouped" style="margin-top: 5px; border-top: 1px solid var(--bs-border-color); padding-top: 5px;">
-            <i class="bi bi-inbox folder-icon"></i>
-            <span class="group-name" data-id="ungrouped">Без группы</span>
-            <span class="badge bg-secondary ms-auto" id="count-ungrouped">0</span>
-        </div>
     </div>
 </div>
 
