@@ -92,6 +92,15 @@ export function renderTree(groups, counts) {
  * @param {string|number} groupId - ID группы, 'all' или 'ungrouped'
  */
 function handleGroupClick(groupId) {
+    // Проверяем, существует ли таблица активов на текущей странице
+    const assetsBody = document.getElementById('assets-body');
+    if (!assetsBody) {
+        // Если таблицы нет (например, на страницах истории, таксономии), 
+        // просто обновляем визуальное выделение и выходим
+        console.log('Таблица активов не найдена на текущей странице. Пропускаем загрузку.');
+        return;
+    }
+
     // Снимаем активный класс со всех узлов
     document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active'));
     
@@ -124,6 +133,39 @@ function handleGroupClick(groupId) {
  * Вызывается после загрузки DOM или обновления дерева.
  */
 export function initGroupTreeStaticListeners() {
+    const handleStaticClick = (groupId) => {
+        // Проверяем, существует ли таблица активов на текущей странице
+        const assetsBody = document.getElementById('assets-body');
+        if (!assetsBody) {
+            // Если таблицы нет (например, на страницах истории, таксономии), 
+            // просто обновляем визуальное выделение и выходим
+            console.log('Таблица активов не найдена на текущей странице. Пропускаем загрузку.');
+            // Обновляем только визуальное выделение
+            document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active'));
+            const targetElement = document.querySelector(`.tree-node[data-id="${groupId}"]`);
+            if (targetElement) {
+                targetElement.classList.add('active');
+            }
+            return;
+        }
+
+        // Снимаем активный класс со всех узлов
+        document.querySelectorAll('.tree-node').forEach(n => n.classList.remove('active'));
+        
+        // Находим элемент и добавляем активный класс
+        const targetElement = document.querySelector(`.tree-node[data-id="${groupId}"]`);
+        if (targetElement) {
+            targetElement.classList.add('active');
+        }
+
+        // Вызываем фильтрацию
+        if (typeof window.filterByGroup === 'function') {
+            window.filterByGroup(groupId, false, 'assets-body', null);
+        } else {
+            console.warn('Функция window.filterByGroup еще не загружена.');
+        }
+    };
+
     const allNode = document.querySelector('.tree-node[data-id="all"]');
     if (allNode) {
         // Удаляем старые слушатели клонированием (простой способ сброса без утечек)
@@ -132,7 +174,7 @@ export function initGroupTreeStaticListeners() {
         
         newAllNode.addEventListener('click', (e) => {
             e.stopPropagation();
-            handleGroupClick('all');
+            handleStaticClick('all');
         });
     }
 
@@ -143,7 +185,7 @@ export function initGroupTreeStaticListeners() {
 
         newUngroupedNode.addEventListener('click', (e) => {
             e.stopPropagation();
-            handleGroupClick('ungrouped');
+            handleStaticClick('ungrouped');
         });
     }
 }
@@ -239,6 +281,14 @@ export async function loadAssets(groupId = null, isUngrouped = false, targetTabl
     } catch (error) {
         console.error('Ошибка загрузки активов:', error);
         tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Ошибка загрузки: ${error.message}</td></tr>`;
+    }
+    
+    // Сохраняем загруженные активы в глобальную переменную для использования в dashboard-page.js
+    window.currentAssets = assets;
+    
+    // Если есть функция обратного вызова, вызываем её
+    if (window.handleAssetsLoaded) {
+        window.handleAssetsLoaded(assets);
     }
 }
 

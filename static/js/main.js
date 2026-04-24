@@ -13,7 +13,7 @@ import {
 import { viewScanResults, showScanError, updateScanHistory, pollActiveScans } from './modules/scans.js';
 import { initWazuhFilter, saveWazuhConfig, testWazuhConnection } from './modules/wazuh.js';
 // ✅ Импорт всей логики дерева из одного источника
-import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers } from './modules/tree.js';
+import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers, initGroupTreeStaticListeners } from './modules/tree.js';
 
 (function() {
     // 🔒 Guard против повторной инициализации
@@ -46,6 +46,9 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers } from '.
 
         // 🖱️ Контекстное меню
         initContextMenu();
+
+        // 🌳 Инициализация обработчиков статических элементов дерева
+        // Вызывается после загрузки DOM, а также повторно после refreshGroupTree()
 
         // --- Логика изменения размера сайдбара ---
         const sidebar = document.getElementById('sidebar');
@@ -140,6 +143,7 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers } from '.
         refreshGroupTree()
             .then(() => {
                 initTreeTogglers();
+                // initGroupTreeStaticListeners() уже вызывается внутри refreshGroupTree() после renderTree()
 
                 // 🔍 Обработка URL-параметров для фильтрации активов (group_id, ungrouped)
                 const urlParams = new URLSearchParams(window.location.search);

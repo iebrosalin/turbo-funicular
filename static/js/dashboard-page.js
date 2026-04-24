@@ -1,7 +1,10 @@
 // static/js/dashboard-page.js
 /**
- * Основная логика дашборда: загрузка активов, фильтрация, группировка, экспорт.
+ * Основная логика дашборда: фильтрация, группировка, экспорт.
+ * Загрузка активов делегирована модулю tree.js (функция loadAssets).
  */
+
+import { loadAssets } from './modules/tree.js';
 
 let allAssets = [];
 let filteredAssets = [];
@@ -20,8 +23,8 @@ document.addEventListener('DOMContentLoaded', function() {
         window.initFilterAutocomplete(filterInput);
     }
 
-    // Загрузка данных
-    loadAssets();
+    // Загрузка данных через центральный модуль tree.js
+    loadAssets(null, false, 'assets-table', null);
     
     // Навешиваем обработчики событий
     setupEventListeners();
@@ -58,54 +61,13 @@ function setupEventListeners() {
     // Реализация зависит от HTML структуры
 }
 
-async function loadAssets() {
-    const tableBody = document.querySelector('#assets-table tbody');
-    const loadingRow = document.getElementById('loading-row');
-    const errorRow = document.getElementById('error-row');
-    
-    if (tableBody) tableBody.innerHTML = '';
-    if (loadingRow) loadingRow.style.display = '';
-    if (errorRow) errorRow.style.display = 'none';
-
+// Функция обновления данных после загрузки из tree.js
+function handleAssetsLoaded(assetsArray) {
     try {
-        const response = await fetch('/api/assets');
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        
-        const data = await response.json();
-        
-        // ИСПРАВЛЕНИЕ: Проверка формата ответа с пагинацией
-        let assetsArray;
-        if (data.items && Array.isArray(data.items)) {
-            // Если пришел объект пагинации { items: [...], total: ... }
-            assetsArray = data.items;
-            // Опционально: можно сохранить общую статистику, если нужно отображать "Всего: X"
-            // window.totalAssetsCount = data.total; 
-        } else if (Array.isArray(data)) {
-            // Если пришел просто массив (для обратной совместимости)
-            assetsArray = data;
-        } else {
-            console.error('Неизвестный формат данных:', data);
-            throw new Error('Неверный формат данных от сервера');
-        }
-
         allAssets = assetsArray;
-        
-        if (loadingRow) loadingRow.style.display = 'none';
-        
-        // Применяем фильтры и группировку
         applyFilters();
-        
     } catch (error) {
-        console.error('Ошибка загрузки активов:', error);
-        if (loadingRow) loadingRow.style.display = 'none';
-        if (errorRow) {
-            errorRow.style.display = '';
-            document.querySelector('#error-row td').textContent = `Ошибка: ${error.message}`;
-        } else if (tableBody) {
-            tableBody.innerHTML = `<tr><td colspan="10" class="text-danger text-center">Ошибка загрузки: ${error.message}</td></tr>`;
-        }
+        console.error('Ошибка при обработке загруженных активов:', error);
     }
 }
 
@@ -370,10 +332,16 @@ window.deleteAsset = function(id) {
         .then(res => {
             if (res.ok) {
                 alert('Актив удален');
-                loadAssets();
+                // Перезагружаем активы через центральный модуль tree.js
+                if (window.loadAssets) {
+                    window.loadAssets(null, false, 'assets-table', null);
+                }
             } else {
                 return res.json().then(err => Promise.reject(err));
             }
         })
         .catch(err => alert('Ошибка удаления: ' + (err.error || err.message)));
 };
+
+// Экспортируем функцию для использования из tree.js
+window.handleAssetsLoaded = handleAssetsLoaded;
