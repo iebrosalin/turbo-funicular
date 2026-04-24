@@ -21,12 +21,6 @@ from routes.main import main_bp
 from routes.groups import groups_bp
 from routes.scans import scans_bp
 
-def _init_debug_groups():
-    """
-    Функция отключена - создание тестовых групп удалено.
-    """
-    pass
-
 
 def create_app():
     """Фабрика приложения Flask"""
@@ -51,9 +45,6 @@ def create_app():
     # Создание таблиц БД, если не существуют
     with app.app_context():
         db.create_all()
-        
-        # Инициализация базовых групп для отладки (только если БД пуста)
-        _init_debug_groups()
         
         # Запуск менеджеров очередей
         # Передаем app контекст в потоки

@@ -218,15 +218,12 @@ class DigScanner:
             if not job:
                 return
 
-            # Получаем группу "Без группы"
+            # Получаем группу "Без группы" (должна быть создана при запуске приложения)
             no_group = AssetGroup.query.filter_by(name="Без группы").first()
             if not no_group:
-                # Если группы не существует, создаем её
-                no_group = AssetGroup(name="Без группы", group_type="manual")
-                db.session.add(no_group)
-                db.session.flush()
-
-
+                # Группа должна существовать, но если нет - пропускаем добавление в неё
+                print("⚠️ Группа 'Без группы' не найдена. Активы будут созданы без группы.")
+                no_group = None
 
             # Список для хранения всех пар (IP, данные) для последующей группировки
             ip_data_list = []
@@ -318,16 +315,14 @@ class DigScanner:
                 if not asset:
                     # Создаем новый актив
                     # Используем первое имя как hostname
-                    # Актив создается в группе "Без группы"
                     hostname = next(iter(names))
                     asset = Asset(ip_address=ip_addr, hostname=hostname)
-                    asset.groups = [no_group]
+                    # Добавляем в группу "Без группы" только если она существует
+                    if no_group:
                     db.session.add(asset)
                     db.session.flush()
-                else:
-                    # Актив уже существует - оставляем его только в группе "Без группы"
-                    # Удаляем все другие группы и оставляем только "Без группы"
-                    asset.groups = [no_group]
+                    # Если у актива есть группы, НЕ добавляем его в "Без группы"
+                    # и НЕ удаляем из существующих групп
 
                 # Обновление DNS данных (объединяем с существующими)
                 existing_records = asset.dns_records or {}

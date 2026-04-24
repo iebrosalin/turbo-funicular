@@ -108,7 +108,26 @@
 {% include 'components/modals_groups.html' %}
 {% include 'components/modals_assets.html' %}
 {% include 'components/modals_scans.html' %}
-
+<!-- Контекстное меню для групп -->
+<div id="group-context-menu" class="context-menu">
+    <button class="context-menu-item" data-action="create-child">
+        <i class="bi bi-plus-circle"></i>
+        <span>Создать подгруппу</span>
+    </button>
+    <button class="context-menu-item" data-action="rename">
+        <i class="bi bi-pencil"></i>
+        <span>Переименовать</span>
+    </button>
+    <button class="context-menu-item" data-action="move">
+        <i class="bi bi-arrow-left-right"></i>
+        <span>Переместить</span>
+    </button>
+    <hr class="dropdown-divider my-1">
+    <button class="context-menu-item" data-action="delete">
+        <i class="bi bi-trash text-danger"></i>
+        <span class="text-danger">Удалить</span>
+    </button>
+</div>
 <!-- Bootstrap JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
