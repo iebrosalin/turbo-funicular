@@ -9,6 +9,7 @@ import json
 from models import Asset, AssetGroup
 from extensions import db
 from sqlalchemy import or_
+from models.base import asset_groups
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
@@ -26,6 +27,8 @@ def get_assets():
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 20, type=int)
     group_filter = request.args.get('group', '')
+    group_id = request.args.get('group_id', '')
+    ungrouped = request.args.get('ungrouped', '').lower() == 'true'
     
     query = Asset.query
     
@@ -42,7 +45,7 @@ def get_assets():
             )
         )
     
-    # Фильтр по группе
+    # Фильтр по группе (по имени)
     if group_filter:
         group = AssetGroup.query.filter_by(name=group_filter).first()
         if group:
@@ -50,6 +53,24 @@ def get_assets():
         else:
             # Если группа не найдена, возвращаем пустой результат
             query = query.filter(Asset.id == -1)
+    # Фильтр по ID группы
+    elif group_id and group_id != 'null':
+        try:
+            gid = int(group_id)
+            group = AssetGroup.query.get(gid)
+            if group:
+                query = query.filter(Asset.groups.contains(group))
+            else:
+                query = query.filter(Asset.id == -1)
+        except ValueError:
+            pass
+    # Фильтр для активов без группы
+    elif ungrouped or group_id == 'null':
+        query = query.filter(
+            ~Asset.id.in_(
+                db.session.query(asset_groups.c.asset_id).distinct()
+            )
+        )
     
     # Сортировка (по умолчанию по IP)
     sort_by = request.args.get('sort', 'ip_address')

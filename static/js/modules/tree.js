@@ -66,12 +66,18 @@ export function renderTree(groups, counts) {
         });
     }
     
-    // Обновляем счетчик "Все активы" (сумма всех прямых активов групп + без группы)
-    // counts уже содержит direct_count для каждой группы, поэтому просто суммируем
-    const allCount = Object.values(counts).reduce((a, b) => a + b, 0);
+    // Обновляем счетчик "Все активы" (сумма ТОЛЬКО прямых активов всех групп + ungrouped)
+    // Используем direct_count для каждой группы чтобы избежать дублирования
+    let totalDirectCount = 0;
+    groups.forEach(g => {
+        totalDirectCount += g.direct_count !== undefined ? g.direct_count : (g.count || 0);
+    });
+    // Добавляем активы без группы
+    totalDirectCount += counts['ungrouped'] || 0;
+
     const allBadge = document.getElementById('count-all');
     if (allBadge) {
-        allBadge.textContent = allCount;
+        allBadge.textContent = totalDirectCount;
     }
 
     // Обновляем счетчик "Без группы"
