@@ -62,14 +62,13 @@ def get_group_tree():
 
         result = flatten_tree(tree)
 
-        # Подсчет количества активов для "Без группы"
-        ungrouped_count = db.session.query(
-            db.func.count(asset_groups.c.asset_id)
-        ).filter(
-            ~asset_groups.c.asset_id.in_(
+        # Подсчет количества активов без группы (не имеющих связей в asset_groups)
+        # Используем NOT IN для исключения активов, у которых есть хоть одна связь с группой
+        ungrouped_count = db.session.query(Asset).filter(
+            ~Asset.id.in_(
                 db.session.query(asset_groups.c.asset_id).distinct()
             )
-        ).scalar() or 0
+        ).count()
 
         return jsonify({
             'flat': result,

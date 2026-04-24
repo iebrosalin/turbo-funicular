@@ -306,16 +306,16 @@ def build_group_tree(groups, parent_id=None, depth=0):
             else:
                 count = len(group.assets) if group.assets else 0
 
-        # Добавляем активы из всех вложенных групп
-        for child in children:
-            count += child.get('asset_count', 0)
+        # Сумма активов из вложенных групп (для отображения общей суммы в родительской группе)
+        children_total = sum(child.get('asset_count', 0) for child in children)
 
         tree.append({
             'id': group.id,
             'name': group.name,
             'children': children,
-            'count': count,
-            'asset_count': count,
+            'count': count,  # Только прямые активы группы
+            'asset_count': count + children_total,  # Прямые + все вложенные (для отображения)
+            'direct_count': count,  # Явное поле с прямыми активами
             'is_dynamic': group.is_dynamic,
             'parent_id': group.parent_id,
             'depth': depth
