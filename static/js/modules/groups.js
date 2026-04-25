@@ -4,8 +4,7 @@ const FILTER_FIELDS = [
     { value: 'ip_address', text: 'IP Адрес' }, { value: 'hostname', text: 'Hostname' },
     { value: 'os_info', text: 'ОС (Сканирование)' }, { value: 'device_role', text: 'Роль устройства' },
     { value: 'open_ports', text: 'Открытые порты' }, { value: 'status', text: 'Статус' },
-    { value: 'notes', text: 'Заметки' }, { value: 'osquery_status', text: 'Статус OSquery' },
-    { value: 'osquery_os', text: 'ОС (OSquery)' }, { value: 'scanners_used', text: 'Сканеры (JSON)' }
+    { value: 'notes', text: 'Заметки' }, { value: 'scanners_used', text: 'Сканеры (JSON)' }
 ];
 const FILTER_OPS = [
     { value: 'eq', text: '=' }, { value: 'ne', text: '≠' }, { value: 'like', text: 'содержит' }, { value: 'in', text: 'в списке' }

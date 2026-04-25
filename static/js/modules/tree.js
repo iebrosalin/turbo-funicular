@@ -247,21 +247,15 @@ export async function loadAssets(groupId = null, isUngrouped = false, targetTabl
         assets.forEach(asset => {
             const tr = document.createElement('tr');
             
-            // Определение статуса OSquery для иконки
-            const osqueryIcon = asset.osquery_status === 'online' 
-                ? '<i class="bi bi-pc-display text-success" title="OSquery Online"></i>' 
-                : '<i class="bi bi-pc-display text-muted" title="OSquery Offline"></i>';
-
             // Формирование строки таблицы (адаптируйте колонки под вашу верстку)
             tr.innerHTML = `
-                <td>${osqueryIcon}</td>
                 <td><strong>${asset.ip_address || 'N/A'}</strong></td>
                 <td>${asset.hostname || '<span class="text-muted">-</span>'}</td>
                 <td>${asset.os_info || '<span class="text-muted">-</span>'}</td>
                 <td><small>${asset.open_ports || '<span class="text-muted">-</span>'}</small></td>
                 <td>${asset.group_name ? `<span class="badge bg-light text-dark border">${asset.group_name}</span>` : '<span class="badge bg-secondary">Без группы</span>'}</td>
                 <td class="text-end">
-                    <button class="btn btn-sm btn-outline-primary" onclick="window.editAsset(${asset.id})" title="Редактировать">
+                    <button class="btn btn-sm btn-outline-primary edit-asset-btn" data-id="${asset.id}" title="Редактировать">
                         <i class="bi bi-pencil"></i>
                     </button>
                 </td>
@@ -274,6 +268,19 @@ export async function loadAssets(groupId = null, isUngrouped = false, targetTabl
                 if (e.target.closest('button')) return;
                 window.location.href = `/asset/${asset.id}`;
             });
+
+            // Добавляем обработчик клика на кнопку редактирования
+            const editBtn = tr.querySelector('.edit-asset-btn');
+            if (editBtn) {
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Останавливаем всплытие, чтобы не сработал клик по строке
+                    if (typeof window.showAssetModal === 'function') {
+                        window.showAssetModal(asset.id);
+                    } else {
+                        console.error('Функция window.showAssetModal не найдена');
+                    }
+                });
+            }
 
             tbody.appendChild(tr);
         });
@@ -344,6 +351,13 @@ export async function refreshGroupTree() {
  * @param {string|null} assetsContainerId - Резерв
  */
 export function filterByGroup(groupId, isUngrouped = false, targetTableId = 'assets-body', assetsContainerId = null) {
+    // Проверяем наличие таблицы перед выполнением
+    const tbody = document.getElementById(targetTableId);
+    if (!tbody) {
+        console.warn(`Таблица с ID ${targetTableId} не найдена. Пропускаем фильтрацию.`);
+        return;
+    }
+
     currentGroupId = groupId;
 
     // Визуальное выделение активной группы
