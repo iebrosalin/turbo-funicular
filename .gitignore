@@ -1,61 +1,64 @@
-```
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# Project-specific ignores
+PROJECT_CONTEXT.md
 
-# Virtual environments
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
 venv/
-ENV/
-env.bak/
 .venv/
+
+# Build artifacts
+dist/
+build/
+target/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
 
 # Environment variables
 .env
 .env.local
-.env.*
+*.env.*
 
-# Dependencies
-pip-wheel-metadata/
-share/python-wheels/
-.coverage
-.coverage.*
-.cache
-.pytest_cache/
-.mypy_cache/
-.hypothesis/
-
-# Alembic
-alembic/versions/*.py
-
-# Docker
-Dockerfile
-
-# IDE
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
-*.tmp
 
-# OS
+# OS generated files
 .DS_Store
 Thumbs.db
-```
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
