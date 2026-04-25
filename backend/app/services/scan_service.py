@@ -1,10 +1,10 @@
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from app.models.scan import Scan
-from app.schemas.scan import ScanCreate, ScanUpdate
+from app.schemas.scan import ScanCreate, ScanUpdate, ScanStatus
 
 
 class ScanService:
@@ -54,6 +54,41 @@ class ScanService:
             scan.completed_at = datetime.utcnow()
         elif scan_data.status == "running" and not scan.started_at:
             scan.started_at = datetime.utcnow()
+        
+        await self.db.flush()
+        await self.db.refresh(scan)
+        return scan
+    
+    async def update_status(self, scan_id: int, status: str) -> Optional[Scan]:
+        """Обновить статус сканирования."""
+        scan = await self.get_by_id(scan_id)
+        if not scan:
+            return None
+        
+        scan.status = status
+        if status == "running" and not scan.started_at:
+            scan.started_at = datetime.utcnow()
+        elif status in ["completed", "failed"] and not scan.completed_at:
+            scan.completed_at = datetime.utcnow()
+        
+        await self.db.flush()
+        await self.db.refresh(scan)
+        return scan
+    
+    async def complete(self, scan_id: int, results: Dict[str, Any]) -> Optional[Scan]:
+        """Завершить сканирование с результатами."""
+        scan = await self.get_by_id(scan_id)
+        if not scan:
+            return None
+        
+        # Проверка: нельзя завершить сканирование, которое не запущено
+        if scan.status not in ["running", "pending"]:
+            raise ValueError(f"Cannot complete scan with status '{scan.status}'")
+        
+        import json
+        scan.result = json.dumps(results)
+        scan.status = "completed"
+        scan.completed_at = datetime.utcnow()
         
         await self.db.flush()
         await self.db.refresh(scan)

@@ -1,6 +1,15 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
+from enum import Enum
+
+
+class ScanStatus(str, Enum):
+    """Статусы сканирования."""
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 
 class ScanBase(BaseModel):
