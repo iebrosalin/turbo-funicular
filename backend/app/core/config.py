@@ -8,9 +8,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@db:5432/netinventory"
     
     # Приложение
+    PROJECT_NAME: str = "Network Inventory"
     APP_NAME: str = "Network Inventory"
     DEBUG: bool = True
     VERSION: str = "2.0.0"
+    ENVIRONMENT: str = "development"
     
     model_config = SettingsConfigDict(
         env_file=".env",

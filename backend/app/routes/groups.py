@@ -1,26 +1,54 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional
+from sqlalchemy import select, func, or_
+from typing import List, Optional, Dict, Any
 from app.db.session import get_db
-from app.services.group_service import GroupService
+from app.models.group import Group as AssetGroup
 from app.schemas.group import GroupCreate, GroupUpdate, GroupResponse
+from app.services.group_service import GroupService
+from app.utils import build_group_tree, build_complex_query, log_asset_change, get_moscow_time
+import json
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
 
 @router.get("", response_model=List[GroupResponse])
-async def get_groups(db: AsyncSession = Depends(get_db)):
+async def get_groups(
+    db: AsyncSession = Depends(get_db),
+    include_assets_count: bool = True
+):
     """Получить все группы."""
     service = GroupService(db)
     groups = await service.get_all()
+    
+    if include_assets_count:
+        # Подсчёт активов для каждой группы
+        from app.models.asset import Asset
+        for group in groups:
+            query = select(func.count()).select_from(Asset).where(Asset.group_id == group.id)
+            result = await db.execute(query)
+            group.assets_count = result.scalar()
+    
     return groups
 
 
-@router.get("/tree", response_model=List[GroupResponse])
+@router.get("/tree", response_model=List[Dict])
 async def get_group_tree(db: AsyncSession = Depends(get_db)):
-    """Получить дерево групп."""
-    service = GroupService(db)
-    tree = await service.get_tree()
+    """Получить дерево групп с подсчётом активов."""
+    from app.models.asset import Asset
+    
+    # Получаем все группы
+    query = select(AssetGroup).order_by(AssetGroup.name)
+    result = await db.execute(query)
+    groups = list(result.scalars().all())
+    
+    # Подсчитываем активы для каждой группы
+    for group in groups:
+        count_query = select(func.count()).select_from(Asset).where(Asset.group_id == group.id)
+        count_result = await db.execute(count_query)
+        group.assets_count = count_result.scalar()
+    
+    tree = build_group_tree(groups)
     return tree
 
 
@@ -35,8 +63,14 @@ async def get_group(group_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("", response_model=GroupResponse, status_code=status.HTTP_201_CREATED)
-async def create_group(group_data: GroupCreate, db: AsyncSession = Depends(get_db)):
-    """Создать новую группу."""
+async def create_group(
+    group_data: GroupCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Создать новую группу.
+    Поддерживает статические и динамические группы (с filter_rules).
+    """
     service = GroupService(db)
     
     # Проверка на дубликат имени
@@ -44,12 +78,31 @@ async def create_group(group_data: GroupCreate, db: AsyncSession = Depends(get_d
     if any(g.name == group_data.name for g in existing):
         raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
     
+    # Создание группы
     group = await service.create(group_data)
+    
+    # Логирование
+    await log_asset_change(
+        db=db,
+        asset=None,  # Группа не актив
+        field_name="group_created",
+        old_value="null",
+        new_value=json.dumps({"group_id": group.id, "name": group.name})
+    )
+    
+    # Если это динамическая группа с filter_rules, обновляем состав
+    if hasattr(group_data, 'filter_rules') and group_data.filter_rules:
+        await service.update_dynamic_group_members(group.id, group_data.filter_rules)
+    
     return group
 
 
 @router.put("/{group_id}", response_model=GroupResponse)
-async def update_group(group_id: int, group_data: GroupUpdate, db: AsyncSession = Depends(get_db)):
+async def update_group(
+    group_id: int,
+    group_data: GroupUpdate,
+    db: AsyncSession = Depends(get_db)
+):
     """Обновить группу."""
     service = GroupService(db)
     
@@ -62,6 +115,11 @@ async def update_group(group_id: int, group_data: GroupUpdate, db: AsyncSession 
     group = await service.update(group_id, group_data)
     if not group:
         raise HTTPException(status_code=404, detail="Группа не найдена")
+    
+    # Если это динамическая группа, обновляем состав
+    if hasattr(group_data, 'filter_rules') and group_data.filter_rules is not None:
+        await service.update_dynamic_group_members(group.id, group_data.filter_rules)
+    
     return group
 
 
@@ -86,3 +144,39 @@ async def move_group(
     if not group:
         raise HTTPException(status_code=404, detail="Группа не найдена или недопустимый родитель")
     return group
+
+
+@router.get("/ungrouped/count", response_model=Dict[str, int])
+async def get_ungrouped_count(db: AsyncSession = Depends(get_db)):
+    """Получить количество активов без группы."""
+    from app.models.asset import Asset
+    
+    query = select(func.count()).select_from(Asset).where(Asset.group_id.is_(None))
+    result = await db.execute(query)
+    count = result.scalar()
+    
+    return {"ungrouped_count": count}
+
+
+@router.post("/cidr/auto-create", response_model=List[GroupResponse])
+async def create_cidr_groups(
+    cidr_list: List[str],
+    parent_id: Optional[int] = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Автоматически создать группы для CIDR подсетей.
+    
+    Args:
+        cidr_list: Список CIDR нотаций (например, ["192.168.1.0/24"])
+        parent_id: ID родительской группы (опционально)
+    """
+    from app.utils.network_utils import create_cidr_groups
+    
+    groups = await create_cidr_groups(
+        db=db,
+        cidr_list=cidr_list,
+        parent_id=parent_id
+    )
+    
+    return groups
