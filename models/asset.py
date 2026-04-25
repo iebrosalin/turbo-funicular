@@ -54,9 +54,6 @@ class Asset(db.Model):
     scan_results = db.relationship('ScanResult', back_populates='asset', cascade='all, delete-orphan')
     activity_logs = db.relationship('ActivityLog', back_populates='asset', cascade='all, delete-orphan')
     
-    # Связь с OsqueryInventory (один к одному, uselist=False)
-    osquery_data = db.relationship('OsqueryInventory', back_populates='asset', uselist=False, cascade='all, delete-orphan')
-    
     def update_ports(self, source, ports_data):
         """Обновление портов из указанного источника"""
         if source == 'rustscan':

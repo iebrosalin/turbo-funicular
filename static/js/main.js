@@ -11,7 +11,6 @@ import {
     initFilterFieldDatalist, renderAssets, showAssetModal, saveAsset
 } from './modules/assets.js';
 import { viewScanResults, showScanError, updateScanHistory, pollActiveScans } from './modules/scans.js';
-import { initWazuhFilter, saveWazuhConfig, testWazuhConnection } from './modules/wazuh.js';
 // ✅ Импорт всей логики дерева из одного источника
 import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers, initGroupTreeStaticListeners } from './modules/tree.js';
 
@@ -40,9 +39,6 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers, initGrou
 
         // 📋 Выбор активов
         initAssetSelection();
-
-        // 🛡️ Wazuh
-        initWazuhFilter();
 
         // 🖱️ Контекстное меню
         initContextMenu();
@@ -156,6 +152,9 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers, initGrou
                 } else if (groupIdParam && groupIdParam !== 'all') {
                     // Фильтр по конкретной группе
                     filterByGroup(groupIdParam, false, 'assets-body', null);
+                } else {
+                    // По умолчанию загружаем все активы
+                    filterByGroup('all', false, 'assets-body', null);
                 }
             })
             .catch(err => {
@@ -202,8 +201,6 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers, initGrou
         window.filterByGroup = filterByGroup;
         window.renderAssets = renderAssets; // ✅ Добавлено: нужен для tree.js
         window.initTreeTogglers = initTreeTogglers; // ✅ Добавлено: для повторной инициализации
-        window.saveWazuhConfig = saveWazuhConfig;
-        window.testWazuhConnection = testWazuhConnection;
         window.closeModalById = closeModalById; // ✅ Добавлено: утилита закрытия модалок
         window.populateParentSelect = populateParentSelect; // ✅ Добавлено: для динамических селектов
         window.showAssetModal = showAssetModal; // ✅ Добавлено: для создания/редактирования активов
