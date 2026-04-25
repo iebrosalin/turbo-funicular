@@ -1,29 +1,9 @@
 ```
 # Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-env/
-venv/
-.venv/
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-*.tmp
-
-# Dependencies
-node_modules/
-
-# Distribution / packaging
+*.py[cod]
+*$py.class
+*.so
 .Python
 build/
 develop-eggs/
@@ -41,30 +21,41 @@ wheels/
 .installed.cfg
 *.egg
 
-# IDEs
-.vscode/
-.idea/
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# Virtual environments
+venv/
+ENV/
+env.bak/
+.venv/
 
 # Environment variables
 .env
 .env.local
-*.env
+.env.*
 
-# Logs
-*.log
+# Dependencies
+pip-wheel-metadata/
+share/python-wheels/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
 
-# Coverage
-.coverage*
-htmlcov/
-.tox/
-.nox/
+# Alembic
+alembic/versions/*.py
+
+# Docker
+Dockerfile
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
 ```
