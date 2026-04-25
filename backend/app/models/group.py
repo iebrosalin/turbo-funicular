@@ -22,8 +22,8 @@ class Group(Base):
     
     # Связи
     parent = relationship("Group", remote_side=[id], backref="children", lazy="joined")
-    assets = relationship("Asset", back_populates="group", cascade="all, delete-orphan")
-    assets_many = relationship("Asset", secondary="asset_groups", back_populates="groups")
+    # Many-to-many связь с активами через таблицу asset_groups
+    assets = relationship("Asset", secondary="asset_groups", back_populates="groups")
     scans = relationship("Scan", back_populates="group", cascade="all, delete-orphan")
     
     def to_dict(self, include_children=False):

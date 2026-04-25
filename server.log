@@ -1,0 +1,25 @@
+INFO:     Started server process [19640]
+INFO:     Waiting for application startup.
+2026-04-25 20:45:14,148 - app.main - INFO - 🔍 Проверка целостности тестов...
+2026-04-25 20:45:14,148 - app.main - INFO - ✅ Проверка целостности тестов пройдена.
+Starting Network Asset Manager...
+Database: SQLite (backend/instance/network_inventory.db)
+Docs: http://localhost:8000/docs
+2026-04-25 20:45:14,150 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-04-25 20:45:14,150 - sqlalchemy.engine.Engine - INFO - BEGIN (implicit)
+2026-04-25 20:45:14,150 INFO sqlalchemy.engine.Engine COMMIT
+2026-04-25 20:45:14,150 - sqlalchemy.engine.Engine - INFO - COMMIT
+2026-04-25 20:45:14,151 - app.main - INFO - ✅ Подключение к базе данных установлено.
+2026-04-25 20:45:14,151 - app.main - INFO - 🚀 Приложение успешно запущено.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56466 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56468 - "GET /api/assets HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56470 - "GET /assets HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56472 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56474 - "GET /health HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-04-25 20:45:33,036 - app.main - INFO - 🛑 Остановка приложения...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [19640]

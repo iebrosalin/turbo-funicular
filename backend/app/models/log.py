@@ -10,6 +10,7 @@ class ActivityLog(Base):
     __tablename__ = "activity_logs"
     
     id = Column(Integer, primary_key=True, index=True)
+    asset_id = Column(Integer, ForeignKey("assets.id", ondelete="CASCADE"), nullable=True, index=True)
     user_id = Column(Integer, nullable=True)  # NULL для системных действий
     action = Column(String(100), nullable=False)  # create, update, delete, login, etc.
     resource_type = Column(String(50), nullable=False)  # asset, group, scan, etc.
@@ -18,6 +19,9 @@ class ActivityLog(Base):
     ip_address = Column(String(45), nullable=True)  # IP пользователя
     user_agent = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Связи
+    asset = relationship("Asset", back_populates="activity_logs")
 
 
 class AssetChangeLog(Base):
@@ -35,4 +39,4 @@ class AssetChangeLog(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Связи
-    asset = relationship("Asset", backref="change_logs")
+    asset = relationship("Asset", back_populates="change_logs")
