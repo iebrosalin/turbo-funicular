@@ -1,11 +1,10 @@
-cat << 'EOF' > /workspace/PROJECT_CONTEXT.md
 # 📚 Project Context: Network Asset Manager
 
 ## 1. Общая информация
 **Стек технологий:**
 - **Backend:** Python 3.12, FastAPI (Async), SQLAlchemy 2.0 (Async), Alembic, Pydantic v2.
 - **Frontend:** Vanilla JavaScript (ES6 Modules), HTML5, CSS3.
-- **Database:** PostgreSQL 15+.
+- **Database:** SQLite (по умолчанию и единственная поддерживаемая БД).
 - **Infrastructure:** Docker, Docker Compose.
 - **Testing:** Pytest, Pytest-Asyncio, Httpx.
 - **Tools:** Nmap, Rustscan, Dig (dnsutils).
@@ -16,30 +15,36 @@ cat << 'EOF' > /workspace/PROJECT_CONTEXT.md
 - Строгая валидация данных через Pydantic схемы.
 - Отсутствие серверного рендеринга (SPA-подход на vanilla JS).
 - **Физическое создание файлов:** Все изменения кода выполняются реально в файловой системе `/workspace`. Симуляции исключены.
+- **Гибкость запуска:** Поддержка работы как в Docker, так и локально через `python app.py` без контейнеров.
+- **Только SQLite:** Проект полностью переведён на SQLite для упрощения развёртывания. PostgreSQL удалён.
 
 ---
 
 ## 2. Структура проекта
 
-.
+```text
+/workspace/
+├── app.py                 # Точка входа для локального запуска (uvicorn wrapper)
+├── .env                   # Конфигурация окружения (DATABASE_URL, настройки)
+├── .env.example           # Шаблон конфигурации
+├── requirements.txt       # Зависимости Python
+├── docker-compose.yml     # Конфигурация Docker
+├── Dockerfile             # Образ приложения
+├── instance/              # Локальная БД SQLite (создается автоматически)
+│   └── network_inventory.db
 ├── backend/
 │   ├── app/
-│   │   ├── core/          # Конфигурация, исключения, проверка целостности тестов
+│   │   ├── core/          # Конфигурация, исключения
 │   │   ├── db/            # Сессии БД, базовые модели
-│   │   ├── models/        # SQLAlchemy модели (Asset, Group, Scan)
+│   │   ├── models/        # SQLAlchemy модели (Asset, Group, Scan, Log)
 │   │   ├── schemas/       # Pydantic схемы (Request/Response)
-│   │   ├── services/      # Бизнес-логика (AssetService, etc.)
+│   │   ├── services/      # Бизнес-логика + Менеджеры очередей сканирований
 │   │   ├── routes/        # API endpoints (FastAPI routers)
-│   │   ├── test_hash.txt  # Эталонный хеш тестов (генерируется автоматически)
-│   │   └── main.py        # Точка входа с проверкой безопасности
+│   │   ├── utils/         # Утилиты (время, сеть, импорт Nmap XML)
+│   │   └── main.py        # Приложение FastAPI (lifespan, роутеры)
 │   ├── alembic/           # Миграции БД
-│   ├── scripts/           # Скрипты обслуживания (update_test_hash.py)
 │   ├── tests/             # Тесты (Unit, Integration)
-│   │   ├── unit/          # Тесты сервисов
-│   │   └── integration/   # Тесты API и связей
-│   ├── pytest.ini         # Конфиг тестов
-│   ├── Dockerfile         # Образ с проверкой тестов при сборке
-│   └── requirements.txt
+│   └── requirements.txt   # Дубль зависимостей (для совместимости)
 ├── frontend/
 │   ├── static/
 │   │   ├── js/
@@ -48,9 +53,8 @@ cat << 'EOF' > /workspace/PROJECT_CONTEXT.md
 │   │   │   └── main.js    # Инициализация
 │   │   └── css/
 │   └── templates/         # HTML шаблоны
-├── docker-compose.yml
-├── .gitignore
 └── PROJECT_CONTEXT.md
+```
 
 ---
 
@@ -64,13 +68,18 @@ cat << 'EOF' > /workspace/PROJECT_CONTEXT.md
 - Настройка инфраструктуры тестирования (Pytest).
 - Удаление сервиса Adminer из Docker-конфигурации.
 - Полное покрытие тестами (Unit + Integration).
-- Внедрение системы защиты целостности тестов (SHA256).
+- **Перенос всего функционала Flask:** модели, маршруты, утилиты, очереди сканирований.
+- **Поддержка SQLite:** возможность запуска без Docker и PostgreSQL.
+- **Создание точки входа `app.py`:** запуск одной командой `python app.py`.
+- **Удаление PostgreSQL:** проект полностью переведён на SQLite.
 
 ❌ **Удалено:**
 - Авторизация и пользователи (режим анонимного админа).
 - Синхронные блокирующие вызовы БД.
 - Инлайн-скрипты в шаблонах.
 - Сервис Adminer.
+- Дублирующиеся файлы (старые Dockerfile, папки api/v1).
+- Поддержка PostgreSQL и зависимость asyncpg.
 
 ---
 
@@ -82,14 +91,30 @@ cat << 'EOF' > /workspace/PROJECT_CONTEXT.md
 | **Фильтр активов** | `#asset-filter` | `dashboard-page.js` → `applyFilters()` | `GET /api/assets?search=...` | `AssetService.filter()` |
 | **Создание актива** | `#asset-form` | `assets.js` → `handleAssetSubmit()` | `POST /api/assets` | `AssetService.create()` |
 | **Удаление актива** | `.btn-delete-asset` | `assets.js` → `confirmAndDelete()` | `DELETE /api/assets/{id}` | `AssetService.delete()` |
-| **Запуск скана** | `#scan-form` | `scans.js` → `submitScanForm()` | `POST /api/scans` | `ScanService.create()` |
-| **Результаты скана** | `.btn-view-results` | `scans.js` → `viewScanResults()` | `GET /api/scans/{id}/results` | `ScanService.get_results()` |
+| **Запуск скана** | `#scan-form` | `scans.js` → `submitScanForm()` | `POST /api/scans/start/nmap` | `ScanQueueManager.add_scan()` |
+| **Результаты скана** | `.btn-view-results` | `scans.js` → `viewScanResults()` | `GET /api/scans/jobs/{job_id}` | `ScanService.get_job()` |
+| **Очередь сканирований** | `.scan-queue` | `scans.js` → `refreshQueue()` | `GET /api/scans/jobs` | `ScanQueueManager.get_queue()` |
+| **Импорт Nmap XML** | `#import-form` | `utilities.js` → `uploadXml()` | `POST /api/utilities/import-nmap-xml` | `NmapXmlImporter.parse_file()` |
+| **Динамические группы** | `#group-rules` | `groups.js` → `saveDynamicGroup()` | `POST /api/groups` (с `filter_rules`) | `GroupService.create_dynamic()` |
 
 ---
 
 ## 5. 🛠️ Практические команды и инструкции
 
-### Запуск проекта
+### Запуск проекта (Локально без Docker)
+```bash
+# Установка зависимостей
+pip install -r requirements.txt
+
+# Запуск приложения (SQLite создается автоматически)
+python app.py
+
+# Приложение доступно на http://localhost:8000
+# Документация API: http://localhost:8000/docs
+```
+
+### Запуск проекта (Docker)
+```bash
 # Сборка и запуск всех сервисов
 docker-compose up --build
 
@@ -98,57 +123,50 @@ docker-compose up -d
 
 # Остановка и удаление контейнеров + томов (сброс БД)
 docker-compose down -v
+```
 
 ### Работа с базой данных
-# Применить миграции вручную
-docker-compose exec backend alembic upgrade head
+```bash
+# Применить миграции вручную (Docker)
+docker-compose exec web alembic upgrade head
 
-# Создать новую миграцию после изменения моделей
-docker-compose exec backend alembic revision --autogenerate -m "Description"
+# Создать новую миграцию после изменения моделей (Docker)
+docker-compose exec web alembic revision --autogenerate -m "Description"
 
-# Подключиться к CLI базы данных
-docker-compose exec db psql -U user -d assetdb
+# Для SQLite локально:
+# Файл БД: instance/network_inventory.db
+# Просмотр через: sqlite3 instance/network_inventory.db
+```
 
-### Тестирование и Целостность
-# Запуск всех тестов
-docker-compose exec backend pytest --cov=app -v
+### Тестирование
+```bash
+# Запуск всех тестов (локально)
+pytest backend/tests/ --cov=app -v
 
-# Обновление эталонного хеша тестов (обязательно после изменений в тестах)
-docker-compose exec backend python scripts/update_test_hash.py
-
-# Проверка целостности (выполняется автоматически при старте)
-# Если хеш не совпадает, приложение откажется запускаться.
+# Запуск всех тестов (Docker)
+docker-compose exec web pytest --cov=app -v
+```
 
 ### Отладка
-# Просмотр логов backend
-docker-compose logs -f backend
+```bash
+# Просмотр логов backend (Docker)
+docker-compose logs -f web
 
-# Войти в контейнер backend
-docker-compose exec backend bash
+# Войти в контейнер web (Docker)
+docker-compose exec web bash
 
 # Проверка здоровья
 curl http://localhost:8000/health
+```
 
 ### Конфигурация портов
 | Сервис | Порт | Описание |
 | :--- | :--- | :--- |
 | **Frontend/API** | 8000 | Приложение и Swagger UI (/docs) |
-| **Database** | 5432 | PostgreSQL |
 
 ---
 
 ## 6. Протокол работы и ограничения
-
-### 🛡️ Защита целостности тестов (CRITICAL)
-**Механизм:** SHA256 хеширование всех файлов в директории tests/.
-**Правило:** Запуск приложения (main.py) блокируется, если текущий хеш файлов тестов не совпадает с эталонным (app/test_hash.txt).
-**Сборка Docker:** Образ не будет собран, если тесты не проходят успешно на этапе docker build.
-
-**Как легально изменить тесты:**
-1. Внесите необходимые изменения в код тестов.
-2. Запустите команду обновления эталона (только если все тесты проходят локально):
-   docker-compose exec backend python scripts/update_test_hash.py
-3. После успешного выполнения скрипта хеш обновится, и приложение сможет запуститься.
 
 ### 🚫 Критические запреты (Строго без согласования)
 Следующие действия ЗАПРЕЩЕНЫ и будут отклонены:
@@ -170,6 +188,10 @@ curl http://localhost:8000/health
     *   Приложение должно работать в режиме «Анонимный администратор» (полный доступ ко всем функциям без пароля).
     *   Любые попытки добавить меры безопасности считаются нарушением архитектуры текущего этапа.
 
+5.  **PostgreSQL:**
+    *   ЗАПРЕЩЕНО возвращать поддержку PostgreSQL или добавлять зависимости asyncpg/psycopg2.
+    *   Проект использует только SQLite.
+
 ### Обновление контекста
 Файл PROJECT_CONTEXT.md должен обновляться после каждого значительного изменения архитектуры, добавления новых модулей или изменения правил безопасности.
 
@@ -177,6 +199,6 @@ curl http://localhost:8000/health
 
 ## 7. Известные ограничения
 - **Безопасность:** Отсутствует аутентификация и авторизация. Приложение доступно по сети без ограничений (режим разработки/доверенной сети).
-- **Фоновые задачи:** Сканирования выполняются синхронно в рамках запроса (блокируют ответ до завершения). В будущем требуется вынос в Celery/BackgroundTasks.
-- **Масштабирование:** Текущая конфигурация рассчитана на одиночный инстанс backend.
-EOF
+- **Фоновые задачи:** Сканирования выполняются асинхронно через `ScanQueueManager` в рамках процесса приложения.
+- **Масштабирование:** Текущая конфигурация рассчитана на одиночный инстанс backend с SQLite. Для высокой нагрузки рекомендуется использовать Docker с настройками производительности SQLite или рассмотреть миграцию на PostgreSQL (но это требует отдельного согласования).
+- **Режим запуска:** SQLite полностью функционален для всех операций проекта.

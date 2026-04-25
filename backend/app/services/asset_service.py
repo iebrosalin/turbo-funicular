@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from app.models.asset import Asset
+from app.models.group import Group
 from app.schemas.asset import AssetCreate, AssetUpdate
 
 
@@ -14,10 +15,11 @@ class AssetService:
     
     async def get_all(self, group_id: Optional[int] = None, search: Optional[str] = None) -> List[Asset]:
         """Получить все активы с фильтрацией."""
-        query = select(Asset).options(selectinload(Asset.group))
+        query = select(Asset).options(selectinload(Asset.groups))
         
         if group_id is not None:
-            query = query.where(Asset.group_id == group_id)
+            # Фильтрация по many-to-many связи через таблицу asset_groups
+            query = query.join(Asset.groups).where(Group.id == group_id)
         
         if search:
             query = query.where(
@@ -26,11 +28,11 @@ class AssetService:
             )
         
         result = await self.db.execute(query)
-        return list(result.scalars().all())
+        return list(result.scalars().unique().all())
     
     async def get_by_id(self, asset_id: int) -> Optional[Asset]:
         """Получить актив по ID."""
-        query = select(Asset).options(selectinload(Asset.group)).where(Asset.id == asset_id)
+        query = select(Asset).options(selectinload(Asset.groups)).where(Asset.id == asset_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
     

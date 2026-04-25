@@ -9,7 +9,7 @@ from app.services.group_service import GroupService
 from app.utils import build_group_tree, build_complex_query, log_asset_change, get_moscow_time
 import json
 
-router = APIRouter(prefix="/api/groups", tags=["groups"])
+router = APIRouter(tags=["groups"])
 groups_router = router  # Алиас для совместимости импортов
 
 

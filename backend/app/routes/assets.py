@@ -5,7 +5,7 @@ from app.db.session import get_db
 from app.services.asset_service import AssetService
 from app.schemas.asset import AssetCreate, AssetUpdate, AssetResponse
 
-router = APIRouter(prefix="/api/assets", tags=["assets"])
+router = APIRouter(tags=["assets"])
 assets_router = router  # Алиас для совместимости импортов
 
 

@@ -5,7 +5,7 @@ from app.db.session import get_db
 from app.services.scan_service import ScanService
 from app.schemas.scan import ScanCreate, ScanUpdate, ScanResponse
 
-router = APIRouter(prefix="/api/scans", tags=["scans"])
+router = APIRouter(tags=["scans"])
 scans_router = router  # Алиас для совместимости импортов
 
 
