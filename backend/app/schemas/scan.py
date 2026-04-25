@@ -1,0 +1,40 @@
+from pydantic import BaseModel, Field
+from typing import Optional
+from datetime import datetime
+
+
+class ScanBase(BaseModel):
+    """Базовая схема сканирования."""
+    name: str = Field(..., min_length=1, max_length=255, description="Название сканирования")
+    target: str = Field(..., description="Цель сканирования (IP, диапазон)")
+    scan_type: Optional[str] = Field("nmap", description="Тип сканирования")
+    group_id: Optional[int] = Field(None, description="ID группы")
+
+
+class ScanCreate(ScanBase):
+    """Схема для создания сканирования."""
+    pass
+
+
+class ScanUpdate(BaseModel):
+    """Схема для обновления сканирования."""
+    name: Optional[str] = None
+    status: Optional[str] = None
+    progress: Optional[int] = None
+    result: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+class ScanResponse(ScanBase):
+    """Схема ответа сканирования."""
+    id: int
+    status: str
+    progress: int
+    result: Optional[str] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    created_at: datetime
+    error_message: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
