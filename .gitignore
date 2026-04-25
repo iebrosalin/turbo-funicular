@@ -4,29 +4,34 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.venv/
+
+# Test coverage
+.coverage
+htmlcov/
+.coverage.*
+
+# Virtual environments
 venv/
+.venv/
 .env
 .env.local
-.env.*
+*.env.*
 
-# Test related
-.pytest_cache/
-.coverage
-coverage/
-
-# Logs and temp files
-*.log
-*.tmp
-
-# Editors
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
 # Build artifacts
-build/
 dist/
+build/
 *.egg-info/
 ```
