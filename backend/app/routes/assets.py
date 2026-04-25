@@ -6,6 +6,7 @@ from app.services.asset_service import AssetService
 from app.schemas.asset import AssetCreate, AssetUpdate, AssetResponse
 
 router = APIRouter(prefix="/api/assets", tags=["assets"])
+assets_router = router  # Алиас для совместимости импортов
 
 
 @router.get("", response_model=List[AssetResponse])

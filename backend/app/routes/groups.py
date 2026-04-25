@@ -10,6 +10,7 @@ from app.utils import build_group_tree, build_complex_query, log_asset_change, g
 import json
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
+groups_router = router  # Алиас для совместимости импортов
 
 
 @router.get("", response_model=List[GroupResponse])
