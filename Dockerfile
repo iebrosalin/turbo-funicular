@@ -49,34 +49,15 @@ RUN wget -q -O rustscan.deb.zip https://github.com/bee-san/RustScan/releases/dow
 COPY requirements.txt .
 
 # Установка Python зависимостей
-RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
-
-# Установка системных зависимостей для Playwright (Chromium)
-RUN apt-get update && apt-get install -y \
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libatspi2.0-0 \
-    fonts-unifont \
-    libxshmfence1 \
-    && rm -rf /var/lib/apt/lists/*
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Установка браузеров для Playwright
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN python3 -m playwright install chromium && \
-    python3 -m playwright install firefox && \
-    python3 -m playwright install webkit
+RUN playwright install chromium && \
+    playwright install firefox && \
+    playwright install webkit
 
 # Создание директории для базы данных (если используется SQLite)
 RUN mkdir -p /app/instance
