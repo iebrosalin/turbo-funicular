@@ -1,0 +1,173 @@
+<!-- Modal for deleting asset group -->
+<div class="modal fade" id="deleteGroupModal" tabindex="-1" aria-labelledby="deleteGroupModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-danger">⚠️ Подтверждение удаления</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Вы уверены, что хотите удалить группу <strong id="delete-group-name"></strong>?</p>
+
+                <label for="delete-move-assets" class="form-label mt-2"><strong>Выберите действие для активов:</strong></label>
+                <select class="form-select" id="delete-move-assets">
+                    <!-- Options will be populated by JavaScript -->
+                </select>
+                <small class="form-text text-muted">
+                    • <strong>Пустое значение</strong> — активы будут <span class="text-danger">удалены вместе с группой</span><br>
+                    • <strong>Другая группа</strong> — активы будут <span class="text-success">перемещены</span> в выбранную группу
+                </small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" id="confirm-delete-group">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for creating/editing asset group -->
+<div class="modal fade" id="groupModal" tabindex="-1" aria-labelledby="groupModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="modalTitle">Создать новую группу</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="groupForm">
+                <div class="modal-body">
+                    <input type="hidden" id="groupId">
+
+                    <div class="mb-3">
+                        <label for="groupName" class="form-label">Название группы</label>
+                        <input type="text" class="form-control" id="groupName" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="parentGroupId" class="form-label">Родительская группа</label>
+                        <select class="form-select" id="parentGroupId">
+                            <option value="">Нет (корневая группа)</option>
+                            <!-- Options will be populated by JavaScript -->
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="groupDescription" class="form-label">Описание</label>
+                        <textarea class="form-control" id="groupDescription" rows="3"></textarea>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="isGlobalGroup">
+                        <label class="form-check-label" for="isGlobalGroup">Глобальная группа</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+
+<!-- Modal for bulk delete assets -->
+<div class="modal fade" id="bulkDeleteModal" tabindex="-1" aria-labelledby="bulkDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title text-danger"><i class="bi bi-trash"></i> Подтверждение удаления</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Вы уверены, что хотите удалить <strong id="bulk-delete-count">0</strong> выбранных активов?</p>
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i> Это действие нельзя отменить. Все данные об активах будут безвозвратно удалены.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" onclick="executeBulkDelete()">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for bulk move assets -->
+<div class="modal fade" id="bulkMoveModal" tabindex="-1" aria-labelledby="bulkMoveModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title"><i class="bi bi-folder2-open"></i> Переместить активы</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Выбрано активов: <strong id="bulk-move-count">0</strong></p>
+                <div class="mb-3">
+                    <label for="target-group-select" class="form-label">Выберите целевую группу:</label>
+                    <select class="form-select" id="target-group-select">
+                        <option value="">-- Без группы --</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="executeBulkMove()">Переместить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for creating/editing asset -->
+<div class="modal fade" id="assetModal" tabindex="-1" aria-labelledby="assetModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="assetModalTitle"><i class="bi bi-plus-circle"></i> Новый актив</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="assetForm">
+                <div class="modal-body">
+                    <input type="hidden" id="assetId">
+                    
+                    <div class="mb-3">
+                        <label for="assetIpAddress" class="form-label">IP Адрес *</label>
+                        <input type="text" class="form-control" id="assetIpAddress" required placeholder="192.168.1.1">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="assetHostname" class="form-label">Hostname</label>
+                        <input type="text" class="form-control" id="assetHostname" placeholder="server01">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="assetOsInfo" class="form-label">ОС</label>
+                        <input type="text" class="form-control" id="assetOsInfo" placeholder="Linux, Windows">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="assetOpenPorts" class="form-label">Открытые порты</label>
+                        <input type="text" class="form-control" id="assetOpenPorts" placeholder="22/tcp, 80/tcp">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="assetGroupId" class="form-label">Группа</label>
+                        <select class="form-select" id="assetGroupId">
+                            <option value="">-- Без группы --</option>
+                            <!-- Options will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="assetNotes" class="form-label">Заметки</label>
+                        <textarea class="form-control" id="assetNotes" rows="4" placeholder="Дополнительная информация..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-save"></i> Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

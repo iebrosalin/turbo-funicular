@@ -1,0 +1,167 @@
+<!-- templates/components/modals_groups.html -->
+<!-- Модальные окна для управления группами -->
+
+<!-- Универсальное окно создания/редактирования группы -->
+<div class="modal fade" id="groupEditModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="groupEditForm">
+                <div class="modal-header">
+                    <h5 id="groupEditTitle">Группа</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="edit-group-id">
+
+                    <!-- 🔥 Переключатель режимов -->
+                    <div class="btn-group w-100 mb-3" role="group">
+                        <input type="radio" class="btn-check" name="groupMode" id="modeManual" value="manual" checked
+                            onchange="toggleGroupMode()">
+                        <label class="btn btn-outline-primary" for="modeManual">📝 Ручная</label>
+
+                        <input type="radio" class="btn-check" name="groupMode" id="modeCidr" value="cidr"
+                            onchange="toggleGroupMode()">
+                        <label class="btn btn-outline-primary" for="modeCidr">🌐 По CIDR</label>
+
+                        <input type="radio" class="btn-check" name="groupMode" id="modeDynamic" value="dynamic"
+                            onchange="toggleGroupMode()">
+                        <label class="btn btn-outline-primary" for="modeDynamic">⚡ Динамическая</label>
+                    </div>
+
+                    <!-- Секция: Общие поля (Имя + Родитель) -->
+                    <div id="sectionCommon">
+                        <div class="mb-3">
+                            <label class="form-label">Название группы</label>
+                            <input type="text" id="edit-group-name" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Родительская группа</label>
+                            <select id="edit-group-parent" class="form-select hierarchy-select">
+                                <option value="">-- Корень --</option>
+                            </select>
+                            <div class="form-text small text-muted">
+                                Выберите родительскую группу для вложенности.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Секция: CIDR -->
+                    <div id="sectionCidr" style="display:none;">
+                        <div class="alert alert-info small">
+                            Будут созданы подгруппы для каждой подсети указанного диапазона.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Сеть (CIDR)</label>
+                            <input type="text" id="cidr-network" class="form-control" placeholder="192.168.0.0/16">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Маска подгрупп</label>
+                            <select id="cidr-mask" class="form-select">
+                                <option value="8">/8 (Класс A, ~16 млн хостов)</option>
+                                <option value="12">/12 (Класс B частный, ~1 млн хостов)</option>
+                                <option value="16">/16 (Класс B, 65 тыс. хостов)</option>
+                                <option value="20">/20 (4096 хостов)</option>
+                                <option value="22">/22 (1024 хоста)</option>
+                                <option value="23">/23 (512 хостов)</option>
+                                <option value="24" selected>/24 (256 хостов, стандарт)</option>
+                                <option value="25">/25 (128 хостов)</option>
+                                <option value="26">/26 (64 хоста)</option>
+                                <option value="27">/27 (32 хоста)</option>
+                                <option value="28">/28 (16 хостов)</option>
+                                <option value="29">/29 (8 хостов)</option>
+                                <option value="30">/30 (4 хоста, point-to-point)</option>
+                            </select>
+                            <div class="form-text small text-muted">
+                                Выберите размер создаваемых подгрупп.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Секция: Динамическая -->
+                    <div id="sectionDynamic" style="display:none;">
+                        <div class="alert alert-warning small">
+                            Активы будут добавляться автоматически при совпадении с правилами.
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold">Правила фильтрации:</label>
+                            <div id="group-filter-root" class="border rounded p-2 bg-light" style="min-height: 60px;">
+                                <!-- Правила добавляются через JS -->
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-success mt-2"
+                                onclick="addDynamicRule()">
+                                <i class="bi bi-plus-circle"></i> Добавить правило
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Заглушка для старого ID создания -->
+<div class="modal fade" id="groupCreateModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-body text-center p-4">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 small text-muted">Открытие мастера...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Перемещение группы -->
+<div class="modal fade" id="groupMoveModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="groupMoveForm">
+                <div class="modal-header">
+                    <h5>Переместить группу</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="move-group-id">
+                    <div class="mb-3">
+                        <label class="form-label">Новый родитель</label>
+                        <select id="move-group-parent" class="form-select hierarchy-select"></select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Переместить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Удаление группы -->
+<div class="modal fade" id="groupDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="text-danger">Удаление группы</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="delete-group-id">
+                <p class="text-warning"><i class="bi bi-exclamation-triangle"></i> Вы уверены?</p>
+                <div class="mb-3">
+                    <label class="form-label">Перенести активы в:</label>
+                    <select id="delete-move-assets" class="form-select hierarchy-select">
+                        <option value="">-- Удалить активы вместе с группой --</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteGroup()">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>

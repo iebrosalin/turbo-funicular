@@ -13,10 +13,10 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # добавляем MetaData наших моделей для автогенерации миграций
-from app.db.base import Base
-from app.models.asset import Asset  # noqa
-from app.models.group import Group  # noqa
-from app.models.scan import Scan  # noqa
+from backend.db.base import Base
+from backend.models.asset import Asset  # noqa
+from backend.models.group import Group  # noqa
+from backend.models.scan import Scan  # noqa
 
 target_metadata = Base.metadata
 

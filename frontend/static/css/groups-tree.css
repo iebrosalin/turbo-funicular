@@ -1,0 +1,270 @@
+/* static/css/groups-tree.css */
+
+/* Контейнер дерева групп */
+.groups-tree-container {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.groups-tree-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.groups-tree-header h4 {
+    margin: 0;
+    color: #333;
+    font-size: 1.1rem;
+}
+
+.groups-tree-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* Стили дерева */
+.groups-tree {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.groups-tree ul {
+    list-style: none;
+    padding-left: 24px;
+    margin: 0;
+}
+
+.groups-tree li {
+    position: relative;
+    padding: 8px 0;
+}
+
+/* Линии иерархии */
+.groups-tree ul::before {
+    content: '';
+    position: absolute;
+    left: 11px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: #dee2e6;
+}
+
+.groups-tree li::before {
+    content: '';
+    position: absolute;
+    left: -13px;
+    top: 20px;
+    width: 15px;
+    height: 1px;
+    background: #dee2e6;
+}
+
+/* Элемент группы */
+.group-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: #f8f9fa;
+    border: 1px solid transparent;
+}
+
+.group-item:hover {
+    background: #e9ecef;
+    border-color: #dee2e6;
+}
+
+.group-item.selected {
+    background: #e7f1ff;
+    border-color: #0d6efd;
+}
+
+.group-item.has-children > .group-toggle {
+    display: inline-flex;
+}
+
+.group-toggle {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+    border-radius: 4px;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    color: #6c757d;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+
+.group-toggle:hover {
+    background: #e9ecef;
+}
+
+.group-toggle.expanded {
+    transform: rotate(90deg);
+}
+
+.group-icon {
+    margin-right: 8px;
+    color: #6c757d;
+    flex-shrink: 0;
+}
+
+.group-item.is-dynamic .group-icon {
+    color: #6f42c1;
+}
+
+.group-name {
+    flex-grow: 1;
+    font-weight: 500;
+    color: #333;
+}
+
+.group-count {
+    font-size: 0.75rem;
+    color: #6c757d;
+    background: #e9ecef;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+
+.group-actions {
+    display: flex;
+    gap: 4px;
+    margin-left: 8px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.group-item:hover .group-actions {
+    opacity: 1;
+}
+
+.group-action-btn {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 4px;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+.group-action-btn:hover {
+    transform: scale(1.1);
+}
+
+.group-action-btn.edit {
+    color: #0d6efd;
+}
+
+.group-action-btn.edit:hover {
+    background: #0d6efd;
+    color: #fff;
+}
+
+.group-action-btn.delete {
+    color: #dc3545;
+}
+
+.group-action-btn.delete:hover {
+    background: #dc3545;
+    color: #fff;
+}
+
+.group-action-btn.add-child {
+    color: #198754;
+}
+
+.group-action-btn.add-child:hover {
+    background: #198754;
+    color: #fff;
+}
+
+/* Скрытые дочерние элементы */
+.group-children {
+    display: none;
+}
+
+.group-children.expanded {
+    display: block;
+}
+
+/* Индикатор загрузки */
+.groups-tree-loading {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+}
+
+.groups-tree-error {
+    text-align: center;
+    padding: 40px;
+    color: #dc3545;
+    background: #f8d7da;
+    border-radius: 8px;
+}
+
+/* Пустое состояние */
+.groups-tree-empty {
+    text-align: center;
+    padding: 40px;
+    color: #6c757d;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+/* Модальное окно */
+.modal-group-form .form-label {
+    font-weight: 500;
+    margin-bottom: 5px;
+}
+
+.modal-group-form .form-control,
+.modal-group-form .form-select {
+    border-radius: 6px;
+    border: 1px solid #ced4da;
+    padding: 10px 12px;
+}
+
+.modal-group-form .form-control:focus,
+.modal-group-form .form-select:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13,110,253,0.25);
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .groups-tree-header {
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
+    }
+
+    .group-actions {
+        opacity: 1;
+    }
+
+    .groups-tree ul {
+        padding-left: 16px;
+    }
+}

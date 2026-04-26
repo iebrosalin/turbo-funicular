@@ -1,0 +1,11 @@
+from sqlalchemy.orm import DeclarativeBase
+
+
+class Base(DeclarativeBase):
+    """Базовый класс для всех моделей."""
+    pass
+
+
+# Импортируем все модели, чтобы они были зарегистрированы в SQLAlchemy
+# Это необходимо для корректной работы relationships с строковыми ссылками
+import backend.models
