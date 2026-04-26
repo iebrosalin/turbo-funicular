@@ -16,7 +16,7 @@
                     <button class="theme-toggle me-2" onclick="toggleTheme()" aria-label="Переключить тему">
                         <i class="bi bi-moon"></i><i class="bi bi-sun"></i>
                     </button>
-                    <a href="{{ url_for('scans.scans_page') }}" class="btn btn-outline-dark me-2">
+                    <a href="/scans" class="btn btn-outline-dark me-2">
                         <i class="bi bi-wifi"></i> Сканирования
                     </a>
                     <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#scanModal">
@@ -48,16 +48,7 @@
             </div>
 
             <!-- Flash-сообщения -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for c, m in messages %}
-                    <div class="alert alert-{{ c }} alert-dismissible fade show" role="alert">
-                        {{ m }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрыть"></button>
-                    </div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+            <div id="flash-messages-container"></div>
 
             <!-- Таблица активов -->
             <div class="card">
@@ -101,5 +92,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='js/main.js') }}" type="module"></script>
+<script src="/static/js/main.js" type="module"></script>
 {% endblock %}

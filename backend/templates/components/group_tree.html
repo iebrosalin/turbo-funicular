@@ -41,13 +41,13 @@
 </div>
 
 <script type="module">
-    import { refreshGroupTree, initTreeTogglers } from '{{ url_for("static", filename="js/modules/tree.js") }}';
+    import { refreshGroupTree, initTreeTogglers } from '/static/js/modules/tree.js';
     import { 
         initActiveScans, 
         showCreateGroupModal,
         showRenameModal,
         showDeleteModal
-    } from '{{ url_for("static", filename="js/modules/groups.js") }}';
+    } from '/static/js/modules/groups.js';
 
     document.addEventListener('DOMContentLoaded', () => {
         // Инициализация дерева групп
@@ -78,7 +78,7 @@
         
         // Экспорт filterByGroup и loadAssets для SPA функционала
         if (typeof window.filterByGroup === 'undefined') {
-            import('{{ url_for("static", filename="js/modules/tree.js") }}').then(module => {
+            import('/static/js/modules/tree.js').then(module => {
                 window.filterByGroup = module.filterByGroup;
                 window.loadAssets = module.loadAssets;
             });

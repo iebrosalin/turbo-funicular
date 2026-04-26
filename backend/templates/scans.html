@@ -302,11 +302,11 @@
 </div>
 
 <!-- Подключение скриптов -->
-<script src="{{ url_for('static', filename='js/scan-helpers.js') }}"></script>
-<script src="{{ url_for('static', filename='js/scans-page.js') }}" type="module"></script>
+<script src="/static/js/scan-helpers.js"></script>
+<script src="/static/js/scans-page.js" type="module"></script>
 <script type="module">
     // Импорт функций дерева для SPA функционала
-    import { filterByGroup, loadAssets, refreshGroupTree, initTreeTogglers } from '{{ url_for("static", filename="js/modules/tree.js") }}';
+    import { filterByGroup, loadAssets, refreshGroupTree, initTreeTogglers } from '/static/js/modules/tree.js") }}';
 
     // Экспорт в глобальную область видимости для использования из tree.js
     window.filterByGroup = filterByGroup;
