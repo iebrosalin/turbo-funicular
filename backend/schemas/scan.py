@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 from datetime import datetime
 from enum import Enum
@@ -36,6 +36,8 @@ class ScanUpdate(BaseModel):
 
 class ScanResponse(ScanBase):
     """Схема ответа сканирования."""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     status: str
     progress: int
@@ -44,6 +46,3 @@ class ScanResponse(ScanBase):
     completed_at: Optional[datetime] = None
     created_at: datetime
     error_message: Optional[str] = None
-    
-    class Config:
-        from_attributes = True
