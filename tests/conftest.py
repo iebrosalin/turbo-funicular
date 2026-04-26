@@ -20,6 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import pytest
 import pytest_asyncio
+from playwright.sync_api import Playwright, Browser, Page
 import asyncio
 from typing import AsyncGenerator, Generator
 from httpx import ASGITransport, AsyncClient
@@ -252,20 +253,29 @@ def base_url():
     return os.getenv("TURBO_FUNICULAR_URL", "http://localhost:8000")
 
 
-@pytest.fixture
-def page(browser):
-    """Создание новой страницы браузера для каждого теста."""
-    page = browser.new_page()
-    yield page
-    page.close()
+@pytest.fixture(scope="session")
+def playwright():
+    """Инициализация Playwright для сессии тестов."""
+    from playwright.sync_api import sync_playwright
+    pw = sync_playwright().start()
+    yield pw
+    pw.stop()
 
 
 @pytest.fixture
-def browser(playwright):
+def browser(playwright: Playwright):
     """Запуск браузера Chromium для UI тестов."""
     browser = playwright.chromium.launch(headless=True)
     yield browser
     browser.close()
+
+
+@pytest.fixture
+def page(browser: Browser):
+    """Создание новой страницы браузера для каждого теста."""
+    page = browser.new_page()
+    yield page
+    page.close()
 
 
 @pytest.fixture
