@@ -26,12 +26,17 @@ class GroupUpdate(BaseModel):
     rule: Optional[str] = None
 
 
-class GroupResponse(GroupBase):
+class GroupResponse(BaseModel):
     """Схема ответа группы."""
     id: int
+    name: str
+    description: Optional[str] = None
+    parent_id: Optional[int] = None
+    group_type: Optional[str] = "manual"
+    rule: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
-    children: List['GroupResponse'] = []
+    assets_count: Optional[int] = 0
     
     class Config:
         from_attributes = True

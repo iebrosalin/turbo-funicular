@@ -19,16 +19,23 @@ async def get_groups(
     include_assets_count: bool = True
 ):
     """Получить все группы."""
-    service = GroupService(db)
-    groups = await service.get_all()
+    from sqlalchemy.orm import selectinload
+    
+    # Загружаем группы с предзагрузкой parent связи
+    query = select(AssetGroup).options(selectinload(AssetGroup.parent))
+    result = await db.execute(query)
+    groups = list(result.scalars().all())
     
     if include_assets_count:
-        # Подсчёт активов для каждой группы
-        from backend.models.asset import Asset
+        # Подсчёт активов для каждой группы через many-to-many связь
+        from backend.models.asset import asset_groups
+        from sqlalchemy import func
         for group in groups:
-            query = select(func.count()).select_from(Asset).where(Asset.group_id == group.id)
-            result = await db.execute(query)
-            group.assets_count = result.scalar()
+            count_query = select(func.count(asset_groups.c.asset_id)).where(
+                asset_groups.c.group_id == group.id
+            )
+            count_result = await db.execute(count_query)
+            group.assets_count = count_result.scalar() or 0
     
     return groups
 
@@ -36,18 +43,20 @@ async def get_groups(
 @router.get("/tree", response_model=List[Dict])
 async def get_group_tree(db: AsyncSession = Depends(get_db)):
     """Получить дерево групп с подсчётом активов."""
-    from backend.models.asset import Asset
+    from backend.models.asset import asset_groups
     
     # Получаем все группы
     query = select(AssetGroup).order_by(AssetGroup.name)
     result = await db.execute(query)
     groups = list(result.scalars().all())
     
-    # Подсчитываем активы для каждой группы
+    # Подсчитываем активы для каждой группы через many-to-many связь
     for group in groups:
-        count_query = select(func.count()).select_from(Asset).where(Asset.group_id == group.id)
+        count_query = select(func.count(asset_groups.c.asset_id)).where(
+            asset_groups.c.group_id == group.id
+        )
         count_result = await db.execute(count_query)
-        group.assets_count = count_result.scalar()
+        group.assets_count = count_result.scalar() or 0
     
     tree = build_group_tree(groups)
     return tree
@@ -136,14 +145,14 @@ async def delete_group(group_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/{group_id}/move", response_model=GroupResponse)
 async def move_group(
     group_id: int,
-    new_parent_id: Optional[int],
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    new_parent_id: Optional[int] = Query(None)
 ):
     """Переместить группу в другую родительскую группу."""
     service = GroupService(db)
     group = await service.move(group_id, new_parent_id)
     if not group:
-        raise HTTPException(status_code=404, detail="Группа не найдена или недопустимый родитель")
+        raise HTTPException(status_code=400, detail="Cyclic dependency detected or invalid parent")
     return group
 
 

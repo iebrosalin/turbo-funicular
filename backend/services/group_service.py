@@ -97,8 +97,29 @@ class GroupService:
             # Простая проверка: нельзя переместить родителя в самого себя или в потомка
             if new_parent_id == group_id:
                 return None
+            
+            # Проверка: нельзя переместить группу в её собственного потомка
+            # Это создало бы циклическую зависимость
+            if await self._is_descendant_of(group_id, new_parent_id):
+                return None
         
         group.parent_id = new_parent_id
         await self.db.flush()
         await self.db.refresh(group)
         return group
+    
+    async def _is_descendant_of(self, potential_ancestor_id: int, potential_descendant_id: int) -> bool:
+        """Проверить, является ли potential_ancestor_id потомком potential_descendant_id."""
+        current_id = potential_descendant_id
+        
+        while current_id is not None:
+            if current_id == potential_ancestor_id:
+                return True
+            # Получаем родителя текущей группы
+            parent = await self.get_by_id(current_id)
+            if parent:
+                current_id = parent.parent_id
+            else:
+                break
+        
+        return False

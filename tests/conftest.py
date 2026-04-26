@@ -199,18 +199,24 @@ async def asset_in_group(db_session: AsyncSession):
     """Create an asset assigned to a group."""
     group = Group(name="Asset Test Group", description="Group with assets")
     db_session.add(group)
-    await db_session.commit()
-    await db_session.refresh(group)
+    await db_session.flush()  # Get group ID without committing
     
     asset = Asset(
         ip_address="192.168.1.100",
         hostname="asset-in-group",
         os_family="Linux",
-        status="active",
-        group_id=group.id
+        status="active"
     )
     db_session.add(asset)
+    await db_session.flush()  # Get asset ID without committing
+    
+    # Associate asset with group using many-to-many relationship via the association table
+    from backend.models.asset import asset_groups
+    stmt = asset_groups.insert().values(asset_id=asset.id, group_id=group.id)
+    await db_session.execute(stmt)
     await db_session.commit()
-    await db_session.refresh(asset)
+    
+    # Load the groups relationship explicitly before returning
+    await db_session.refresh(asset, attribute_names=['groups'])
     
     return asset

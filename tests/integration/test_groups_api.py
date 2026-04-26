@@ -46,7 +46,7 @@ class TestGroupsAPI:
         g1_id = g1.json()["id"]
         g2_id = g2.json()["id"]
 
-        response = await async_client.post(f"/api/groups/{g2_id}/move", json={"parent_id": g1_id})
+        response = await async_client.post(f"/api/groups/{g2_id}/move?new_parent_id={g1_id}")
         
         assert response.status_code == 200
         data = response.json()
@@ -63,21 +63,22 @@ class TestGroupsAPI:
         c_id = child.json()["id"]
 
         # Try to move Parent under Child -> Should fail
-        response = await async_client.post(f"/api/groups/{p_id}/move", json={"parent_id": c_id})
+        response = await async_client.post(f"/api/groups/{p_id}/move?new_parent_id={c_id}")
         
         assert response.status_code == 400
         assert "cyclic" in response.json()["detail"].lower()
 
     async def test_delete_group_with_assets(self, async_client: AsyncClient, asset_in_group):
         """Test cascading delete or handling of assets when deleting a group."""
-        group_id = asset_in_group.group_id
+        # Get the group ID from the asset's groups relationship
+        assert len(asset_in_group.groups) > 0
+        group_id = asset_in_group.groups[0].id
         
         response = await async_client.delete(f"/api/groups/{group_id}")
         
-        # Depending on business logic: either 200 (cascade) or 400 (has assets)
-        # Assuming cascade delete for now based on typical requirements, or check specific logic
-        # If logic prevents deletion: assert response.status_code == 400
-        assert response.status_code in [200, 404] 
+        # Depending on business logic: either 204 (cascade delete), 200, or 404
+        # The API returns 204 No Content on successful deletion
+        assert response.status_code in [200, 204, 404] 
 
     async def test_update_group(self, async_client: AsyncClient, test_group_hierarchy):
         """Test updating group details."""
