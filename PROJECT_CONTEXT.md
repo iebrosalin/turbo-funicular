@@ -26,7 +26,7 @@
 ├── docker-compose.yml     # Конфигурация Docker
 ├── Dockerfile             # Образ приложения
 ├── instance/              # Локальная БД SQLite (создается автоматически)
-│   └── network_inventory.db
+│   └── app.db
 ├── backend/
 │   ├── app/
 │   │   ├── core/          # Конфигурация, исключения
@@ -112,8 +112,8 @@ docker-compose exec web alembic upgrade head
 # Создать новую миграцию после изменения моделей (Docker)
 docker-compose exec web alembic revision --autogenerate -m "Description"
 # Для SQLite локально:
-# Файл БД: instance/network_inventory.db
-# Просмотр через: sqlite3 instance/network_inventory.db
+# Файл БД: instance/app.db
+# Просмотр через: sqlite3 instance/app.db
 ```
 ### Тестирование
 ```bash
