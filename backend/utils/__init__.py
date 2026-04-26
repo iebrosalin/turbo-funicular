@@ -224,7 +224,7 @@ def detect_device_role_and_tags(asset: Any) -> Dict[str, Any]:
     return {"role": role, "tags": list(set(tags))}
 
 
-def build_group_tree(groups: List[Any]) -> List[Dict]:
+def build_group_tree(groups: List[Any]) -> Dict[str, Any]:
     """
     Построить дерево групп из плоского списка.
     
@@ -232,7 +232,7 @@ def build_group_tree(groups: List[Any]) -> List[Dict]:
         groups: Список объектов Group
     
     Returns:
-        Список словарей с древовидной структурой
+        Словарь с древовидной структурой и плоским списком для селектов
     """
     def group_to_dict(g):
         if hasattr(g, 'to_dict'):
@@ -259,7 +259,24 @@ def build_group_tree(groups: List[Any]) -> List[Dict]:
                 # Если родитель не найден, добавляем в корень
                 tree.append(group_data)
     
-    return tree
+    # Создаем плоский список с глубиной для использования в селектах
+    flat = []
+    
+    def flatten(node, depth=0):
+        flat_item = {
+            'id': node['id'],
+            'name': node['name'],
+            'assets_count': node.get('assets_count', 0),
+            'depth': depth
+        }
+        flat.append(flat_item)
+        for child in node.get('children', []):
+            flatten(child, depth + 1)
+    
+    for node in tree:
+        flatten(node, 0)
+    
+    return {'tree': tree, 'flat': flat}
 
 
 def build_complex_query(
