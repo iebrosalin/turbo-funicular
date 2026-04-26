@@ -49,7 +49,7 @@ RUN wget -q -O rustscan.deb.zip https://github.com/bee-san/RustScan/releases/dow
 COPY requirements.txt .
 
 # Установка Python зависимостей
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
 
 # Установка системных зависимостей для Playwright (Chromium)
 RUN apt-get update && apt-get install -y \
