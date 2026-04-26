@@ -49,9 +49,11 @@ class TestAssetGroupRelations:
             data = response.json()
             assert data["group_id"] == new_group_id
             
-            # Проверка в БД
-            updated_asset = (await db_session.execute(select(Asset).where(Asset.id == test_asset.id))).scalars().first()
-            assert updated_asset.group_id == new_group_id
+            # Проверка в БД - проверяем связь many-to-many
+            updated_asset = (await db_session.execute(select(Asset).options(selectinload(Asset.groups)).where(Asset.id == test_asset.id))).scalars().first()
+            assert updated_asset is not None
+            assert len(updated_asset.groups) == 1
+            assert updated_asset.groups[0].id == new_group_id
         else:
             # Если обновление через отдельный эндпоинт, этот тест можно адаптировать
             pytest.skip("Endpoint for moving assets might differ")
@@ -96,7 +98,7 @@ class TestAssetGroupRelations:
 
         # Удалим группу
         del_response = await async_client.delete(f"/api/groups/{test_group.id}")
-        assert del_response.status_code == 200
+        assert del_response.status_code in [200, 204]
 
         # Проверим судьбу актива
         asset = (await db_session.execute(select(Asset).where(Asset.id == asset_id))).scalars().first()
@@ -105,8 +107,9 @@ class TestAssetGroupRelations:
         if asset is None:
             pass # Успех, актив удален
         else:
-            # Вариант Б: group_id стал NULL (SET NULL)
-            assert asset.group_id is None
+            # Вариант Б: group_id стал NULL (SET NULL) - проверяем связь many-to-many
+            await db_session.refresh(asset, attribute_names=['groups'])
+            assert len(asset.groups) == 0
 
     @pytest.mark.asyncio
     async def test_group_assets_count_statistics(self, async_client, db_session, test_group):

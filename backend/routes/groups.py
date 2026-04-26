@@ -65,10 +65,21 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
 @router.get("/{group_id}", response_model=GroupResponse)
 async def get_group(group_id: int, db: AsyncSession = Depends(get_db)):
     """Получить группу по ID."""
+    from sqlalchemy.orm import selectinload
+    from backend.models.asset import asset_groups
+    
     service = GroupService(db)
     group = await service.get_by_id(group_id)
     if not group:
         raise HTTPException(status_code=404, detail="Группа не найдена")
+    
+    # Подсчёт активов для группы через many-to-many связь
+    count_query = select(func.count(asset_groups.c.asset_id)).where(
+        asset_groups.c.group_id == group.id
+    )
+    count_result = await db.execute(count_query)
+    group.assets_count = count_result.scalar() or 0
+    
     return group
 
 

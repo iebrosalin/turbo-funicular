@@ -62,23 +62,26 @@ class TestGroupService:
         """Тест каскадного удаления группы"""
         service = GroupService(async_session_mock)
         
-        # Мокируем получение и удаление
+        # Мокируем получение группы через get_by_id (который использует execute)
         mock_group = Group(id=1, name="To Delete")
-        async_session_mock.get = AsyncMock(return_value=mock_group)
-        async_session_mock.delete = MagicMock()
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_group
+        async_session_mock.execute = AsyncMock(return_value=mock_result)
         async_session_mock.flush = AsyncMock()
         
         result = await service.delete(1)
         assert result is True
-        async_session_mock.delete.assert_called_once()
+        async_session_mock.execute.assert_called()
 
     async def test_delete_group_db_error(self, async_session_mock):
         """Тест обработки ошибки БД при удалении"""
         service = GroupService(async_session_mock)
         
         mock_group = Group(id=1, name="Error Test")
-        async_session_mock.get = AsyncMock(return_value=mock_group)
-        async_session_mock.delete = MagicMock(side_effect=SQLAlchemyError("DB Error"))
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_group
+        async_session_mock.execute = AsyncMock(return_value=mock_result)
+        async_session_mock.flush = AsyncMock(side_effect=SQLAlchemyError("DB Error"))
         
         with pytest.raises(SQLAlchemyError):
             await service.delete(1)

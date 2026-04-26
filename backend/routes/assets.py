@@ -74,7 +74,23 @@ async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession 
     
     # Явно загружаем связи для ответа
     await db.refresh(asset, attribute_names=['groups'])
-    return asset
+    
+    # Создаем ответ вручную, чтобы корректно установить group_id
+    group_id = None
+    if asset.groups and len(asset.groups) > 0:
+        group_id = asset.groups[0].id
+    
+    return AssetResponse(
+        id=asset.id,
+        ip_address=asset.ip_address,
+        hostname=asset.hostname,
+        os_family=asset.os_family,
+        status=asset.status,
+        location=asset.location,
+        group_id=group_id,
+        created_at=asset.created_at,
+        updated_at=asset.updated_at
+    )
 
 
 @router.delete("/{asset_id}", status_code=status.HTTP_204_NO_CONTENT)
