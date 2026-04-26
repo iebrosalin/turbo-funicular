@@ -20,9 +20,9 @@ class TestAssetService:
         """Test successful asset creation."""
         service = AssetService(async_session_mock)
         
-        # Mock DB commit and refresh
-        async_session_mock.add = AsyncMock()
-        async_session_mock.commit = AsyncMock()
+        # Mock DB commit and refresh - add is synchronous, flush/refresh are async
+        async_session_mock.add = MagicMock()
+        async_session_mock.flush = AsyncMock()
         async_session_mock.refresh = AsyncMock()
         
         asset_data = AssetCreate(**test_asset_data)

@@ -6,6 +6,7 @@ from backend.db.session import get_db
 from backend.services.scan_service import ScanService
 from backend.schemas.scan import ScanCreate, ScanUpdate, ScanResponse
 import json
+from datetime import datetime, timezone
 
 router = APIRouter(tags=["scans"])
 scans_router = router  # Алиас для совместимости импортов
@@ -180,7 +181,7 @@ async def run_dig_scan(
         target=targets_text,
         scan_type="dig",
         status="queued",
-        created_at=datetime.utcnow()
+        created_at=datetime.now(timezone.utc)
     )
     
     db.add(new_scan)

@@ -50,9 +50,12 @@ class TestGroupService:
         """Тест предотвращения циклической зависимости"""
         service = GroupService(async_session_mock)
         
-        # Мокируем получение группы
+        # Мокируем получение группы через get_by_id (который использует execute)
         mock_group = Group(id=1, name="Self Ref")
-        async_session_mock.get = AsyncMock(return_value=mock_group)
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = mock_group
+        async_session_mock.execute = AsyncMock(return_value=mock_result)
+        async_session_mock.flush = AsyncMock()
         
         # Попытка сделать группу родителем самой себя должна вызвать ошибку
         with pytest.raises(ValueError):

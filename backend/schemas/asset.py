@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, IPvAnyAddress
+from pydantic import BaseModel, Field, IPvAnyAddress, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 
@@ -29,6 +29,8 @@ class AssetUpdate(BaseModel):
 
 class AssetResponse(BaseModel):
     """Схема ответа актива."""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     ip_address: str
     hostname: Optional[str] = None
@@ -38,6 +40,3 @@ class AssetResponse(BaseModel):
     group_id: Optional[int] = None  # Возвращаем ID первой группы для совместимости
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
-    class Config:
-        from_attributes = True

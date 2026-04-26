@@ -2,7 +2,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from backend.models.scan import Scan
 from backend.schemas.scan import ScanCreate, ScanUpdate, ScanStatus
 
@@ -51,9 +51,9 @@ class ScanService:
         
         # Автоматически устанавливаем время завершения при изменении статуса
         if scan_data.status == "completed" and not scan.completed_at:
-            scan.completed_at = datetime.utcnow()
+            scan.completed_at = datetime.now(timezone.utc)
         elif scan_data.status == "running" and not scan.started_at:
-            scan.started_at = datetime.utcnow()
+            scan.started_at = datetime.now(timezone.utc)
         
         await self.db.flush()
         await self.db.refresh(scan)
@@ -67,9 +67,9 @@ class ScanService:
         
         scan.status = status
         if status == "running" and not scan.started_at:
-            scan.started_at = datetime.utcnow()
+            scan.started_at = datetime.now(timezone.utc)
         elif status in ["completed", "failed"] and not scan.completed_at:
-            scan.completed_at = datetime.utcnow()
+            scan.completed_at = datetime.now(timezone.utc)
         
         await self.db.flush()
         await self.db.refresh(scan)
@@ -88,7 +88,7 @@ class ScanService:
         import json
         scan.result = json.dumps(results)
         scan.status = "completed"
-        scan.completed_at = datetime.utcnow()
+        scan.completed_at = datetime.now(timezone.utc)
         
         await self.db.flush()
         await self.db.refresh(scan)
