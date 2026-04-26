@@ -14,6 +14,7 @@ class TestScansAPI:
     async def test_create_scan(self, async_client: AsyncClient):
         """Test successful scan creation."""
         payload = {
+            "name": "Test Scan",
             "target": "127.0.0.1",
             "scan_type": "ping",
             "options": {}
@@ -58,7 +59,7 @@ class TestScansAPI:
         scan_id = test_scan.id
         response = await async_client.delete(f"/api/scans/{scan_id}")
         
-        assert response.status_code == 200
+        assert response.status_code == 204
         
         # Verify deletion
         get_resp = await async_client.get(f"/api/scans/{scan_id}")

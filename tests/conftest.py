@@ -195,6 +195,22 @@ async def test_group_hierarchy(db_session: AsyncSession):
 
 
 @pytest.fixture
+async def test_scan(db_session: AsyncSession):
+    """Create a test scan in the database and return it."""
+    from backend.models.scan import Scan
+    scan = Scan(
+        name="Integration Test Scan",
+        target="192.168.1.0/24",
+        scan_type="nmap",
+        status="pending"
+    )
+    db_session.add(scan)
+    await db_session.commit()
+    await db_session.refresh(scan)
+    return scan
+
+
+@pytest.fixture
 async def asset_in_group(db_session: AsyncSession):
     """Create an asset assigned to a group."""
     group = Group(name="Asset Test Group", description="Group with assets")
