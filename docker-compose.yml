@@ -16,6 +16,7 @@ services:
     volumes:
       # Монтирование исходного кода для разработки (изменения локально применяются сразу)
       - ./backend:/app/backend
+      - ./frontend:/app/frontend
       # Сохранение базы данных SQLite между перезапусками
       - app_data:/app/instance
     working_dir: /app
