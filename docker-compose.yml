@@ -29,6 +29,59 @@ services:
           cpus: '1.0'
           memory: 512M
 
+  # Сервис для запуска всех тестов (API + UI) через команду: docker compose run --rm pytest
+  pytest:
+    build: .
+    container_name: asset_management_pytest
+    depends_on:
+      - web
+    environment:
+      - BASE_URL=http://web:8000
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/network_inventory.db}
+    volumes:
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend
+      - ./tests:/app/tests
+    working_dir: /app
+    command: pytest tests/ -v
+    profiles:
+      - test
+
+  # Сервис для запуска только UI тестов с Playwright
+  test-ui:
+    build: .
+    container_name: asset_management_tests_ui
+    depends_on:
+      - web
+    environment:
+      - BASE_URL=http://web:8000
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/network_inventory.db}
+    volumes:
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend
+      - ./tests:/app/tests
+    working_dir: /app
+    command: pytest tests/test_ui.py -v -m ui
+    profiles:
+      - test
+      - test-ui-only
+
+  # Сервис для запуска только API тестов
+  test-api:
+    build: .
+    container_name: asset_management_tests_api
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/network_inventory.db}
+    volumes:
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend
+      - ./tests:/app/tests
+    working_dir: /app
+    command: pytest tests/ -v -m "not ui"
+    profiles:
+      - test
+      - test-api-only
+
 volumes:
   app_data:
     driver: local

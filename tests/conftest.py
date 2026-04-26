@@ -1,3 +1,17 @@
+"""
+Конфигурация pytest для Turbo Funicular.
+Настраивает фикстуры для API и UI тестов.
+
+Запуск всех тестов:
+    pytest tests/ -v
+
+Запуск только API тестов:
+    pytest tests/ -v -m "not ui"
+
+Запуск только UI тестов:
+    pytest tests/ -v -m ui
+"""
+
 import sys
 import os
 
@@ -221,3 +235,29 @@ async def asset_in_group(db_session: AsyncSession):
     await db_session.refresh(asset, attribute_names=['groups'])
     
     return asset
+
+
+# --- UI Test Fixtures ---
+
+def pytest_configure(config):
+    """Register custom markers."""
+    config.addinivalue_line(
+        "markers", "ui: mark test as requiring UI/browser (deselect with '-m \"not ui\"')"
+    )
+
+
+@pytest.fixture(scope="session")
+def base_url():
+    """Базовый URL для UI тестов."""
+    return os.getenv("TURBO_FUNICULAR_URL", "http://localhost:8000")
+
+
+@pytest.fixture
+def authenticated_page(page, base_url: str):
+    """
+    Авторизация в системе перед тестом.
+    Если в приложении нет авторизации, эта фикстура просто открывает главную страницу.
+    """
+    page.goto(base_url)
+    # TODO: Добавить логику авторизации, если она есть в приложении
+    yield page

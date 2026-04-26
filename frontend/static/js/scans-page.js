@@ -234,8 +234,11 @@ async function submitScan(url, payload, scanName) {
         const data = await response.json();
         if (response.ok) {
             alert(`Задача ${scanName} добавлена в очередь! ID: ${data.job_id}`);
-            loadJobs();
-            updateQueueStatus();
+            // Небольшая задержка, чтобы задача успела записаться в БД
+            setTimeout(() => {
+                loadJobs();
+                updateQueueStatus();
+            }, 500);
             // Очистка форм (опционально)
             // event.target.reset(); 
         } else {
@@ -475,6 +478,8 @@ async function retryJob(id) {
 }
 
 // Экспорт функций в глобальную область видимости для использования из onclick handlers
+window.loadJobs = loadJobs;
+window.updateQueueStatus = updateQueueStatus;
 window.retryJob = retryJob;
 window.removeJob = removeJob;
 window.stopJob = stopJob;

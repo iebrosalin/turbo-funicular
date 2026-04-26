@@ -2,7 +2,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Установка системных зависимостей для nmap и других утилит
+# Установка системных зависимостей для nmap, playwright и других утилит
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nmap \
     dnsutils \
@@ -12,6 +12,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     ca-certificates \
     unzip \
+    # Playwright dependencies
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libdbus-1-3 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
     && rm -rf /var/lib/apt/lists/*
 
 # Установка rustscan
@@ -26,6 +43,9 @@ COPY requirements.txt .
 
 # Установка Python зависимостей
 RUN pip install --no-cache-dir -r requirements.txt
+
+# Установка браузеров для Playwright
+RUN playwright install chromium --with-deps || true
 
 # Создание директории для базы данных (если используется SQLite)
 RUN mkdir -p /app/instance
