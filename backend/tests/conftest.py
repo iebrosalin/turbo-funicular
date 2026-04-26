@@ -81,10 +81,12 @@ async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, 
 
 # --- Mock Fixtures for Unit Tests ---
 
+from unittest.mock import AsyncMock
+
 @pytest.fixture
 def async_session_mock():
     """Create a mock async session for unit testing services."""
-    session = pytest.AsyncMock(spec=AsyncSession)
+    session = AsyncMock(spec=AsyncSession)
     return session
 
 
@@ -94,9 +96,9 @@ def test_asset_data():
     return {
         "ip_address": "192.168.1.10",
         "hostname": "test-host",
-        "mac_address": "00:11:22:33:44:55",
-        "group_id": 1,
-        "description": "Test asset"
+        "os_family": "Linux",
+        "status": "active",
+        "location": "Test DC"
     }
 
 

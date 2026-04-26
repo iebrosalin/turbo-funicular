@@ -38,7 +38,19 @@ class AssetService:
     
     async def create(self, asset_data: AssetCreate) -> Asset:
         """Создать новый актив."""
-        asset = Asset(**asset_data.model_dump())
+        data = asset_data.model_dump()
+        group_id = data.pop('group_id', None)
+        
+        asset = Asset(**data)
+        
+        # Если указана группа, добавляем связь
+        if group_id is not None:
+            group_query = select(Group).where(Group.id == group_id)
+            group_result = await self.db.execute(group_query)
+            group = group_result.scalar_one_or_none()
+            if group:
+                asset.groups.append(group)
+        
         self.db.add(asset)
         await self.db.flush()
         await self.db.refresh(asset)
@@ -51,8 +63,23 @@ class AssetService:
             return None
         
         update_data = asset_data.model_dump(exclude_unset=True)
+        group_id = update_data.pop('group_id', None)
+        
         for field, value in update_data.items():
             setattr(asset, field, value)
+        
+        # Обновляем связи с группами
+        if group_id is not None:
+            # Очищаем текущие группы
+            asset.groups.clear()
+            
+            # Добавляем новую группу если указана
+            if group_id:
+                group_query = select(Group).where(Group.id == group_id)
+                group_result = await self.db.execute(group_query)
+                group = group_result.scalar_one_or_none()
+                if group:
+                    asset.groups.append(group)
         
         await self.db.flush()
         await self.db.refresh(asset)
