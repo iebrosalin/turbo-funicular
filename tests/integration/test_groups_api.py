@@ -29,9 +29,11 @@ class TestGroupsAPI:
         
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
+        # API returns a dict with 'tree' and 'flat' keys
+        assert isinstance(data, dict)
+        assert 'tree' in data
         # Check if root nodes are present
-        assert len(data) > 0
+        assert len(data['tree']) > 0
 
     async def test_move_group_success(self, async_client: AsyncClient, test_group_hierarchy):
         """Test moving a group to a new parent."""

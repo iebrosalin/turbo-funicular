@@ -5,6 +5,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import pytest
+import pytest_asyncio
 import asyncio
 from typing import AsyncGenerator, Generator
 from httpx import ASGITransport, AsyncClient
@@ -23,15 +24,9 @@ from backend.models.scan import Scan
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
-@pytest.fixture(scope="session")
-def event_loop_policy():
-    """Use default event loop policy."""
-    return asyncio.DefaultEventLoopPolicy()
-
-
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function", loop_scope="function")
 async def test_engine():
-    """Create a test database engine."""
+    """Create a test database engine for each test function."""
     engine = create_async_engine(
         TEST_DATABASE_URL,
         connect_args={"check_same_thread": False},
@@ -51,7 +46,7 @@ async def test_engine():
     await engine.dispose()
 
 
-@pytest.fixture(scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
     """Create a fresh database session for each test with rollback."""
     async_session_maker = async_sessionmaker(
@@ -65,24 +60,14 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
             await session.rollback()
 
 
-@pytest.fixture(scope="function")
-async def async_client(test_engine) -> AsyncGenerator[AsyncClient, None]:
+@pytest_asyncio.fixture(scope="function")
+async def async_client(db_session) -> AsyncGenerator[AsyncClient, None]:
     """Create an async HTTP client for testing API endpoints."""
     
-    # Create a session factory bound to test engine
-    async_session_maker = async_sessionmaker(
-        bind=test_engine, class_=AsyncSession, expire_on_commit=False
-    )
-    
-    # Override the dependency to use our test session
-    async def override_get_db():
-        async with async_session_maker() as session:
-            try:
-                yield session
-                await session.commit()
-            except Exception:
-                await session.rollback()
-                raise
+    # Override the dependency to use our test session directly
+    # We need to provide a synchronous generator that yields the session
+    def override_get_db():
+        yield db_session
     
     app.dependency_overrides[get_db] = override_get_db
     
@@ -148,7 +133,7 @@ def test_scan_data():
 
 # --- Fixtures for Integration Tests ---
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_asset(db_session: AsyncSession):
     """Create a test asset in the database and return it."""
     asset = Asset(
@@ -163,7 +148,7 @@ async def test_asset(db_session: AsyncSession):
     return asset
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_group(db_session: AsyncSession):
     """Create a test group in the database and return it."""
     group = Group(
@@ -176,7 +161,7 @@ async def test_group(db_session: AsyncSession):
     return group
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_group_hierarchy(db_session: AsyncSession):
     """Create a hierarchy of groups: Parent -> Child."""
     parent = Group(name="Parent Group", description="Parent")
@@ -194,7 +179,7 @@ async def test_group_hierarchy(db_session: AsyncSession):
     return {"parent": parent, "child": child}
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_scan(db_session: AsyncSession):
     """Create a test scan in the database and return it."""
     from backend.models.scan import Scan
@@ -210,7 +195,7 @@ async def test_scan(db_session: AsyncSession):
     return scan
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def asset_in_group(db_session: AsyncSession):
     """Create an asset assigned to a group."""
     group = Group(name="Asset Test Group", description="Group with assets")
