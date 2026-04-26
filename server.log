@@ -1,0 +1,52 @@
+nohup: ignoring input
+INFO:     Started server process [2779]
+INFO:     Waiting for application startup.
+2026-04-26 11:25:49,319 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-04-26 11:25:49,319 - sqlalchemy.engine.Engine - INFO - BEGIN (implicit)
+2026-04-26 11:25:49,320 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("asset_groups")
+2026-04-26 11:25:49,320 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("asset_groups")
+2026-04-26 11:25:49,320 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-26 11:25:49,320 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
+2026-04-26 11:25:49,321 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("assets")
+2026-04-26 11:25:49,321 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("assets")
+2026-04-26 11:25:49,321 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-26 11:25:49,321 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
+2026-04-26 11:25:49,321 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("groups")
+2026-04-26 11:25:49,321 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("groups")
+2026-04-26 11:25:49,321 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-26 11:25:49,321 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
+2026-04-26 11:25:49,322 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("scans")
+2026-04-26 11:25:49,322 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("scans")
+2026-04-26 11:25:49,322 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-26 11:25:49,322 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
+2026-04-26 11:25:49,322 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("scan_jobs")
+2026-04-26 11:25:49,322 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("scan_jobs")
+2026-04-26 11:25:49,322 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-26 11:25:49,322 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
+2026-04-26 11:25:49,322 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("scan_results")
+2026-04-26 11:25:49,322 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("scan_results")
+2026-04-26 11:25:49,322 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-26 11:25:49,322 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
+2026-04-26 11:25:49,323 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("activity_logs")
+2026-04-26 11:25:49,323 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("activity_logs")
+2026-04-26 11:25:49,323 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-26 11:25:49,323 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
+2026-04-26 11:25:49,323 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("asset_change_logs")
+2026-04-26 11:25:49,323 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("asset_change_logs")
+2026-04-26 11:25:49,323 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-26 11:25:49,323 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
+2026-04-26 11:25:49,323 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("service_inventory")
+2026-04-26 11:25:49,323 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("service_inventory")
+2026-04-26 11:25:49,323 INFO sqlalchemy.engine.Engine [raw sql] ()
+2026-04-26 11:25:49,323 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
+2026-04-26 11:25:49,324 INFO sqlalchemy.engine.Engine COMMIT
+2026-04-26 11:25:49,324 - sqlalchemy.engine.Engine - INFO - COMMIT
+2026-04-26 11:25:49,324 - backend.main - INFO - ✅ База данных проверена и инициализирована.
+2026-04-26 11:25:49,326 INFO sqlalchemy.engine.Engine BEGIN (implicit)
+2026-04-26 11:25:49,326 - sqlalchemy.engine.Engine - INFO - BEGIN (implicit)
+2026-04-26 11:25:49,326 INFO sqlalchemy.engine.Engine COMMIT
+2026-04-26 11:25:49,326 - sqlalchemy.engine.Engine - INFO - COMMIT
+2026-04-26 11:25:49,326 - backend.main - INFO - ✅ Подключение к базе данных установлено.
+2026-04-26 11:25:49,326 - backend.main - INFO - 🚀 Приложение успешно запущено.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)

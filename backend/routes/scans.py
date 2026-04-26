@@ -171,8 +171,23 @@ async def run_dig_scan(
     cli_args = request.get("cli_args")
     record_types = request.get("record_types")
     
-    # Заглушка для реального сканирования
-    return {"message": f"DNS сканирование запущено", "status": "queued"}
+    # Создаем новую задачу сканирования в БД
+    from backend.models.scan import Scan
+    from datetime import datetime
+    
+    new_scan = Scan(
+        name=f"DNS scan: {targets_text[:50]}",
+        target=targets_text,
+        scan_type="dig",
+        status="queued",
+        created_at=datetime.utcnow()
+    )
+    
+    db.add(new_scan)
+    await db.commit()
+    await db.refresh(new_scan)
+    
+    return {"message": "DNS сканирование запущено", "status": "queued", "job_id": new_scan.id}
 
 
 # ==========================================
