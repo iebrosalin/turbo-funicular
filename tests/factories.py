@@ -7,9 +7,9 @@ import string
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 
-from app.schemas.asset import AssetCreate
-from app.schemas.group import GroupCreate
-from app.schemas.scan import ScanCreate
+from backend.schemas.asset import AssetCreate
+from backend.schemas.group import GroupCreate
+from backend.schemas.scan import ScanCreate
 
 
 def random_string(length: int = 8) -> str:

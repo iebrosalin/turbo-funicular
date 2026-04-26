@@ -1,8 +1,8 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
-from app.services.scan_service import ScanService
-from app.schemas.scan import ScanCreate, ScanStatus
-from app.models.scan import Scan
+from backend.services.scan_service import ScanService
+from backend.schemas.scan import ScanCreate, ScanStatus
+from backend.models.scan import Scan
 from sqlalchemy.exc import SQLAlchemyError
 from datetime import datetime
 

@@ -1,10 +1,10 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import os
 
-# Определяем базовую директорию проекта (backend)
+# Определяем базовую директорию проекта (корень репозитория)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Создаем директорию instance если не существует (для SQLite)
+# Директория instance в корне проекта для хранения SQLite базы
 INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
 os.makedirs(INSTANCE_DIR, exist_ok=True)
 
@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     """Настройки приложения."""
 
     # База данных - по умолчанию SQLite для локального запуска
-    DATABASE_URL: str = f"sqlite+aiosqlite:///{os.path.join(INSTANCE_DIR, 'network_inventory.db')}"
+    DATABASE_URL: str = f"sqlite+aiosqlite:///{os.path.join(INSTANCE_DIR, 'app.db')}"
 
     # Приложение
     PROJECT_NAME: str = "Network Inventory"

@@ -1,9 +1,9 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from sqlalchemy import select
-from app.services.group_service import GroupService
-from app.schemas.group import GroupCreate, GroupUpdate
-from app.models.group import Group
+from backend.services.group_service import GroupService
+from backend.schemas.group import GroupCreate, GroupUpdate
+from backend.models.group import Group
 from sqlalchemy.exc import SQLAlchemyError
 
 pytestmark = pytest.mark.asyncio

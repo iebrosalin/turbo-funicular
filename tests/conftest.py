@@ -1,7 +1,7 @@
 import sys
 import os
 
-# Add backend directory to path so 'app' package can be found
+# Add backend directory to path so 'backend' package can be found
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
 import pytest
@@ -11,12 +11,12 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.main import app
-from app.db.session import get_db
-from app.db.base import Base
-from app.models.asset import Asset
-from app.models.group import Group
-from app.models.scan import Scan
+from backend.main import app
+from backend.db.session import get_db
+from backend.db.base import Base
+from backend.models.asset import Asset
+from backend.models.group import Group
+from backend.models.scan import Scan
 
 
 # Test database URL (SQLite in-memory for speed)

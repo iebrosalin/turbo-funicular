@@ -13,11 +13,11 @@ sys.path.insert(0, backend_path)
 
 if __name__ == "__main__":
     print("Starting Network Asset Manager...")
-    print("Database: SQLite (backend/instance/network_inventory.db)")
+    print("Database: SQLite (/workspace/instance/app.db)")
     print("Docs: http://localhost:8000/docs")
     
     uvicorn.run(
-        "app.main:app",
+        "backend.main:app",
         host="0.0.0.0",
         port=8000,
         reload=False,

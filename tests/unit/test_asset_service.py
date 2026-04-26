@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.services.asset_service import AssetService
-from app.schemas.asset import AssetCreate, AssetUpdate
-from app.models.asset import Asset
+from backend.services.asset_service import AssetService
+from backend.schemas.asset import AssetCreate, AssetUpdate
+from backend.models.asset import Asset
 
 
 class TestAssetService:

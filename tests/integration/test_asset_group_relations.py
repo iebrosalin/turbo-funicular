@@ -6,8 +6,8 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
-from app.models.asset import Asset
-from app.models.group import Group
+from backend.models.asset import Asset
+from backend.models.group import Group
 
 
 class TestAssetGroupRelations:
