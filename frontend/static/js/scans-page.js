@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 group_ids: groupIds
             };
 
-            await submitScan('/scans/api/scans/nmap', payload, 'Nmap');
+            await submitScan('/api/scans/nmap', payload, 'Nmap');
         });
     }
 
@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
 
-            await submitScan('/scans/api/scans/rustscan', payload, 'Rustscan');
+            await submitScan('/api/scans/rustscan', payload, 'Rustscan');
         });
     }
 
@@ -156,7 +156,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 record_types: recordTypes
             };
 
-            await submitScan('/scans/api/scans/dig', payload, 'Dig');
+            await submitScan('/api/scans/dig', payload, 'Dig');
         });
     }
 
@@ -292,7 +292,7 @@ async function loadGroups() {
  */
 async function updateQueueStatus() {
     try {
-        const response = await fetch('/scans/api/scans/status');
+        const response = await fetch('/api/scans/status');
         if (!response.ok) return;
         const data = await response.json();
         
@@ -334,7 +334,7 @@ async function updateQueueStatus() {
  */
 async function loadJobs() {
     try {
-        const response = await fetch('/scans/api/scans/status');
+        const response = await fetch('/api/scans/status');
         if (!response.ok) return;
         const data = await response.json();
         const tbody = document.querySelector('#jobs-table tbody');
@@ -401,7 +401,7 @@ async function loadJobs() {
  */
 function getDownloadLinks(job) {
     let links = '';
-    const base = `/scans/api/scan-job/${job.id}/download`;
+    const base = `/api/scan-job/${job.id}/download`;
     
     if (job.scan_type === 'nmap') {
         links += `<li><a class="dropdown-item" href="${base}/xml">XML</a></li>`;
@@ -427,7 +427,7 @@ function getDownloadLinks(job) {
 async function removeJob(id) {
     if (!confirm('Удалить задачу из очереди?')) return;
     try {
-        const res = await fetch(`/scans/api/scan-queue/${id}`, {method: 'DELETE'});
+        const res = await fetch(`/api/scan-queue/${id}`, {method: 'DELETE'});
         const data = await res.json();
         alert(data.message);
         loadJobs();
@@ -443,7 +443,7 @@ async function removeJob(id) {
 async function stopJob(id) {
     if (!confirm('Остановить выполнение задачи?')) return;
     try {
-        const res = await fetch(`/scans/api/scan-job/${id}/stop`, {method: 'POST'});
+        const res = await fetch(`/api/scan-job/${id}/stop`, {method: 'POST'});
         const data = await res.json();
         alert(data.message);
         loadJobs();
@@ -459,7 +459,7 @@ async function stopJob(id) {
 async function retryJob(id) {
     if (!confirm('Повторить задачу?')) return;
     try {
-        const res = await fetch(`/scans/api/scan-job/${id}/retry`, {method: 'POST'});
+        const res = await fetch(`/api/scan-job/${id}/retry`, {method: 'POST'});
         const data = await res.json();
         alert(data.message);
         loadJobs();
@@ -481,7 +481,7 @@ window.deleteJob = deleteJob;
 async function deleteJob(id) {
     if (!confirm('Удалить задачу из истории?')) return;
     try {
-        const res = await fetch(`/scans/api/scan-job/${id}`, {method: 'DELETE'});
+        const res = await fetch(`/api/scan-job/${id}`, {method: 'DELETE'});
         const data = await res.json();
         alert(data.message);
         loadJobs();
@@ -516,7 +516,7 @@ async function handleXmlImport() {
     btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Импорт...';
 
     try {
-        const response = await fetch('/scans/api/scans/import-xml', {
+        const response = await fetch('/api/scans/import-xml', {
             method: 'POST',
             body: formData
         });

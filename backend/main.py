@@ -20,6 +20,8 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from backend.db.session import engine
 from backend.routes import scans
+from backend.db.base import Base  # Импорт для доступа ко всем моделям
+from sqlalchemy import create_engine
 
 # Настройка логирования
 logging.basicConfig(
@@ -33,15 +35,31 @@ async def lifespan(app: FastAPI):
     """
     Управление жизненным циклом приложения.
     """
-    # Инициализация соединения с БД (если требуется)
+    # Проверка и инициализация базы данных при старте
+    try:
+        # Преобразуем async URL в sync для создания таблиц
+        db_url = settings.DATABASE_URL.replace("+asyncpg", "").replace("+aiosqlite", "")
+        sync_engine = create_engine(
+            db_url,
+            echo=settings.DEBUG,
+            connect_args={"check_same_thread": False} if "sqlite" in db_url else {}
+        )
+        
+        # Создаем все таблицы, если их нет
+        Base.metadata.create_all(bind=sync_engine)
+        logger.info("✅ База данных проверена и инициализирована.")
+    except Exception as e:
+        logger.error(f"❌ Ошибка инициализации БД: {e}")
+        raise
+    
+    # Проверка подключения
     try:
         async with engine.begin() as conn:
-            # Здесь можно добавить логику проверки подключения
             pass
         logger.info("✅ Подключение к базе данных установлено.")
     except Exception as e:
         logger.error(f"Ошибка подключения к БД: {e}")
-        # Не блокируем старт, если БД еще не готова (retry logic может быть в драйвере)
+        raise
     
     logger.info("🚀 Приложение успешно запущено.")
     yield

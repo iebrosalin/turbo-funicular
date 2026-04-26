@@ -93,3 +93,15 @@ async def delete_bulk_assets(asset_ids: List[int], db: AsyncSession = Depends(ge
     deleted_count = await service.delete_batch(asset_ids)
     if deleted_count == 0:
         raise HTTPException(status_code=404, detail="Активы не найдены")
+
+
+@router.post("/bulk-move", status_code=status.HTTP_200_OK)
+async def bulk_move_assets(
+    asset_ids: List[int],
+    group_id: Optional[int],
+    db: AsyncSession = Depends(get_db)
+):
+    """Переместить несколько активов в другую группу."""
+    service = AssetService(db)
+    moved_count = await service.move_to_group_batch(asset_ids, group_id)
+    return {"message": f"Перемещено активов: {moved_count}", "count": moved_count}

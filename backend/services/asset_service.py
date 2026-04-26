@@ -102,3 +102,35 @@ class AssetService:
         result = await self.db.execute(query)
         await self.db.flush()
         return result.rowcount
+    
+    async def move_to_group_batch(self, asset_ids: List[int], group_id: Optional[int]) -> int:
+        """Переместить несколько активов в другую группу."""
+        if not asset_ids:
+            return 0
+        
+        # Получаем все активы
+        query = select(Asset).options(selectinload(Asset.groups)).where(Asset.id.in_(asset_ids))
+        result = await self.db.execute(query)
+        assets = list(result.scalars().unique().all())
+        
+        if not assets:
+            return 0
+        
+        # Если указана группа, проверяем её существование
+        group = None
+        if group_id is not None:
+            group_query = select(Group).where(Group.id == group_id)
+            group_result = await self.db.execute(group_query)
+            group = group_result.scalar_one_or_none()
+            if not group:
+                from fastapi import HTTPException
+                raise HTTPException(status_code=404, detail=f"Группа с ID {group_id} не найдена")
+        
+        # Обновляем связи для каждого актива
+        for asset in assets:
+            asset.groups.clear()
+            if group:
+                asset.groups.append(group)
+        
+        await self.db.flush()
+        return len(assets)
