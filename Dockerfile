@@ -45,7 +45,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Установка браузеров для Playwright
-RUN playwright install chromium --with-deps || true
+RUN playwright install chromium --with-deps
+RUN playwright install-deps chromium
 
 # Создание директории для базы данных (если используется SQLite)
 RUN mkdir -p /app/instance
