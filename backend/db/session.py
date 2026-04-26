@@ -35,6 +35,11 @@ sync_session_maker = sessionmaker(bind=sync_engine)
 db = scoped_session(sync_session_maker)
 
 
+def get_sync_session():
+    """Контекстный менеджер для получения синхронной сессии БД."""
+    return sync_session_maker()
+
+
 class Base(DeclarativeBase):
     """Базовый класс для моделей."""
     pass

@@ -9,6 +9,10 @@ from typing import Dict, Optional, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from backend.scanners.nmap_scanner import NmapScanner
+from backend.scanners.rustscan_scanner import RustscanScanner
+from backend.scanners.dig_scanner import DigScanner
+
 logger = logging.getLogger(__name__)
 
 
@@ -94,7 +98,19 @@ class ScanQueueManager:
             
             logger.info(f"Начало сканирования {scan_job_id}: {scan_type} для {len(targets)} целей")
             
-            # Имитация выполнения (в реальности здесь вызов scanner)
+            # Выбираем сканер
+            scanner = None
+            if scan_type == 'nmap':
+                scanner = NmapScanner()
+            elif scan_type == 'rustscan':
+                scanner = RustscanScanner()
+            elif scan_type == 'dig':
+                scanner = DigScanner()
+            
+            if not scanner:
+                raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
+            
+            # Выполняем сканирование для каждой цели
             for idx, target in enumerate(targets):
                 if not self._running or scan_job_id not in self._tasks:
                     logger.warning(f"Сканирование {scan_job_id} прервано")
@@ -103,22 +119,27 @@ class ScanQueueManager:
                 # Обновление прогресса
                 self._progress[scan_job_id]["current"] = idx + 1
                 
-                # Здесь должна быть логика вызова сканера
-                # result = await run_scanner(scan_type, target, parameters)
+                try:
+                    # Вызов реального сканера
+                    result_data = await scanner.scan(db, target, parameters)
+                    
+                    # Сохранение результата
+                    result = ScanResult(
+                        scan_job_id=scan_job_id,
+                        asset_ip=target,
+                        hostname=result_data.get('hostname'),
+                        ports=result_data.get('ports', []),
+                        raw_output=str(result_data),
+                        scanned_at=get_moscow_time()
+                    )
+                    db.add(result)
+                    await db.commit()
+                    
+                except Exception as scan_error:
+                    logger.error(f"Ошибка сканирования {target}: {scan_error}")
+                    # Продолжаем сканирование остальных целей
                 
-                # Сохранение результата (заглушка)
-                result = ScanResult(
-                    scan_job_id=scan_job_id,
-                    asset_ip=target,
-                    hostname=None,
-                    ports=[],
-                    raw_output=f"Scan result for {target}",
-                    scanned_at=get_moscow_time()
-                )
-                db.add(result)
-                await db.commit()
-                
-                # Небольшая задержка для имитации работы
+                # Небольшая задержка между сканированиями
                 await asyncio.sleep(0.1)
             
             # Завершение задачи
