@@ -38,14 +38,20 @@ services:
     environment:
       - BASE_URL=http://web:8000
       - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/network_inventory.db}
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
     volumes:
       - ./backend:/app/backend
       - ./frontend:/app/frontend
       - ./tests:/app/tests
+      - playwright-cache:/ms-playwright
     working_dir: /app
     command: pytest tests/ -v
     profiles:
       - test
+    # Настройки для поддержки браузеров Playwright
+    cap_add:
+      - SYS_ADMIN
+    shm_size: '2gb'
 
   # Сервис для запуска только UI тестов с Playwright
   test-ui:
@@ -56,15 +62,20 @@ services:
     environment:
       - BASE_URL=http://web:8000
       - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/network_inventory.db}
+      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
     volumes:
       - ./backend:/app/backend
       - ./frontend:/app/frontend
       - ./tests:/app/tests
+      - playwright-cache:/ms-playwright
     working_dir: /app
     command: pytest tests/test_ui.py -v -m ui
     profiles:
       - test
       - test-ui-only
+    cap_add:
+      - SYS_ADMIN
+    shm_size: '2gb'
 
   # Сервис для запуска только API тестов
   test-api:
@@ -84,4 +95,6 @@ services:
 
 volumes:
   app_data:
+    driver: local
+  playwright-cache:
     driver: local
