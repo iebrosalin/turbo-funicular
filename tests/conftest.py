@@ -220,3 +220,18 @@ async def asset_in_group(db_session: AsyncSession):
     await db_session.refresh(asset, attribute_names=['groups'])
     
     return asset
+
+
+@pytest.fixture
+async def test_scan(db_session: AsyncSession):
+    """Create a test scan in the database and return it."""
+    scan = Scan(
+        name="Test Scan",
+        target="192.168.1.0/24",
+        scan_type="nmap",
+        status="pending"
+    )
+    db_session.add(scan)
+    await db_session.commit()
+    await db_session.refresh(scan)
+    return scan
