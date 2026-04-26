@@ -50,10 +50,14 @@ class AssetService:
             group = group_result.scalar_one_or_none()
             if group:
                 asset.groups.append(group)
+            else:
+                # Группа не найдена - выбрасываем ошибку
+                from fastapi import HTTPException
+                raise HTTPException(status_code=400, detail=f"Группа с ID {group_id} не найдена")
         
         self.db.add(asset)
         await self.db.flush()
-        await self.db.refresh(asset)
+        await self.db.refresh(asset, attribute_names=['groups'])  # Явно обновляем связь groups
         return asset
     
     async def update(self, asset_id: int, asset_data: AssetUpdate) -> Optional[Asset]:

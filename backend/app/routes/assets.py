@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from typing import List, Optional
 from app.db.session import get_db
 from app.services.asset_service import AssetService
 from app.schemas.asset import AssetCreate, AssetUpdate, AssetResponse
+from app.models.asset import Asset
 
 router = APIRouter(tags=["assets"])
 assets_router = router  # Алиас для совместимости импортов
@@ -42,7 +44,24 @@ async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=400, detail="Актив с таким IP уже существует")
     
     asset = await service.create(asset_data)
-    return asset
+    
+    # Создаем ответ вручную, чтобы корректно установить group_id
+    from app.schemas.asset import AssetResponse
+    group_id = None
+    if asset.groups and len(asset.groups) > 0:
+        group_id = asset.groups[0].id
+    
+    return AssetResponse(
+        id=asset.id,
+        ip_address=asset.ip_address,
+        hostname=asset.hostname,
+        os_family=asset.os_family,
+        status=asset.status,
+        location=asset.location,
+        group_id=group_id,
+        created_at=asset.created_at,
+        updated_at=asset.updated_at
+    )
 
 
 @router.put("/{asset_id}", response_model=AssetResponse)
@@ -52,6 +71,9 @@ async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession 
     asset = await service.update(asset_id, asset_data)
     if not asset:
         raise HTTPException(status_code=404, detail="Актив не найден")
+    
+    # Явно загружаем связи для ответа
+    await db.refresh(asset, attribute_names=['groups'])
     return asset
 
 

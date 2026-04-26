@@ -149,7 +149,7 @@ def test_scan_data():
 # --- Fixtures for Integration Tests ---
 
 @pytest.fixture
-async def create_test_asset(db_session: AsyncSession):
+async def test_asset(db_session: AsyncSession):
     """Create a test asset in the database and return it."""
     asset = Asset(
         ip_address="192.168.1.50",
@@ -164,7 +164,7 @@ async def create_test_asset(db_session: AsyncSession):
 
 
 @pytest.fixture
-async def create_test_group(db_session: AsyncSession):
+async def test_group(db_session: AsyncSession):
     """Create a test group in the database and return it."""
     group = Group(
         name="Integration Test Group",

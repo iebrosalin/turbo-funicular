@@ -27,9 +27,15 @@ class AssetUpdate(BaseModel):
     location: Optional[str] = None
 
 
-class AssetResponse(AssetBase):
+class AssetResponse(BaseModel):
     """Схема ответа актива."""
     id: int
+    ip_address: str
+    hostname: Optional[str] = None
+    os_family: Optional[str] = None
+    status: Optional[str] = "active"
+    location: Optional[str] = None
+    group_id: Optional[int] = None  # Возвращаем ID первой группы для совместимости
     created_at: datetime
     updated_at: Optional[datetime] = None
     
