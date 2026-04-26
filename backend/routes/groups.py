@@ -40,10 +40,10 @@ async def get_groups(
     return groups
 
 
-@router.get("/tree", response_model=List[Dict])
+@router.get("/tree")
 async def get_group_tree(db: AsyncSession = Depends(get_db)):
     """Получить дерево групп с подсчётом активов."""
-    from backend.models.asset import asset_groups
+    from backend.models.asset import asset_groups, Asset
     
     # Получаем все группы
     query = select(AssetGroup).order_by(AssetGroup.name)
@@ -57,9 +57,24 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
         )
         count_result = await db.execute(count_query)
         group.assets_count = count_result.scalar() or 0
+        # Добавляем direct_count для корректного подсчёта без дублирования
+        group.direct_count = group.assets_count
     
     tree = build_group_tree(groups)
-    return tree
+    
+    # Подсчитываем активы без группы
+    ungrouped_count_query = select(func.count(Asset.id)).where(
+        ~Asset.groups.any()
+    )
+    ungrouped_result = await db.execute(ungrouped_count_query)
+    ungrouped_count = ungrouped_result.scalar() or 0
+    
+    # Возвращаем в формате, ожидаемом фронтендом
+    return {
+        "tree": tree,
+        "flat": groups,
+        "ungrouped_count": ungrouped_count
+    }
 
 
 @router.get("/{group_id}", response_model=GroupResponse)

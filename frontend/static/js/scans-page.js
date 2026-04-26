@@ -183,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const response = await fetch('/api/groups/tree');
                 if (response.ok) {
                     const data = await response.json();
-                    const flatGroups = data.flat || [];
+                    const flatGroups = Array.isArray(data?.flat) ? data.flat : [];
                     
                     flatGroups.forEach(g => {
                         const option = document.createElement('option');
@@ -255,7 +255,7 @@ async function loadGroups() {
         const response = await fetch('/api/groups/tree');
         if (response.ok) {
             const data = await response.json();
-            const flatGroups = data.flat || [];
+            const flatGroups = Array.isArray(data?.flat) ? data.flat : [];
             const select = document.getElementById('nmap-groups');
             if (select) {
                 select.innerHTML = '';
@@ -297,30 +297,34 @@ async function updateQueueStatus() {
         const data = await response.json();
         
         // Обновление очереди Nmap/Rustscan
-        const nmapQ = data.queues.nmap_rustscan;
+        const nmapQ = data?.queues?.nmap_rustscan;
         if (nmapQ) {
             document.getElementById('nmap-queue-count').textContent = nmapQ.queue_length;
             document.getElementById('nmap-current-job').textContent = nmapQ.current_job_id ? `#${nmapQ.current_job_id}` : 'Нет';
             document.getElementById('nmap-queue-status').textContent = nmapQ.is_running ? 'Выполняется' : 'Ожидание';
             
             let nmapListHtml = '';
-            nmapQ.queued_jobs.forEach(job => {
-                nmapListHtml += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`;
-            });
+            if (Array.isArray(nmapQ.queued_jobs)) {
+                nmapQ.queued_jobs.forEach(job => {
+                    nmapListHtml += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`;
+                });
+            }
             document.getElementById('nmap-queue-list').innerHTML = nmapListHtml;
         }
 
         // Обновление очереди утилит
-        const utilQ = data.queues.utilities;
+        const utilQ = data?.queues?.utilities;
         if (utilQ) {
             document.getElementById('utility-queue-count').textContent = utilQ.queue_length;
             document.getElementById('utility-current-job').textContent = utilQ.current_job_id ? `#${utilQ.current_job_id}` : 'Нет';
             document.getElementById('utility-queue-status').textContent = utilQ.is_running ? 'Выполняется' : 'Ожидание';
             
             let utilListHtml = '';
-            utilQ.queued_jobs.forEach(job => {
-                utilListHtml += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`;
-            });
+            if (Array.isArray(utilQ.queued_jobs)) {
+                utilQ.queued_jobs.forEach(job => {
+                    utilListHtml += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`;
+                });
+            }
             document.getElementById('utility-queue-list').innerHTML = utilListHtml;
         }
 
@@ -342,7 +346,8 @@ async function loadJobs() {
         
         tbody.innerHTML = '';
 
-        data.recent_jobs.forEach(job => {
+        const recentJobs = Array.isArray(data?.recent_jobs) ? data.recent_jobs : [];
+        recentJobs.forEach(job => {
             const tr = document.createElement('tr');
             
             let statusClass = 'bg-secondary';

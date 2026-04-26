@@ -14,12 +14,78 @@ scans_router = router  # Алиас для совместимости импор
 # Специфичные маршруты (должны быть перед параметризированными!)
 # ==========================================
 
-@router.get("/status", response_model=List[ScanResponse])
-async def get_active_scans_status(db: AsyncSession = Depends(get_db)):
-    """Получить статус активных сканирований (алиас для /active)."""
-    service = ScanService(db)
-    scans = await service.get_active()
-    return scans
+@router.get("/status")
+async def get_scans_status(db: AsyncSession = Depends(get_db)):
+    """Получить статус очередей сканирований и историю заданий."""
+    from backend.models.scan import ScanJob, Scan
+    from sqlalchemy.orm import selectinload
+    
+    # Получаем все задачи сканирования
+    jobs_query = select(ScanJob).options(
+        selectinload(ScanJob.scan)
+    ).order_by(ScanJob.created_at.desc()).limit(50)
+    
+    jobs_result = await db.execute(jobs_query)
+    jobs = list(jobs_result.scalars().all())
+    
+    # Формируем очереди
+    nmap_rustscan_queue = []
+    utilities_queue = []
+    
+    for job in jobs:
+        job_info = {
+            "job_id": job.id,
+            "scan_type": job.job_type,
+            "target": job.scan.target if job.scan else "Unknown",
+            "status": job.status
+        }
+        
+        if job.job_type in ['nmap', 'rustscan']:
+            nmap_rustscan_queue.append(job_info)
+        else:
+            utilities_queue.append(job_info)
+    
+    # Фильтруем активные задачи для очередей
+    active_nmap = [j for j in nmap_rustscan_queue if j['status'] in ['pending', 'running', 'queued']]
+    active_utilities = [j for j in utilities_queue if j['status'] in ['pending', 'running', 'queued']]
+    
+    # Текущая задача (первая running)
+    current_nmap = next((j for j in active_nmap if j['status'] == 'running'), None)
+    current_utility = next((j for j in active_utilities if j['status'] == 'running'), None)
+    
+    # Очередь задач (без running)
+    queued_nmap = [j for j in active_nmap if j['status'] != 'running']
+    queued_utilities = [j for j in active_utilities if j['status'] != 'running']
+    
+    # Формируем recent_jobs (последние 20 задач)
+    recent_jobs = []
+    for job in jobs[:20]:
+        recent_jobs.append({
+            "id": job.id,
+            "scan_type": job.job_type,
+            "target": job.scan.target if job.scan else "Unknown",
+            "status": job.status,
+            "progress": getattr(job.scan, 'progress', 0) if job.scan else 0,
+            "created_at": job.created_at.isoformat() if job.created_at else None
+        })
+    
+    return {
+        "queues": {
+            "nmap_rustscan": {
+                "queue_length": len(queued_nmap),
+                "current_job_id": current_nmap["job_id"] if current_nmap else None,
+                "is_running": current_nmap is not None,
+                "queued_jobs": queued_nmap
+            },
+            "utilities": {
+                "queue_length": len(queued_utilities),
+                "current_job_id": current_utility["job_id"] if current_utility else None,
+                "is_running": current_utility is not None,
+                "queued_jobs": queued_utilities
+            }
+        },
+        "recent_jobs": recent_jobs
+    }
 
 
 @router.get("/active", response_model=List[ScanResponse])
@@ -94,13 +160,16 @@ async def run_rustscan(
 
 @router.post("/dig")
 async def run_dig_scan(
-    target: str,
-    background_tasks: BackgroundTasks,
+    targets_text: str,
+    dns_server: Optional[str] = None,
+    cli_args: Optional[str] = None,
+    record_types: Optional[List[str]] = None,
+    background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Запустить DNS сканирование (dig)."""
     # Заглушка для реального сканирования
-    return {"message": f"DNS сканирование запущено для {target}", "status": "queued"}
+    return {"message": f"DNS сканирование запущено", "status": "queued"}
 
 
 # ==========================================
