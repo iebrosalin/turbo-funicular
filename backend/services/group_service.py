@@ -14,7 +14,7 @@ class GroupService:
     
     async def get_all(self) -> List[Group]:
         """Получить все группы с иерархией."""
-        query = select(Group).options(selectinload(Group.children), selectinload(Group.parent))
+        query = select(Group).options(selectinload(Group.parent))
         result = await self.db.execute(query)
         return list(result.scalars().all())
     
