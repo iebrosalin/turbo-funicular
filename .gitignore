@@ -44,3 +44,4 @@ Thumbs.db
 .env.local
 .env.*
 */__pycache__/*
+backend/__pycache__/*
