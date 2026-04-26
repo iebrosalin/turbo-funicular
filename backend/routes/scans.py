@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File, Body
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from backend.db.session import get_db
 from backend.services.scan_service import ScanService
 from backend.schemas.scan import ScanCreate, ScanUpdate, ScanResponse
@@ -14,12 +14,31 @@ scans_router = router  # Алиас для совместимости импор
 # Специфичные маршруты (должны быть перед параметризированными!)
 # ==========================================
 
-@router.get("/status", response_model=List[ScanResponse])
+@router.get("/status")
 async def get_active_scans_status(db: AsyncSession = Depends(get_db)):
-    """Получить статус активных сканирований (алиас для /active)."""
+    """Получить статус активных сканирований и очередей."""
     service = ScanService(db)
     scans = await service.get_active()
-    return scans
+    
+    # Возвращаем структуру, ожидаемую фронтендом
+    return {
+        "queues": {
+            "nmap_rustscan": {
+                "queue_length": 0,
+                "current_job_id": None,
+                "is_running": False,
+                "queued_jobs": []
+            },
+            "utilities": {
+                "queue_length": 0,
+                "current_job_id": None,
+                "is_running": False,
+                "queued_jobs": []
+            }
+        },
+        "recent_jobs": [],
+        "active_scans": scans
+    }
 
 
 @router.get("/active", response_model=List[ScanResponse])
@@ -94,12 +113,13 @@ async def run_rustscan(
 
 @router.post("/dig")
 async def run_dig_scan(
-    target: str,
-    background_tasks: BackgroundTasks,
+    request_data: Dict[str, Any] = Body(...),
+    background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Запустить DNS сканирование (dig)."""
     # Заглушка для реального сканирования
+    target = request_data.get("targets_text", "unknown")
     return {"message": f"DNS сканирование запущено для {target}", "status": "queued"}
 
 
