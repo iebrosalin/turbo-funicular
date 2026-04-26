@@ -32,7 +32,7 @@ class TestAssetService:
         assert result.ip_address == test_asset_data["ip_address"]
         assert result.hostname == test_asset_data["hostname"]
         async_session_mock.add.assert_called_once()
-        async_session_mock.commit.assert_called_once()
+        async_session_mock.flush.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_asset_by_id_exists(self, async_session_mock, test_asset_instance):
@@ -150,7 +150,7 @@ class TestAssetService:
         service = AssetService(async_session_mock)
         
         # Mock DB error
-        async_session_mock.add = AsyncMock(side_effect=SQLAlchemyError("DB Error"))
+        async_session_mock.flush = AsyncMock(side_effect=SQLAlchemyError("DB Error"))
         
         asset_data = AssetCreate(**test_asset_data)
         
