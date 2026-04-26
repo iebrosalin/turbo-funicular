@@ -73,11 +73,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Установка браузеров для Playwright
-# Используем --no-deps, так как зависимости уже установлены выше
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-
-RUN playwright install chromium
-RUN playwright install-deps chromium || true
+RUN playwright install chromium --with-deps
 
 # Создание директории для базы данных (если используется SQLite)
 RUN mkdir -p /app/instance
