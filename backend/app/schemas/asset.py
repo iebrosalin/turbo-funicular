@@ -7,11 +7,10 @@ class AssetBase(BaseModel):
     """Базовая схема актива."""
     ip_address: str = Field(..., description="IP адрес")
     hostname: Optional[str] = Field(None, description="Имя хоста")
-    mac_address: Optional[str] = Field(None, description="MAC адрес")
-    os_info: Optional[str] = Field(None, description="Информация об ОС")
+    os_family: Optional[str] = Field(None, description="Семейство ОС")
     group_id: Optional[int] = Field(None, description="ID группы")
     status: Optional[str] = Field("active", description="Статус")
-    notes: Optional[str] = Field(None, description="Заметки")
+    location: Optional[str] = Field(None, description="Расположение")
 
 
 class AssetCreate(AssetBase):
@@ -22,17 +21,15 @@ class AssetCreate(AssetBase):
 class AssetUpdate(BaseModel):
     """Схема для обновления актива."""
     hostname: Optional[str] = None
-    mac_address: Optional[str] = None
-    os_info: Optional[str] = None
+    os_family: Optional[str] = None
     group_id: Optional[int] = None
     status: Optional[str] = None
-    notes: Optional[str] = None
+    location: Optional[str] = None
 
 
 class AssetResponse(AssetBase):
     """Схема ответа актива."""
     id: int
-    last_seen: datetime
     created_at: datetime
     updated_at: Optional[datetime] = None
     

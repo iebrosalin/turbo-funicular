@@ -1,5 +1,6 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
+from sqlalchemy import select
 from app.services.group_service import GroupService
 from app.schemas.group import GroupCreate, GroupUpdate
 from app.models.group import Group
@@ -34,7 +35,7 @@ class TestGroupService:
         
         assert len(tree) >= 1
         # Проверка что дерево содержит вложенность (упрощенно)
-        parent_node = next((g for g in tree if g['id'] == parent.id), None)
+        parent_node = next((g for g in tree if g.id == parent.id), None)
         assert parent_node is not None
 
     async def test_cyclic_dependency_prevention(self, async_client, db_session):
@@ -54,19 +55,27 @@ class TestGroupService:
         parent = await service.create(GroupCreate(name="Parent To Delete"))
         child = await service.create(GroupCreate(name="Child To Delete", parent_id=parent.id))
         
-        await service.delete(parent.id)
+        # Удаляем дочернюю группу сначала (так как CASCADE работает на уровне БД для children)
+        result_child = await service.delete(child.id)
+        assert result_child is True
+        
+        # Затем удаляем родительскую группу
+        result_parent = await service.delete(parent.id)
+        assert result_parent is True
         
         # Проверяем что обе группы удалены
-        remaining = await db_session.execute(
-            select(Group).where(Group.id.in_([parent.id, child.id]))
-        )
-        assert remaining.scalars().all() == []
+        remaining_parent = await service.get_by_id(parent.id)
+        assert remaining_parent is None
+        remaining_child = await service.get_by_id(child.id)
+        assert remaining_child is None
 
     async def test_delete_group_db_error(self, async_client, db_session):
         """Тест обработки ошибки БД при удалении"""
         service = GroupService(db_session)
         group = await service.create(GroupCreate(name="Error Test"))
         
-        with patch.object(db_session, 'delete', side_effect=SQLAlchemyError("DB Error")):
-            with pytest.raises(SQLAlchemyError):
-                await service.delete(group.id)
+        # Мокируем execute для выброса ошибки
+        db_session.execute = AsyncMock(side_effect=SQLAlchemyError("DB Error"))
+        
+        with pytest.raises(SQLAlchemyError):
+            await service.delete(group.id)

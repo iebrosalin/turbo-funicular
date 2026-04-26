@@ -60,6 +60,11 @@ class GroupService:
             return None
         
         update_data = group_data.model_dump(exclude_unset=True)
+        
+        # Проверка на циклическую ссылку
+        if 'parent_id' in update_data and update_data['parent_id'] == group_id:
+            raise ValueError("Группа не может быть родителем самой себя")
+        
         for field, value in update_data.items():
             setattr(group, field, value)
         

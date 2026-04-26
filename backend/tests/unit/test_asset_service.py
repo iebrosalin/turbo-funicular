@@ -39,15 +39,16 @@ class TestAssetService:
         """Test getting an existing asset by ID."""
         service = AssetService(async_session_mock)
         
-        # Mock query result
-        async_session_mock.get = AsyncMock(return_value=test_asset_instance)
+        # Mock query result with scalar_one_or_none
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = test_asset_instance
+        async_session_mock.execute = AsyncMock(return_value=mock_result)
         
         result = await service.get_by_id(1)
         
         assert result is not None
         assert result.id == 1
         assert result.ip_address == "192.168.1.10"
-        async_session_mock.get.assert_called_once_with(Asset, 1)
 
     @pytest.mark.asyncio
     async def test_get_asset_by_id_not_found(self, async_session_mock):
@@ -55,7 +56,9 @@ class TestAssetService:
         service = AssetService(async_session_mock)
         
         # Mock None result
-        async_session_mock.get = AsyncMock(return_value=None)
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        async_session_mock.execute = AsyncMock(return_value=mock_result)
         
         result = await service.get_by_id(999)
         
@@ -66,9 +69,11 @@ class TestAssetService:
         """Test successful asset update."""
         service = AssetService(async_session_mock)
         
-        # Mock existing asset retrieval
-        async_session_mock.get = AsyncMock(return_value=test_asset_instance)
-        async_session_mock.commit = AsyncMock()
+        # Mock existing asset retrieval via get_by_id
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.side_effect = [test_asset_instance, None]  # First call returns asset, second (group lookup) returns None
+        async_session_mock.execute = AsyncMock(return_value=mock_result)
+        async_session_mock.flush = AsyncMock()
         async_session_mock.refresh = AsyncMock()
         
         update_data = AssetUpdate(hostname="new-hostname")
@@ -76,14 +81,16 @@ class TestAssetService:
         
         assert result is not None
         assert result.hostname == "new-hostname"
-        async_session_mock.commit.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_update_asset_not_found(self, async_session_mock):
         """Test updating a non-existent asset."""
         service = AssetService(async_session_mock)
         
-        async_session_mock.get = AsyncMock(return_value=None)
+        # Mock None result for get_by_id
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = None
+        async_session_mock.execute = AsyncMock(return_value=mock_result)
         
         update_data = AssetUpdate(hostname="new-hostname")
         result = await service.update(999, update_data)
@@ -95,23 +102,26 @@ class TestAssetService:
         """Test successful asset deletion."""
         service = AssetService(async_session_mock)
         
-        # Mock retrieval and delete
-        async_session_mock.get = AsyncMock(return_value=test_asset_instance)
-        async_session_mock.delete = AsyncMock()
-        async_session_mock.commit = AsyncMock()
+        # Mock delete result
+        mock_result = MagicMock()
+        mock_result.rowcount = 1
+        async_session_mock.execute = AsyncMock(return_value=mock_result)
+        async_session_mock.flush = AsyncMock()
         
         result = await service.delete(1)
         
         assert result is True
-        async_session_mock.delete.assert_called_once_with(test_asset_instance)
-        async_session_mock.commit.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_delete_asset_not_found(self, async_session_mock):
         """Test deleting a non-existent asset."""
         service = AssetService(async_session_mock)
         
-        async_session_mock.get = AsyncMock(return_value=None)
+        # Mock delete result with 0 rows
+        mock_result = MagicMock()
+        mock_result.rowcount = 0
+        async_session_mock.execute = AsyncMock(return_value=mock_result)
+        async_session_mock.flush = AsyncMock()
         
         result = await service.delete(999)
         
@@ -119,19 +129,20 @@ class TestAssetService:
 
     @pytest.mark.asyncio
     async def test_filter_assets_by_search(self, async_session_mock, test_asset_instance):
-        """Test filtering assets by search term."""
+        """Test filtering assets by search term using get_all."""
         service = AssetService(async_session_mock)
         
         # Mock execute and scalars
         mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [test_asset_instance]
+        mock_scalars = MagicMock()
+        mock_scalars.unique.return_value.all.return_value = [test_asset_instance]
+        mock_result.scalars.return_value = mock_scalars
         async_session_mock.execute = AsyncMock(return_value=mock_result)
         
-        results = await service.filter(search_term="192.168")
+        results = await service.get_all(search="192.168")
         
         assert len(results) == 1
         assert results[0].ip_address == "192.168.1.10"
-        async_session_mock.execute.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_db_error_handling(self, async_session_mock, test_asset_data):
