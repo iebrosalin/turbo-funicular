@@ -77,6 +77,9 @@ RUN apt-get update && apt-get install -y \
 RUN playwright install chromium
 RUN playwright install-deps chromium || true
 
+# Установка переменной окружения для Playwright
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
 # Создание директории для базы данных (если используется SQLite)
 RUN mkdir -p /app/instance
 
