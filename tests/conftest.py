@@ -177,16 +177,30 @@ async def test_group(db_session: AsyncSession):
 
 
 @pytest.fixture
+async def test_scan(db_session: AsyncSession):
+    """Create a test scan in the database and return it."""
+    scan = Scan(
+        name="Test Scan",
+        target="192.168.1.0/24",
+        scan_type="nmap",
+        status="pending"
+    )
+    db_session.add(scan)
+    await db_session.commit()
+    await db_session.refresh(scan)
+    return scan
+
+
+@pytest.fixture
 async def test_group_hierarchy(db_session: AsyncSession):
     """Create a hierarchy of groups: Parent -> Child."""
     parent = Group(name="Parent Group", description="Parent")
-    child = Group(name="Child Group", description="Child", parent_id=None)  # Will set parent_id after parent is saved
     
     db_session.add(parent)
     await db_session.commit()
     await db_session.refresh(parent)
     
-    child.parent_id = parent.id
+    child = Group(name="Child Group", description="Child", parent_id=parent.id)
     db_session.add(child)
     await db_session.commit()
     await db_session.refresh(child)
@@ -196,7 +210,7 @@ async def test_group_hierarchy(db_session: AsyncSession):
 
 @pytest.fixture
 async def asset_in_group(db_session: AsyncSession):
-    """Create an asset assigned to a group."""
+    """Create an asset assigned to a group using many-to-many relationship."""
     group = Group(name="Asset Test Group", description="Group with assets")
     db_session.add(group)
     await db_session.commit()
@@ -206,9 +220,9 @@ async def asset_in_group(db_session: AsyncSession):
         ip_address="192.168.1.100",
         hostname="asset-in-group",
         os_family="Linux",
-        status="active",
-        group_id=group.id
+        status="active"
     )
+    asset.groups.append(group)
     db_session.add(asset)
     await db_session.commit()
     await db_session.refresh(asset)

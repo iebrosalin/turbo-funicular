@@ -31,6 +31,7 @@ class GroupResponse(GroupBase):
     id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
+    assets_count: int = 0
     children: List['GroupResponse'] = []
     
     class Config:

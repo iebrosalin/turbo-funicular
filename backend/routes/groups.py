@@ -4,6 +4,7 @@ from sqlalchemy import select, func, or_
 from typing import List, Optional, Dict, Any
 from backend.db.session import get_db
 from backend.models.group import Group as AssetGroup
+from backend.models.asset import asset_groups
 from backend.schemas.group import GroupCreate, GroupUpdate, GroupResponse
 from backend.services.group_service import GroupService
 from backend.utils import build_group_tree, build_complex_query, log_asset_change, get_moscow_time
@@ -43,9 +44,9 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     result = await db.execute(query)
     groups = list(result.scalars().all())
     
-    # Подсчитываем активы для каждой группы
+    # Подсчитываем активы для каждой группы через many-to-many связь
     for group in groups:
-        count_query = select(func.count()).select_from(Asset).where(Asset.group_id == group.id)
+        count_query = select(func.count()).select_from(asset_groups).where(asset_groups.c.group_id == group.id)
         count_result = await db.execute(count_query)
         group.assets_count = count_result.scalar()
     
@@ -95,7 +96,19 @@ async def create_group(
     if hasattr(group_data, 'filter_rules') and group_data.filter_rules:
         await service.update_dynamic_group_members(group.id, group_data.filter_rules)
     
-    return group
+    # Возвращаем данные группы без ленивой загрузки children
+    return {
+        "id": group.id,
+        "name": group.name,
+        "description": group.description,
+        "parent_id": group.parent_id,
+        "group_type": group.group_type,
+        "rule": group.rule,
+        "created_at": group.created_at,
+        "updated_at": group.updated_at,
+        "assets_count": 0,
+        "children": []
+    }
 
 
 @router.put("/{group_id}", response_model=GroupResponse)

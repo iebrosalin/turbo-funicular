@@ -14,9 +14,9 @@ class TestScansAPI:
     async def test_create_scan(self, async_client: AsyncClient):
         """Test successful scan creation."""
         payload = {
+            "name": "Test Scan",
             "target": "127.0.0.1",
-            "scan_type": "ping",
-            "options": {}
+            "scan_type": "ping"
         }
         response = await async_client.post("/api/scans", json=payload)
         

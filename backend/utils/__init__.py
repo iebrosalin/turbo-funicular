@@ -136,6 +136,10 @@ async def log_asset_change(
     """
     from backend.models.log import AssetChangeLog
     
+    # Логирование только для активов, не для групп
+    if asset is None:
+        return
+    
     change_log = AssetChangeLog(
         asset_id=asset.id,
         field_name=field_name,

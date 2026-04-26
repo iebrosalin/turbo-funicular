@@ -21,7 +21,8 @@ class Group(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Связи
-    parent = relationship("Group", remote_side=[id], backref="children", lazy="joined")
+    parent = relationship("Group", remote_side=[id], back_populates="children")
+    children = relationship("Group", back_populates="parent")
     # Many-to-many связь с активами через таблицу asset_groups
     assets = relationship("Asset", secondary="asset_groups", back_populates="groups")
     scans = relationship("Scan", back_populates="group", cascade="all, delete-orphan")
