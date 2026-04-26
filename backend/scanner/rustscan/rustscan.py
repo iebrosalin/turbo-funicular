@@ -9,10 +9,13 @@ import re
 import os
 import time
 from datetime import datetime
-from extensions import db
-from models import Asset, ScanJob, ActivityLog, ServiceInventory
-from utils import MOSCOW_TZ
-from utils.scan_queue import scan_queue_manager
+from backend.db.session import db
+from backend.models.asset import Asset
+from backend.models.scan import ScanJob
+from backend.models.log import ActivityLog
+from backend.models.service import ServiceInventory
+from backend.utils import MOSCOW_TZ
+from backend.services.scan_queue_manager import scan_queue_manager
 
 class RustscanScanner:
     """Класс для выполнения сканирования через Rustscan"""

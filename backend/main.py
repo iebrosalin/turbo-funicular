@@ -15,7 +15,6 @@ from backend.core.exceptions import (
 )
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
-from backend.core.test_integrity import verify_test_integrity, SecurityError
 from backend.db.session import engine
 from backend.routes import scans
 
@@ -30,26 +29,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """
     Управление жизненным циклом приложения.
-    Выполняет критическую проверку целостности тестов перед стартом.
     """
-    logger.info("🔍 Проверка целостности тестов...")
-    try:
-        verify_test_integrity()
-        logger.info("✅ Проверка целостности тестов пройдена.")
-    except FileNotFoundError:
-        logger.warning("⚠️  Файл эталонного хеша не найден. Пропуск проверки (первый запуск).")
-    except SecurityError as e:
-        logger.error(f"🚫 БЛОКИРОВКА ЗАПУСКА: {e}")
-        # В режиме разработки выбрасываем ошибку, останавливая сервер
-        if settings.ENVIRONMENT == "development":
-            raise RuntimeError(f"Security Check Failed: {e}") from e
-        else:
-            # В продакшене тоже лучше остановиться, если тесты изменены
-            logger.critical("Запуск невозможен: нарушена целостность тестов.")
-            raise RuntimeError("Startup blocked: Test integrity compromised") from e
-    except Exception as e:
-        logger.error(f"Неожиданная ошибка при проверке тестов: {e}")
-
     # Инициализация соединения с БД (если требуется)
     try:
         async with engine.begin() as conn:

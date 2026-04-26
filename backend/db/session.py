@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, scoped_session, sessionmaker
+from sqlalchemy import create_engine
 from backend.core.config import settings
 
 # Определяем параметры для SQLite
@@ -21,6 +22,17 @@ async_session_maker = async_sessionmaker(
     autocommit=False,
     autoflush=False,
 )
+
+# Синхронная сессия для использования в сканерах
+sync_db_url = settings.DATABASE_URL.replace("+asyncpg", "").replace("+aiosqlite", "")
+sync_engine = create_engine(
+    sync_db_url,
+    echo=settings.DEBUG,
+    pool_pre_ping=True,
+    connect_args={"check_same_thread": False} if "sqlite" in sync_db_url else {},
+)
+sync_session_maker = sessionmaker(bind=sync_engine)
+db = scoped_session(sync_session_maker)
 
 
 class Base(DeclarativeBase):

@@ -8,9 +8,12 @@ import subprocess
 import re
 import os
 from datetime import datetime
-from extensions import db
-from models import Asset, ScanJob, ActivityLog, AssetGroup
-from utils import MOSCOW_TZ
+from backend.db.session import db
+from backend.models.asset import Asset
+from backend.models.scan import ScanJob
+from backend.models.log import ActivityLog
+from backend.models.group import AssetGroup
+from backend.utils import MOSCOW_TZ
 
 class DigScanner:
     """Класс для выполнения DNS-сканирования через dig"""

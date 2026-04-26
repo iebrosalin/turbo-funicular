@@ -10,9 +10,13 @@ import os
 import xml.etree.ElementTree as ET
 import re
 from datetime import datetime
-from extensions import db
-from models import Asset, ServiceInventory, ScanJob, ScanResult, ActivityLog, AssetGroup
-from utils import MOSCOW_TZ
+from backend.db.session import db
+from backend.models.asset import Asset
+from backend.models.service import ServiceInventory
+from backend.models.scan import ScanJob, ScanResult
+from backend.models.log import ActivityLog
+from backend.models.group import AssetGroup
+from backend.utils import MOSCOW_TZ
 
 class NmapScanner:
     """Класс для выполнения сканирования через Nmap"""
