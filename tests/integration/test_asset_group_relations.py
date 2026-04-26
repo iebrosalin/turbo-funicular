@@ -5,6 +5,7 @@
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from app.models.asset import Asset
 from app.models.group import Group
 
@@ -25,10 +26,11 @@ class TestAssetGroupRelations:
         data = response.json()
         assert data["group_id"] == test_group.id
 
-        # Проверка в БД
-        asset = (await db_session.execute(select(Asset).where(Asset.id == data["id"]))).scalars().first()
+        # Проверка в БД - проверяем связь many-to-many через groups
+        asset = (await db_session.execute(select(Asset).options(selectinload(Asset.groups)).where(Asset.id == data["id"]))).scalars().first()
         assert asset is not None
-        assert asset.group_id == test_group.id
+        assert len(asset.groups) > 0
+        assert test_group.id in [g.id for g in asset.groups]
 
     @pytest.mark.asyncio
     async def test_move_asset_to_another_group(self, async_client, db_session, test_group, test_asset):
