@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional, Dict
@@ -161,14 +161,16 @@ async def run_rustscan(
 
 @router.post("/dig")
 async def run_dig_scan(
-    targets_text: str,
-    dns_server: Optional[str] = None,
-    cli_args: Optional[str] = None,
-    record_types: Optional[List[str]] = None,
+    request: dict = Body(...),
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Запустить DNS сканирование (dig)."""
+    targets_text = request.get("targets_text", "")
+    dns_server = request.get("dns_server")
+    cli_args = request.get("cli_args")
+    record_types = request.get("record_types")
+    
     # Заглушка для реального сканирования
     return {"message": f"DNS сканирование запущено", "status": "queued"}
 
