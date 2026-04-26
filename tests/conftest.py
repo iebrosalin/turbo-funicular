@@ -253,6 +253,22 @@ def base_url():
 
 
 @pytest.fixture
+def page(browser):
+    """Создание новой страницы браузера для каждого теста."""
+    page = browser.new_page()
+    yield page
+    page.close()
+
+
+@pytest.fixture
+def browser(playwright):
+    """Запуск браузера Chromium для UI тестов."""
+    browser = playwright.chromium.launch(headless=True)
+    yield browser
+    browser.close()
+
+
+@pytest.fixture
 def authenticated_page(page, base_url: str):
     """
     Авторизация в системе перед тестом.
