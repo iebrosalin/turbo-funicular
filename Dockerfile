@@ -44,9 +44,31 @@ COPY requirements.txt .
 # Установка Python зависимостей
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Установка системных зависимостей для Playwright (Chromium)
+RUN apt-get update && apt-get install -y \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libdbus-1-3 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libatspi2.0-0 \
+    fonts-unifont \
+    libxshmfence1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Установка браузеров для Playwright
-RUN playwright install chromium --with-deps
-RUN playwright install-deps chromium
+# Используем --no-deps, так как зависимости уже установлены выше
+RUN playwright install chromium
+RUN playwright install-deps chromium || true
 
 # Создание директории для базы данных (если используется SQLite)
 RUN mkdir -p /app/instance
