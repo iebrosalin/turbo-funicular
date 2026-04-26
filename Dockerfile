@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxfixes3 \
     libxrandr2 \
     libgbm1 \
-    libasound2t64 \
+    libasound2 \
     libpango-1.0-0 \
     libcairo2 \
     && rm -rf /var/lib/apt/lists/*
@@ -66,7 +66,7 @@ RUN apt-get update && apt-get install -y \
     libxfixes3 \
     libxrandr2 \
     libgbm1 \
-    libasound2t64 \
+    libasound2 \
     libatspi2.0-0 \
     fonts-unifont \
     libxshmfence1 \
@@ -74,7 +74,9 @@ RUN apt-get update && apt-get install -y \
 
 # Установка браузеров для Playwright
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN python3 -m playwright install chromium --with-deps
+RUN python3 -m playwright install chromium && \
+    python3 -m playwright install firefox && \
+    python3 -m playwright install webkit
 
 # Создание директории для базы данных (если используется SQLite)
 RUN mkdir -p /app/instance
