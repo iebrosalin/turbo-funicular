@@ -4,7 +4,8 @@ services:
   web:
     build: .
     container_name: asset_management
-    network_mode: host
+    ports:
+      - "8000:8000"
     restart: unless-stopped
     environment:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
