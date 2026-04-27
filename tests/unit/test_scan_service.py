@@ -191,7 +191,7 @@ class TestScanService:
         
         # Настраиваем мок
         async_session_mock.add = MagicMock()
-        async_session_mock.flush = AsyncMock()
+        async_session_mock.commit = AsyncMock()
         async_session_mock.refresh = AsyncMock()
         
         # Создаём сканирование без указания scan_type, status, progress
@@ -215,6 +215,9 @@ class TestScanService:
         async_session_mock.refresh.side_effect = lambda x: setattr(x, 'created_at', datetime.now())
         
         result = await service.create(scan_data)
+        
+        # Проверяем, что commit был вызван для фиксации изменений в БД
+        async_session_mock.commit.assert_called_once()
         
         # Проверяем значения по умолчанию
         assert result.scan_type == "nmap", "scan_type должен быть 'nmap' по умолчанию"

@@ -141,23 +141,88 @@ async def import_xml_scan(
 @router.post("/nmap")
 async def run_nmap_scan(
     target: str,
-    background_tasks: BackgroundTasks,
+    ports: Optional[str] = None,
+    scripts: Optional[str] = None,
+    custom_args: Optional[str] = None,
+    known_ports_only: bool = False,
+    group_ids: Optional[List[int]] = None,
+    background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Запустить сканирование Nmap."""
-    # Заглушка для реального сканирования
-    return {"message": f"Nmap сканирование запущено для {target}", "status": "queued"}
+    from backend.models.scan import Scan, ScanJob
+    from datetime import datetime, timezone
+    
+    # Создаём запись сканирования
+    new_scan = Scan(
+        name=f"Nmap scan: {target[:50]}",
+        target=target,
+        scan_type="nmap",
+        status="pending",
+        progress=0,
+        created_at=datetime.now(timezone.utc)
+    )
+    
+    db.add(new_scan)
+    await db.commit()
+    await db.refresh(new_scan)
+    
+    # Создаём задачу сканирования
+    new_job = ScanJob(
+        scan_id=new_scan.id,
+        job_type="nmap",
+        status="pending",
+        created_at=datetime.now(timezone.utc)
+    )
+    
+    db.add(new_job)
+    await db.commit()
+    await db.refresh(new_job)
+    
+    return {"message": f"Nmap сканирование запущено для {target}", "status": "queued", "job_id": new_job.id}
 
 
 @router.post("/rustscan")
 async def run_rustscan(
     target: str,
-    background_tasks: BackgroundTasks,
+    ports: Optional[str] = None,
+    custom_args: Optional[str] = None,
+    run_nmap_after: bool = False,
+    nmap_args: Optional[str] = None,
+    background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Запустить сканирование Rustscan."""
-    # Заглушка для реального сканирования
-    return {"message": f"Rustscan запущен для {target}", "status": "queued"}
+    from backend.models.scan import Scan, ScanJob
+    from datetime import datetime, timezone
+    
+    # Создаём запись сканирования
+    new_scan = Scan(
+        name=f"Rustscan: {target[:50]}",
+        target=target,
+        scan_type="rustscan",
+        status="pending",
+        progress=0,
+        created_at=datetime.now(timezone.utc)
+    )
+    
+    db.add(new_scan)
+    await db.commit()
+    await db.refresh(new_scan)
+    
+    # Создаём задачу сканирования
+    new_job = ScanJob(
+        scan_id=new_scan.id,
+        job_type="rustscan",
+        status="pending",
+        created_at=datetime.now(timezone.utc)
+    )
+    
+    db.add(new_job)
+    await db.commit()
+    await db.refresh(new_job)
+    
+    return {"message": f"Rustscan запущен для {target}", "status": "queued", "job_id": new_job.id}
 
 
 @router.post("/dig")
