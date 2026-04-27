@@ -87,8 +87,7 @@
                             <div id="group-filter-root" class="border rounded p-2 bg-light" style="min-height: 60px;">
                                 <!-- Правила добавляются через JS -->
                             </div>
-                            <button type="button" class="btn btn-sm btn-outline-success mt-2"
-                                onclick="addDynamicRule()">
+                            <button type="button" class="btn btn-sm btn-outline-success mt-2" id="btn-add-dynamic-rule">
                                 <i class="bi bi-plus-circle"></i> Добавить правило
                             </button>
                         </div>
@@ -160,7 +159,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                <button type="button" class="btn btn-danger" onclick="confirmDeleteGroup()">Удалить</button>
+                <button type="button" class="btn btn-danger" id="btn-confirm-delete-group">Удалить</button>
             </div>
         </div>
     </div>

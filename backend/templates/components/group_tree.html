@@ -3,7 +3,7 @@
 <div class="sidebar-section">
     <div class="d-flex justify-content-between align-items-center sidebar-section-title">
         <span>Группы активов</span>
-        <button class="btn btn-sm btn-link p-0" onclick="window.showCreateGroupModal(null)" title="Создать группу">
+        <button class="btn btn-sm btn-link p-0" id="btn-create-group" title="Создать группу">
             <i class="bi bi-plus-circle"></i>
         </button>
     </div>
@@ -69,6 +69,12 @@
 
         // Инициализация активных сканирований
         initActiveScans();
+
+        // Обработчик кнопки создания группы
+        const btnCreateGroup = document.getElementById('btn-create-group');
+        if (btnCreateGroup) {
+            btnCreateGroup.addEventListener('click', () => showCreateGroupModal(null));
+        }
 
         // Экспорт функций в глобальную область видимости
         window.showCreateGroupModal = showCreateGroupModal;
