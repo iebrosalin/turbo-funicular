@@ -302,9 +302,20 @@
 </div>
 
 <!-- Подключение скриптов -->
-<script src="/static/js/scan-helpers.js"></script>
-<script src="/static/js/scans-page.js"></script>
+<script type="module" src="/static/js/scan-helpers.js"></script>
+<script type="module" src="/static/js/scans-page.js"></script>
 <script type="module">
+    // Импорт функций из scans-page.js для использования в HTML (onclick handlers)
+    import { loadJobs, updateQueueStatus, removeJob, stopJob, retryJob, deleteJob } from '/static/js/scans-page.js';
+    
+    // Экспорт в глобальную область видимости для использования из HTML onclick handlers
+    window.loadJobs = loadJobs;
+    window.updateQueueStatus = updateQueueStatus;
+    window.removeJob = removeJob;
+    window.stopJob = stopJob;
+    window.retryJob = retryJob;
+    window.deleteJob = deleteJob;
+
     // Импорт функций дерева для SPA функционала
     import { filterByGroup, loadAssets, refreshGroupTree, initTreeTogglers } from '/static/js/modules/tree.js';
 
