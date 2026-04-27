@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     environment:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
-      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/network_inventory.db}
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/app.db}
       - ENVIRONMENT=${ENVIRONMENT:-production}
       # Для разработки можно включить reload, но в production режиме это отключено
       - UVICORN_RELOAD=${UVICORN_RELOAD:-false}
@@ -37,7 +37,7 @@ services:
       - web
     environment:
       - BASE_URL=http://web:5000
-      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/network_inventory.db}
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/app.db}
       - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
     volumes:
       - ./backend:/app/backend
@@ -61,7 +61,7 @@ services:
       - web
     environment:
       - BASE_URL=http://web:5000
-      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/network_inventory.db}
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/app.db}
       - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
     volumes:
       - ./backend:/app/backend
@@ -82,7 +82,7 @@ services:
     build: .
     container_name: asset_management_tests_api
     environment:
-      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/network_inventory.db}
+      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/app.db}
     volumes:
       - ./backend:/app/backend
       - ./frontend:/app/frontend

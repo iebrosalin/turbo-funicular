@@ -65,7 +65,7 @@ class TestScansPageUI:
     
     def test_scan_forms_exist(self, scans_page: Page):
         forms = scans_page.locator('form')
-        expect(forms).to_have_count(gte=3)
+        expect(forms).to_have_count(minimum=3)
     
     def test_nmap_form_fields(self, scans_page: Page):
         form = scans_page.locator('#nmap-form').first
@@ -192,7 +192,7 @@ class TestGroupsPageUI:
     def test_group_mode_toggles(self, groups_page: Page):
         # Check for manual/CIDR/dynamic mode toggles
         modes = groups_page.locator('input[type="radio"], select, button:has-text(/manual|dynamic|cidr/i)')
-        expect(modes).to_have_count(gte=2)
+        expect(modes).to_have_count(minimum=2)
     
     def test_dynamic_rules_container(self, groups_page: Page):
         container = groups_page.locator('#dynamic-rules, [class*="rule"]').first
@@ -323,8 +323,8 @@ class TestAccessibility:
 @pytest.mark.ui
 class TestErrorHandling:
     def test_404_page_shows(self, page: Page, base_url):
-        page.goto(f"{base_url}/non-existent-page-12345")
-        expect(page).to_have_status_code(404)
+        response = page.goto(f"{base_url}/non-existent-page-12345")
+        assert response.status == 404, f"Expected status 404, got {response.status}"
         content = page.content()
         assert re.search(r'404|not found', content, re.I), "404 page doesn't show proper message"
     
@@ -393,7 +393,7 @@ class TestTaskUpdates:
         # Check if task appears in jobs table
         jobs_table = scans_page.locator('#jobs-table')
         rows = jobs_table.locator('tbody tr')
-        expect(rows).to_have_count(gte=1)
+        expect(rows).to_have_count(minimum=1)
     
     def test_task_status_updates(self, scans_page: Page):
         # Submit scan and watch status change
@@ -536,7 +536,7 @@ class TestGroupAssetsFunctionality:
         
         # Verify new rule field
         rule_fields = rules_container.locator('input, select')
-        expect(rule_fields).to_have_count(gte=2)
+        expect(rule_fields).to_have_count(minimum=2)
     
     def test_group_deletion_confirmation(self, groups_page: Page):
         delete_btn = groups_page.locator('button:has-text(/delete/i)').first
