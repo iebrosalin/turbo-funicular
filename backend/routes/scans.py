@@ -165,6 +165,14 @@ async def run_nmap_scan(
     """Запустить сканирование Nmap."""
     from backend.models.scan import Scan, ScanJob
     from datetime import datetime, timezone
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"=== Получен запрос на Nmap сканирование ===")
+    logger.info(f"Target: {request.target}")
+    logger.info(f"Ports: {request.ports}")
+    logger.info(f"Known ports only: {request.known_ports_only}")
+    logger.info(f"Group IDs: {request.group_ids}")
     
     target = request.target or ""
     
@@ -181,6 +189,7 @@ async def run_nmap_scan(
     db.add(new_scan)
     await db.commit()
     await db.refresh(new_scan)
+    logger.info(f"Создана запись сканирования ID={new_scan.id}")
     
     # Создаём задачу сканирования
     new_job = ScanJob(
@@ -193,6 +202,8 @@ async def run_nmap_scan(
     db.add(new_job)
     await db.commit()
     await db.refresh(new_job)
+    logger.info(f"Создана задача сканирования ID={new_job.id}")
+    logger.info(f"=== Сканирование успешно запущено ===")
     
     return {"message": f"Nmap сканирование запущено для {target}", "status": "queued", "job_id": new_job.id}
 
@@ -206,6 +217,13 @@ async def run_rustscan(
     """Запустить сканирование Rustscan."""
     from backend.models.scan import Scan, ScanJob
     from datetime import datetime, timezone
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    logger.info(f"=== Получен запрос на Rustscan ===")
+    logger.info(f"Target: {request.target}")
+    logger.info(f"Ports: {request.ports}")
+    logger.info(f"Run nmap after: {request.run_nmap_after}")
     
     # Создаём запись сканирования
     new_scan = Scan(
@@ -220,6 +238,7 @@ async def run_rustscan(
     db.add(new_scan)
     await db.commit()
     await db.refresh(new_scan)
+    logger.info(f"Создана запись сканирования ID={new_scan.id}")
     
     # Создаём задачу сканирования
     new_job = ScanJob(
@@ -232,6 +251,8 @@ async def run_rustscan(
     db.add(new_job)
     await db.commit()
     await db.refresh(new_job)
+    logger.info(f"Создана задача сканирования ID={new_job.id}")
+    logger.info(f"=== Rustscan успешно запущен ===")
     
     return {"message": f"Rustscan запущен для {request.target}", "status": "queued", "job_id": new_job.id}
 
