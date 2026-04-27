@@ -1,5 +1,5 @@
 // static/js/main.js
-import { store, treeManager, assetManager, groupManager, scanService, themeController } from './modules/index.js';
+import { store, treeManager, assetManager, groupManager, scanManager, themeController } from './modules/index.js';
 
 class App {
   constructor() {
@@ -122,8 +122,8 @@ class App {
       await treeManager.refresh();
       
       // Поллинг активных сканирований
-      scanService.pollActiveScans();
-      setInterval(() => scanService.pollActiveScans(), 5000);
+      scanManager.pollActiveScans();
+      setInterval(() => scanManager.pollActiveScans(), 5000);
     } catch (err) {
       console.error('Ошибка загрузки начальных данных:', err);
     }
