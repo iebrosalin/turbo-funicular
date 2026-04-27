@@ -35,7 +35,7 @@ class ScanService:
         """Создать новое сканирование."""
         scan = Scan(**scan_data.model_dump())
         self.db.add(scan)
-        await self.db.flush()
+        await self.db.commit()
         await self.db.refresh(scan)
         return scan
     
