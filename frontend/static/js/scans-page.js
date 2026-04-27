@@ -30,19 +30,19 @@ export async function loadJobs() {
 
             let actions = '';
             if (job.status === 'pending' || job.status === 'queued') {
-                actions += `<button class="btn btn-sm btn-outline-danger" onclick="window.removeJob(${job.id})"><i class="bi bi-trash"></i></button> `;
+                actions += `<button class="btn btn-sm btn-outline-danger btn-remove-job" data-job-id="${job.id}"><i class="bi bi-trash"></i></button> `;
             }
             if (job.status === 'running') {
-                actions += `<button class="btn btn-sm btn-outline-warning" onclick="window.stopJob(${job.id})"><i class="bi bi-stop-fill"></i></button> `;
+                actions += `<button class="btn btn-sm btn-outline-warning btn-stop-job" data-job-id="${job.id}"><i class="bi bi-stop-fill"></i></button> `;
             }
             if (['completed', 'failed', 'stopped', 'cancelled'].includes(job.status)) {
-                actions += `<button class="btn btn-sm btn-outline-primary" onclick="window.retryJob(${job.id})"><i class="bi bi-arrow-clockwise"></i></button> `;
+                actions += `<button class="btn btn-sm btn-outline-primary btn-retry-job" data-job-id="${job.id}"><i class="bi bi-arrow-clockwise"></i></button> `;
             }
             if (job.status === 'completed') {
                 actions += `<div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">⬇️</button><ul class="dropdown-menu">${getDownloadLinks(job)}</ul></div>`;
             }
             if (job.status !== 'pending' && job.status !== 'queued' && job.status !== 'running') {
-                actions += `<button class="btn btn-sm btn-outline-danger" onclick="window.deleteJob(${job.id})"><i class="bi bi-trash"></i></button> `;
+                actions += `<button class="btn btn-sm btn-outline-danger btn-delete-job" data-job-id="${job.id}"><i class="bi bi-trash"></i></button> `;
             }
 
             tr.innerHTML = `<td>${job.id}</td><td><span class="badge bg-info">${job.scan_type}</span></td><td>${job.target}</td><td><span class="badge ${statusClass}">${job.status}</span></td><td><div class="progress" style="height:10px;width:100px;"><div class="progress-bar" style="width:${job.progress}%"></div></div>${job.progress}%</td><td>${new Date(job.created_at).toLocaleString('ru-RU')}</td><td>${actions}</td>`;
@@ -129,13 +129,7 @@ export async function deleteJob(id) {
     } catch(e) { alert('Ошибка: ' + e); }
 }
 
-// Экспорт в window для onclick handlers из HTML
-window.loadJobs = loadJobs;
-window.updateQueueStatus = updateQueueStatus;
-window.removeJob = removeJob;
-window.stopJob = stopJob;
-window.retryJob = retryJob;
-window.deleteJob = deleteJob;
+// Функции теперь вызываются через event delegation, не экспортируем в window
 
 function getDownloadLinks(job) {
     const base = `/api/scan-job/${job.id}/download`;
@@ -149,6 +143,27 @@ function getDownloadLinks(job) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    // Делегирование событий для кнопок управления заданиями
+    const jobsTable = document.getElementById('jobs-table');
+    if (jobsTable) {
+        jobsTable.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-job-id]');
+            if (!btn) return;
+            
+            const jobId = btn.dataset.jobId;
+            
+            if (btn.classList.contains('btn-remove-job')) {
+                removeJob(jobId);
+            } else if (btn.classList.contains('btn-stop-job')) {
+                stopJob(jobId);
+            } else if (btn.classList.contains('btn-retry-job')) {
+                retryJob(jobId);
+            } else if (btn.classList.contains('btn-delete-job')) {
+                deleteJob(jobId);
+            }
+        });
+    }
+
     document.querySelectorAll('.scan-input').forEach(input => {
         const scanType = input.dataset.scanType;
         if (scanType && typeof window.initScanAutocomplete === 'function') {
@@ -253,6 +268,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // XML Import handler
     const importXmlBtn = document.getElementById('import-xml-btn');
     if (importXmlBtn) importXmlBtn.addEventListener('click', handleXmlImport);
+
+    // Refresh jobs button handler
+    const refreshJobsBtn = document.getElementById('btn-refresh-jobs');
+    if (refreshJobsBtn) {
+        refreshJobsBtn.addEventListener('click', loadJobs);
+    }
 
     // Load groups on modal open
     const importXmlModal = document.getElementById('importXmlModal');

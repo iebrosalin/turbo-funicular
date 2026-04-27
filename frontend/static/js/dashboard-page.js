@@ -73,6 +73,18 @@ function setupEventListeners() {
     
     if (btnToggleTheme) btnToggleTheme.addEventListener('click', toggleTheme);
     if (btnAddAsset) btnAddAsset.addEventListener('click', () => showAssetModal(null));
+
+    // Делегирование событий для кнопок удаления активов (динамически создаваемые)
+    const tableBody = document.querySelector('#assets-table tbody');
+    if (tableBody) {
+        tableBody.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.btn-delete-asset');
+            if (deleteBtn) {
+                const assetId = deleteBtn.dataset.assetId;
+                if (assetId) deleteAsset(assetId);
+            }
+        });
+    }
 }
 
 // Функция обновления данных после загрузки из tree.js
@@ -159,7 +171,7 @@ function renderTable() {
             <td>
                 <div class="btn-group btn-group-sm">
                     <a href="/assets/${asset.id}" class="btn btn-outline-primary" title="Детали"><i class="bi bi-eye"></i></a>
-                    <button class="btn btn-outline-danger" title="Удалить" onclick="deleteAsset(${asset.id})"><i class="bi bi-trash"></i></button>
+                    <button class="btn btn-outline-danger btn-delete-asset" data-asset-id="${asset.id}" title="Удалить"><i class="bi bi-trash"></i></button>
                 </div>
             </td>
         `;
@@ -338,8 +350,8 @@ function updateURL() {
     window.history.replaceState({}, '', newUrl);
 }
 
-// Глобальные функции для вызова из HTML
-window.deleteAsset = function(id) {
+// Функция удаления актива (вызывается через event delegation)
+function deleteAsset(id) {
     if (!confirm('Вы уверены, что хотите удалить этот актив?')) return;
     
     fetch(`/api/assets/${id}`, { method: 'DELETE' })
@@ -347,15 +359,13 @@ window.deleteAsset = function(id) {
             if (res.ok) {
                 alert('Актив удален');
                 // Перезагружаем активы через центральный модуль tree.js
-                if (window.loadAssets) {
-                    window.loadAssets(null, false, 'assets-table', null);
-                }
+                loadAssets(null, false, 'assets-table', null);
             } else {
                 return res.json().then(err => Promise.reject(err));
             }
         })
         .catch(err => alert('Ошибка удаления: ' + (err.error || err.message)));
-};
+}
 
 // Экспортируем функцию для использования из tree.js
 window.handleAssetsLoaded = handleAssetsLoaded;
@@ -375,7 +385,4 @@ function resetFilters() {
     applyFilters();
 }
 
-// Экспорт функций в глобальную область видимости
-window.applyFilters = applyFilters;
-window.resetFilters = resetFilters;
-window.exportData = exportData;
+// Функция applyFilters объявлена выше в файле
