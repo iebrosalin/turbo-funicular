@@ -9,16 +9,90 @@ import { apiRequest, showNotification } from './modules/utils.js';
 export class ScanResultsController {
   constructor() {
     this.pollingInterval = null;
+    this.assetsContainer = document.getElementById('assets-container');
+    this.scanForms = document.querySelector('.tab-content');
+    this.queueStatus = document.getElementById('queue-status-container');
+    this.scanTabs = document.getElementById('scanTabs');
     this.#init();
   }
 
   async #init() {
     this.#setupEventListeners();
+    this.#initUrlFiltering();
     await this.loadJobs();
     await this.updateQueueStatus();
     
     // Автообновление каждые 5 секунд
     this.startPolling();
+  }
+
+  #initUrlFiltering() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const groupIdParam = urlParams.get('group_id');
+    const ungroupedParam = urlParams.get('ungrouped');
+
+    if (ungroupedParam === 'true') {
+      this.#filterByGroup('ungrouped');
+    } else if (groupIdParam && groupIdParam !== 'all') {
+      this.#filterByGroup(groupIdParam);
+    }
+  }
+
+  #filterByGroup(groupId) {
+    // Показываем контейнер с активами
+    if (this.assetsContainer) {
+      this.assetsContainer.style.display = 'block';
+    }
+    // Скрываем формы сканирований
+    if (this.scanForms) this.scanForms.classList.add('d-none');
+    if (this.queueStatus) this.queueStatus.classList.add('d-none');
+    if (this.scanTabs) this.scanTabs.classList.add('d-none');
+
+    // Загружаем активы для группы
+    this.#loadAssetsForGroup(groupId);
+  }
+
+  async #loadAssetsForGroup(groupId) {
+    const tbody = document.getElementById('assets-table-body');
+    if (!tbody) return;
+
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><div class="spinner-border text-primary"></div><p class="mt-2 text-muted">Загрузка...</p></td></tr>';
+
+    try {
+      let url = '/api/assets?';
+      if (groupId === 'ungrouped') {
+        url += 'ungrouped=true';
+      } else {
+        url += `group_id=${groupId}`;
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Ошибка загрузки');
+      
+      const assets = await response.json();
+      tbody.innerHTML = '';
+      
+      if (assets.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Активы не найдены</td></tr>';
+        return;
+      }
+
+      assets.forEach(asset => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${asset.ip_address ?? 'N/A'}</strong></td>
+          <td>${asset.hostname ?? '<span class="text-muted">-</span>'}</td>
+          <td>${asset.mac_address ?? '<span class="text-muted">-</span>'}</td>
+          <td>${asset.group_name ?? '<span class="text-muted">Без группы</span>'}</td>
+          <td><small>${asset.open_ports ?? '<span class="text-muted">-</span>'}</small></td>
+          <td><button class="btn btn-sm btn-outline-primary" onclick="window.location.href='/asset/${asset.id}'">Открыть</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } catch (error) {
+      console.error('Ошибка загрузки активов:', error);
+      tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">Ошибка: ${error.message}</td></tr>`;
+    }
   }
 
   #setupEventListeners() {
@@ -92,6 +166,25 @@ export class ScanResultsController {
 
     // Загрузка групп при открытии модального окна импорта XML
     document.getElementById('importXmlModal')?.addEventListener('show.bs.modal', () => this.#loadGroupsForImport());
+
+    // Кнопка "Вернуться к сканированиям"
+    document.getElementById('back-to-scans-btn')?.addEventListener('click', () => this.#showScanForms());
+  }
+
+  #showScanForms() {
+    // Скрываем контейнер с активами
+    if (this.assetsContainer) this.assetsContainer.style.display = 'none';
+    // Показываем формы сканирований и статус очередей
+    if (this.scanForms) this.scanForms.classList.remove('d-none');
+    if (this.queueStatus) this.queueStatus.classList.remove('d-none');
+    if (this.scanTabs) this.scanTabs.classList.remove('d-none');
+    
+    // Показываем кнопку импорта
+    const importBtn = document.querySelector('[data-bs-target="#importXmlModal"]');
+    if (importBtn) importBtn.closest('.row')?.classList.remove('d-none');
+
+    // Снимаем выделение с групп в дереве
+    document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
   }
 
   async loadJobs() {

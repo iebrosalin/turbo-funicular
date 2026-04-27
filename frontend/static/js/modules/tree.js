@@ -8,6 +8,19 @@ export class TreeManager {
   constructor() {
     this.currentGroupId = null;
     this.#initStaticListeners();
+    this.#initUrlFiltering();
+  }
+
+  #initUrlFiltering() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const groupIdParam = urlParams.get('group_id');
+    const ungroupedParam = urlParams.get('ungrouped');
+
+    if (ungroupedParam === 'true') {
+      this.handleGroupClick('ungrouped');
+    } else if (groupIdParam && groupIdParam !== 'all') {
+      this.handleGroupClick(groupIdParam);
+    }
   }
 
   /**
