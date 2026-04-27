@@ -4,7 +4,7 @@
  * Обработка форм, обновление статуса очередей и управление историей заданий.
  */
 
-import { submitScan, handleXmlImport, loadGroups } from './scan-helpers.js';
+import { submitScan, handleXmlImport, loadGroups, readFileAsText, initScanAutocomplete } from './scan-helpers.js';
 
 console.log('[DEBUG] scans-page.js loaded');
 
@@ -166,8 +166,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.querySelectorAll('.scan-input').forEach(input => {
         const scanType = input.dataset.scanType;
-        if (scanType && typeof window.initScanAutocomplete === 'function') {
-            window.initScanAutocomplete(input, scanType);
+        if (scanType) {
+            initScanAutocomplete(input, scanType);
         }
     });
 
@@ -243,7 +243,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (fileInput && fileInput.files && fileInput.files.length > 0) {
                 try {
-                    const fileContent = await window.readFileAsText(fileInput.files[0]);
+                    const fileContent = await readFileAsText(fileInput.files[0]);
                     const fileTargets = fileContent.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
                     if (targetsText) {
                         fileTargets.push(...targetsText.split('\n').map(l => l.trim()).filter(l => l));

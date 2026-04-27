@@ -1,6 +1,6 @@
 import { populateParentSelect, closeModalById } from './utils.js';
 import { refreshGroupTree, loadAssets, filterByGroup } from './tree.js';
-import { currentGroupId } from '../main.js';
+import store from '../store.js';
 
 const FILTER_FIELDS = [
     { value: 'ip_address', text: 'IP Адрес' }, { value: 'hostname', text: 'Hostname' },
@@ -229,12 +229,11 @@ export function confirmDeleteGroup() {
     })
     .then(response => {
         if (response.ok) {
-            if (typeof window.refreshGroupTree === 'function') {
-                window.refreshGroupTree();
-            }
-            if (typeof window.loadAssets === 'function' && window.currentGroupId == groupId) {
-                window.currentGroupId = null;
-                window.loadAssets(); 
+            refreshGroupTree();
+            const currentGroupId = store.get('currentGroupId');
+            if (currentGroupId == groupId) {
+                store.set('currentGroupId', null);
+                loadAssets(); 
             }
         } else {
             alert('Ошибка при удалении группы');
@@ -274,9 +273,7 @@ export async function moveGroup() {
 
         closeModalById('groupMoveModal');
         
-        if (typeof window.refreshGroupTree === 'function') {
-            await window.refreshGroupTree();
-        }
+        await refreshGroupTree();
     } catch (e) {
         console.error('Ошибка перемещения группы:', e);
         alert(e.message);

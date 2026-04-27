@@ -3,6 +3,9 @@
  * Используется для удобного импорта функций в других файлах
  */
 
+// Хранилище состояния
+export { default as store } from '../store.js';
+
 // Модуль управления активами
 export {
     initAssetSelection,
@@ -15,7 +18,7 @@ export {
     executeBulkMove,
     clearSelection,
     initFilterFieldDatalist
-} from './modules/assets.js';
+} from './assets.js';
 
 // Модуль управления деревом групп
 export {
@@ -25,7 +28,7 @@ export {
     initTreeTogglers,
     initGroupTreeStaticListeners,
     renderTree
-} from './modules/tree.js';
+} from './tree.js';
 
 // Модуль сканирований
 export {
@@ -33,7 +36,7 @@ export {
     showScanError,
     updateScanHistory,
     pollActiveScans
-} from './modules/scans.js';
+} from './scans.js';
 
 // Модуль управления группами
 export {
@@ -48,19 +51,16 @@ export {
     moveGroup,
     initContextMenu,
     initGroupModeListeners
-} from './modules/groups.js';
+} from './groups.js';
 
 // Модуль темы
 export {
     initTheme,
     toggleTheme
-} from './modules/theme.js';
+} from './theme.js';
 
 // Модуль утилит
 export {
     populateParentSelect,
     closeModalById
-} from './modules/utils.js';
-
-// Хранилище состояния
-export { default as store } from '../store.js';
+} from './utils.js';

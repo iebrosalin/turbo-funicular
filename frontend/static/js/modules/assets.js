@@ -1,11 +1,7 @@
 // static/js/modules/assets.js
+import { store } from './index.js';
 
 export function initAssetSelection(targetTableId = 'assets-body') {
-    // Инициализация глобального множества выбранных активов, если ещё не создано
-    if (!window.selectedAssetIds) {
-        window.selectedAssetIds = new Set();
-    }
-    
     const tbody = document.getElementById(targetTableId); 
     if (!tbody) return;
     
@@ -15,10 +11,10 @@ export function initAssetSelection(targetTableId = 'assets-body') {
         checkboxes.forEach(cb => {
             cb.checked = this.checked; 
             toggleRowSelection(cb.closest('tr'), this.checked, targetTableId);
-            if(this.checked) window.selectedAssetIds.add(cb.value); 
-            else window.selectedAssetIds.delete(cb.value);
+            if(this.checked) store.addSelectedAsset(cb.value); 
+            else store.removeSelectedAsset(cb.value);
         });
-        window.lastSelectedIndex = this.checked && checkboxes.length > 0 ? getRowIndex(checkboxes[checkboxes.length - 1].closest('tr'), targetTableId) : -1;
+        store.setLastSelectedIndex(this.checked && checkboxes.length > 0 ? getRowIndex(checkboxes[checkboxes.length - 1].closest('tr'), targetTableId) : -1);
         updateBulkToolbar(); 
         updateSelectAllCheckbox(targetTableId);
     });
@@ -32,9 +28,9 @@ export function initAssetSelection(targetTableId = 'assets-body') {
         if(!row || e.target.closest('a, button, .asset-checkbox')) return;
         const cb = row.querySelector('.asset-checkbox');
         if(cb) { 
-            if(e.shiftKey && window.lastSelectedIndex >= 0) { 
+            if(e.shiftKey && store.getLastSelectedIndex() >= 0) { 
                 e.preventDefault(); 
-                selectRange(window.lastSelectedIndex, getRowIndex(row, targetTableId), targetTableId); 
+                selectRange(store.getLastSelectedIndex(), getRowIndex(row, targetTableId), targetTableId); 
             } else { 
                 cb.checked = !cb.checked; 
                 handleCheckboxChange(cb, targetTableId); 
@@ -49,11 +45,11 @@ function handleCheckboxChange(cb, targetTableId = 'assets-body') {
     const checked = cb.checked;
     toggleRowSelection(row, checked);
     if(checked) { 
-        window.selectedAssetIds.add(id); 
-        window.lastSelectedIndex = getRowIndex(row, targetTableId); 
+        store.addSelectedAsset(id); 
+        store.setLastSelectedIndex(getRowIndex(row, targetTableId)); 
     } else { 
-        window.selectedAssetIds.delete(id); 
-        if(window.lastSelectedIndex === getRowIndex(row, targetTableId)) window.lastSelectedIndex = -1; 
+        store.removeSelectedAsset(id); 
+        if(store.getLastSelectedIndex() === getRowIndex(row, targetTableId)) store.setLastSelectedIndex(-1); 
     }
     updateBulkToolbar(); 
     updateSelectAllCheckbox(targetTableId);
@@ -76,7 +72,7 @@ function selectRange(start, end, targetTableId = 'assets-body') {
             if(cb && !cb.checked) { 
                 cb.checked = true; 
                 toggleRowSelection(row, true); 
-                window.selectedAssetIds.add(cb.value); 
+                store.addSelectedAsset(cb.value); 
             }
         }
     }); 
@@ -88,9 +84,9 @@ export function clearSelection(targetTableId = 'assets-body') {
     document.querySelectorAll(`#${targetTableId} .asset-checkbox:checked`).forEach(cb => { 
         cb.checked = false; 
         toggleRowSelection(cb.closest('tr'), false); 
-        window.selectedAssetIds.delete(cb.value); 
+        store.removeSelectedAsset(cb.value); 
     });
-    window.lastSelectedIndex = -1; 
+    store.setLastSelectedIndex(-1); 
     updateBulkToolbar(); 
     updateSelectAllCheckbox(targetTableId);
 }
@@ -107,7 +103,7 @@ function updateSelectAllCheckbox(targetTableId = 'assets-body') {
 
 function updateBulkToolbar() {
     const tb = document.getElementById('bulk-toolbar'); 
-    const c = window.selectedAssetIds ? window.selectedAssetIds.size : 0;
+    const c = store.getSelectedAssetsCount();
     if(tb) {
         tb.style.display = c > 0 ? 'flex' : 'none'; 
         const countEl = document.getElementById('selected-count');
@@ -116,9 +112,9 @@ function updateBulkToolbar() {
 }
 
 export function confirmBulkDelete() {
-    if(window.selectedAssetIds.size === 0) return;
+    if(store.getSelectedAssetsCount() === 0) return;
     const countEl = document.getElementById('bulk-delete-count');
-    if(countEl) countEl.textContent = window.selectedAssetIds.size;
+    if(countEl) countEl.textContent = store.getSelectedAssetsCount();
 
     const modalEl = document.getElementById('bulkDeleteModal');
     let modalInstance = bootstrap.Modal.getInstance(modalEl);
@@ -129,7 +125,7 @@ export function confirmBulkDelete() {
 }
 
 export async function executeBulkDelete() {
-    const ids = Array.from(window.selectedAssetIds);
+    const ids = Array.from(store.getSelectedAssets());
     await fetch('/api/assets/bulk-delete', { 
         method: 'POST', 
         headers: {'Content-Type': 'application/json'}, 
@@ -148,7 +144,7 @@ export async function executeBulkDelete() {
 
 
 export function confirmBulkMove() {
-    if(window.selectedAssetIds.size === 0) return;
+    if(store.getSelectedAssetsCount() === 0) return;
         const modalEl = document.getElementById('bulkMoveModal');
         let modalInstance = bootstrap.Modal.getInstance(modalEl);
         if (!modalInstance) {
@@ -203,7 +199,7 @@ export async function executeBulkMove() {
     if(!select) return;
 
     const groupId = select.value;
-    const ids = Array.from(window.selectedAssetIds);
+    const ids = Array.from(store.getSelectedAssets());
 
     await fetch('/api/assets/bulk-move', {
         method: 'POST',
@@ -407,8 +403,9 @@ export async function saveAsset(event) {
         }
         
         // Перезагрузка списка активов
-        if (typeof window.loadAssets === 'function') {
-            window.loadAssets();
+        const { loadAssets } = await import('./index.js');
+        if (typeof loadAssets === 'function') {
+            loadAssets();
         } else {
             location.reload();
         }

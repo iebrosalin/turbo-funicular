@@ -132,11 +132,59 @@ class Store {
     }
 
     /**
+     * Получить Set выбранных активов (для совместимости)
+     * @returns {Set}
+     */
+    getSelectedAssets() {
+        return this.state.selectedAssetIds;
+    }
+
+    /**
      * Получить количество выбранных активов
      * @returns {number}
      */
     getSelectedCount() {
         return this.state.selectedAssetIds.size;
+    }
+
+    /**
+     * Получить количество выбранных активов (алиас для совместимости)
+     * @returns {number}
+     */
+    getSelectedAssetsCount() {
+        return this.state.selectedAssetIds.size;
+    }
+
+    /**
+     * Получить последний выбранный индекс
+     * @returns {number}
+     */
+    getLastSelectedIndex() {
+        return this.state.lastSelectedIndex;
+    }
+
+    /**
+     * Установить последний выбранный индекс
+     * @param {number} index
+     */
+    setLastSelectedIndex(index) {
+        this.state.lastSelectedIndex = index;
+    }
+
+    /**
+     * Установить текущие активы
+     * @param {Array} assets
+     */
+    setCurrentAssets(assets) {
+        this.state.currentAssets = assets;
+    }
+
+    /**
+     * Получить текущие активы
+     * @returns {Array}
+     */
+    getCurrentAssets() {
+        return this.state.currentAssets;
     }
 
     /**

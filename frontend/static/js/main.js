@@ -14,34 +14,9 @@ import {
 import { viewScanResults, showScanError, updateScanHistory, pollActiveScans } from './modules/scans.js';
 // ✅ Импорт всей логики дерева из одного источника
 import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers, initGroupTreeStaticListeners } from './modules/tree.js';
+import { store } from './modules/index.js';
 
 (function() {
-    // 🔒 Guard против повторной инициализации
-    if (window.__MAIN_JS_LOADED) return;
-    window.__MAIN_JS_LOADED = true;
-
-    // 🌐 Глобальные переменные состояния (используются для межмодульного взаимодействия)
-    let currentGroupId = null;
-    let contextMenu = null;
-    let editModal = null;
-    let createModal = null;
-    let moveModal = null;
-    let deleteModal = null;
-    let bulkDeleteModalInstance = null;
-    let lastSelectedIndex = -1;
-    let selectedAssetIds = new Set();
-    
-    // Экспорт для доступа из других модулей через getter/setter
-    Object.defineProperty(window, 'currentGroupId', { get: () => currentGroupId, set: v => currentGroupId = v });
-    Object.defineProperty(window, 'contextMenu', { get: () => contextMenu, set: v => contextMenu = v });
-    Object.defineProperty(window, 'editModal', { get: () => editModal, set: v => editModal = v });
-    Object.defineProperty(window, 'createModal', { get: () => createModal, set: v => createModal = v });
-    Object.defineProperty(window, 'moveModal', { get: () => moveModal, set: v => moveModal = v });
-    Object.defineProperty(window, 'deleteModal', { get: () => deleteModal, set: v => deleteModal = v });
-    Object.defineProperty(window, 'bulkDeleteModalInstance', { get: () => bulkDeleteModalInstance, set: v => bulkDeleteModalInstance = v });
-    Object.defineProperty(window, 'lastSelectedIndex', { get: () => lastSelectedIndex, set: v => lastSelectedIndex = v });
-    Object.defineProperty(window, 'selectedAssetIds', { get: () => selectedAssetIds, set: v => selectedAssetIds = v });
-
     document.addEventListener('DOMContentLoaded', () => {
         // 🎨 Тема
         initTheme();
@@ -143,9 +118,6 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers, initGrou
         
         // 🎛️ Инициализация обработчиков для переключателей режимов группы
         initGroupModeListeners();
-        
-        // 🔗 Ссылка на контекстное меню
-        window.contextMenu = document.getElementById('group-context-menu');
 
         // 🔄 Поллинг активных сканирований
         pollActiveScans();
@@ -185,13 +157,13 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers, initGrou
                     cb.checked = true;
                     const row = cb.closest('tr');
                     if (row) row.classList.add('selected');
-                    window.selectedAssetIds.add(cb.value);
+                    store.addSelectedAsset(cb.value);
                 });
                 const tb = document.getElementById('bulk-toolbar');
                 if (tb) {
-                    tb.style.display = window.selectedAssetIds.size > 0 ? 'flex' : 'none';
+                    tb.style.display = store.getSelectedAssetsCount() > 0 ? 'flex' : 'none';
                     const countEl = document.getElementById('selected-count');
-                    if (countEl) countEl.textContent = window.selectedAssetIds.size;
+                    if (countEl) countEl.textContent = store.getSelectedAssetsCount();
                 }
             }
         });

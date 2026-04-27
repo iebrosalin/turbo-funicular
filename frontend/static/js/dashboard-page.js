@@ -5,6 +5,7 @@
  */
 
 import { loadAssets } from './modules/tree.js';
+import { initFilterAutocomplete } from './filter-helpers.js';
 
 let allAssets = [];
 let filteredAssets = [];
@@ -19,8 +20,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Инициализация автодополнения для фильтра
     const filterInput = document.getElementById('asset-filter');
-    if (filterInput && window.initFilterAutocomplete) {
-        window.initFilterAutocomplete(filterInput);
+    if (filterInput) {
+        initFilterAutocomplete(filterInput);
     }
 
     // Загрузка данных через центральный модуль tree.js

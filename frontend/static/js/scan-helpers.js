@@ -4,6 +4,8 @@
  * Предоставляет контекстные подсказки аргументов, групп, активов и примеров
  */
 
+import { loadJobs, updateQueueStatus } from './scans-page.js';
+
 // База знаний аргументов для утилит
 const SCAN_KNOWLEDGE_BASE = {
     nmap: {
@@ -410,8 +412,8 @@ export async function submitScan(url, payload, scanName) {
             alert(`Задача ${scanName} добавлена в очередь! ID: ${data.job_id}`);
             // Небольшая задержка, чтобы задача успела записаться в БД
             setTimeout(() => {
-                if (typeof window.loadJobs === 'function') window.loadJobs();
-                if (typeof window.updateQueueStatus === 'function') window.updateQueueStatus();
+                loadJobs();
+                updateQueueStatus();
             }, 500);
         } else {
             alert(`Ошибка: ${data.error}`);
@@ -455,7 +457,7 @@ export async function handleXmlImport() {
             const modal = bootstrap.Modal.getInstance(document.getElementById('importXmlModal'));
             if (modal) modal.hide();
             // Обновляем список задач
-            if (typeof window.loadJobs === 'function') window.loadJobs();
+            loadJobs();
         } else {
             alert(`Ошибка импорта: ${data.error}`);
         }

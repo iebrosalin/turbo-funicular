@@ -119,13 +119,8 @@ function handleGroupClick(groupId) {
         targetElement.classList.add('active');
     }
 
-    // Вызываем глобальную функцию фильтрации таблицы активов
-    if (typeof window.filterByGroup === 'function') {
-        window.filterByGroup(groupId, false, 'assets-body', null);
-    } else {
-        // Если глобальная функция еще не определена, вызываем локальную логику
-        filterByGroup(groupId, false, 'assets-body', null);
-    }
+    // Вызываем функцию фильтрации таблицы активов
+    filterByGroup(groupId, false, 'assets-body', null);
 }
 
 /**
@@ -159,11 +154,7 @@ export function initGroupTreeStaticListeners() {
         }
 
         // Вызываем фильтрацию
-        if (typeof window.filterByGroup === 'function') {
-            window.filterByGroup(groupId, false, 'assets-body', null);
-        } else {
-            console.warn('Функция window.filterByGroup еще не загружена.');
-        }
+        filterByGroup(groupId, false, 'assets-body', null);
     };
 
     const allNode = document.querySelector('.tree-node[data-id="all"]');
@@ -272,13 +263,10 @@ export async function loadAssets(groupId = null, isUngrouped = false, targetTabl
             // Добавляем обработчик клика на кнопку редактирования
             const editBtn = tr.querySelector('.edit-asset-btn');
             if (editBtn) {
-                editBtn.addEventListener('click', (e) => {
+                editBtn.addEventListener('click', async (e) => {
                     e.stopPropagation(); // Останавливаем всплытие, чтобы не сработал клик по строке
-                    if (typeof window.showAssetModal === 'function') {
-                        window.showAssetModal(asset.id);
-                    } else {
-                        console.error('Функция window.showAssetModal не найдена');
-                    }
+                    const { showAssetModal } = await import('./index.js');
+                    showAssetModal(asset.id);
                 });
             }
 
@@ -290,13 +278,8 @@ export async function loadAssets(groupId = null, isUngrouped = false, targetTabl
         tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Ошибка загрузки: ${error.message}</td></tr>`;
     }
     
-    // Сохраняем загруженные активы в глобальную переменную для использования в dashboard-page.js
-    window.currentAssets = assets;
-    
-    // Если есть функция обратного вызова, вызываем её
-    if (window.handleAssetsLoaded) {
-        window.handleAssetsLoaded(assets);
-    }
+    // Сохраняем загруженные активы в хранилище
+    store.setCurrentAssets(assets);
 }
 
 /**
