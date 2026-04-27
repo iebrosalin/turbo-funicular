@@ -1,4 +1,4 @@
-import { populateParentSelect, closeModalById } from './utils.js';
+import { Utils } from './utils.js';
 import { refreshGroupTree, loadAssets, filterByGroup } from './tree.js';
 import { store } from '../store.js';
 
@@ -125,7 +125,7 @@ export class GroupManager {
     document.getElementById('edit-group-name').value = '';
     document.getElementById('group-filter-root').innerHTML = '';
     
-    await populateParentSelect([], parentId);
+    await Utils.populateParentSelect([], parentId);
     
     document.getElementById('modeManual').checked = true;
     this.toggleGroupMode(); 
@@ -152,7 +152,7 @@ export class GroupManager {
       return;
     }
 
-    await populateParentSelect([String(id)], groupData.parent_id);
+    await Utils.populateParentSelect([String(id)], groupData.parent_id);
 
     const nameInput = document.getElementById('edit-group-name');
     const parentSelect = document.getElementById('edit-group-parent');
@@ -232,7 +232,7 @@ export class GroupManager {
         throw new Error(err.error || 'Ошибка сохранения');
       }
 
-      closeModalById('groupEditModal');
+      Utils.closeModalById('groupEditModal');
       
       // Обновляем дерево и список активов
       await refreshGroupTree();
@@ -251,7 +251,7 @@ export class GroupManager {
     document.getElementById('delete-group-id').value = id;
     
     // Заполняем селект всеми группами кроме удаляемой
-    await populateParentSelect([String(id)], null);
+    await Utils.populateParentSelect([String(id)], null);
     
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
     modal.show();
@@ -261,7 +261,7 @@ export class GroupManager {
     const groupId = document.getElementById('delete-group-id').value;
     const moveToId = document.getElementById('delete-move-assets').value;
     
-    closeModalById('groupDeleteModal');
+    Utils.closeModalById('groupDeleteModal');
 
     try {
       const response = await fetch(`/api/groups/${groupId}`, {
@@ -293,7 +293,7 @@ export class GroupManager {
 
     document.getElementById('move-group-id').value = id;
     
-    await populateParentSelect([String(id)]);
+    await Utils.populateParentSelect([String(id)]);
     
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
     modal.show();
@@ -312,7 +312,7 @@ export class GroupManager {
 
       if (!res.ok) throw new Error('Не удалось переместить группу');
 
-      closeModalById('groupMoveModal');
+      Utils.closeModalById('groupMoveModal');
       
       await refreshGroupTree();
     } catch (e) {
