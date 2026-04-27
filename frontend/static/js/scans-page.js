@@ -477,14 +477,6 @@ async function retryJob(id) {
     }
 }
 
-// Экспорт функций в глобальную область видимости для использования из onclick handlers
-window.loadJobs = loadJobs;
-window.updateQueueStatus = updateQueueStatus;
-window.retryJob = retryJob;
-window.removeJob = removeJob;
-window.stopJob = stopJob;
-window.deleteJob = deleteJob;
-
 /**
  * Удаление задачи из истории
  */
@@ -499,6 +491,14 @@ async function deleteJob(id) {
         alert('Ошибка при удалении: ' + e);
     }
 }
+
+// Экспорт функций в глобальную область видимости для использования из onclick handlers
+window.loadJobs = loadJobs;
+window.updateQueueStatus = updateQueueStatus;
+window.retryJob = retryJob;
+window.removeJob = removeJob;
+window.stopJob = stopJob;
+window.deleteJob = deleteJob;
 
 
 /**
