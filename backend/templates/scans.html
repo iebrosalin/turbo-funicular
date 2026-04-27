@@ -302,62 +302,6 @@
 </div>
 
 <!-- Подключение скриптов -->
-<script type="module" src="/static/js/scan-helpers.js"></script>
-<script type="module" src="/static/js/scans-page.js"></script>
-<script type="module">
-    // Импорт функций дерева для SPA функционала
-    import { filterByGroup, loadAssets, refreshGroupTree, initTreeTogglers } from '/static/js/modules/tree.js';
-
-    // Экспорт в глобальную область видимости для использования из tree.js
-    window.filterByGroup = filterByGroup;
-    window.loadAssets = loadAssets;
-    window.refreshGroupTree = refreshGroupTree;
-    window.initTreeTogglers = initTreeTogglers;
-
-    // Инициализация дерева групп при загрузке страницы
-    document.addEventListener('DOMContentLoaded', function() {
-        // Инициализируем дерево групп
-        refreshGroupTree().then(() => {
-            initTreeTogglers();
-
-            // Обработка URL-параметров для фильтрации активов
-            const urlParams = new URLSearchParams(window.location.search);
-            const groupIdParam = urlParams.get('group_id');
-            const ungroupedParam = urlParams.get('ungrouped');
-
-            if (ungroupedParam === 'true') {
-                // Фильтр "Без группы" - используем assets-table-body для страницы сканирований
-                filterByGroup('ungrouped', 'assets-table-body', 'assets-container');
-            } else if (groupIdParam && groupIdParam !== 'all') {
-                // Фильтр по конкретной группе
-                filterByGroup(groupIdParam, 'assets-table-body', 'assets-container');
-            }
-        });
-
-        // Обработчик кнопки "Вернуться к сканированиям"
-        const backBtn = document.getElementById('back-to-scans-btn');
-        if (backBtn) {
-            backBtn.addEventListener('click', function() {
-                // Скрываем контейнер с активами
-                const assetsContainer = document.getElementById('assets-container');
-                if (assetsContainer) {
-                    assetsContainer.style.display = 'none';
-                }
-                // Показываем формы сканирований и статус очередей
-                const scanForms = document.querySelector('.tab-content');
-                const queueStatus = document.getElementById('queue-status-container');
-                const scanTabs = document.getElementById('scanTabs');
-                const importBtn = document.querySelector('[data-bs-target="#importXmlModal"]');
-                
-                if (scanForms) scanForms.classList.remove('d-none');
-                if (queueStatus) queueStatus.classList.remove('d-none');
-                if (scanTabs) scanTabs.classList.remove('d-none');
-                if (importBtn) importBtn.closest('.row')?.classList.remove('d-none');
-                
-                // Снимаем выделение с групп
-                document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
-            });
-        }
-    });
-</script>
+</div>
+<script type="module" src="/static/js/main.js"></script>
 {% endblock %}
