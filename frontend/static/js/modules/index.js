@@ -12,7 +12,7 @@ export { AssetManager, assetManager } from './assets.js';
 export { TreeManager, treeManager, filterByGroup, loadAssets, refreshGroupTree } from './tree.js';
 
 // Модуль сканирований
-export { ScanService, scanService } from './scans.js';
+export { ScanManager, scanManager } from './scans.js';
 
 // Модуль управления группами
 export { GroupManager, groupManager } from './groups.js';
