@@ -168,7 +168,5 @@ async function updateImportGroupList() {
     }
 }
 
-// Экспорт функций для глобального доступа
-window.showScanError = showErrorModal;
-window.showScanResults = showResultsModal;
-window.updateImportGroupList = updateImportGroupList;
+// Экспорт функций через ES6 export
+export { showErrorModal as showScanError, showResultsModal as showScanResults, updateImportGroupList };

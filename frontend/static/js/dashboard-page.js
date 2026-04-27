@@ -368,7 +368,7 @@ function deleteAsset(id) {
 }
 
 // Экспортируем функцию для использования из tree.js
-window.handleAssetsLoaded = handleAssetsLoaded;
+export { handleAssetsLoaded };
 
 // Глобальные функции для вызова из HTML (теперь через event listeners)
 function resetFilters() {

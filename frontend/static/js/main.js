@@ -20,16 +20,27 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers, initGrou
     if (window.__MAIN_JS_LOADED) return;
     window.__MAIN_JS_LOADED = true;
 
-    // 🌐 Глобальные переменные состояния
-    window.currentGroupId = null;
-    window.contextMenu = null;
-    window.editModal = null;
-    window.createModal = null;
-    window.moveModal = null;
-    window.deleteModal = null;
-    window.bulkDeleteModalInstance = null;
-    window.lastSelectedIndex = -1;
-    window.selectedAssetIds = new Set();
+    // 🌐 Глобальные переменные состояния (используются для межмодульного взаимодействия)
+    let currentGroupId = null;
+    let contextMenu = null;
+    let editModal = null;
+    let createModal = null;
+    let moveModal = null;
+    let deleteModal = null;
+    let bulkDeleteModalInstance = null;
+    let lastSelectedIndex = -1;
+    let selectedAssetIds = new Set();
+    
+    // Экспорт для доступа из других модулей через getter/setter
+    Object.defineProperty(window, 'currentGroupId', { get: () => currentGroupId, set: v => currentGroupId = v });
+    Object.defineProperty(window, 'contextMenu', { get: () => contextMenu, set: v => contextMenu = v });
+    Object.defineProperty(window, 'editModal', { get: () => editModal, set: v => editModal = v });
+    Object.defineProperty(window, 'createModal', { get: () => createModal, set: v => createModal = v });
+    Object.defineProperty(window, 'moveModal', { get: () => moveModal, set: v => moveModal = v });
+    Object.defineProperty(window, 'deleteModal', { get: () => deleteModal, set: v => deleteModal = v });
+    Object.defineProperty(window, 'bulkDeleteModalInstance', { get: () => bulkDeleteModalInstance, set: v => bulkDeleteModalInstance = v });
+    Object.defineProperty(window, 'lastSelectedIndex', { get: () => lastSelectedIndex, set: v => lastSelectedIndex = v });
+    Object.defineProperty(window, 'selectedAssetIds', { get: () => selectedAssetIds, set: v => selectedAssetIds = v });
 
     document.addEventListener('DOMContentLoaded', () => {
         // 🎨 Тема
@@ -185,30 +196,6 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers, initGrou
             }
         });
 
-        // 🌍 Глобальные экспорты для onclick-обработчиков в HTML
-        window.toggleTheme = toggleTheme;
-        window.showCreateGroupModal = showCreateGroupModal;
-        window.toggleGroupMode = toggleGroupMode;
-        window.addDynamicRule = addDynamicRule;
-        window.showRenameModal = showRenameModal;
-        window.saveGroup = saveGroup;
-        window.showDeleteModal = showDeleteModal;
-        window.confirmDeleteGroup = confirmDeleteGroup;
-        window.showMoveGroupModal = showMoveGroupModal;
-        window.moveGroup = moveGroup;
-        window.confirmBulkDelete = confirmBulkDelete;
-        window.executeBulkDelete = executeBulkDelete;
-        window.confirmBulkMove = confirmBulkMove;
-        window.executeBulkMove = executeBulkMove;
-        window.clearSelection = clearSelection;
-        window.refreshGroupTree = refreshGroupTree;
-        window.loadAssets = loadAssets;
-        window.filterByGroup = filterByGroup;
-        window.renderAssets = renderAssets; // ✅ Добавлено: нужен для tree.js
-        window.initTreeTogglers = initTreeTogglers; // ✅ Добавлено: для повторной инициализации
-        window.closeModalById = closeModalById; // ✅ Добавлено: утилита закрытия модалок
-        window.populateParentSelect = populateParentSelect; // ✅ Добавлено: для динамических селектов
-        window.showAssetModal = showAssetModal; // ✅ Добавлено: для создания/редактирования активов
-        window.saveAsset = saveAsset; // ✅ Добавлено: обработчик формы актива
+        // 🌍 Глобальные экспорты удалены - используется ES6 import/export
     });
 })();

@@ -125,6 +125,5 @@ export async function pollActiveScans() {
     }
 }
 
-// Экспорт глобальных функций
-window.viewScanResults = viewScanResults;
-window.showScanError = showScanError;
+// Экспорт функций через ES6 export
+export { viewScanResults, showScanError };

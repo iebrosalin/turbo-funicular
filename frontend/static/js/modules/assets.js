@@ -263,8 +263,8 @@ export function renderAssets(data, targetTableId = 'assets-body') {
     initAssetSelection(targetTableId);
 }
 
-// Экспорт для доступа из main.js
-window.renderAssets = renderAssets;
+// Экспорт функций через ES6 export
+export { renderAssets, showAssetModal, saveAsset, confirmBulkDelete, executeBulkDelete, confirmBulkMove, executeBulkMove, clearSelection, initAssetSelection, initFilterFieldDatalist };
 
 /**
  * Показать модальное окно создания/редактирования актива
@@ -418,14 +418,4 @@ export async function saveAsset(event) {
     }
 }
 
-// Экспорт функций для глобального доступа
-window.showAssetModal = showAssetModal;
-window.saveAsset = saveAsset;
-window.confirmBulkDelete = confirmBulkDelete;
-window.executeBulkDelete = executeBulkDelete;
-window.confirmBulkMove = confirmBulkMove;
-window.executeBulkMove = executeBulkMove;
-window.clearSelection = clearSelection;
-window.initAssetSelection = initAssetSelection;
-window.renderAssets = renderAssets;
-window.initFilterFieldDatalist = initFilterFieldDatalist;
+// Экспорт функций через ES6 export - удалено, используется import/export в main.js

@@ -1,4 +1,6 @@
 import { populateParentSelect, closeModalById } from './utils.js';
+import { refreshGroupTree, loadAssets, filterByGroup } from './tree.js';
+import { currentGroupId } from '../main.js';
 
 const FILTER_FIELDS = [
     { value: 'ip_address', text: 'IP Адрес' }, { value: 'hostname', text: 'Hostname' },
@@ -192,12 +194,8 @@ export async function saveGroup() {
         closeModalById('groupEditModal');
         
         // Обновляем дерево и список активов
-        if (typeof window.refreshGroupTree === 'function') {
-            await window.refreshGroupTree();
-        }
-        if (typeof window.loadAssets === 'function') {
-            await window.loadAssets();
-        }
+        await refreshGroupTree();
+        await loadAssets();
     } catch (e) {
         console.error('Ошибка сохранения группы:', e);
         alert(e.message);

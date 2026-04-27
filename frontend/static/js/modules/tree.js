@@ -382,10 +382,8 @@ export function filterByGroup(groupId, isUngrouped = false, targetTableId = 'ass
     }
 }
 
-// Экспорт функций в глобальную область видимости для доступа из HTML и других модулей
-window.initGroupTreeStaticListeners = initGroupTreeStaticListeners;
-window.filterByGroup = filterByGroup;
-window.loadAssets = loadAssets;
+// Экспорт функций через ES6 export
+export { initGroupTreeStaticListeners, filterByGroup, loadAssets };
 
 /**
  * Инициализация обработчиков сворачивания/разворачивания (заглушка)
@@ -394,4 +392,3 @@ export function initTreeTogglers() {
     // Здесь может быть логика для стрелочек сворачивания, если она потребуется в будущем
     // Сейчас функционал сворачивания не реализован в базовой версии
 }
-window.initTreeTogglers = initTreeTogglers;

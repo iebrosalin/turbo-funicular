@@ -375,16 +375,8 @@ function handleKeydown(e) {
     }
 }
 
-// Экспорт функций для использования в других модулях (ES6 exports)
+// Экспорт функций через ES6 export
 export { initScanAutocomplete, hideSuggestions as hideScanSuggestions, readFileAsText, submitScan, handleXmlImport, loadGroups };
-
-// Также оставляем window-экспорты для обратной совместимости с onclick handlers
-window.initScanAutocomplete = initScanAutocomplete;
-window.hideScanSuggestions = hideSuggestions;
-window.readFileAsText = readFileAsText;
-window.submitScan = submitScan;
-window.handleXmlImport = handleXmlImport;
-window.loadGroups = loadGroups;
 
 /**
  * Читает файл как текст (Promise wrapper для FileReader)

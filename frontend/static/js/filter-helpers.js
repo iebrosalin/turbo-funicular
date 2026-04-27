@@ -425,5 +425,5 @@ function getOperatorLabel(op) {
     return map[op] || op;
 }
 
-// Экспорт
-window.initFilterAutocomplete = initFilterAutocomplete;
+// Экспорт функций через ES6 export
+export { initFilterAutocomplete };
