@@ -200,3 +200,10 @@ export class Utils {
     setTimeout(() => alert.remove(), 5000);
   }
 }
+
+// Отдельные экспорты функций для удобства импорта
+export const populateParentSelect = Utils.populateParentSelect.bind(Utils);
+export const closeModalById = Utils.closeModalById.bind(Utils);
+export const apiRequest = Utils.apiRequest.bind(Utils);
+export const formatDate = Utils.formatDate.bind(Utils);
+export const showNotification = Utils.showNotification.bind(Utils);
