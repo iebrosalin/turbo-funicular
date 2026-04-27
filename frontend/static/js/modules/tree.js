@@ -3,6 +3,7 @@
  */
 import { store } from '../store.js';
 import { filterByGroup as filterAssets } from './assets.js';
+import { Utils } from './utils.js';
 
 export class TreeManager {
   constructor() {
@@ -198,13 +199,13 @@ export class TreeManager {
     const url = `/api/assets${queryString ? '?' + queryString : ''}`;
 
     try {
-      const response = await fetch(url);
+      const response = await Utils.apiRequest(url);
       
       if (!response.ok) {
         throw new Error(`Ошибка сервера: ${response.status}`);
       }
 
-      const data = await response.json();
+      const data = await response;
       const assets = Array.isArray(data) ? data : (data.assets || []);
 
       tbody.innerHTML = '';
@@ -271,10 +272,7 @@ export class TreeManager {
    */
   async refresh() {
     try {
-      const response = await fetch('/api/groups/tree');
-      if (!response.ok) throw new Error('Network response was not ok');
-      
-      const data = await response.json();
+      const data = await Utils.apiRequest('/api/groups/tree');
       
       let groups = [];
       let counts = {};
