@@ -39,7 +39,7 @@ from backend.models.scan import Scan
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
-@pytest_asyncio.fixture(scope="function", loop_scope="function")
+@pytest_asyncio.fixture(scope="function")
 async def test_engine():
     """Create a test database engine for each test function."""
     engine = create_async_engine(
