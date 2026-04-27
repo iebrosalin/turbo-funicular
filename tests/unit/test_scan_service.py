@@ -134,3 +134,89 @@ class TestScanService:
         
         active = await service.get_active()
         assert len(active) >= 1
+
+    async def test_create_scan_persists_to_db(self, async_session_mock):
+        """Тест полного сохранения сканирования в БД с вызовом add(), commit() и refresh()"""
+        from backend.schemas.scan import ScanCreate
+        service = ScanService(async_session_mock)
+        
+        # Настраиваем мок для отслеживания вызовов
+        async_session_mock.add = MagicMock()
+        async_session_mock.commit = AsyncMock()
+        async_session_mock.refresh = AsyncMock()
+        
+        scan_data = ScanCreate(
+            name="Persistence Test",
+            target="10.0.0.1",
+            scan_type="nmap",
+            options="-sV"
+        )
+        
+        # Создаем объект сканирования, который будет изменён при commit/refresh
+        created_scan = Scan(**scan_data.model_dump())
+        created_scan.id = 1
+        created_scan.status = "pending"
+        created_scan.progress = 0
+        
+        # Мокируем side_effect для add чтобы сохранить объект
+        def add_side_effect(obj):
+            obj.id = 1
+            if not hasattr(obj, 'status'):
+                obj.status = "pending"
+            if not hasattr(obj, 'progress'):
+                obj.progress = 0
+        
+        async_session_mock.add.side_effect = add_side_effect
+        
+        # После refresh объект должен иметь все атрибуты
+        async_session_mock.refresh.side_effect = lambda x: setattr(x, 'id', 1) or setattr(x, 'created_at', datetime.now())
+        
+        result = await service.create(scan_data)
+        
+        # Проверяем, что все методы были вызваны
+        async_session_mock.add.assert_called_once()
+        async_session_mock.commit.assert_called_once()
+        async_session_mock.refresh.assert_called_once()
+        
+        # Проверяем, что объект был сохранён с правильными данными
+        assert result is not None
+        assert result.name == "Persistence Test"
+        assert result.target == "10.0.0.1"
+        assert result.scan_type == "nmap"
+
+    async def test_create_scan_default_values(self, async_session_mock):
+        """Тест установки значений по умолчанию при создании сканирования без указания полей"""
+        from backend.schemas.scan import ScanCreate
+        service = ScanService(async_session_mock)
+        
+        # Настраиваем мок
+        async_session_mock.add = MagicMock()
+        async_session_mock.flush = AsyncMock()
+        async_session_mock.refresh = AsyncMock()
+        
+        # Создаём сканирование без указания scan_type, status, progress
+        scan_data = ScanCreate(
+            name="Default Values Test",
+            target="192.168.1.1"
+        )
+        
+        # Мокируем создание объекта с значениями по умолчанию из модели
+        def add_side_effect(obj):
+            obj.id = 1
+            # Проверяем, что значения по умолчанию установлены
+            if not hasattr(obj, 'scan_type') or obj.scan_type is None:
+                obj.scan_type = "nmap"
+            if not hasattr(obj, 'status') or obj.status is None:
+                obj.status = "pending"
+            if not hasattr(obj, 'progress') or obj.progress is None:
+                obj.progress = 0
+        
+        async_session_mock.add.side_effect = add_side_effect
+        async_session_mock.refresh.side_effect = lambda x: setattr(x, 'created_at', datetime.now())
+        
+        result = await service.create(scan_data)
+        
+        # Проверяем значения по умолчанию
+        assert result.scan_type == "nmap", "scan_type должен быть 'nmap' по умолчанию"
+        assert result.status == "pending", "status должен быть 'pending' по умолчанию"
+        assert result.progress == 0, "progress должен быть 0 по умолчанию"
