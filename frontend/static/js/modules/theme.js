@@ -1,46 +1,47 @@
 // static/js/modules/theme.js
-export function initTheme() {
-    const htmlEl = document.documentElement;
-    const themeToggle = document.getElementById('themeToggle');
-    const icon = themeToggle?.querySelector('i');
-    
+
+export class ThemeController {
+  constructor() {
+    this.htmlEl = document.documentElement;
+    this.themeToggle = document.getElementById('themeToggle');
+    this.icon = this.themeToggle?.querySelector('i');
+    this.#init();
+  }
+
+  #init() {
     const savedTheme = localStorage.getItem('theme') || 'light';
-    htmlEl.setAttribute('data-bs-theme', savedTheme);
-    updateIcon(savedTheme, icon);
+    this.#applyTheme(savedTheme);
 
-    themeToggle?.addEventListener('click', () => {
-        const current = htmlEl.getAttribute('data-bs-theme');
-        const next = current === 'light' ? 'dark' : 'light';
-        htmlEl.setAttribute('data-bs-theme', next);
-        localStorage.setItem('theme', next);
-        updateIcon(next, icon);
+    this.themeToggle?.addEventListener('click', () => {
+      const current = this.htmlEl.getAttribute('data-bs-theme');
+      const next = current === 'light' ? 'dark' : 'light';
+      this.#applyTheme(next);
     });
-}
+  }
 
-export function toggleTheme() {
-    const html = document.documentElement;
-    const newTheme = html.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
-    document.body.classList.add('theme-transition');
-    html.setAttribute('data-bs-theme', newTheme);
-    localStorage.setItem('theme', newTheme);
-    updateThemeIcon(newTheme);
-    setTimeout(() => document.body.classList.remove('theme-transition'), 300);
-}
+  #applyTheme(theme) {
+    this.htmlEl.setAttribute('data-bs-theme', theme);
+    localStorage.setItem('theme', theme);
+    this.#updateIcon(theme);
+  }
 
-function updateIcon(theme, icon) {
-    if (!icon) return;
+  #updateIcon(theme) {
+    if (!this.icon) return;
     if (theme === 'dark') {
-        icon.classList.replace('bi-moon-stars-fill', 'bi-sun-fill');
+      this.icon.classList.replace('bi-moon-stars-fill', 'bi-sun-fill');
     } else {
-        icon.classList.replace('bi-sun-fill', 'bi-moon-stars-fill');
+      this.icon.classList.replace('bi-sun-fill', 'bi-moon-stars-fill');
     }
+  }
+
+  toggle() {
+    const current = this.htmlEl.getAttribute('data-bs-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.body.classList.add('theme-transition');
+    this.#applyTheme(next);
+    setTimeout(() => document.body.classList.remove('theme-transition'), 300);
+  }
 }
 
-function updateThemeIcon(theme) {
-    const toggle = document.querySelector('.theme-toggle');
-    if (!toggle) return;
-    const moon = toggle.querySelector('.bi-moon');
-    const sun = toggle.querySelector('.bi-sun');
-    if(moon) moon.style.display = theme === 'dark' ? 'none' : 'block';
-    if(sun) sun.style.display = theme === 'dark' ? 'block' : 'none';
-}
+// Создаем и экспортируем экземпляр по умолчанию
+export const themeController = new ThemeController();
