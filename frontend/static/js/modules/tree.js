@@ -2,7 +2,6 @@
  * Модуль управления деревом групп и фильтрацией активов
  */
 import { store } from '../store.js';
-import { filterByGroup as filterAssets } from './assets.js';
 import { Utils } from './utils.js';
 
 export class TreeManager {
@@ -301,3 +300,8 @@ export class TreeManager {
 
 // Экспорт экземпляра по умолчанию
 export const treeManager = new TreeManager();
+
+// Экспорт отдельных методов для использования в других модулях
+export const filterByGroup = (groupId) => treeManager.filterByGroup(groupId);
+export const loadAssets = (groupId = null, isUngrouped = false) => treeManager.loadAssets(groupId, isUngrouped);
+export const refreshGroupTree = () => treeManager.refresh();
