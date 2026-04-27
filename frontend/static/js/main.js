@@ -8,8 +8,7 @@ class App {
 
   async init() {
     try {
-      // Инициализация темы
-      themeController.init();
+      // Тема инициализируется автоматически при создании экземпляра ThemeController
 
       // Инициализация менеджеров
       await this.#initManagers();
