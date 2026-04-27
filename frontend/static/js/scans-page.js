@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', function() {
             let targetsText = document.getElementById('dig-targets').value.trim();
             const fileInput = document.getElementById('dig-file');
 
-            if (fileInput && fileInput.files && fileInput.files.length > 0) {
+            if (fileInput?.files?.length > 0) {
                 try {
                     const fileContent = await readFileAsText(fileInput.files[0]);
                     const fileTargets = fileContent.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));

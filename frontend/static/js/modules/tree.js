@@ -287,41 +287,41 @@ export async function loadAssets(groupId = null, isUngrouped = false, targetTabl
  * Доступна из window для вызова из HTML
  */
 export async function refreshGroupTree() {
-    return fetch('/api/groups/tree')
-        .then(response => {
-            if (!response.ok) throw new Error('Network response was not ok');
-            return response.json();
-        })
-        .then(data => {
-            // Поддержка разных форматов ответа API
-            let groups = [];
-            let counts = {};
+    try {
+        const response = await fetch('/api/groups/tree');
+        if (!response.ok) throw new Error('Network response was not ok');
+        
+        const data = await response.json();
+        
+        // Поддержка разных форматов ответа API
+        let groups = [];
+        let counts = {};
 
-            // Формат от /api/groups/tree: {tree: [...], flat: [...], ungrouped_count: N}
-            if (data.flat && Array.isArray(data.flat)) {
-                groups = data.flat;
-                // Строим counts из flat списка - используем direct_count для избежания дублирования
-                groups.forEach(g => {
-                    // Используем direct_count если есть (прямые активы без вложенных), иначе count или asset_count
-                    counts[g.id] = g.direct_count !== undefined ? g.direct_count : (g.count || g.asset_count || 0);
-                });
-                // Добавляем счетчик "Без группы"
-                counts['ungrouped'] = data.ungrouped_count || 0;
-            } else if (Array.isArray(data)) {
-                groups = data;
-            } else if (data.groups) {
-                groups = data.groups;
-                counts = data.counts || {};
-            }
+        // Формат от /api/groups/tree: {tree: [...], flat: [...], ungrouped_count: N}
+        if (data.flat && Array.isArray(data.flat)) {
+            groups = data.flat;
+            // Строим counts из flat списка - используем direct_count для избежания дублирования
+            groups.forEach(g => {
+                // Используем direct_count если есть (прямые активы без вложенных), иначе count или asset_count
+                counts[g.id] = g.direct_count !== undefined ? g.direct_count : (g.count || g.asset_count || 0);
+            });
+            // Добавляем счетчик "Без группы"
+            counts['ungrouped'] = data.ungrouped_count || 0;
+        } else if (Array.isArray(data)) {
+            groups = data;
+        } else if (data.groups) {
+            groups = data.groups;
+            counts = data.counts || {};
+        }
 
-            renderTree(groups, counts);
-            
-            // Перепривязываем слушатели к статическим элементам после перерисовки
-            initGroupTreeStaticListeners();
-            
-            return Promise.resolve();
-        })
-        .catch(err => console.error('Ошибка загрузки дерева групп:', err));
+        renderTree(groups, counts);
+        
+        // Перепривязываем слушатели к статическим элементам после перерисовки
+        initGroupTreeStaticListeners();
+        
+    } catch (err) {
+        console.error('Ошибка загрузки дерева групп:', err);
+    }
 };
 
 /**

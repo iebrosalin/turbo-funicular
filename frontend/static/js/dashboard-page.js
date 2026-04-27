@@ -352,20 +352,23 @@ function updateURL() {
 }
 
 // Функция удаления актива (вызывается через event delegation)
-function deleteAsset(id) {
+async function deleteAsset(id) {
     if (!confirm('Вы уверены, что хотите удалить этот актив?')) return;
     
-    fetch(`/api/assets/${id}`, { method: 'DELETE' })
-        .then(res => {
-            if (res.ok) {
-                alert('Актив удален');
-                // Перезагружаем активы через центральный модуль tree.js
-                loadAssets(null, false, 'assets-table', null);
-            } else {
-                return res.json().then(err => Promise.reject(err));
-            }
-        })
-        .catch(err => alert('Ошибка удаления: ' + (err.error || err.message)));
+    try {
+        const res = await fetch(`/api/assets/${id}`, { method: 'DELETE' });
+        
+        if (res.ok) {
+            alert('Актив удален');
+            // Перезагружаем активы через центральный модуль tree.js
+            loadAssets(null, false, 'assets-table', null);
+        } else {
+            const err = await res.json();
+            throw err;
+        }
+    } catch (err) {
+        alert('Ошибка удаления: ' + (err.error || err.message));
+    }
 }
 
 // Экспортируем функцию для использования из tree.js

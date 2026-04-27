@@ -153,10 +153,13 @@ export function confirmBulkMove() {
         modalInstance.show();
 
     // Загрузка списка групп для селекта
-    loadGroupsForMoveModal().then(() => {
+    try {
+        await loadGroupsForMoveModal();
         const modalInstance = bootstrap.Modal.getInstance(document.getElementById('bulkMoveModal'));
         if(modalInstance) modalInstance.show();
-    });
+    } catch (error) {
+        console.error('Ошибка загрузки групп для перемещения:', error);
+    }
 }
 
 async function loadGroupsForMoveModal() {

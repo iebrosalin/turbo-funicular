@@ -94,11 +94,11 @@ function showResultsModal(htmlContent, errorText = null) {
         contentDiv.innerHTML = htmlContent;
     }
 
-    if (errorText && errorTextPre && errorAlert) {
+    if (errorText && errorTextPre) {
         errorTextPre.textContent = errorText;
-        errorAlert.style.display = 'block';
-    } else if (errorAlert) {
-        errorAlert.style.display = 'none';
+        errorAlert?.style.setProperty('display', 'block');
+    } else {
+        errorAlert?.style.setProperty('display', 'none');
     }
 
     const modalEl = document.getElementById('scanResultsModal');

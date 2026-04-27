@@ -216,20 +216,21 @@ export async function showDeleteModal(id) {
     modal.show();
 }
 
-export function confirmDeleteGroup() {
+export async function confirmDeleteGroup() {
     const groupId = document.getElementById('delete-group-id').value;
     const moveToId = document.getElementById('delete-move-assets').value;
     
     closeModalById('groupDeleteModal');
 
-    fetch(`/api/groups/${groupId}`, {
-        method: 'DELETE',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ move_to_id: moveToId || null })
-    })
-    .then(response => {
+    try {
+        const response = await fetch(`/api/groups/${groupId}`, {
+            method: 'DELETE',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ move_to_id: moveToId || null })
+        });
+        
         if (response.ok) {
-            refreshGroupTree();
+            await refreshGroupTree();
             const currentGroupId = store.get('currentGroupId');
             if (currentGroupId == groupId) {
                 store.set('currentGroupId', null);
@@ -238,11 +239,10 @@ export function confirmDeleteGroup() {
         } else {
             alert('Ошибка при удалении группы');
         }
-    })
-    .catch(error => {
+    } catch (error) {
         console.error('Error:', error);
         alert('Ошибка сети');
-    });
+    }
 }
 
 export async function showMoveGroupModal(id) {

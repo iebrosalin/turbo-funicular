@@ -124,8 +124,9 @@ import { store } from './modules/index.js';
         setInterval(pollActiveScans, 5000);
 
         // 🌳 Инициализация дерева групп (строго после DOM)
-        refreshGroupTree()
-            .then(() => {
+        (async () => {
+            try {
+                await refreshGroupTree();
                 initTreeTogglers();
                 // initGroupTreeStaticListeners() уже вызывается внутри refreshGroupTree() после renderTree()
 
@@ -144,10 +145,10 @@ import { store } from './modules/index.js';
                     // По умолчанию загружаем все активы
                     filterByGroup('all', false, 'assets-body', null);
                 }
-            })
-            .catch(err => {
+            } catch (err) {
                 console.error('❌ Ошибка инициализации дерева групп:', err);
-            });
+            }
+        })();
 
         // ⌨️ Горячие клавиши (Ctrl+A для выделения всех)
         document.addEventListener('keydown', e => {

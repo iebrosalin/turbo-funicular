@@ -39,7 +39,9 @@ export async function viewScanResults(id) {
         } else {
             h += `<p><strong>Найдено хостов:</strong> ${d.results.length}</p><div class="list-group">`;
             d.results.forEach(x=>{
-                h += `<div class="list-group-item"><div class="d-flex justify-content-between"><h6 class="mb-1">${x.ip}</h6><small>${x.scanned_at}</small></div><p class="mb-1"><strong>Порты:</strong> ${x.ports && x.ports.join ? x.ports.join(', ') : 'Нет'}</p>${x.os && x.os !== '-' ? `<p class="mb-0"><strong>ОС:</strong> ${x.os}</p>`:''}</div>`;
+                const ports = x.ports?.join ? x.ports.join(', ') : 'Нет';
+                const osInfo = x.os && x.os !== '-' ? `<p class="mb-0"><strong>ОС:</strong> ${x.os}</p>` : '';
+                h += `<div class="list-group-item"><div class="d-flex justify-content-between"><h6 class="mb-1">${x.ip}</h6><small>${x.scanned_at}</small></div><p class="mb-1"><strong>Порты:</strong> ${ports}</p>${osInfo}</div>`;
             });
             h += '</div>';
         }
