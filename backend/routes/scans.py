@@ -30,6 +30,13 @@ class RustscanRequest(BaseModel):
     nmap_args: Optional[str] = None
 
 
+class DigScanRequest(BaseModel):
+    targets_text: str
+    dns_server: Optional[str] = None
+    cli_args: Optional[str] = None
+    record_types: Optional[str] = None
+
+
 # ==========================================
 # Специфичные маршруты (должны быть перед параметризированными!)
 # ==========================================
@@ -164,6 +171,7 @@ async def run_nmap_scan(
 ):
     """Запустить сканирование Nmap."""
     from backend.models.scan import Scan, ScanJob
+    from backend.services.scan_queue_manager import scan_queue_manager
     from datetime import datetime, timezone
     import logging
     
@@ -203,6 +211,33 @@ async def run_nmap_scan(
     await db.commit()
     await db.refresh(new_job)
     logger.info(f"Создана задача сканирования ID={new_job.id}")
+    
+    # Добавляем задачу в очередь выполнения
+    targets_list = [target] if target else []
+    parameters = {
+        "ports": request.ports,
+        "scripts": request.scripts,
+        "custom_args": request.custom_args,
+        "known_ports_only": request.known_ports_only,
+        "group_ids": request.group_ids
+    }
+    
+    try:
+        await scan_queue_manager.add_scan(
+            db=db,
+            scan_job_id=new_job.id,
+            scan_type="nmap",
+            targets=targets_list,
+            parameters=parameters
+        )
+        logger.info(f"Задача {new_job.id} добавлена в очередь ScanQueueManager")
+    except Exception as e:
+        logger.error(f"Ошибка добавления задачи в очередь: {e}")
+        new_job.status = "failed"
+        new_job.error_message = str(e)
+        await db.commit()
+        raise HTTPException(status_code=500, detail=f"Ошибка запуска сканирования: {str(e)}")
+    
     logger.info(f"=== Сканирование успешно запущено ===")
     
     return {"message": f"Nmap сканирование запущено для {target}", "status": "queued", "job_id": new_job.id}
@@ -216,6 +251,7 @@ async def run_rustscan(
 ):
     """Запустить сканирование Rustscan."""
     from backend.models.scan import Scan, ScanJob
+    from backend.services.scan_queue_manager import scan_queue_manager
     from datetime import datetime, timezone
     import logging
     
@@ -252,6 +288,32 @@ async def run_rustscan(
     await db.commit()
     await db.refresh(new_job)
     logger.info(f"Создана задача сканирования ID={new_job.id}")
+    
+    # Добавляем задачу в очередь выполнения
+    targets_list = [request.target] if request.target else []
+    parameters = {
+        "ports": request.ports,
+        "custom_args": request.custom_args,
+        "run_nmap_after": request.run_nmap_after,
+        "nmap_args": request.nmap_args
+    }
+    
+    try:
+        await scan_queue_manager.add_scan(
+            db=db,
+            scan_job_id=new_job.id,
+            scan_type="rustscan",
+            targets=targets_list,
+            parameters=parameters
+        )
+        logger.info(f"Задача {new_job.id} добавлена в очередь ScanQueueManager")
+    except Exception as e:
+        logger.error(f"Ошибка добавления задачи в очередь: {e}")
+        new_job.status = "failed"
+        new_job.error_message = str(e)
+        await db.commit()
+        raise HTTPException(status_code=500, detail=f"Ошибка запуска сканирования: {str(e)}")
+    
     logger.info(f"=== Rustscan успешно запущен ===")
     
     return {"message": f"Rustscan запущен для {request.target}", "status": "queued", "job_id": new_job.id}
@@ -259,33 +321,77 @@ async def run_rustscan(
 
 @router.post("/dig")
 async def run_dig_scan(
-    request: dict = Body(...),
+    request: DigScanRequest,
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
     """Запустить DNS сканирование (dig)."""
-    targets_text = request.get("targets_text", "")
-    dns_server = request.get("dns_server")
-    cli_args = request.get("cli_args")
-    record_types = request.get("record_types")
+    from backend.models.scan import Scan, ScanJob
+    from backend.services.scan_queue_manager import scan_queue_manager
+    from datetime import datetime, timezone
+    import logging
     
-    # Создаем новую задачу сканирования в БД
-    from backend.models.scan import Scan
-    from datetime import datetime
+    logger = logging.getLogger(__name__)
+    logger.info(f"=== Получен запрос на Dig сканирование ===")
+    logger.info(f"Targets: {request.targets_text}")
+    logger.info(f"DNS Server: {request.dns_server}")
+    logger.info(f"Record Types: {request.record_types}")
     
+    # Создаём запись сканирования
     new_scan = Scan(
-        name=f"DNS scan: {targets_text[:50]}",
-        target=targets_text,
+        name=f"Dig scan: {request.targets_text[:50]}",
+        target=request.targets_text,
         scan_type="dig",
-        status="queued",
+        status="pending",
+        progress=0,
         created_at=datetime.now(timezone.utc)
     )
     
     db.add(new_scan)
     await db.commit()
     await db.refresh(new_scan)
+    logger.info(f"Создана запись сканирования ID={new_scan.id}")
     
-    return {"message": "DNS сканирование запущено", "status": "queued", "job_id": new_scan.id}
+    # Создаём задачу сканирования
+    new_job = ScanJob(
+        scan_id=new_scan.id,
+        job_type="dig",
+        status="pending",
+        created_at=datetime.now(timezone.utc)
+    )
+    
+    db.add(new_job)
+    await db.commit()
+    await db.refresh(new_job)
+    logger.info(f"Создана задача сканирования ID={new_job.id}")
+    
+    # Добавляем задачу в очередь выполнения
+    targets_list = [t.strip() for t in request.targets_text.split(',') if t.strip()]
+    parameters = {
+        "dns_server": request.dns_server,
+        "cli_args": request.cli_args,
+        "record_types": request.record_types
+    }
+    
+    try:
+        await scan_queue_manager.add_scan(
+            db=db,
+            scan_job_id=new_job.id,
+            scan_type="dig",
+            targets=targets_list,
+            parameters=parameters
+        )
+        logger.info(f"Задача {new_job.id} добавлена в очередь ScanQueueManager")
+    except Exception as e:
+        logger.error(f"Ошибка добавления задачи в очередь: {e}")
+        new_job.status = "failed"
+        new_job.error_message = str(e)
+        await db.commit()
+        raise HTTPException(status_code=500, detail=f"Ошибка запуска сканирования: {str(e)}")
+    
+    logger.info(f"=== Dig сканирование успешно запущено ===")
+    
+    return {"message": f"Dig сканирование запущено для {request.targets_text}", "status": "queued", "job_id": new_job.id}
 
 
 # ==========================================

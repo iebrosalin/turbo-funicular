@@ -22,6 +22,7 @@ from backend.db.session import engine
 from backend.routes import scans
 from backend.db.base import Base  # Импорт для доступа ко всем моделям
 from sqlalchemy import create_engine
+from backend.services.scan_queue_manager import scan_queue_manager
 
 # Настройка логирования
 logging.basicConfig(
@@ -62,8 +63,15 @@ async def lifespan(app: FastAPI):
         raise
     
     logger.info("🚀 Приложение успешно запущено.")
+    
+    # Запускаем менеджер очереди сканирований
+    await scan_queue_manager.start()
+    
     yield
     logger.info("🛑 Остановка приложения...")
+    
+    # Останавливаем менеджер очереди сканирований
+    await scan_queue_manager.stop()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
