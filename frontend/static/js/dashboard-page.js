@@ -1,261 +1,259 @@
 // static/js/dashboard-page.js
+import { store } from './store.js';
+import { Utils } from './modules/utils.js';
+import { AssetManager } from './modules/assets.js';
+
 /**
- * Основная логика дашборда: фильтрация, группировка, экспорт.
- * Загрузка активов делегирована модулю tree.js (функция loadAssets).
+ * Контроллер страницы дашборда.
+ * Управляет фильтрацией, группировкой, экспортом и отображением активов.
  */
-
-import { loadAssets } from './modules/tree.js';
-
-let allAssets = [];
-let filteredAssets = [];
-let currentGrouping = 'none';
-let visibleColumns = ['ip_address', 'hostname', 'os_family', 'status', 'device_type'];
-let searchQuery = '';
-
-// Инициализация при загрузке страницы
-document.addEventListener('DOMContentLoaded', function() {
-    // Загрузка параметров из URL (если есть)
-    loadStateFromURL();
+export class DashboardController {
+  constructor() {
+    this.allAssets = [];
+    this.filteredAssets = [];
+    this.currentGrouping = 'none';
+    this.visibleColumns = ['ip_address', 'hostname', 'os_family', 'status', 'device_type'];
+    this.searchQuery = '';
     
-    // Инициализация автодополнения для фильтра
-    const filterInput = document.getElementById('asset-filter');
-    if (filterInput && window.initFilterAutocomplete) {
-        window.initFilterAutocomplete(filterInput);
+    this.assetManager = new AssetManager('assets-table');
+    
+    this.#init();
+  }
+
+  async #init() {
+    this.#loadStateFromURL();
+    this.#setupEventListeners();
+    
+    // Подписка на обновления активов из Store
+    store.subscribe('assets', (assets) => {
+      this.allAssets = assets;
+      this.applyFilters();
+    });
+
+    // Начальная загрузка данных (если еще не загружены в Store)
+    if (!store.getState('assets')?.length) {
+      try {
+        const assets = await Utils.apiRequest('/api/assets');
+        store.setState('assets', assets);
+      } catch (error) {
+        console.error('Failed to load assets:', error);
+        Utils.showNotification('Не удалось загрузить активы', 'danger');
+      }
     }
+  }
 
-    // Загрузка данных через центральный модуль tree.js
-    loadAssets(null, false, 'assets-table', null);
-    
-    // Навешиваем обработчики событий
-    setupEventListeners();
-});
-
-function setupEventListeners() {
+  #setupEventListeners() {
     // Поиск
-    const filterInput = document.getElementById('asset-filter');
-    if (filterInput) {
-        filterInput.addEventListener('input', (e) => {
-            searchQuery = e.target.value.trim();
-            updateURL();
-            applyFilters();
-        });
-    }
+    document.getElementById('asset-filter')?.addEventListener('input', (e) => {
+      this.searchQuery = e.target.value.trim();
+      this.#updateURL();
+      this.applyFilters();
+    });
 
     // Группировка
-    const groupSelect = document.getElementById('group-by-select');
-    if (groupSelect) {
-        groupSelect.addEventListener('change', (e) => {
-            currentGrouping = e.target.value;
-            updateURL();
-            applyFilters();
-        });
-    }
+    document.getElementById('group-by-select')?.addEventListener('change', (e) => {
+      this.currentGrouping = e.target.value;
+      this.#updateURL();
+      this.applyFilters();
+    });
 
     // Кнопки фильтров
-    const btnApplyFilters = document.getElementById('btn-apply-filters');
-    const btnResetFilters = document.getElementById('btn-reset-filters');
-    
-    if (btnApplyFilters) btnApplyFilters.addEventListener('click', applyFilters);
-    if (btnResetFilters) btnResetFilters.addEventListener('click', resetFilters);
+    document.getElementById('btn-apply-filters')?.addEventListener('click', () => this.applyFilters());
+    document.getElementById('btn-reset-filters')?.addEventListener('click', () => this.resetFilters());
 
     // Toolbar кнопки
-    const btnClearSelection = document.getElementById('btn-clear-selection');
-    const btnBulkMove = document.getElementById('btn-bulk-move');
-    const btnBulkDelete = document.getElementById('btn-bulk-delete');
-    
-    if (btnClearSelection) btnClearSelection.addEventListener('click', clearSelection);
-    if (btnBulkMove) btnBulkMove.addEventListener('click', confirmBulkMove);
-    if (btnBulkDelete) btnBulkDelete.addEventListener('click', confirmBulkDelete);
+    document.getElementById('btn-clear-selection')?.addEventListener('click', () => store.clearSelectedAssets());
+    document.getElementById('btn-bulk-move')?.addEventListener('click', () => this.#confirmBulkMove());
+    document.getElementById('btn-bulk-delete')?.addEventListener('click', () => this.#confirmBulkDelete());
 
-    // Кнопки темы и добавления актива
-    const btnToggleTheme = document.getElementById('btn-toggle-theme');
-    const btnAddAsset = document.getElementById('btn-add-asset');
-    
-    if (btnToggleTheme) btnToggleTheme.addEventListener('click', toggleTheme);
-    if (btnAddAsset) btnAddAsset.addEventListener('click', () => showAssetModal(null));
-}
+    // Тема и добавление актива
+    document.getElementById('btn-toggle-theme')?.addEventListener('click', () => {
+      // Логика темы вынесена в ThemeManager, здесь только если нужно специфичное действие
+    });
+    document.getElementById('btn-add-asset')?.addEventListener('click', () => this.#showAssetModal(null));
 
-// Функция обновления данных после загрузки из tree.js
-function handleAssetsLoaded(assetsArray) {
-    try {
-        allAssets = assetsArray;
-        applyFilters();
-    } catch (error) {
-        console.error('Ошибка при обработке загруженных активов:', error);
-    }
-}
+    // Делегирование событий для таблицы
+    document.querySelector('#assets-table tbody')?.addEventListener('click', (e) => {
+      const deleteBtn = e.target.closest('.btn-delete-asset');
+      if (deleteBtn) {
+        const assetId = deleteBtn.dataset.assetId;
+        if (assetId) this.deleteAsset(assetId);
+      }
+      
+      // Обработка чекбоксов
+      const checkbox = e.target.closest('input[type="checkbox"].asset-select');
+      if (checkbox) {
+        store.toggleAssetSelection(checkbox.value);
+      }
+    });
+  }
 
-function applyFilters() {
+  applyFilters() {
     // Фильтрация по поиску
-    if (!searchQuery) {
-        filteredAssets = [...allAssets];
+    if (!this.searchQuery) {
+      this.filteredAssets = [...this.allAssets];
     } else {
-        const queryLower = searchQuery.toLowerCase();
-        filteredAssets = allAssets.filter(asset => {
-            // Простой поиск по всем строковым полям
-            return Object.values(asset).some(val => {
-                if (val === null || val === undefined) return false;
-                if (typeof val === 'string') return val.toLowerCase().includes(queryLower);
-                if (Array.isArray(val)) return val.some(v => String(v).toLowerCase().includes(queryLower));
-                return false;
-            });
+      const queryLower = this.searchQuery.toLowerCase();
+      this.filteredAssets = this.allAssets.filter(asset => {
+        return Object.values(asset).some(val => {
+          if (val === null || val === undefined) return false;
+          if (typeof val === 'string') return val.toLowerCase().includes(queryLower);
+          if (Array.isArray(val)) return val.some(v => String(v).toLowerCase().includes(queryLower));
+          return false;
         });
+      });
     }
 
-    // Дополнительная фильтрация по сложному синтаксису (если реализована в filter-helpers)
-    // Здесь можно добавить парсинг "field:op:value" если нужно
-    
-    renderTable();
-    renderGrouping();
-}
+    this.#renderTable();
+    this.#renderGrouping();
+  }
 
-function renderTable() {
-    const tableBody = document.querySelector('#assets-table tbody');
-    if (!tableBody) return;
+  #renderTable() {
+    this.assetManager.render(this.filteredAssets, this.visibleColumns);
+  }
 
-    tableBody.innerHTML = '';
-
-    if (!Array.isArray(filteredAssets) || filteredAssets.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Активы не найдены</td></tr>';
-        return;
-    }
-
-    // Ограничение на количество отображаемых элементов для производительности
-    const displayLimit = 500;
-    const assetsToRender = filteredAssets.slice(0, displayLimit);
-
-    assetsToRender.forEach(asset => {
-        const tr = document.createElement('tr');
-        
-        // Формирование ячеек в зависимости от видимых колонок
-        let html = '';
-        
-        // Чекбокс выбора
-        html += `<td><input type="checkbox" class="asset-select" value="${asset.id}"></td>`;
-        
-        visibleColumns.forEach(col => {
-            let val = asset[col];
-            
-            // Форматирование значений
-            if (col === 'ip_address') {
-                const domainHint = asset.fqdn || (asset.dns_names && asset.dns_names[0]) || '';
-                val = domainHint ? `${val} <small class="text-muted">(${domainHint})</small>` : val;
-            } else if (col === 'groups') {
-                val = Array.isArray(val) ? val.map(g => `<span class="badge bg-secondary">${g}</span>`).join(' ') : '';
-            } else if (col === 'open_ports') {
-                val = Array.isArray(val) ? `<span class="badge bg-info">${val.length}</span>` : '0';
-            } else if (col === 'status') {
-                const badgeClass = getStatusBadgeClass(val);
-                val = `<span class="badge ${badgeClass}">${val}</span>`;
-            } else if (!val) {
-                val = '<span class="text-muted">-</span>';
-            }
-            
-            html += `<td>${val}</td>`;
-        });
-        
-        // Колонка действий
-        html += `
-            <td>
-                <div class="btn-group btn-group-sm">
-                    <a href="/assets/${asset.id}" class="btn btn-outline-primary" title="Детали"><i class="bi bi-eye"></i></a>
-                    <button class="btn btn-outline-danger" title="Удалить" onclick="deleteAsset(${asset.id})"><i class="bi bi-trash"></i></button>
-                </div>
-            </td>
-        `;
-        
-        tr.innerHTML = html;
-        tableBody.appendChild(tr);
-    });
-
-    if (filteredAssets.length > displayLimit) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td colspan="100" class="text-center text-warning">Показано ${displayLimit} из ${filteredAssets.length}. Уточните поиск.</td>`;
-        tableBody.appendChild(tr);
-    }
-}
-
-function renderGrouping() {
-    // Логика визуального разделения таблицы при группировке
-    // В простой реализации мы просто перерисовываем таблицу, но можно добавлять заголовки групп
-    if (currentGrouping === 'none') return;
+  #renderGrouping() {
+    if (this.currentGrouping === 'none') return;
 
     const tableBody = document.querySelector('#assets-table tbody');
     if (!tableBody) return;
 
-    // Группировка данных
     const groups = {};
-    filteredAssets.forEach(asset => {
-        let key = 'Unknown';
-        if (currentGrouping === 'group') {
-            // Если групп много, берем первую или "Без группы"
-            const assetGroups = asset.groups || [];
-            key = assetGroups.length > 0 ? assetGroups[0] : 'Без группы';
-        } else if (currentGrouping === 'os_family') {
-            key = asset.os_family || 'Неизвестно';
-        } else if (currentGrouping === 'status') {
-            key = asset.status || 'Unknown';
-        } else if (currentGrouping === 'device_type') {
-            key = asset.device_type || 'Unknown';
-        }
+    this.filteredAssets.forEach(asset => {
+      let key = 'Unknown';
+      if (this.currentGrouping === 'group') {
+        const assetGroups = asset.groups || [];
+        key = assetGroups.length > 0 ? assetGroups[0] : 'Без группы';
+      } else if (['os_family', 'status', 'device_type'].includes(this.currentGrouping)) {
+        key = asset[this.currentGrouping] || 'Неизвестно';
+      }
 
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(asset);
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(asset);
     });
 
-    // Перерисовка с заголовками групп
     tableBody.innerHTML = '';
     
     Object.keys(groups).sort().forEach(groupName => {
-        // Заголовок группы
-        const trGroup = document.createElement('tr');
-        trGroup.className = 'table-active';
-        trGroup.innerHTML = `<td colspan="100"><strong>${groupName}</strong> <span class="badge bg-secondary">${groups[groupName].length}</span></td>`;
-        tableBody.appendChild(trGroup);
+      const trGroup = document.createElement('tr');
+      trGroup.className = 'table-active';
+      trGroup.innerHTML = `<td colspan="100"><strong>${groupName}</strong> <span class="badge bg-secondary">${groups[groupName].length}</span></td>`;
+      tableBody.appendChild(trGroup);
 
-        // Элементы группы (упрощенно, копируем логику renderTable для одного элемента)
-        groups[groupName].forEach(asset => {
-            const tr = document.createElement('tr');
-            // ... (логика создания строки такая же, как в renderTable)
-            // Для краткости опустим дублирование кода, в реальности лучше вынести создание строки в функцию createAssetRow(asset)
-            let html = `<td><input type="checkbox" class="asset-select" value="${asset.id}"></td>`;
-            visibleColumns.forEach(col => {
-                let val = asset[col];
-                if (col === 'ip_address') {
-                    const domainHint = asset.fqdn || (asset.dns_names && asset.dns_names[0]) || '';
-                    val = domainHint ? `${val} <small class="text-muted">(${domainHint})</small>` : val;
-                } else if (col === 'groups') {
-                    val = Array.isArray(val) ? val.map(g => `<span class="badge bg-secondary">${g}</span>`).join(' ') : '';
-                } else if (col === 'open_ports') {
-                    val = Array.isArray(val) ? `<span class="badge bg-info">${val.length}</span>` : '0';
-                } else if (col === 'status') {
-                    val = `<span class="badge ${getStatusBadgeClass(val)}">${val}</span>`;
-                } else if (!val) {
-                    val = '<span class="text-muted">-</span>';
-                }
-                html += `<td>${val}</td>`;
-            });
-            html += `<td><div class="btn-group btn-group-sm"><a href="/assets/${asset.id}" class="btn btn-outline-primary"><i class="bi bi-eye"></i></a></div></td>`;
-            tr.innerHTML = html;
-            tableBody.appendChild(tr);
-        });
+      groups[groupName].forEach(asset => {
+        const tr = this.assetManager.createRow(asset, this.visibleColumns);
+        tableBody.appendChild(tr);
+      });
     });
-}
+  }
 
-function getStatusBadgeClass(status) {
-    switch(status) {
-        case 'active': return 'bg-success';
-        case 'inactive': return 'bg-secondary';
-        case 'archived': return 'bg-dark';
-        case 'maintenance': return 'bg-warning text-dark';
-        default: return 'bg-info';
+  resetFilters() {
+    this.searchQuery = '';
+    this.currentGrouping = 'none';
+    
+    const filterInput = document.getElementById('asset-filter');
+    const groupSelect = document.getElementById('group-by-select');
+    
+    if (filterInput) filterInput.value = '';
+    if (groupSelect) groupSelect.value = 'none';
+    
+    this.#updateURL();
+    this.applyFilters();
+  }
+
+  async deleteAsset(id) {
+    if (!confirm('Вы уверены, что хотите удалить этот актив?')) return;
+    
+    try {
+      await Utils.apiRequest(`/api/assets/${id}`, { method: 'DELETE' });
+      Utils.showNotification('Актив удален', 'success');
+      
+      // Обновляем список в Store
+      const currentAssets = store.getState('assets');
+      store.setState('assets', currentAssets.filter(a => a.id !== id));
+    } catch (err) {
+      console.error('Delete failed:', err);
+      Utils.showNotification('Ошибка удаления: ' + (err.message), 'danger');
     }
-}
+  }
 
-function exportData(format) {
-    if (!filteredAssets || filteredAssets.length === 0) {
-        alert('Нет данных для экспорта');
-        return;
+  #confirmBulkMove() {
+    const ids = store.getSelectedAssets();
+    if (!ids.length) {
+      Utils.showNotification('Выберите активы для перемещения', 'warning');
+      return;
+    }
+    // Открытие модального окна перемещения
+    // Реализация зависит от структуры модальных окон
+    alert(`Переместить ${ids.length} активов (функционал в разработке)`);
+  }
+
+  #confirmBulkDelete() {
+    const ids = store.getSelectedAssets();
+    if (!ids.length) {
+      Utils.showNotification('Выберите активы для удаления', 'warning');
+      return;
+    }
+    
+    if (!confirm(`Удалить выбранные активы (${ids.length})?`)) return;
+    
+    this.#executeBulkDelete(ids);
+  }
+
+  async #executeBulkDelete(ids) {
+    try {
+      await Utils.apiRequest('/api/assets/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ ids })
+      });
+      Utils.showNotification('Активы удалены', 'success');
+      store.clearSelectedAssets();
+      
+      // Обновление списка
+      const currentAssets = store.getState('assets');
+      store.setState('assets', currentAssets.filter(a => !ids.includes(a.id)));
+    } catch (err) {
+      Utils.showNotification('Ошибка массового удаления: ' + err.message, 'danger');
+    }
+  }
+
+  #showAssetModal(asset) {
+    // Логика открытия модального окна создания/редактирования актива
+    alert('Модальное окно актива (функционал в разработке)');
+  }
+
+  #loadStateFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    
+    const search = params.get('search');
+    if (search) {
+      this.searchQuery = search;
+      const input = document.getElementById('asset-filter');
+      if (input) input.value = search;
+    }
+    
+    const group = params.get('group');
+    if (group) {
+      this.currentGrouping = group;
+      const select = document.getElementById('group-by-select');
+      if (select) select.value = group;
+    }
+  }
+
+  #updateURL() {
+    const params = new URLSearchParams();
+    
+    if (this.searchQuery) params.set('search', this.searchQuery);
+    if (this.currentGrouping !== 'none') params.set('group', this.currentGrouping);
+    
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, '', newUrl);
+  }
+
+  exportData(format) {
+    if (!this.filteredAssets?.length) {
+      Utils.showNotification('Нет данных для экспорта', 'warning');
+      return;
     }
 
     let content = '';
@@ -263,33 +261,30 @@ function exportData(format) {
     let extension = '';
 
     if (format === 'csv') {
-        // Заголовки
-        const headers = ['ID', ...visibleColumns];
-        content = headers.join(',') + '\n';
-        
-        // Данные
-        filteredAssets.forEach(asset => {
-            const row = [asset.id];
-            visibleColumns.forEach(col => {
-                let val = asset[col];
-                if (Array.isArray(val)) val = val.join('; ');
-                if (val === null || val === undefined) val = '';
-                // Экранирование запятых
-                val = String(val).replace(/"/g, '""');
-                if (val.includes(',') || val.includes('\n')) {
-                    val = `"${val}"`;
-                }
-                row.push(val);
-            });
-            content += row.join(',') + '\n';
+      const headers = ['ID', ...this.visibleColumns];
+      content = headers.join(',') + '\n';
+      
+      this.filteredAssets.forEach(asset => {
+        const row = [asset.id];
+        this.visibleColumns.forEach(col => {
+          let val = asset[col];
+          if (Array.isArray(val)) val = val.join('; ');
+          if (val === null || val === undefined) val = '';
+          val = String(val).replace(/"/g, '""');
+          if (val.includes(',') || val.includes('\n')) {
+            val = `"${val}"`;
+          }
+          row.push(val);
         });
-        
-        mimeType = 'text/csv';
-        extension = 'csv';
+        content += row.join(',') + '\n';
+      });
+      
+      mimeType = 'text/csv';
+      extension = 'csv';
     } else if (format === 'json') {
-        content = JSON.stringify(filteredAssets, null, 2);
-        mimeType = 'application/json';
-        extension = 'json';
+      content = JSON.stringify(this.filteredAssets, null, 2);
+      mimeType = 'application/json';
+      extension = 'json';
     }
 
     const blob = new Blob([content], { type: mimeType });
@@ -301,81 +296,5 @@ function exportData(format) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
 }
-
-function loadStateFromURL() {
-    const params = new URLSearchParams(window.location.search);
-    
-    const search = params.get('search');
-    if (search) {
-        searchQuery = search;
-        const input = document.getElementById('asset-filter');
-        if (input) input.value = searchQuery;
-    }
-    
-    const group = params.get('group');
-    if (group) {
-        currentGrouping = group;
-        const select = document.getElementById('group-by-select');
-        if (select) select.value = group;
-    }
-    
-    const cols = params.get('cols');
-    if (cols) {
-        visibleColumns = cols.split(',');
-        // Тут можно обновить UI чекбоксов колонок если они есть
-    }
-}
-
-function updateURL() {
-    const params = new URLSearchParams();
-    
-    if (searchQuery) params.set('search', searchQuery);
-    if (currentGrouping !== 'none') params.set('group', currentGrouping);
-    if (visibleColumns.length > 0) params.set('cols', visibleColumns.join(','));
-    
-    const newUrl = `${window.location.pathname}?${params.toString()}`;
-    window.history.replaceState({}, '', newUrl);
-}
-
-// Глобальные функции для вызова из HTML
-window.deleteAsset = function(id) {
-    if (!confirm('Вы уверены, что хотите удалить этот актив?')) return;
-    
-    fetch(`/api/assets/${id}`, { method: 'DELETE' })
-        .then(res => {
-            if (res.ok) {
-                alert('Актив удален');
-                // Перезагружаем активы через центральный модуль tree.js
-                if (window.loadAssets) {
-                    window.loadAssets(null, false, 'assets-table', null);
-                }
-            } else {
-                return res.json().then(err => Promise.reject(err));
-            }
-        })
-        .catch(err => alert('Ошибка удаления: ' + (err.error || err.message)));
-};
-
-// Экспортируем функцию для использования из tree.js
-window.handleAssetsLoaded = handleAssetsLoaded;
-
-// Глобальные функции для вызова из HTML (теперь через event listeners)
-function resetFilters() {
-    searchQuery = '';
-    currentGrouping = 'none';
-    
-    const filterInput = document.getElementById('asset-filter');
-    const groupSelect = document.getElementById('group-by-select');
-    
-    if (filterInput) filterInput.value = '';
-    if (groupSelect) groupSelect.value = '';
-    
-    updateURL();
-    applyFilters();
-}
-
-// Экспорт функций в глобальную область видимости
-window.applyFilters = applyFilters;
-window.resetFilters = resetFilters;
-window.exportData = exportData;
