@@ -1,52 +1,16 @@
-nohup: ignoring input
-INFO:     Started server process [2779]
+INFO:     Started server process [570]
 INFO:     Waiting for application startup.
-2026-04-26 11:25:49,319 INFO sqlalchemy.engine.Engine BEGIN (implicit)
-2026-04-26 11:25:49,319 - sqlalchemy.engine.Engine - INFO - BEGIN (implicit)
-2026-04-26 11:25:49,320 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("asset_groups")
-2026-04-26 11:25:49,320 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("asset_groups")
-2026-04-26 11:25:49,320 INFO sqlalchemy.engine.Engine [raw sql] ()
-2026-04-26 11:25:49,320 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
-2026-04-26 11:25:49,321 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("assets")
-2026-04-26 11:25:49,321 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("assets")
-2026-04-26 11:25:49,321 INFO sqlalchemy.engine.Engine [raw sql] ()
-2026-04-26 11:25:49,321 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
-2026-04-26 11:25:49,321 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("groups")
-2026-04-26 11:25:49,321 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("groups")
-2026-04-26 11:25:49,321 INFO sqlalchemy.engine.Engine [raw sql] ()
-2026-04-26 11:25:49,321 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
-2026-04-26 11:25:49,322 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("scans")
-2026-04-26 11:25:49,322 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("scans")
-2026-04-26 11:25:49,322 INFO sqlalchemy.engine.Engine [raw sql] ()
-2026-04-26 11:25:49,322 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
-2026-04-26 11:25:49,322 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("scan_jobs")
-2026-04-26 11:25:49,322 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("scan_jobs")
-2026-04-26 11:25:49,322 INFO sqlalchemy.engine.Engine [raw sql] ()
-2026-04-26 11:25:49,322 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
-2026-04-26 11:25:49,322 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("scan_results")
-2026-04-26 11:25:49,322 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("scan_results")
-2026-04-26 11:25:49,322 INFO sqlalchemy.engine.Engine [raw sql] ()
-2026-04-26 11:25:49,322 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
-2026-04-26 11:25:49,323 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("activity_logs")
-2026-04-26 11:25:49,323 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("activity_logs")
-2026-04-26 11:25:49,323 INFO sqlalchemy.engine.Engine [raw sql] ()
-2026-04-26 11:25:49,323 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
-2026-04-26 11:25:49,323 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("asset_change_logs")
-2026-04-26 11:25:49,323 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("asset_change_logs")
-2026-04-26 11:25:49,323 INFO sqlalchemy.engine.Engine [raw sql] ()
-2026-04-26 11:25:49,323 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
-2026-04-26 11:25:49,323 INFO sqlalchemy.engine.Engine PRAGMA main.table_info("service_inventory")
-2026-04-26 11:25:49,323 - sqlalchemy.engine.Engine - INFO - PRAGMA main.table_info("service_inventory")
-2026-04-26 11:25:49,323 INFO sqlalchemy.engine.Engine [raw sql] ()
-2026-04-26 11:25:49,323 - sqlalchemy.engine.Engine - INFO - [raw sql] ()
-2026-04-26 11:25:49,324 INFO sqlalchemy.engine.Engine COMMIT
-2026-04-26 11:25:49,324 - sqlalchemy.engine.Engine - INFO - COMMIT
-2026-04-26 11:25:49,324 - backend.main - INFO - ✅ База данных проверена и инициализирована.
-2026-04-26 11:25:49,326 INFO sqlalchemy.engine.Engine BEGIN (implicit)
-2026-04-26 11:25:49,326 - sqlalchemy.engine.Engine - INFO - BEGIN (implicit)
-2026-04-26 11:25:49,326 INFO sqlalchemy.engine.Engine COMMIT
-2026-04-26 11:25:49,326 - sqlalchemy.engine.Engine - INFO - COMMIT
-2026-04-26 11:25:49,326 - backend.main - INFO - ✅ Подключение к базе данных установлено.
-2026-04-26 11:25:49,326 - backend.main - INFO - 🚀 Приложение успешно запущено.
+2026-04-27 10:15:49,930 - backend.main - INFO - ✅ База данных проверена и инициализирована.
+2026-04-27 10:15:49,931 - backend.main - INFO - ✅ Подключение к базе данных установлено.
+2026-04-27 10:15:49,932 - backend.main - INFO - 🚀 Приложение успешно запущено.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56896 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56898 - "GET /api/assets/ HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:56900 - "GET /api/assets/ HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:56902 - "POST /api/assets/ HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:56904 - "GET /api/assets HTTP/1.1" 200 OK
+2026-04-27 10:16:08,990 - backend.core.exceptions - ERROR - Ошибка валидации: [{'type': 'missing', 'loc': ('body', 'ip_address'), 'msg': 'Field required', 'input': {'name': 'Test Asset', 'ip': '192.168.1.1'}}]
+INFO:     127.0.0.1:56906 - "POST /api/assets HTTP/1.1" 422 Unprocessable Entity
+INFO:     127.0.0.1:56908 - "POST /api/assets HTTP/1.1" 201 Created
+INFO:     127.0.0.1:56910 - "GET /api/assets HTTP/1.1" 200 OK

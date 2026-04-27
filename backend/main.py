@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI):
         db_url = settings.DATABASE_URL.replace("+asyncpg", "").replace("+aiosqlite", "")
         sync_engine = create_engine(
             db_url,
-            echo=settings.DEBUG,
+            echo=False,
             connect_args={"check_same_thread": False} if "sqlite" in db_url else {}
         )
         
