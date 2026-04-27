@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File, Body
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File, Body, Request
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, AsyncGenerator
+import asyncio
+import json
 from backend.db.session import get_db
 from backend.services.scan_service import ScanService
 from backend.schemas.scan import ScanCreate, ScanUpdate, ScanResponse
-import json
+from backend.models.scan import ScanJob
 from datetime import datetime, timezone
 from pydantic import BaseModel
 
@@ -113,6 +116,69 @@ async def get_scans_status(db: AsyncSession = Depends(get_db)):
         },
         "recent_jobs": recent_jobs
     }
+
+
+async def scan_event_generator(db: AsyncSession) -> AsyncGenerator[str, None]:
+    """Генератор событий для SSE (Server-Sent Events)."""
+    last_statuses = {}
+    
+    while True:
+        try:
+            # Получаем все активные задачи
+            query = select(ScanJob).where(
+                ScanJob.status.in_(['pending', 'running', 'queued'])
+            ).options(selectinload(ScanJob.scan))
+            
+            result = await db.execute(query)
+            jobs = result.scalars().all()
+            
+            for job in jobs:
+                current_status = {
+                    "id": job.id,
+                    "status": job.status,
+                    "progress": getattr(job.scan, 'progress', 0) if job.scan else 0,
+                    "error_message": job.error_message
+                }
+                
+                # Отправляем событие только если статус изменился
+                if job.id not in last_statuses or last_statuses[job.id] != current_status:
+                    event_data = json.dumps(current_status)
+                    yield f"data: {event_data}\n\n"
+                    last_statuses[job.id] = current_status
+            
+            # Удаляем из last_statuses завершенные задачи
+            active_ids = {job.id for job in jobs}
+            for job_id in list(last_statuses.keys()):
+                if job_id not in active_ids:
+                    del last_statuses[job_id]
+            
+            await asyncio.sleep(2)  # Проверка каждые 2 секунды
+            
+        except Exception as e:
+            logger.error(f"Error in SSE generator: {e}")
+            await asyncio.sleep(5)
+
+
+@router.get("/events")
+async def scan_events(request: Request, db: AsyncSession = Depends(get_db)):
+    """Endpoint для Server-Sent Events (SSE) - потоковая передача статуса сканирований."""
+    
+    async def generate():
+        async for event in scan_event_generator(db):
+            # Проверяем, не отключился ли клиент
+            if await request.is_disconnected():
+                break
+            yield event
+    
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Отключаем буферизацию nginx
+        }
+    )
 
 
 @router.get("/active", response_model=List[ScanResponse])
