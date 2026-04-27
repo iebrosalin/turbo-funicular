@@ -375,20 +375,140 @@ function handleKeydown(e) {
     }
 }
 
-// Экспорт функций для использования в других модулях
+// Экспорт функций для использования в других модулях (ES6 exports)
+export { initScanAutocomplete, hideSuggestions as hideScanSuggestions, readFileAsText, submitScan, handleXmlImport, loadGroups };
+
+// Также оставляем window-экспорты для обратной совместимости с onclick handlers
 window.initScanAutocomplete = initScanAutocomplete;
 window.hideScanSuggestions = hideSuggestions;
+window.readFileAsText = readFileAsText;
+window.submitScan = submitScan;
+window.handleXmlImport = handleXmlImport;
+window.loadGroups = loadGroups;
 
 /**
  * Читает файл как текст (Promise wrapper для FileReader)
  * @param {File} file - Файл для чтения
  * @returns {Promise<string>} - Содержимое файла
  */
-window.readFileAsText = function(file) {
+function readFileAsText(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (event) => resolve(event.target.result);
         reader.onerror = (error) => reject(error);
         reader.readAsText(file);
     });
-};
+}
+
+/**
+ * Универсальная функция отправки задачи сканирования
+ * @param {string} url - URL endpoint
+ * @param {object} payload - Данные для отправки
+ * @param {string} scanName - Название сканера для сообщения
+ */
+export async function submitScan(url, payload, scanName) {
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (response.ok) {
+            alert(`Задача ${scanName} добавлена в очередь! ID: ${data.job_id}`);
+            // Небольшая задержка, чтобы задача успела записаться в БД
+            setTimeout(() => {
+                if (typeof window.loadJobs === 'function') window.loadJobs();
+                if (typeof window.updateQueueStatus === 'function') window.updateQueueStatus();
+            }, 500);
+        } else {
+            alert(`Ошибка: ${data.error}`);
+        }
+    } catch (err) {
+        alert('Ошибка соединения: ' + err);
+    }
+}
+
+/**
+ * Обработчик импорта XML Nmap
+ */
+export async function handleXmlImport() {
+    const fileInput = document.getElementById('xml-file');
+    const groupSelect = document.getElementById('import-group');
+    
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        alert('Выберите XML файл для импорта');
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append('xml_file', file);
+    
+    if (groupSelect && groupSelect.value) {
+        formData.append('group_id', groupSelect.value);
+    }
+    
+    try {
+        const response = await fetch('/api/scans/import-xml', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            alert(`Импорт успешен! Добавлено активов: ${data.imported_count}`);
+            // Закрываем модальное окно
+            const modal = bootstrap.Modal.getInstance(document.getElementById('importXmlModal'));
+            if (modal) modal.hide();
+            // Обновляем список задач
+            if (typeof window.loadJobs === 'function') window.loadJobs();
+        } else {
+            alert(`Ошибка импорта: ${data.error}`);
+        }
+    } catch (err) {
+        alert('Ошибка соединения: ' + err);
+    }
+}
+
+/**
+ * Загрузка списка групп для селекта
+ * @param {string} selectId - ID select элемента
+ * @param {string} apiUrl - URL API для получения групп
+ */
+export async function loadGroups(selectId = 'nmap-groups', apiUrl = '/api/groups/tree') {
+    try {
+        const response = await fetch(apiUrl);
+        if (response.ok) {
+            const data = await response.json();
+            const flatGroups = Array.isArray(data?.flat) ? data.flat : [];
+            const select = document.getElementById(selectId);
+            if (select) {
+                select.innerHTML = '';
+                flatGroups.forEach(g => {
+                    const option = document.createElement('option');
+                    option.value = g.id;
+
+                    // Формируем отступы и значки в зависимости от глубины
+                    const depth = g.depth || 0;
+                    let prefix = '';
+                    let icon = '📁 ';
+
+                    if (depth > 0) {
+                        for (let i = 0; i < depth; i++) {
+                            prefix += '    ';
+                        }
+                        prefix += '└─ ';
+                        icon = '📂 ';
+                    }
+
+                    option.textContent = `${prefix}${icon}${g.name}`;
+                    select.appendChild(option);
+                });
+            }
+        }
+    } catch (e) {
+        console.error('Не удалось загрузить группы', e);
+    }
+}
