@@ -287,8 +287,26 @@ async def cancel_scan_queue_job(job_id: int, db: AsyncSession = Depends(get_db))
 @router.get("/scan-job")
 async def get_scan_jobs(db: AsyncSession = Depends(get_db)):
     """Получить все задачи сканирований."""
-    # Заглушка - возвращаем пустой список
-    return []
+    from backend.models.scan import ScanJob
+    from sqlalchemy.orm import selectinload
+    
+    query = select(ScanJob).options(
+        selectinload(ScanJob.scan)
+    ).order_by(ScanJob.created_at.desc())
+    
+    result = await db.execute(query)
+    jobs = list(result.scalars().all())
+    
+    return [{
+        "id": job.id,
+        "scan_id": job.scan_id,
+        "job_type": job.job_type,
+        "status": job.status,
+        "target": job.scan.target if job.scan else "Unknown",
+        "progress": getattr(job.scan, 'progress', 0) if job.scan else 0,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "completed_at": job.completed_at.isoformat() if job.completed_at else None
+    } for job in jobs]
 
 
 @router.get("/scan-job/{job_id}")
