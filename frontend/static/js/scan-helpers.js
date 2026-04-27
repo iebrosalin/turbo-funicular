@@ -477,7 +477,7 @@ export async function handleXmlImport() {
  * @param {string} selectId - ID select элемента
  * @param {string} apiUrl - URL API для получения групп
  */
-export async function loadGroups(selectId = 'nmap-groups', apiUrl = '/api/groups/tree') {
+async function loadGroups(selectId = 'nmap-groups', apiUrl = '/api/groups/tree') {
     try {
         const response = await fetch(apiUrl);
         if (response.ok) {
