@@ -22,7 +22,7 @@ def init_db():
     
     engine = create_engine(
         db_url,
-        echo=settings.DEBUG,
+        echo=False,
         connect_args={"check_same_thread": False} if "sqlite" in db_url else {}
     )
     

@@ -9,7 +9,7 @@ is_sqlite = "sqlite" in settings.DATABASE_URL
 # Движок базы данных
 engine = create_async_engine(
     settings.DATABASE_URL,
-    echo=settings.DEBUG,  # Логирование SQL запросов в режиме отладки
+    echo=False,  # Отключено логирование SQL запросов
     pool_pre_ping=True,   # Проверка соединения перед использованием
     connect_args={"check_same_thread": False} if is_sqlite else {},  # Для SQLite
 )
@@ -27,7 +27,7 @@ async_session_maker = async_sessionmaker(
 sync_db_url = settings.DATABASE_URL.replace("+asyncpg", "").replace("+aiosqlite", "")
 sync_engine = create_engine(
     sync_db_url,
-    echo=settings.DEBUG,
+    echo=False,
     pool_pre_ping=True,
     connect_args={"check_same_thread": False} if "sqlite" in sync_db_url else {},
 )
