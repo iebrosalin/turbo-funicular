@@ -9,16 +9,16 @@
         <div class="col-12 d-flex justify-content-between align-items-center">
             <h2><i class="bi bi-speedometer2"></i> Дашборд активов</h2>
             <div class="btn-group">
-                <button class="btn btn-outline-success" onclick="exportData('csv', 'current')">
+                <button class="btn btn-outline-success" id="btn-export-csv-current">
                     <i class="bi bi-file-earmark-spreadsheet"></i> CSV (Видимое)
                 </button>
-                <button class="btn btn-outline-success" onclick="exportData('json', 'current')">
+                <button class="btn btn-outline-success" id="btn-export-json-current">
                     <i class="bi bi-filetype-json"></i> JSON (Видимое)
                 </button>
-                <button class="btn btn-outline-primary" onclick="exportData('csv', 'full')">
+                <button class="btn btn-outline-primary" id="btn-export-csv-full">
                     <i class="bi bi-database"></i> CSV (Все данные)
                 </button>
-                <button class="btn btn-outline-primary" onclick="exportData('json', 'full')">
+                <button class="btn btn-outline-primary" id="btn-export-json-full">
                     <i class="bi bi-database"></i> JSON (Все данные)
                 </button>
             </div>

@@ -51,14 +51,28 @@ function setupEventListeners() {
         });
     }
 
-    // Экспорт
-    const exportCsvBtn = document.getElementById('export-csv');
-    const exportJsonBtn = document.getElementById('export-json');
-    if (exportCsvBtn) exportCsvBtn.addEventListener('click', () => exportData('csv'));
-    if (exportJsonBtn) exportJsonBtn.addEventListener('click', () => exportData('json'));
+    // Кнопки фильтров
+    const btnApplyFilters = document.getElementById('btn-apply-filters');
+    const btnResetFilters = document.getElementById('btn-reset-filters');
     
-    // Настройка колонок (если есть модальное окно или выпадающий список)
-    // Реализация зависит от HTML структуры
+    if (btnApplyFilters) btnApplyFilters.addEventListener('click', applyFilters);
+    if (btnResetFilters) btnResetFilters.addEventListener('click', resetFilters);
+
+    // Toolbar кнопки
+    const btnClearSelection = document.getElementById('btn-clear-selection');
+    const btnBulkMove = document.getElementById('btn-bulk-move');
+    const btnBulkDelete = document.getElementById('btn-bulk-delete');
+    
+    if (btnClearSelection) btnClearSelection.addEventListener('click', clearSelection);
+    if (btnBulkMove) btnBulkMove.addEventListener('click', confirmBulkMove);
+    if (btnBulkDelete) btnBulkDelete.addEventListener('click', confirmBulkDelete);
+
+    // Кнопки темы и добавления актива
+    const btnToggleTheme = document.getElementById('btn-toggle-theme');
+    const btnAddAsset = document.getElementById('btn-add-asset');
+    
+    if (btnToggleTheme) btnToggleTheme.addEventListener('click', toggleTheme);
+    if (btnAddAsset) btnAddAsset.addEventListener('click', () => showAssetModal(null));
 }
 
 // Функция обновления данных после загрузки из tree.js
@@ -345,3 +359,23 @@ window.deleteAsset = function(id) {
 
 // Экспортируем функцию для использования из tree.js
 window.handleAssetsLoaded = handleAssetsLoaded;
+
+// Глобальные функции для вызова из HTML (теперь через event listeners)
+function resetFilters() {
+    searchQuery = '';
+    currentGrouping = 'none';
+    
+    const filterInput = document.getElementById('asset-filter');
+    const groupSelect = document.getElementById('group-by-select');
+    
+    if (filterInput) filterInput.value = '';
+    if (groupSelect) groupSelect.value = '';
+    
+    updateURL();
+    applyFilters();
+}
+
+// Экспорт функций в глобальную область видимости
+window.applyFilters = applyFilters;
+window.resetFilters = resetFilters;
+window.exportData = exportData;
