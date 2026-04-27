@@ -3,7 +3,8 @@ import { initTheme, toggleTheme } from './modules/theme.js';
 import { populateParentSelect, closeModalById } from './modules/utils.js';
 import {
     showCreateGroupModal, toggleGroupMode, addDynamicRule, showRenameModal,
-    saveGroup, showDeleteModal, confirmDeleteGroup, showMoveGroupModal, moveGroup, initContextMenu
+    saveGroup, showDeleteModal, confirmDeleteGroup, showMoveGroupModal, moveGroup, initContextMenu,
+    initGroupModeListeners
 } from './modules/groups.js';
 import {
     initAssetSelection, confirmBulkDelete, executeBulkDelete,
@@ -128,6 +129,10 @@ import { refreshGroupTree, loadAssets, filterByGroup, initTreeTogglers, initGrou
                 saveAsset(e);
             });
         }
+        
+        // 🎛️ Инициализация обработчиков для переключателей режимов группы
+        initGroupModeListeners();
+        
         // 🔗 Ссылка на контекстное меню
         window.contextMenu = document.getElementById('group-context-menu');
 

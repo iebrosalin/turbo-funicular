@@ -77,10 +77,18 @@ export function addDynamicRule(field = '', op = 'eq', value = '') {
             <select class="form-select rule-field">${FILTER_FIELDS.map(f => `<option value="${f.value}" ${f.value===field?'selected':''}>${f.text}</option>`).join('')}</select>
             <select class="form-select rule-op" style="max-width:100px">${FILTER_OPS.map(o => `<option value="${o.value}" ${o.value===op?'selected':''}>${o.text}</option>`).join('')}</select>
             <input type="text" class="form-control rule-val" value="${value}" placeholder="Значение">
-            <button class="btn btn-outline-danger" type="button" onclick="this.parentElement.parentElement.remove()">×</button>
+            <button class="btn btn-outline-danger btn-remove-rule" type="button">×</button>
         </div>
     `;
     container.appendChild(div);
+    
+    // Добавляем обработчик на кнопку удаления
+    const removeBtn = div.querySelector('.btn-remove-rule');
+    if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+            div.remove();
+        });
+    }
 }
 
 export async function showRenameModal(id) {
@@ -421,4 +429,27 @@ export function initActiveScans() {
 
     // Опрос каждые 5 секунд
     scansPollingInterval = setInterval(updateScans, 5000);
+}
+
+// Инициализация обработчиков для переключателей режимов группы
+export function initGroupModeListeners() {
+    const modeManual = document.getElementById('modeManual');
+    const modeCidr = document.getElementById('modeCidr');
+    const modeDynamic = document.getElementById('modeDynamic');
+    const btnAddRule = document.getElementById('btn-add-dynamic-rule');
+    const btnConfirmDelete = document.getElementById('btn-confirm-delete-group');
+
+    if (modeManual) modeManual.addEventListener('change', toggleGroupMode);
+    if (modeCidr) modeCidr.addEventListener('change', toggleGroupMode);
+    if (modeDynamic) modeDynamic.addEventListener('change', toggleGroupMode);
+    
+    if (btnAddRule) {
+        btnAddRule.addEventListener('click', () => {
+            addDynamicRule();
+        });
+    }
+    
+    if (btnConfirmDelete) {
+        btnConfirmDelete.addEventListener('click', confirmDeleteGroup);
+    }
 }
