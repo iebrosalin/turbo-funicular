@@ -9,7 +9,7 @@ export { store, Store } from '../store.js';
 export { AssetManager, assetManager } from './assets.js';
 
 // Модуль управления деревом групп
-export { TreeManager, treeManager } from './tree.js';
+export { TreeManager, treeManager, filterByGroup, loadAssets, refreshGroupTree } from './tree.js';
 
 // Модуль сканирований
 export { ScanService, scanService } from './scans.js';
