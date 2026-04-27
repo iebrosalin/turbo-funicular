@@ -6,7 +6,7 @@ services:
     container_name: asset_management
     ports:
       - "5000:5000"
-    restart: unless-stopped
+    #restart: unless-stopped
     environment:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
       - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/app.db}
