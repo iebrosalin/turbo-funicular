@@ -7,9 +7,27 @@ from backend.services.scan_service import ScanService
 from backend.schemas.scan import ScanCreate, ScanUpdate, ScanResponse
 import json
 from datetime import datetime, timezone
+from pydantic import BaseModel
 
 router = APIRouter(tags=["scans"])
 scans_router = router  # Алиас для совместимости импортов
+
+
+class NmapScanRequest(BaseModel):
+    target: Optional[str] = None
+    ports: Optional[str] = None
+    scripts: Optional[str] = None
+    custom_args: Optional[str] = None
+    known_ports_only: bool = False
+    group_ids: Optional[List[int]] = None
+
+
+class RustscanRequest(BaseModel):
+    target: str
+    ports: Optional[str] = None
+    custom_args: Optional[str] = None
+    run_nmap_after: bool = False
+    nmap_args: Optional[str] = None
 
 
 # ==========================================
@@ -140,12 +158,7 @@ async def import_xml_scan(
 
 @router.post("/nmap")
 async def run_nmap_scan(
-    target: str,
-    ports: Optional[str] = None,
-    scripts: Optional[str] = None,
-    custom_args: Optional[str] = None,
-    known_ports_only: bool = False,
-    group_ids: Optional[List[int]] = None,
+    request: NmapScanRequest,
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
@@ -153,10 +166,12 @@ async def run_nmap_scan(
     from backend.models.scan import Scan, ScanJob
     from datetime import datetime, timezone
     
+    target = request.target or ""
+    
     # Создаём запись сканирования
     new_scan = Scan(
-        name=f"Nmap scan: {target[:50]}",
-        target=target,
+        name=f"Nmap scan: {target[:50] if target else 'known ports'}",
+        target=target or "known_ports_only",
         scan_type="nmap",
         status="pending",
         progress=0,
@@ -184,11 +199,7 @@ async def run_nmap_scan(
 
 @router.post("/rustscan")
 async def run_rustscan(
-    target: str,
-    ports: Optional[str] = None,
-    custom_args: Optional[str] = None,
-    run_nmap_after: bool = False,
-    nmap_args: Optional[str] = None,
+    request: RustscanRequest,
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
@@ -198,8 +209,8 @@ async def run_rustscan(
     
     # Создаём запись сканирования
     new_scan = Scan(
-        name=f"Rustscan: {target[:50]}",
-        target=target,
+        name=f"Rustscan: {request.target[:50]}",
+        target=request.target,
         scan_type="rustscan",
         status="pending",
         progress=0,
@@ -222,7 +233,7 @@ async def run_rustscan(
     await db.commit()
     await db.refresh(new_job)
     
-    return {"message": f"Rustscan запущен для {target}", "status": "queued", "job_id": new_job.id}
+    return {"message": f"Rustscan запущен для {request.target}", "status": "queued", "job_id": new_job.id}
 
 
 @router.post("/dig")
