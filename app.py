@@ -42,7 +42,7 @@ def get_all_interfaces():
 
 if __name__ == "__main__":
     HOST = "0.0.0.0"
-    PORT = 8000
+    PORT = 5000
     
     print("=" * 60)
     print("🚀 Starting Network Asset Manager...")
