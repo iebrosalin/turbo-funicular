@@ -4,7 +4,7 @@
  * Предоставляет контекстные подсказки аргументов, групп, активов и примеров
  */
 
-import { apiRequest } from './modules/utils.js';
+import { Utils } from './modules/utils.js';
 
 /**
  * Класс управления автодополнением для сканов

@@ -4,7 +4,7 @@
  */
 
 import { ModalManager } from './modules/modals.js';
-import { apiRequest, showNotification } from './modules/utils.js';
+import { Utils } from './modules/utils.js';
 
 export class ScanModalManager {
   constructor() {
@@ -33,7 +33,7 @@ export class ScanModalManager {
     const submitBtn = form.querySelector('button[type="submit"]');
 
     if (!fileInput?.files.length) {
-      showNotification('Пожалуйста, выберите файл.', 'warning');
+      Utils.showNotification('Пожалуйста, выберите файл.', 'warning');
       return;
     }
 
@@ -57,7 +57,7 @@ export class ScanModalManager {
 
       if (response.ok) {
         this.modalManager.close('scanImportModal');
-        showNotification(`Импорт успешно завершен! Обработано активов: ${result.count || 0}`, 'success');
+        Utils.showNotification(`Импорт успешно завершен! Обработано активов: ${result.count || 0}`, 'success');
         setTimeout(() => location.reload(), 1000);
       } else {
         this.showScanError(result.error || 'Неизвестная ошибка при импорте');

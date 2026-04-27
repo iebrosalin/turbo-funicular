@@ -1,6 +1,6 @@
 // static/js/dashboard-page.js
 import { store } from './store.js';
-import { apiRequest, showNotification } from './modules/utils.js';
+import { Utils } from './modules/utils.js';
 import { AssetManager } from './modules/assets.js';
 
 /**
@@ -33,11 +33,11 @@ export class DashboardController {
     // Начальная загрузка данных (если еще не загружены в Store)
     if (!store.getState('assets')?.length) {
       try {
-        const assets = await apiRequest('/api/assets');
+        const assets = await Utils.apiRequest('/api/assets');
         store.setState('assets', assets);
       } catch (error) {
         console.error('Failed to load assets:', error);
-        showNotification('Не удалось загрузить активы', 'danger');
+        Utils.showNotification('Не удалось загрузить активы', 'danger');
       }
     }
   }
@@ -165,22 +165,22 @@ export class DashboardController {
     if (!confirm('Вы уверены, что хотите удалить этот актив?')) return;
     
     try {
-      await apiRequest(`/api/assets/${id}`, { method: 'DELETE' });
-      showNotification('Актив удален', 'success');
+      await Utils.apiRequest(`/api/assets/${id}`, { method: 'DELETE' });
+      Utils.showNotification('Актив удален', 'success');
       
       // Обновляем список в Store
       const currentAssets = store.getState('assets');
       store.setState('assets', currentAssets.filter(a => a.id !== id));
     } catch (err) {
       console.error('Delete failed:', err);
-      showNotification('Ошибка удаления: ' + (err.message), 'danger');
+      Utils.showNotification('Ошибка удаления: ' + (err.message), 'danger');
     }
   }
 
   #confirmBulkMove() {
     const ids = store.getSelectedAssets();
     if (!ids.length) {
-      showNotification('Выберите активы для перемещения', 'warning');
+      Utils.showNotification('Выберите активы для перемещения', 'warning');
       return;
     }
     // Открытие модального окна перемещения
@@ -191,7 +191,7 @@ export class DashboardController {
   #confirmBulkDelete() {
     const ids = store.getSelectedAssets();
     if (!ids.length) {
-      showNotification('Выберите активы для удаления', 'warning');
+      Utils.showNotification('Выберите активы для удаления', 'warning');
       return;
     }
     
@@ -202,18 +202,18 @@ export class DashboardController {
 
   async #executeBulkDelete(ids) {
     try {
-      await apiRequest('/api/assets/bulk-delete', {
+      await Utils.apiRequest('/api/assets/bulk-delete', {
         method: 'POST',
         body: JSON.stringify({ ids })
       });
-      showNotification('Активы удалены', 'success');
+      Utils.showNotification('Активы удалены', 'success');
       store.clearSelectedAssets();
       
       // Обновление списка
       const currentAssets = store.getState('assets');
       store.setState('assets', currentAssets.filter(a => !ids.includes(a.id)));
     } catch (err) {
-      showNotification('Ошибка массового удаления: ' + err.message, 'danger');
+      Utils.showNotification('Ошибка массового удаления: ' + err.message, 'danger');
     }
   }
 
@@ -252,7 +252,7 @@ export class DashboardController {
 
   exportData(format) {
     if (!this.filteredAssets?.length) {
-      showNotification('Нет данных для экспорта', 'warning');
+      Utils.showNotification('Нет данных для экспорта', 'warning');
       return;
     }
 

@@ -1,6 +1,6 @@
 // static/js/modules/scans.js
 import { store } from '../store.js';
-import { showNotification } from './utils.js';
+import { Utils } from './utils.js';
 
 /**
  * Класс управления сканированиями и отображением результатов
@@ -77,7 +77,7 @@ export class ScanManager {
   showScanError(jobId, errorMsg) {
     const modalId = 'scanErrorModal';
     const modalEl = document.getElementById(modalId);
-    if (!modalEl) return showNotification(errorMsg, 'danger');
+    if (!modalEl) return Utils.showNotification(errorMsg, 'danger');
 
     const m = new bootstrap.Modal(modalEl);
     const c = document.getElementById('scan-error-content');
@@ -100,7 +100,7 @@ export class ScanManager {
       setTimeout(() => {
         document.getElementById('btn-copy-error')?.addEventListener('click', () => {
           navigator.clipboard.writeText(safeMsg);
-          showNotification('Ошибка скопирована в буфер', 'success');
+          Utils.showNotification('Ошибка скопирована в буфер', 'success');
         });
       }, 0);
     }

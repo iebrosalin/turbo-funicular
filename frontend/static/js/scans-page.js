@@ -1,6 +1,6 @@
 // static/js/scans-page.js
 import { store } from './store.js';
-import { apiRequest, showNotification } from './modules/utils.js';
+import { Utils } from './modules/utils.js';
 
 /**
  * Контроллер страницы управления сканированиями.
@@ -284,46 +284,46 @@ export class ScanResultsController {
   async removeJob(id) {
     if (!confirm('Удалить задачу из очереди?')) return;
     try {
-      const res = await apiRequest(`/api/scan-queue/${id}`, { method: 'DELETE' });
-      showNotification(res.message || 'Задача удалена', 'success');
+      const res = await Utils.apiRequest(`/api/scan-queue/${id}`, { method: 'DELETE' });
+      Utils.showNotification(res.message || 'Задача удалена', 'success');
       this.loadJobs();
       this.updateQueueStatus();
     } catch(e) { 
-      showNotification('Ошибка: ' + e.message, 'danger'); 
+      Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
     }
   }
 
   async stopJob(id) {
     if (!confirm('Остановить задачу?')) return;
     try {
-      const res = await apiRequest(`/api/scan-job/${id}/stop`, { method: 'POST' });
-      showNotification(res.message || 'Задача остановлена', 'success');
+      const res = await Utils.apiRequest(`/api/scan-job/${id}/stop`, { method: 'POST' });
+      Utils.showNotification(res.message || 'Задача остановлена', 'success');
       this.loadJobs();
     } catch(e) { 
-      showNotification('Ошибка: ' + e.message, 'danger'); 
+      Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
     }
   }
 
   async retryJob(id) {
     if (!confirm('Повторить задачу?')) return;
     try {
-      const res = await apiRequest(`/api/scan-job/${id}/retry`, { method: 'POST' });
-      showNotification(res.message || 'Задача перезапущена', 'success');
+      const res = await Utils.apiRequest(`/api/scan-job/${id}/retry`, { method: 'POST' });
+      Utils.showNotification(res.message || 'Задача перезапущена', 'success');
       this.loadJobs();
       this.updateQueueStatus();
     } catch(e) { 
-      showNotification('Ошибка: ' + e.message, 'danger'); 
+      Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
     }
   }
 
   async deleteJob(id) {
     if (!confirm('Удалить из истории?')) return;
     try {
-      const res = await apiRequest(`/api/scan-job/${id}`, { method: 'DELETE' });
-      showNotification(res.message || 'Задача удалена из истории', 'success');
+      const res = await Utils.apiRequest(`/api/scan-job/${id}`, { method: 'DELETE' });
+      Utils.showNotification(res.message || 'Задача удалена из истории', 'success');
       this.loadJobs();
     } catch(e) { 
-      showNotification('Ошибка: ' + e.message, 'danger'); 
+      Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
     }
   }
 
@@ -348,16 +348,16 @@ export class ScanResultsController {
     const groupIds = Array.from(document.getElementById('nmap-groups').selectedOptions).map(opt => opt.value);
 
     if (!target && !knownOnly) { 
-      showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
+      Utils.showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
       return; 
     }
     if (knownOnly && groupIds.length === 0) { 
-      showNotification('Выберите хотя бы одну группу', 'warning'); 
+      Utils.showNotification('Выберите хотя бы одну группу', 'warning'); 
       return; 
     }
 
     try {
-      await apiRequest('/api/scans/nmap', {
+      await Utils.apiRequest('/api/scans/nmap', {
         method: 'POST',
         body: JSON.stringify({
           target, 
@@ -368,22 +368,22 @@ export class ScanResultsController {
           group_ids: groupIds
         })
       });
-      showNotification('Сканирование Nmap запущено', 'success');
+      Utils.showNotification('Сканирование Nmap запущено', 'success');
       this.loadJobs();
     } catch (error) {
-      showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
+      Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
     }
   }
 
   async #submitRustscanScan(form) {
     const target = document.getElementById('rustscan-target').value;
     if (!target) { 
-      showNotification('Укажите цель', 'warning'); 
+      Utils.showNotification('Укажите цель', 'warning'); 
       return; 
     }
 
     try {
-      await apiRequest('/api/scans/rustscan', {
+      await Utils.apiRequest('/api/scans/rustscan', {
         method: 'POST',
         body: JSON.stringify({
           target, 
@@ -393,10 +393,10 @@ export class ScanResultsController {
           nmap_args: document.getElementById('rustscan-nmap-args').value
         })
       });
-      showNotification('Сканирование Rustscan запущено', 'success');
+      Utils.showNotification('Сканирование Rustscan запущено', 'success');
       this.loadJobs();
     } catch (error) {
-      showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
+      Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
     }
   }
 
@@ -413,13 +413,13 @@ export class ScanResultsController {
         }
         targetsText = fileTargets.join('\n');
       } catch (error) { 
-        showNotification('Ошибка чтения файла: ' + error.message, 'danger'); 
+        Utils.showNotification('Ошибка чтения файла: ' + error.message, 'danger'); 
         return; 
       }
     }
 
     if (!targetsText) { 
-      showNotification('Введите цели или загрузите файл', 'warning'); 
+      Utils.showNotification('Введите цели или загрузите файл', 'warning'); 
       return; 
     }
 
@@ -428,7 +428,7 @@ export class ScanResultsController {
     if (typesInput) recordTypes = typesInput.split(',').map(t => t.trim().toUpperCase());
 
     try {
-      await apiRequest('/api/scans/dig', {
+      await Utils.apiRequest('/api/scans/dig', {
         method: 'POST',
         body: JSON.stringify({
           targets_text: targetsText, 
@@ -437,10 +437,10 @@ export class ScanResultsController {
           record_types: recordTypes
         })
       });
-      showNotification('Сканирование Dig запущено', 'success');
+      Utils.showNotification('Сканирование Dig запущено', 'success');
       this.loadJobs();
     } catch (error) {
-      showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
+      Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
     }
   }
 
