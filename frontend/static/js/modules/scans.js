@@ -7,13 +7,13 @@ import { Utils } from './utils.js';
  */
 export class ScanManager {
   constructor() {
-    this.pollInterval = null;
+    this.eventSource = null;
     this.#init();
   }
 
   #init() {
-    // Запуск опроса активных сканов
-    this.startPolling();
+    // Запуск прослушивания событий от сервера (SSE)
+    this.startEventListening();
   }
 
   /**
@@ -141,46 +141,82 @@ export class ScanManager {
         if (bar) bar.style.width = `${j.progress}%`;
         if (txt) txt.textContent = `${j.progress}%`;
       });
-    } catch (e) {
-      console.warn('History poll error:', e);
-    }
-  }
-
   /**
-   * Опрос активных сканирований
+   * Прослушивание событий от сервера через SSE (Server-Sent Events)
    */
-  async pollActiveScans() {
-    try {
-      const res = await fetch('/api/scans/status');
-      if (!res.ok) return;
-      const data = await res.json();
-      
-      if (data.active && data.active.length > 0) {
-        await this.updateScanHistory();
+  startEventListening() {
+    if (this.eventSource) {
+      this.eventSource.close();
+    }
+
+    this.eventSource = new EventSource('/api/scans/events');
+
+    this.eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        this.updateScanStatusInUI(data);
+      } catch (e) {
+        console.error('Ошибка парсинга SSE события:', e);
       }
-    } catch (e) {
-      console.warn('⚠️ Ошибка проверки сканирований:', e);
+    };
+
+    this.eventSource.onerror = (err) => {
+      console.warn('⚠️ Ошибка SSE соединения:', err);
+      // Пытаемся переподключиться через 5 секунд
+      setTimeout(() => {
+        if (this.eventSource?.readyState === EventSource.CLOSED) {
+          this.startEventListening();
+        }
+      }, 5000);
+    };
+
+    console.log('✅ SSE подключение установлено');
+  }
+
+  /**
+   * Обновление статуса сканирования в UI
+   */
+  updateScanStatusInUI(jobData) {
+    const row = document.getElementById(`scan-row-${jobData.id}`);
+    if (!row) return;
+
+    const badge = row.querySelector('.status-badge');
+    if (badge) {
+      badge.textContent = jobData.status;
+      badge.className = `badge status-badge bg-${
+        jobData.status === 'running' ? 'warning text-dark' :
+        jobData.status === 'completed' ? 'success' : 'danger'
+      }`;
+
+      if (jobData.error_message) {
+        badge.style.cursor = 'pointer';
+        badge.setAttribute('title', 'Нажмите для просмотра детали ошибки');
+        badge.onclick = () => this.showScanError(jobData.id, jobData.error_message);
+      } else {
+        badge.style.cursor = 'default';
+        badge.removeAttribute('onclick');
+      }
+    }
+
+    const bar = row.querySelector('.progress-bar');
+    const txt = row.querySelector('.progress-text');
+    if (bar) bar.style.width = `${jobData.progress}%`;
+    if (txt) txt.textContent = `${jobData.progress}%`;
+
+    // Логгируем только важные изменения статуса
+    if (jobData.status === 'completed' || jobData.status === 'failed') {
+      console.log(`✅ Сканирование #${jobData.id} завершилось со статусом: ${jobData.status}`);
     }
   }
 
   /**
-   * Запуск периодического опроса
+   * Остановка прослушивания событий
    */
-  startPolling() {
-    if (this.pollInterval) return;
-    
-    this.pollInterval = setInterval(() => {
-      this.pollActiveScans();
-    }, 5000); // Каждые 5 секунд
-  }
-
-  /**
-   * Остановка опроса
-   */
-  stopPolling() {
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-      this.pollInterval = null;
+  stopEventListening() {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+      console.log('🛑 SSE подключение закрыто');
     }
   }
 }
