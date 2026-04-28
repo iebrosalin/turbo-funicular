@@ -13,10 +13,12 @@ export class ScanResultsController {
     this.scanForms = document.querySelector('.tab-content');
     this.queueStatus = document.getElementById('queue-status-container');
     this.scanTabs = document.getElementById('scanTabs');
+    console.log('[ScanResultsController] Constructor called, initializing...');
     this.#init();
   }
 
   async #init() {
+    console.log('[ScanResultsController] #init called');
     this.#setupEventListeners();
     this.#initUrlFiltering();
     await this.loadJobs();
@@ -96,12 +98,17 @@ export class ScanResultsController {
   }
 
   #setupEventListeners() {
+    console.log('[ScanResultsController] Setting up event listeners...');
+    
     // Делегирование событий для кнопок управления заданиями
-    document.getElementById('jobs-table')?.addEventListener('click', (e) => {
+    const jobsTable = document.getElementById('jobs-table');
+    console.log('[ScanResultsController] Jobs table found:', !!jobsTable);
+    jobsTable?.addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-job-id]');
       if (!btn) return;
       
       const jobId = btn.dataset.jobId;
+      console.log('[ScanResultsController] Job action clicked:', jobId, btn.className);
       
       if (btn.classList.contains('btn-remove-job')) this.removeJob(jobId);
       else if (btn.classList.contains('btn-stop-job')) this.stopJob(jobId);
@@ -121,6 +128,12 @@ export class ScanResultsController {
     const groupsSelect = document.getElementById('nmap-groups');
     const portsWarning = document.getElementById('nmap-ports-warning');
     const argsWarning = document.getElementById('nmap-args-warning');
+    
+    console.log('[ScanResultsController] Nmap form elements found:', {
+      checkbox: !!knownPortsCheckbox,
+      portsInput: !!portsInput,
+      groupsSelect: !!groupsSelect
+    });
 
     knownPortsCheckbox?.addEventListener('change', function() {
       if (this.checked) {
@@ -141,20 +154,32 @@ export class ScanResultsController {
     });
 
     // Обработчик формы Nmap
-    document.getElementById('nmap-form')?.addEventListener('submit', async (e) => {
+    const nmapForm = document.getElementById('nmap-form');
+    console.log('[ScanResultsController] Nmap form found:', !!nmapForm);
+    nmapForm?.addEventListener('submit', async (e) => {
+      console.log('[ScanResultsController] Nmap form submit event fired!');
       e.preventDefault();
+      console.log('[ScanResultsController] Nmap form default prevented, submitting...');
       await this.#submitNmapScan(e.target);
     });
 
     // Обработчик формы Rustscan
-    document.getElementById('rustscan-form')?.addEventListener('submit', async (e) => {
+    const rustscanForm = document.getElementById('rustscan-form');
+    console.log('[ScanResultsController] Rustscan form found:', !!rustscanForm);
+    rustscanForm?.addEventListener('submit', async (e) => {
+      console.log('[ScanResultsController] Rustscan form submit event fired!');
       e.preventDefault();
+      console.log('[ScanResultsController] Rustscan form default prevented, submitting...');
       await this.#submitRustscanScan(e.target);
     });
 
     // Обработчик формы Dig
-    document.getElementById('dig-form')?.addEventListener('submit', async (e) => {
+    const digForm = document.getElementById('dig-form');
+    console.log('[ScanResultsController] Dig form found:', !!digForm);
+    digForm?.addEventListener('submit', async (e) => {
+      console.log('[ScanResultsController] Dig form submit event fired!');
       e.preventDefault();
+      console.log('[ScanResultsController] Dig form default prevented, submitting...');
       await this.#submitDigScan(e.target);
     });
 
@@ -343,9 +368,12 @@ export class ScanResultsController {
   }
 
   async #submitNmapScan(form) {
+    console.log('[ScanResultsController] #submitNmapScan called');
     const target = document.getElementById('nmap-target').value.trim();
     const knownOnly = document.getElementById('nmap-known-ports-only').checked;
     const groupIds = Array.from(document.getElementById('nmap-groups').selectedOptions).map(opt => opt.value);
+
+    console.log('[ScanResultsController] Nmap scan data:', { target, knownOnly, groupIds });
 
     if (!target && !knownOnly) { 
       Utils.showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
@@ -357,6 +385,7 @@ export class ScanResultsController {
     }
 
     try {
+      console.log('[ScanResultsController] Sending Nmap scan request to /api/scans/nmap');
       await Utils.apiRequest('/api/scans/nmap', {
         method: 'POST',
         body: JSON.stringify({
@@ -368,21 +397,27 @@ export class ScanResultsController {
           group_ids: groupIds
         })
       });
+      console.log('[ScanResultsController] Nmap scan request successful');
       Utils.showNotification('Сканирование Nmap запущено', 'success');
       this.loadJobs();
     } catch (error) {
+      console.error('[ScanResultsController] Nmap scan error:', error);
       Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
     }
   }
 
   async #submitRustscanScan(form) {
+    console.log('[ScanResultsController] #submitRustscanScan called');
     const target = document.getElementById('rustscan-target').value;
+    console.log('[ScanResultsController] Rustscan target:', target);
+    
     if (!target) { 
       Utils.showNotification('Укажите цель', 'warning'); 
       return; 
     }
 
     try {
+      console.log('[ScanResultsController] Sending Rustscan scan request to /api/scans/rustscan');
       await Utils.apiRequest('/api/scans/rustscan', {
         method: 'POST',
         body: JSON.stringify({
@@ -393,16 +428,22 @@ export class ScanResultsController {
           nmap_args: document.getElementById('rustscan-nmap-args').value
         })
       });
+      console.log('[ScanResultsController] Rustscan scan request successful');
       Utils.showNotification('Сканирование Rustscan запущено', 'success');
       this.loadJobs();
     } catch (error) {
+      console.error('[ScanResultsController] Rustscan scan error:', error);
       Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
     }
   }
 
   async #submitDigScan(form) {
+    console.log('[ScanResultsController] #submitDigScan called');
     let targetsText = document.getElementById('dig-targets').value.trim();
     const fileInput = document.getElementById('dig-file');
+
+    console.log('[ScanResultsController] Dig targets text:', targetsText);
+    console.log('[ScanResultsController] Dig file input:', fileInput?.files?.length);
 
     if (fileInput?.files?.length > 0) {
       try {
@@ -412,6 +453,7 @@ export class ScanResultsController {
           fileTargets.push(...targetsText.split('\n').map(l => l.trim()).filter(l => l));
         }
         targetsText = fileTargets.join('\n');
+        console.log('[ScanResultsController] Combined dig targets:', targetsText);
       } catch (error) { 
         Utils.showNotification('Ошибка чтения файла: ' + error.message, 'danger'); 
         return; 
@@ -428,6 +470,7 @@ export class ScanResultsController {
     if (typesInput) recordTypes = typesInput.split(',').map(t => t.trim().toUpperCase());
 
     try {
+      console.log('[ScanResultsController] Sending Dig scan request to /api/scans/dig');
       await Utils.apiRequest('/api/scans/dig', {
         method: 'POST',
         body: JSON.stringify({
@@ -437,9 +480,11 @@ export class ScanResultsController {
           record_types: recordTypes
         })
       });
+      console.log('[ScanResultsController] Dig scan request successful');
       Utils.showNotification('Сканирование Dig запущено', 'success');
       this.loadJobs();
     } catch (error) {
+      console.error('[ScanResultsController] Dig scan error:', error);
       Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
     }
   }
@@ -512,3 +557,15 @@ export class ScanResultsController {
     });
   }
 }
+
+// Инициализация контроллера после загрузки DOM
+// Используем setTimeout чтобы убедиться, что DOM полностью готов
+setTimeout(() => {
+  console.log('[ScanResultsController] Initializing after timeout...');
+  if (document.getElementById('nmap-form') || document.getElementById('rustscan-form') || document.getElementById('dig-form')) {
+    console.log('[ScanResultsController] Scan forms found, creating instance...');
+    window.scanResultsController = new ScanResultsController();
+  } else {
+    console.log('[ScanResultsController] Scan forms not found on this page');
+  }
+}, 100);

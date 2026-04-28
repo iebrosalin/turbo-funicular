@@ -83,7 +83,7 @@ class ScanQueueManager:
     ):
         """Выполнить сканирование."""
         from backend.models.scan import ScanJob, ScanResult
-        from app.utils.helpers import get_moscow_time
+        from backend.utils import get_moscow_time
         
         try:
             job = await db.get(ScanJob, scan_job_id)
@@ -123,12 +123,11 @@ class ScanQueueManager:
                     
                     # Сохранение результата
                     result = ScanResult(
-                        scan_job_id=scan_job_id,
-                        asset_ip=target,
+                        scan_id=job.scan_id,
+                        ip_address=target,
                         hostname=result_data.get('hostname'),
                         ports=result_data.get('ports', []),
-                        raw_output=str(result_data),
-                        scanned_at=get_moscow_time()
+                        raw_output=str(result_data)
                     )
                     db.add(result)
                     await db.commit()
