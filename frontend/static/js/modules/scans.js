@@ -141,6 +141,8 @@ export class ScanManager {
         if (bar) bar.style.width = `${j.progress}%`;
         if (txt) txt.textContent = `${j.progress}%`;
       });
+  }
+
   /**
    * Прослушивание событий от сервера через SSE (Server-Sent Events)
    */
