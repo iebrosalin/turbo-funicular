@@ -188,7 +188,8 @@ class ScanQueueManager:
                 logger.info(f"Сканирование {scan_job_id} отменено")
                 job = await db.get(ScanJob, scan_job_id)
                 if job:
-                    job.status = "failed"
+                    job.status = "cancelled"
+                    job.error_message = "Сканирование было отменено пользователем"
                     await db.commit()
                 raise
             except Exception as e:
@@ -196,6 +197,8 @@ class ScanQueueManager:
                 job = await db.get(ScanJob, scan_job_id)
                 if job:
                     job.status = "failed"
+                    job.error_message = str(e)
+                    job.completed_at = datetime.utcnow()
                     await db.commit()
             finally:
                 self._tasks.pop(scan_job_id, None)
