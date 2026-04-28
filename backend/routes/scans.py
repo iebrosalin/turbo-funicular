@@ -127,42 +127,47 @@ async def scan_event_generator() -> AsyncGenerator[str, None]:
     last_statuses = {}
     
     while True:
+        db = None
         try:
-            # Создаем новую сессию для каждого запроса
-            async with get_db() as db:
-                # Получаем все активные задачи
-                query = select(ScanJob).where(
-                    ScanJob.status.in_(['pending', 'running', 'queued'])
-                ).options(selectinload(ScanJob.scan))
+            # Создаем сессию явно для каждой итерации
+            db = async_session_factory()
+            
+            # Получаем все активные задачи
+            query = select(ScanJob).where(
+                ScanJob.status.in_(['pending', 'running', 'queued'])
+            ).options(selectinload(ScanJob.scan))
+            
+            result = await db.execute(query)
+            jobs = result.scalars().all()
+            
+            for job in jobs:
+                current_status = {
+                    "id": job.id,
+                    "status": job.status,
+                    "progress": getattr(job.scan, 'progress', 0) if job.scan else 0,
+                    "error_message": job.error_message
+                }
                 
-                result = await db.execute(query)
-                jobs = result.scalars().all()
-                
-                for job in jobs:
-                    current_status = {
-                        "id": job.id,
-                        "status": job.status,
-                        "progress": getattr(job.scan, 'progress', 0) if job.scan else 0,
-                        "error_message": job.error_message
-                    }
+                # Отправляем событие только если статус изменился
+                if job.id not in last_statuses or last_statuses[job.id] != current_status:
+                    event_data = json.dumps(current_status)
+                    yield f"data: {event_data}\n\n"
+                    last_statuses[job.id] = current_status
+            
+            # Удаляем из last_statuses завершенные задачи
+            active_ids = {job.id for job in jobs}
+            for job_id in list(last_statuses.keys()):
+                if job_id not in active_ids:
+                    del last_statuses[job_id]
                     
-                    # Отправляем событие только если статус изменился
-                    if job.id not in last_statuses or last_statuses[job.id] != current_status:
-                        event_data = json.dumps(current_status)
-                        yield f"data: {event_data}\n\n"
-                        last_statuses[job.id] = current_status
-                
-                # Удаляем из last_statuses завершенные задачи
-                active_ids = {job.id for job in jobs}
-                for job_id in list(last_statuses.keys()):
-                    if job_id not in active_ids:
-                        del last_statuses[job_id]
-            
-            await asyncio.sleep(2)  # Проверка каждые 2 секунды
-            
         except Exception as e:
             logger.error(f"Error in SSE generator: {e}")
-            await asyncio.sleep(5)
+        finally:
+            # Гарантированно закрываем сессию после каждой итерации
+            if db:
+                await db.close()
+        
+        await asyncio.sleep(2)  # Проверка каждые 2 секунды
 
 
 @router.get("/events")
