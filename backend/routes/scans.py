@@ -16,6 +16,21 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
+# Middleware для логирования всех входящих запросов к сканированиям
+async def log_scan_request(request: Request, call_next):
+    """Логирование входящих запросов для отладки."""
+    if request.url.path.startswith('/api/scans/') and request.method == 'POST':
+        logger.info("=" * 80)
+        logger.info(f"ВХОДЯЩИЙ ЗАПРОС: {request.method} {request.url.path}")
+        logger.info(f"Headers: {dict(request.headers)}")
+        try:
+            body = await request.body()
+            logger.info(f"Body: {body.decode('utf-8')}")
+        except Exception as e:
+            logger.warning(f"Не удалось прочитать тело запроса: {e}")
+        logger.info("=" * 80)
+    return await call_next(request)
+
 router = APIRouter(tags=["scans"])
 scans_router = router  # Алиас для совместимости импортов
 
@@ -247,53 +262,65 @@ async def run_nmap_scan(
     import logging
     
     logger = logging.getLogger(__name__)
-    logger.info(f"=== Получен запрос на Nmap сканирование ===")
-    logger.info(f"Target: {request.target}")
-    logger.info(f"Ports: {request.ports}")
-    logger.info(f"Known ports only: {request.known_ports_only}")
-    logger.info(f"Group IDs: {request.group_ids}")
+    logger.info("=" * 60)
+    logger.info("=== ПОЛУЧЕН ЗАПРОС НА NMAP СКАНИРОВАНИЕ ===")
+    logger.info("=" * 60)
+    logger.info(f"Входящие данные запроса:")
+    logger.info(f"  - target: {request.target}")
+    logger.info(f"  - ports: {request.ports}")
+    logger.info(f"  - scripts: {request.scripts}")
+    logger.info(f"  - custom_args: {request.custom_args}")
+    logger.info(f"  - known_ports_only: {request.known_ports_only}")
+    logger.info(f"  - group_ids: {request.group_ids}")
+    logger.info(f"Raw request data: {request.dict()}")
     
     target = request.target or ""
     
-    # Создаём запись сканирования
-    new_scan = Scan(
-        name=f"Nmap scan: {target[:50] if target else 'known ports'}",
-        target=target or "known_ports_only",
-        scan_type="nmap",
-        status="pending",
-        progress=0,
-        created_at=datetime.now(timezone.utc)
-    )
-    
-    db.add(new_scan)
-    await db.commit()
-    await db.refresh(new_scan)
-    logger.info(f"Создана запись сканирования ID={new_scan.id}")
-    
-    # Создаём задачу сканирования
-    new_job = ScanJob(
-        scan_id=new_scan.id,
-        job_type="nmap",
-        status="pending",
-        created_at=datetime.now(timezone.utc)
-    )
-    
-    db.add(new_job)
-    await db.commit()
-    await db.refresh(new_job)
-    logger.info(f"Создана задача сканирования ID={new_job.id}")
-    
-    # Добавляем задачу в очередь выполнения
-    targets_list = [target] if target else []
-    parameters = {
-        "ports": request.ports,
-        "scripts": request.scripts,
-        "custom_args": request.custom_args,
-        "known_ports_only": request.known_ports_only,
-        "group_ids": request.group_ids
-    }
-    
     try:
+        # Создаём запись сканирования
+        logger.info(f"\n[Шаг 1/4] Создание записи сканирования в БД...")
+        new_scan = Scan(
+            name=f"Nmap scan: {target[:50] if target else 'known ports'}",
+            target=target or "known_ports_only",
+            scan_type="nmap",
+            status="pending",
+            progress=0,
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_scan)
+        await db.commit()
+        await db.refresh(new_scan)
+        logger.info(f"✓ Запись сканирования создана: ID={new_scan.id}, name={new_scan.name}, target={new_scan.target}")
+        
+        # Создаём задачу сканирования
+        logger.info(f"\n[Шаг 2/4] Создание задачи сканирования (ScanJob)...")
+        new_job = ScanJob(
+            scan_id=new_scan.id,
+            job_type="nmap",
+            status="pending",
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_job)
+        await db.commit()
+        await db.refresh(new_job)
+        logger.info(f"✓ Задача сканирования создана: ID={new_job.id}, scan_id={new_job.scan_id}, job_type={new_job.job_type}")
+        
+        # Добавляем задачу в очередь выполнения
+        logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
+        targets_list = [target] if target else []
+        parameters = {
+            "ports": request.ports,
+            "scripts": request.scripts,
+            "custom_args": request.custom_args,
+            "known_ports_only": request.known_ports_only,
+            "group_ids": request.group_ids
+        }
+        logger.info(f"  - targets_list: {targets_list}")
+        logger.info(f"  - parameters: {parameters}")
+        
+        logger.info(f"\n[Шаг 4/4] Добавление задачи в ScanQueueManager...")
         await scan_queue_manager.add_scan(
             db=db,
             scan_job_id=new_job.id,
@@ -301,17 +328,33 @@ async def run_nmap_scan(
             targets=targets_list,
             parameters=parameters
         )
-        logger.info(f"Задача {new_job.id} добавлена в очередь ScanQueueManager")
+        logger.info(f"✓ Задача {new_job.id} успешно добавлена в очередь ScanQueueManager")
+        
+        logger.info("\n" + "=" * 60)
+        logger.info("=== СКАНИРОВАНИЕ УСПЕШНО ЗАПУЩЕНО ===")
+        logger.info(f"Job ID: {new_job.id}")
+        logger.info(f"Scan ID: {new_scan.id}")
+        logger.info("=" * 60)
+        
+        return {"message": f"Nmap сканирование запущено для {target}", "status": "queued", "job_id": new_job.id, "scan_id": new_scan.id}
+    
     except Exception as e:
-        logger.error(f"Ошибка добавления задачи в очередь: {e}")
-        new_job.status = "failed"
-        new_job.error_message = str(e)
-        await db.commit()
+        logger.error(f"\n❌ КРИТИЧЕСКАЯ ОШИБКА при запуске сканирования: {e}", exc_info=True)
+        logger.error(f"Тип ошибки: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
+        
+        # Попытка откатить состояние в БД если возможно
+        try:
+            if 'new_job' in locals():
+                new_job.status = "failed"
+                new_job.error_message = str(e)
+                await db.commit()
+                logger.info(f"Статус задачи {new_job.id} обновлен на 'failed'")
+        except Exception as rollback_error:
+            logger.error(f"Ошибка при обновлении статуса задачи: {rollback_error}")
+        
         raise HTTPException(status_code=500, detail=f"Ошибка запуска сканирования: {str(e)}")
-    
-    logger.info(f"=== Сканирование успешно запущено ===")
-    
-    return {"message": f"Nmap сканирование запущено для {target}", "status": "queued", "job_id": new_job.id}
 
 
 @router.post("/rustscan")
@@ -327,49 +370,61 @@ async def run_rustscan(
     import logging
     
     logger = logging.getLogger(__name__)
-    logger.info(f"=== Получен запрос на Rustscan ===")
-    logger.info(f"Target: {request.target}")
-    logger.info(f"Ports: {request.ports}")
-    logger.info(f"Run nmap after: {request.run_nmap_after}")
-    
-    # Создаём запись сканирования
-    new_scan = Scan(
-        name=f"Rustscan: {request.target[:50]}",
-        target=request.target,
-        scan_type="rustscan",
-        status="pending",
-        progress=0,
-        created_at=datetime.now(timezone.utc)
-    )
-    
-    db.add(new_scan)
-    await db.commit()
-    await db.refresh(new_scan)
-    logger.info(f"Создана запись сканирования ID={new_scan.id}")
-    
-    # Создаём задачу сканирования
-    new_job = ScanJob(
-        scan_id=new_scan.id,
-        job_type="rustscan",
-        status="pending",
-        created_at=datetime.now(timezone.utc)
-    )
-    
-    db.add(new_job)
-    await db.commit()
-    await db.refresh(new_job)
-    logger.info(f"Создана задача сканирования ID={new_job.id}")
-    
-    # Добавляем задачу в очередь выполнения
-    targets_list = [request.target] if request.target else []
-    parameters = {
-        "ports": request.ports,
-        "custom_args": request.custom_args,
-        "run_nmap_after": request.run_nmap_after,
-        "nmap_args": request.nmap_args
-    }
+    logger.info("=" * 60)
+    logger.info("=== ПОЛУЧЕН ЗАПРОС НА RUSTSCAN ===")
+    logger.info("=" * 60)
+    logger.info(f"Входящие данные запроса:")
+    logger.info(f"  - target: {request.target}")
+    logger.info(f"  - ports: {request.ports}")
+    logger.info(f"  - custom_args: {request.custom_args}")
+    logger.info(f"  - run_nmap_after: {request.run_nmap_after}")
+    logger.info(f"  - nmap_args: {request.nmap_args}")
+    logger.info(f"Raw request data: {request.dict()}")
     
     try:
+        # Создаём запись сканирования
+        logger.info(f"\n[Шаг 1/4] Создание записи сканирования в БД...")
+        new_scan = Scan(
+            name=f"Rustscan: {request.target[:50]}",
+            target=request.target,
+            scan_type="rustscan",
+            status="pending",
+            progress=0,
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_scan)
+        await db.commit()
+        await db.refresh(new_scan)
+        logger.info(f"✓ Запись сканирования создана: ID={new_scan.id}, target={new_scan.target}")
+        
+        # Создаём задачу сканирования
+        logger.info(f"\n[Шаг 2/4] Создание задачи сканирования (ScanJob)...")
+        new_job = ScanJob(
+            scan_id=new_scan.id,
+            job_type="rustscan",
+            status="pending",
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_job)
+        await db.commit()
+        await db.refresh(new_job)
+        logger.info(f"✓ Задача сканирования создана: ID={new_job.id}, scan_id={new_job.scan_id}")
+        
+        # Добавляем задачу в очередь выполнения
+        logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
+        targets_list = [request.target] if request.target else []
+        parameters = {
+            "ports": request.ports,
+            "custom_args": request.custom_args,
+            "run_nmap_after": request.run_nmap_after,
+            "nmap_args": request.nmap_args
+        }
+        logger.info(f"  - targets_list: {targets_list}")
+        logger.info(f"  - parameters: {parameters}")
+        
+        logger.info(f"\n[Шаг 4/4] Добавление задачи в ScanQueueManager...")
         await scan_queue_manager.add_scan(
             db=db,
             scan_job_id=new_job.id,
@@ -377,17 +432,32 @@ async def run_rustscan(
             targets=targets_list,
             parameters=parameters
         )
-        logger.info(f"Задача {new_job.id} добавлена в очередь ScanQueueManager")
+        logger.info(f"✓ Задача {new_job.id} успешно добавлена в очередь ScanQueueManager")
+        
+        logger.info("\n" + "=" * 60)
+        logger.info("=== RUSTSCAN УСПЕШНО ЗАПУЩЕН ===")
+        logger.info(f"Job ID: {new_job.id}")
+        logger.info(f"Scan ID: {new_scan.id}")
+        logger.info("=" * 60)
+        
+        return {"message": f"Rustscan запущен для {request.target}", "status": "queued", "job_id": new_job.id, "scan_id": new_scan.id}
+    
     except Exception as e:
-        logger.error(f"Ошибка добавления задачи в очередь: {e}")
-        new_job.status = "failed"
-        new_job.error_message = str(e)
-        await db.commit()
+        logger.error(f"\n❌ КРИТИЧЕСКАЯ ОШИБКА при запуске Rustscan: {e}", exc_info=True)
+        logger.error(f"Тип ошибки: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
+        
+        try:
+            if 'new_job' in locals():
+                new_job.status = "failed"
+                new_job.error_message = str(e)
+                await db.commit()
+                logger.info(f"Статус задачи {new_job.id} обновлен на 'failed'")
+        except Exception as rollback_error:
+            logger.error(f"Ошибка при обновлении статуса задачи: {rollback_error}")
+        
         raise HTTPException(status_code=500, detail=f"Ошибка запуска сканирования: {str(e)}")
-    
-    logger.info(f"=== Rustscan успешно запущен ===")
-    
-    return {"message": f"Rustscan запущен для {request.target}", "status": "queued", "job_id": new_job.id}
 
 
 @router.post("/dig")
@@ -403,48 +473,59 @@ async def run_dig_scan(
     import logging
     
     logger = logging.getLogger(__name__)
-    logger.info(f"=== Получен запрос на Dig сканирование ===")
-    logger.info(f"Targets: {request.targets_text}")
-    logger.info(f"DNS Server: {request.dns_server}")
-    logger.info(f"Record Types: {request.record_types}")
-    
-    # Создаём запись сканирования
-    new_scan = Scan(
-        name=f"Dig scan: {request.targets_text[:50]}",
-        target=request.targets_text,
-        scan_type="dig",
-        status="pending",
-        progress=0,
-        created_at=datetime.now(timezone.utc)
-    )
-    
-    db.add(new_scan)
-    await db.commit()
-    await db.refresh(new_scan)
-    logger.info(f"Создана запись сканирования ID={new_scan.id}")
-    
-    # Создаём задачу сканирования
-    new_job = ScanJob(
-        scan_id=new_scan.id,
-        job_type="dig",
-        status="pending",
-        created_at=datetime.now(timezone.utc)
-    )
-    
-    db.add(new_job)
-    await db.commit()
-    await db.refresh(new_job)
-    logger.info(f"Создана задача сканирования ID={new_job.id}")
-    
-    # Добавляем задачу в очередь выполнения
-    targets_list = [t.strip() for t in request.targets_text.split(',') if t.strip()]
-    parameters = {
-        "dns_server": request.dns_server,
-        "cli_args": request.cli_args,
-        "record_types": request.record_types
-    }
+    logger.info("=" * 60)
+    logger.info("=== ПОЛУЧЕН ЗАПРОС НА DIG СКАНИРОВАНИЕ ===")
+    logger.info("=" * 60)
+    logger.info(f"Входящие данные запроса:")
+    logger.info(f"  - targets_text: {request.targets_text}")
+    logger.info(f"  - dns_server: {request.dns_server}")
+    logger.info(f"  - cli_args: {request.cli_args}")
+    logger.info(f"  - record_types: {request.record_types}")
+    logger.info(f"Raw request data: {request.dict()}")
     
     try:
+        # Создаём запись сканирования
+        logger.info(f"\n[Шаг 1/4] Создание записи сканирования в БД...")
+        new_scan = Scan(
+            name=f"Dig scan: {request.targets_text[:50]}",
+            target=request.targets_text,
+            scan_type="dig",
+            status="pending",
+            progress=0,
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_scan)
+        await db.commit()
+        await db.refresh(new_scan)
+        logger.info(f"✓ Запись сканирования создана: ID={new_scan.id}, target={new_scan.target}")
+        
+        # Создаём задачу сканирования
+        logger.info(f"\n[Шаг 2/4] Создание задачи сканирования (ScanJob)...")
+        new_job = ScanJob(
+            scan_id=new_scan.id,
+            job_type="dig",
+            status="pending",
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_job)
+        await db.commit()
+        await db.refresh(new_job)
+        logger.info(f"✓ Задача сканирования создана: ID={new_job.id}, scan_id={new_job.scan_id}")
+        
+        # Добавляем задачу в очередь выполнения
+        logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
+        targets_list = [t.strip() for t in request.targets_text.split(',') if t.strip()]
+        parameters = {
+            "dns_server": request.dns_server,
+            "cli_args": request.cli_args,
+            "record_types": request.record_types
+        }
+        logger.info(f"  - targets_list: {targets_list}")
+        logger.info(f"  - parameters: {parameters}")
+        
+        logger.info(f"\n[Шаг 4/4] Добавление задачи в ScanQueueManager...")
         await scan_queue_manager.add_scan(
             db=db,
             scan_job_id=new_job.id,
@@ -452,17 +533,32 @@ async def run_dig_scan(
             targets=targets_list,
             parameters=parameters
         )
-        logger.info(f"Задача {new_job.id} добавлена в очередь ScanQueueManager")
+        logger.info(f"✓ Задача {new_job.id} успешно добавлена в очередь ScanQueueManager")
+        
+        logger.info("\n" + "=" * 60)
+        logger.info("=== DIG СКАНИРОВАНИЕ УСПЕШНО ЗАПУЩЕНО ===")
+        logger.info(f"Job ID: {new_job.id}")
+        logger.info(f"Scan ID: {new_scan.id}")
+        logger.info("=" * 60)
+        
+        return {"message": f"Dig сканирование запущено для {request.targets_text}", "status": "queued", "job_id": new_job.id, "scan_id": new_scan.id}
+    
     except Exception as e:
-        logger.error(f"Ошибка добавления задачи в очередь: {e}")
-        new_job.status = "failed"
-        new_job.error_message = str(e)
-        await db.commit()
+        logger.error(f"\n❌ КРИТИЧЕСКАЯ ОШИБКА при запуске Dig сканирования: {e}", exc_info=True)
+        logger.error(f"Тип ошибки: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
+        
+        try:
+            if 'new_job' in locals():
+                new_job.status = "failed"
+                new_job.error_message = str(e)
+                await db.commit()
+                logger.info(f"Статус задачи {new_job.id} обновлен на 'failed'")
+        except Exception as rollback_error:
+            logger.error(f"Ошибка при обновлении статуса задачи: {rollback_error}")
+        
         raise HTTPException(status_code=500, detail=f"Ошибка запуска сканирования: {str(e)}")
-    
-    logger.info(f"=== Dig сканирование успешно запущено ===")
-    
-    return {"message": f"Dig сканирование запущено для {request.targets_text}", "status": "queued", "job_id": new_job.id}
 
 
 # ==========================================

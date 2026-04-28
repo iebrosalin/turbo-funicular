@@ -95,6 +95,24 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 
+# Middleware для логирования запросов к сканированиям (для отладки)
+@app.middleware("http")
+async def log_scan_requests_middleware(request: Request, call_next):
+    """Логирование всех POST-запросов к /api/scans/ для отладки."""
+    if request.url.path.startswith('/api/scans/') and request.method == 'POST':
+        logger.info("=" * 80)
+        logger.info(f"📥 ВХОДЯЩИЙ ЗАПРОС: {request.method} {request.url.path}")
+        logger.info(f"   Client: {request.client.host}:{request.client.port if request.client.port else 'unknown'}")
+        logger.info(f"   Headers: {dict(request.headers)}")
+        try:
+            body = await request.body()
+            logger.info(f"   Body: {body.decode('utf-8')}")
+        except Exception as e:
+            logger.warning(f"   Не удалось прочитать тело запроса: {e}")
+        logger.info("=" * 80)
+    response = await call_next(request)
+    return response
+
 # Настройка путей к статике и шаблонам
 BASE_DIR = Path(__file__).resolve().parent.parent  # /workspace
 BACKEND_DIR = BASE_DIR / "backend"
