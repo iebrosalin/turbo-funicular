@@ -53,6 +53,7 @@ class ScanResult(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     scan_id = Column(Integer, ForeignKey("scans.id", ondelete="CASCADE"), nullable=False)
+    scan_job_id = Column(Integer, ForeignKey("scan_jobs.id", ondelete="CASCADE"), nullable=True)
     asset_id = Column(Integer, ForeignKey("assets.id", ondelete="CASCADE"), nullable=True)
     ip_address = Column(String(45), nullable=False)
     status = Column(String(50), default="pending")  # pending, success, failed
@@ -61,12 +62,14 @@ class ScanResult(Base):
     os_info = Column(String(255), nullable=True)
     hostname = Column(String(255), nullable=True)
     raw_output = Column(Text, nullable=True)  # Сырой вывод сканера
+    scanned_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # Связи
     scan = relationship("Scan", back_populates="results")
     asset = relationship("Asset", back_populates="scan_results")
+    scan_job = relationship("ScanJob", backref="results")
 
 
 # Добавим обратные связи
