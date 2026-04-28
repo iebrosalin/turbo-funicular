@@ -141,7 +141,10 @@ export class ScanManager {
         if (bar) bar.style.width = `${j.progress}%`;
         if (txt) txt.textContent = `${j.progress}%`;
       });
-  }
+    } catch (error) {
+      console.error('Ошибка обновления истории сканирований:', error);
+    }
+  } // <--- ДОБАВЛЕНО: закрытие метода updateScanHistory
 
   /**
    * Прослушивание событий от сервера через SSE (Server-Sent Events)
@@ -221,7 +224,7 @@ export class ScanManager {
       console.log('🛑 SSE подключение закрыто');
     }
   }
-}
+} // <--- ДОБАВЛЕНО: закрытие класса ScanManager
 
 // Экспорт синглтона
 export const scanManager = new ScanManager();
