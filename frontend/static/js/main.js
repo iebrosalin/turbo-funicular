@@ -120,9 +120,7 @@ class App {
     try {
       await treeManager.refresh();
       
-      // Поллинг активных сканирований
-      scanManager.pollActiveScans();
-      setInterval(() => scanManager.pollActiveScans(), 5000);
+      // SSE подключение уже установлено в конструкторе ScanManager
     } catch (err) {
       console.error('Ошибка загрузки начальных данных:', err);
     }
