@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from backend.scanner import NmapScanner, RustscanScanner, DigScanner
+from backend.db.session import async_session_maker
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +61,9 @@ class ScanQueueManager:
         job.parameters = parameters
         await db.commit()
         
-        # Создаём асинхронную задачу
+        # Создаём асинхронную задачу, передавая только необходимые данные
         task = asyncio.create_task(
-            self._run_scan(db, scan_job_id, scan_type, targets, parameters)
+            self._run_scan(scan_job_id, scan_type, targets, parameters)
         )
         self._tasks[scan_job_id] = task
         self._progress[scan_job_id] = {
@@ -75,7 +76,6 @@ class ScanQueueManager:
     
     async def _run_scan(
         self,
-        db: AsyncSession,
         scan_job_id: int,
         scan_type: str,
         targets: List[str],
@@ -85,86 +85,121 @@ class ScanQueueManager:
         from backend.models.scan import ScanJob, ScanResult
         from backend.utils import get_moscow_time
         
-        try:
-            job = await db.get(ScanJob, scan_job_id)
-            if not job:
-                return
-            
-            job.status = "running"
-            job.started_at = datetime.utcnow()
-            await db.commit()
-            
-            logger.info(f"Начало сканирования {scan_job_id}: {scan_type} для {len(targets)} целей")
-            
-            # Выбираем сканер
-            scanner = None
-            if scan_type == 'nmap':
-                scanner = NmapScanner()
-            elif scan_type == 'rustscan':
-                scanner = RustscanScanner()
-            elif scan_type == 'dig':
-                scanner = DigScanner()
-            
-            if not scanner:
-                raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
-            
-            # Выполняем сканирование для каждой цели
-            for idx, target in enumerate(targets):
-                if not self._running or scan_job_id not in self._tasks:
-                    logger.warning(f"Сканирование {scan_job_id} прервано")
-                    break
+        # Создаём новую сессию БД для фоновой задачи
+        async with async_session_maker() as db:
+            try:
+                job = await db.get(ScanJob, scan_job_id)
+                if not job:
+                    logger.error(f"Задача {scan_job_id} не найдена в БД")
+                    return
                 
-                # Обновление прогресса
-                self._progress[scan_job_id]["current"] = idx + 1
+                job.status = "running"
+                job.started_at = datetime.utcnow()
+                await db.commit()
                 
-                try:
-                    # Вызов реального сканера
-                    result_data = await scanner.scan(db, target, parameters)
+                logger.info(f"Начало сканирования {scan_job_id}: {scan_type} для {len(targets)} целей")
+                
+                # Выбираем сканер
+                scanner = None
+                if scan_type == 'nmap':
+                    scanner = NmapScanner()
+                elif scan_type == 'rustscan':
+                    scanner = RustscanScanner()
+                elif scan_type == 'dig':
+                    scanner = DigScanner()
+                
+                if not scanner:
+                    raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
+                
+                # Выполняем сканирование для каждой цели
+                for idx, target in enumerate(targets):
+                    if not self._running or scan_job_id not in self._tasks:
+                        logger.warning(f"Сканирование {scan_job_id} прервано")
+                        break
                     
-                    # Сохранение результата
-                    result = ScanResult(
-                        scan_id=job.scan_id,
-                        ip_address=target,
-                        hostname=result_data.get('hostname'),
-                        ports=result_data.get('ports', []),
-                        raw_output=str(result_data)
-                    )
-                    db.add(result)
+                    # Обновление прогресса
+                    self._progress[scan_job_id]["current"] = idx + 1
+                    
+                    try:
+                        # Вызов реального сканера
+                        if scan_type == 'nmap':
+                            result_data = await scanner.scan(
+                                db=db,
+                                job_id=scan_job_id,
+                                target=target,
+                                ports=parameters.get('ports', ''),
+                                scripts=parameters.get('scripts', ''),
+                                custom_args=parameters.get('custom_args', ''),
+                                known_ports_only=parameters.get('known_ports_only', False),
+                                group_ids=parameters.get('group_ids')
+                            )
+                        elif scan_type == 'rustscan':
+                            result_data = await scanner.scan(
+                                db=db,
+                                job_id=scan_job_id,
+                                target=target,
+                                ports=parameters.get('ports', ''),
+                                custom_args=parameters.get('custom_args', ''),
+                                group_ids=parameters.get('group_ids')
+                            )
+                        elif scan_type == 'dig':
+                            result_data = await scanner.scan(
+                                db=db,
+                                job_id=scan_job_id,
+                                target=target,
+                                record_type=parameters.get('record_types', 'A'),
+                                custom_args=parameters.get('cli_args', '')
+                            )
+                        else:
+                            raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
+                        
+                        # Сохранение результата
+                        if result_data and result_data.get('status') == 'completed' and 'result' in result_data:
+                            parsed = result_data['result']
+                            result = ScanResult(
+                                scan_id=job.scan_id,
+                                ip_address=target,
+                                hostname=parsed.get('hostname', target),
+                                ports=parsed.get('ports', []),
+                                raw_output=result_data.get('raw_output', str(result_data)),
+                                scanned_at=datetime.utcnow()
+                            )
+                            db.add(result)
+                            await db.commit()
+                            
+                    except Exception as scan_error:
+                        logger.error(f"Ошибка сканирования {target}: {scan_error}", exc_info=True)
+                        # Продолжаем сканирование остальных целей
+                    
+                    # Небольшая задержка между сканированиями
+                    await asyncio.sleep(0.1)
+                
+                # Завершение задачи
+                job = await db.get(ScanJob, scan_job_id)
+                if job:
+                    job.status = "completed"
+                    job.completed_at = datetime.utcnow()
+                    job.progress = 100.0
                     await db.commit()
-                    
-                except Exception as scan_error:
-                    logger.error(f"Ошибка сканирования {target}: {scan_error}")
-                    # Продолжаем сканирование остальных целей
                 
-                # Небольшая задержка между сканированиями
-                await asyncio.sleep(0.1)
-            
-            # Завершение задачи
-            job = await db.get(ScanJob, scan_job_id)
-            if job:
-                job.status = "completed"
-                job.completed_at = datetime.utcnow()
-                job.progress = 100.0
-                await db.commit()
-            
-            logger.info(f"Сканирование {scan_job_id} завершено")
-            
-        except asyncio.CancelledError:
-            logger.info(f"Сканирование {scan_job_id} отменено")
-            job = await db.get(ScanJob, scan_job_id)
-            if job:
-                job.status = "failed"
-                await db.commit()
-            raise
-        except Exception as e:
-            logger.error(f"Ошибка при выполнении сканирования {scan_job_id}: {e}")
-            job = await db.get(ScanJob, scan_job_id)
-            if job:
-                job.status = "failed"
-                await db.commit()
-        finally:
-            self._tasks.pop(scan_job_id, None)
-            self._progress.pop(scan_job_id, None)
+                logger.info(f"Сканирование {scan_job_id} завершено")
+                
+            except asyncio.CancelledError:
+                logger.info(f"Сканирование {scan_job_id} отменено")
+                job = await db.get(ScanJob, scan_job_id)
+                if job:
+                    job.status = "failed"
+                    await db.commit()
+                raise
+            except Exception as e:
+                logger.error(f"Ошибка при выполнении сканирования {scan_job_id}: {e}", exc_info=True)
+                job = await db.get(ScanJob, scan_job_id)
+                if job:
+                    job.status = "failed"
+                    await db.commit()
+            finally:
+                self._tasks.pop(scan_job_id, None)
+                self._progress.pop(scan_job_id, None)
     
     async def stop_scan(self, scan_job_id: int):
         """Остановить конкретное сканирование."""

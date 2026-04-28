@@ -617,14 +617,55 @@ async def get_scan_jobs(db: AsyncSession = Depends(get_db)):
 @router.get("/scan-job/{job_id}")
 async def get_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     """Получить задачу сканирования."""
-    # Заглушка
-    raise HTTPException(status_code=404, detail="Задача не найдена")
+    from backend.models.scan import ScanJob
+    from sqlalchemy import select
+    from sqlalchemy.orm import selectinload
+    
+    # Получаем задачу с связанным сканированием
+    query = select(ScanJob).where(ScanJob.id == job_id).options(selectinload(ScanJob.scan))
+    result = await db.execute(query)
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Задача сканирования с ID {job_id} не найдена")
+    
+    return {
+        "id": job.id,
+        "scan_id": job.scan_id,
+        "job_type": job.job_type,
+        "status": job.status,
+        "error_message": job.error_message,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "scan": {
+            "id": job.scan.id if job.scan else None,
+            "name": job.scan.name if job.scan else None,
+            "target": job.scan.target if job.scan else None,
+            "scan_type": job.scan.scan_type if job.scan else None,
+            "status": job.scan.status if job.scan else None,
+            "progress": job.scan.progress if job.scan else 0,
+        } if job.scan else None
+    }
 
 
 @router.delete("/scan-job/{job_id}")
 async def delete_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     """Удалить задачу сканирования."""
-    return {"message": f"Задача {job_id} удалена"}
+    from backend.models.scan import ScanJob
+    from sqlalchemy import select
+    
+    # Проверяем существование задачи
+    query = select(ScanJob).where(ScanJob.id == job_id)
+    result = await db.execute(query)
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Задача сканирования с ID {job_id} не найдена")
+    
+    # Удаляем задачу
+    await db.delete(job)
+    await db.commit()
+    
+    return {"message": f"Задача {job_id} удалена", "job_id": job_id}
 
 
 @router.post("/scan-job/{job_id}/stop")

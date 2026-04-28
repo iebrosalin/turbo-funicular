@@ -7,6 +7,8 @@ from typing import Dict, List, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.scan import ScanJob, ScanResult
+from backend.models.asset import Asset
+from backend.utils import create_asset_if_not_exists, MOSCOW_TZ
 
 
 class DigScanner:
@@ -53,14 +55,26 @@ class DigScanner:
             # Парсим вывод
             parsed_result = self._parse_output(output_lines, record_type)
             
-            # Сохраняем результат
+            # Извлекаем IP адреса из результатов для создания актива
+            ip_addresses = self._extract_ips(parsed_result)
+            
+            # Создаём активы для найденных IP
+            for ip in ip_addresses:
+                await create_asset_if_not_exists(
+                    db=db,
+                    ip_address=ip,
+                    hostname=target
+                )
+            
+            # Сохраняем результат сканирования
             scan_result = ScanResult(
                 scan_job_id=job_id,
-                asset_ip=target,
+                ip_address=target,
                 hostname=target,
                 ports=[],
                 raw_output='\n'.join(output_lines),
-                scanned_at=datetime.now()
+                status='success',
+                scanned_at=datetime.now(MOSCOW_TZ)
             )
             db.add(scan_result)
             
@@ -121,3 +135,17 @@ class DigScanner:
                     })
         
         return {'record_type': record_type, 'answers': answers}
+    
+    def _extract_ips(self, parsed_result: Dict[str, Any]) -> List[str]:
+        """Извлечение IP адресов из результатов Dig."""
+        ips = []
+        answers = parsed_result.get('answers', [])
+        
+        for answer in answers:
+            data = answer.get('data', '')
+            rec_type = answer.get('type', '')
+            if rec_type in ['A', 'AAAA']:
+                if ':' in data or (data.count('.') == 3 and all(p.isdigit() for p in data.split('.'))):
+                    ips.append(data)
+        
+        return ips
