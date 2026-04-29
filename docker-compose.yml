@@ -23,7 +23,7 @@ services:
     working_dir: /app
     # Сначала применяем миграции, затем запускаем приложение
     command: >
-      sh -c "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 5000"
+      sh -c "cd backend && alembic upgrade head && cd .. && uvicorn backend.main:app --host 0.0.0.0 --port 5000"
     # Ограничение ресурсов (опционально)
     deploy:
       resources:
