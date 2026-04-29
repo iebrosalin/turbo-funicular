@@ -6,7 +6,7 @@ from backend.db.session import get_db
 from backend.models.group import Group as AssetGroup
 from backend.schemas.group import GroupCreate, GroupUpdate, GroupResponse
 from backend.services.group_service import GroupService
-from utils import build_group_tree, build_complex_query, log_asset_change, get_moscow_time
+from backend.utils import build_group_tree, build_complex_query, log_asset_change, get_moscow_time
 import json
 
 router = APIRouter(tags=["groups"])
@@ -28,7 +28,7 @@ async def get_groups(
     
     if include_assets_count:
         # Подсчёт активов для каждой группы через many-to-many связь
-        from models.asset import asset_groups
+        from backend.models.asset import asset_groups
         from sqlalchemy import func
         for group in groups:
             count_query = select(func.count(asset_groups.c.asset_id)).where(
@@ -43,7 +43,7 @@ async def get_groups(
 @router.get("/tree")
 async def get_group_tree(db: AsyncSession = Depends(get_db)):
     """Получить дерево групп с подсчётом активов."""
-    from models.asset import asset_groups, Asset
+    from backend.models.asset import asset_groups, Asset
     
     # Получаем все группы
     query = select(AssetGroup).order_by(AssetGroup.name)
@@ -81,7 +81,7 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
 async def get_group(group_id: int, db: AsyncSession = Depends(get_db)):
     """Получить группу по ID."""
     from sqlalchemy.orm import selectinload
-    from models.asset import asset_groups
+    from backend.models.asset import asset_groups
     
     service = GroupService(db)
     group = await service.get_by_id(group_id)
@@ -185,7 +185,7 @@ async def move_group(
 @router.get("/ungrouped/count", response_model=Dict[str, int])
 async def get_ungrouped_count(db: AsyncSession = Depends(get_db)):
     """Получить количество активов без группы."""
-    from models.asset import Asset
+    from backend.models.asset import Asset
     
     query = select(func.count()).select_from(Asset).where(Asset.group_id.is_(None))
     result = await db.execute(query)
@@ -207,7 +207,7 @@ async def create_cidr_groups(
         cidr_list: Список CIDR нотаций (например, ["192.168.1.0/24"])
         parent_id: ID родительской группы (опционально)
     """
-    from utils.network_utils import create_cidr_groups
+    from backend.utils.network_utils import create_cidr_groups
     
     groups = await create_cidr_groups(
         db=db,

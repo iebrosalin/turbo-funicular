@@ -9,7 +9,7 @@ from typing import Dict, Optional, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from scanner import NmapScanner, RustscanScanner, DigScanner
+from backend.scanner import NmapScanner, RustscanScanner, DigScanner
 from backend.db.session import async_session_maker
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class ScanQueueManager:
         parameters: Dict[str, Any]
     ):
         """Добавить задачу сканирования в очередь."""
-        from models.scan import ScanJob
+        from backend.models.scan import ScanJob
         
         logger.info(f"Добавление задачи сканирования {scan_job_id} ({scan_type})")
         
@@ -81,8 +81,8 @@ class ScanQueueManager:
         parameters: Dict[str, Any]
     ):
         """Выполнить сканирование."""
-        from models.scan import ScanJob, ScanResult
-        from utils import get_moscow_time
+        from backend.models.scan import ScanJob, ScanResult
+        from backend.utils import get_moscow_time
         
         # Создаём новую сессию БД для фоновой задачи
         async with async_session_maker() as db:

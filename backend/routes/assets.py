@@ -46,7 +46,7 @@ async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_d
     asset = await service.create(asset_data)
     
     # Создаем ответ вручную, чтобы корректно установить group_id
-    from schemas.asset import AssetResponse
+    from backend.schemas.asset import AssetResponse
     group_id = None
     if asset.groups and len(asset.groups) > 0:
         group_id = asset.groups[0].id

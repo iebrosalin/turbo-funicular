@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.scan import ScanJob, ScanResult
 from backend.models.asset import Asset
-from utils import create_asset_if_not_exists, MOSCOW_TZ
+from backend.utils import create_asset_if_not_exists, MOSCOW_TZ
 
 
 class DigScanner:
