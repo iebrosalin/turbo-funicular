@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
-from backend.db.session import get_db
-from backend.services.asset_service import AssetService
-from backend.schemas.asset import AssetCreate, AssetUpdate, AssetResponse
-from backend.models.asset import Asset
+from db.session import get_db
+from services.asset_service import AssetService
+from schemas.asset import AssetCreate, AssetUpdate, AssetResponse
+from models.asset import Asset
 
 router = APIRouter(tags=["assets"])
 assets_router = router  # Алиас для совместимости импортов

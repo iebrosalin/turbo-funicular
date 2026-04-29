@@ -3,11 +3,11 @@
 Импортируем все модели здесь, чтобы они были зарегистрированы в SQLAlchemy до создания таблиц.
 """
 
-from backend.models.asset import Asset, asset_groups
-from backend.models.group import Group
-from backend.models.scan import Scan, ScanJob, ScanResult
-from backend.models.log import ActivityLog, AssetChangeLog
-from backend.models.service import ServiceInventory
+from models.asset import Asset, asset_groups
+from models.group import Group
+from models.scan import Scan, ScanJob, ScanResult
+from models.log import ActivityLog, AssetChangeLog
+from models.service import ServiceInventory
 
 __all__ = [
     'Asset',
