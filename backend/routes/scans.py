@@ -66,7 +66,7 @@ class DigScanRequest(BaseModel):
 @router.get("/status")
 async def get_scans_status(db: AsyncSession = Depends(get_db)):
     """Получить статус очередей сканирований и историю заданий."""
-    from models.scan import ScanJob, Scan
+    from backend.models.scan import ScanJob, Scan
     from sqlalchemy.orm import selectinload
     
     # Получаем все задачи сканирования
@@ -256,7 +256,7 @@ async def run_nmap_scan(
     db: AsyncSession = Depends(get_db)
 ):
     """Запустить сканирование Nmap."""
-    from models.scan import Scan, ScanJob
+    from backend.models.scan import Scan, ScanJob
     from services.scan_queue_manager import scan_queue_manager
     from datetime import datetime, timezone
     import logging
@@ -364,7 +364,7 @@ async def run_rustscan(
     db: AsyncSession = Depends(get_db)
 ):
     """Запустить сканирование Rustscan."""
-    from models.scan import Scan, ScanJob
+    from backend.models.scan import Scan, ScanJob
     from services.scan_queue_manager import scan_queue_manager
     from datetime import datetime, timezone
     import logging
@@ -467,7 +467,7 @@ async def run_dig_scan(
     db: AsyncSession = Depends(get_db)
 ):
     """Запустить DNS сканирование (dig)."""
-    from models.scan import Scan, ScanJob
+    from backend.models.scan import Scan, ScanJob
     from services.scan_queue_manager import scan_queue_manager
     from datetime import datetime, timezone
     import logging
@@ -582,7 +582,7 @@ async def get_scan_queue_job(job_id: int, db: AsyncSession = Depends(get_db)):
 @router.delete("/scan-queue/{job_id}")
 async def cancel_scan_queue_job(job_id: int, db: AsyncSession = Depends(get_db)):
     """Отменить задачу в очереди сканирований."""
-    from models.scan import ScanJob
+    from backend.models.scan import ScanJob
     from sqlalchemy import select
     
     # Проверяем существование задачи
@@ -607,7 +607,7 @@ async def cancel_scan_queue_job(job_id: int, db: AsyncSession = Depends(get_db))
 @router.get("/scan-job")
 async def get_scan_jobs(db: AsyncSession = Depends(get_db)):
     """Получить все задачи сканирований."""
-    from models.scan import ScanJob
+    from backend.models.scan import ScanJob
     from sqlalchemy.orm import selectinload
     
     query = select(ScanJob).options(
@@ -632,7 +632,7 @@ async def get_scan_jobs(db: AsyncSession = Depends(get_db)):
 @router.get("/scan-job/{job_id}")
 async def get_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     """Получить задачу сканирования."""
-    from models.scan import ScanJob
+    from backend.models.scan import ScanJob
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
     
@@ -665,7 +665,7 @@ async def get_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
 @router.delete("/scan-job/{job_id}")
 async def delete_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     """Удалить задачу сканирования."""
-    from models.scan import ScanJob
+    from backend.models.scan import ScanJob
     from sqlalchemy import select
     
     # Проверяем существование задачи
@@ -686,7 +686,7 @@ async def delete_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/scan-job/{job_id}/stop")
 async def stop_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     """Остановить задачу сканирования."""
-    from models.scan import ScanJob, Scan
+    from backend.models.scan import ScanJob, Scan
     from sqlalchemy import select
     from services.scan_queue_manager import scan_queue_manager
     
@@ -718,7 +718,7 @@ async def stop_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/scan-job/{job_id}/retry")
 async def retry_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     """Повторить задачу сканирования."""
-    from models.scan import ScanJob, Scan
+    from backend.models.scan import ScanJob, Scan
     from sqlalchemy import select
     from services.scan_queue_manager import scan_queue_manager
     
@@ -763,7 +763,7 @@ async def retry_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
 async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = Depends(get_db)):
     """Скачать результаты задачи сканирования в указанном формате."""
     from sqlalchemy import select
-    from models.scan import ScanJob, ScanResult
+    from backend.models.scan import ScanJob, ScanResult
     from sqlalchemy.orm import selectinload
     import json
     
