@@ -309,7 +309,7 @@ export class ScanResultsController {
   async removeJob(id) {
     if (!confirm('Удалить задачу из очереди?')) return;
     try {
-      const res = await Utils.apiRequest(`/api/scan-queue/${id}`, { method: 'DELETE' });
+      const res = await Utils.apiRequest(`/api/scans/scan-queue/${id}`, { method: 'DELETE' });
       Utils.showNotification(res.message || 'Задача удалена', 'success');
       this.loadJobs();
       this.updateQueueStatus();
