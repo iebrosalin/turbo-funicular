@@ -66,6 +66,9 @@ class DigScanner:
                     hostname=target
                 )
             
+            # Коммитим создание активов
+            await db.commit()
+            
             # Сохраняем результат сканирования
             scan_result = ScanResult(
                 scan_job_id=job_id,

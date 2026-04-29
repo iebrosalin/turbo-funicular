@@ -582,7 +582,22 @@ async def get_scan_queue_job(job_id: int, db: AsyncSession = Depends(get_db)):
 @router.delete("/scan-queue/{job_id}")
 async def cancel_scan_queue_job(job_id: int, db: AsyncSession = Depends(get_db)):
     """Отменить задачу в очереди сканирований."""
-    return {"message": f"Задача {job_id} отменена"}
+    from backend.models.scan import ScanJob
+    from sqlalchemy import select
+    
+    # Проверяем существование задачи
+    query = select(ScanJob).where(ScanJob.id == job_id)
+    result = await db.execute(query)
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Задача сканирования с ID {job_id} не найдена")
+    
+    # Удаляем задачу
+    await db.delete(job)
+    await db.commit()
+    
+    return {"message": f"Задача {job_id} отменена", "job_id": job_id}
 
 
 # ==========================================
@@ -683,8 +698,87 @@ async def retry_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
 @router.get("/scan-job/{job_id}/download/{format}")
 async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = Depends(get_db)):
     """Скачать результаты задачи сканирования в указанном формате."""
-    # Заглушка
-    raise HTTPException(status_code=404, detail="Результаты не найдены")
+    from sqlalchemy import select
+    from backend.models.scan import ScanJob, ScanResult
+    from sqlalchemy.orm import selectinload
+    import json
+    
+    # Получаем задачу сканирования
+    job_query = select(ScanJob).where(ScanJob.id == job_id).options(selectinload(ScanJob.scan))
+    job_result = await db.execute(job_query)
+    job = job_result.scalar_one_or_none()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Задача сканирования не найдена")
+    
+    # Получаем результаты сканирования для этой задачи
+    results_query = select(ScanResult).where(ScanResult.scan_job_id == job_id)
+    results_result = await db.execute(results_query)
+    results = results_result.scalars().all()
+    
+    if not results:
+        # Пробуем получить результаты по scan_id если нет по job_id
+        results_query = select(ScanResult).where(ScanResult.scan_id == job.scan_id)
+        results_result = await db.execute(results_query)
+        results = results_result.scalars().all()
+    
+    if not results:
+        raise HTTPException(status_code=404, detail="Результаты сканирования не найдены")
+    
+    # Форматируем результат в зависимости от запрошенного формата
+    if format == "raw":
+        # Сырой вывод всех результатов
+        raw_output = ""
+        for result in results:
+            if result.raw_output:
+                raw_output += f"# Host: {result.ip_address}\n"
+                raw_output += result.raw_output
+                raw_output += "\n\n"
+        
+        if not raw_output:
+            # Если нет raw_output, возвращаем JSON в виде текста
+            raw_output = json.dumps([
+                {
+                    "ip_address": r.ip_address,
+                    "ports": r.ports,
+                    "services": r.services,
+                    "hostname": r.hostname,
+                    "os_info": r.os_info
+                }
+                for r in results
+            ], indent=2)
+        
+        return StreamingResponse(
+            iter([raw_output.encode('utf-8')]),
+            media_type="text/plain",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{job_id}_raw.txt"'
+            }
+        )
+    
+    elif format == "json":
+        # JSON формат
+        data = [
+            {
+                "ip_address": r.ip_address,
+                "ports": r.ports,
+                "services": r.services,
+                "hostname": r.hostname,
+                "os_info": r.os_info,
+                "status": r.status
+            }
+            for r in results
+        ]
+        return StreamingResponse(
+            iter([json.dumps(data, indent=2).encode('utf-8')]),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{job_id}.json"'
+            }
+        )
+    
+    else:
+        raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, json")
 
 
 # ==========================================
