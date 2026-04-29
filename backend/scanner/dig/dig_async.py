@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.scan import ScanJob, ScanResult
 from backend.models.asset import Asset
-from backend.utils import create_asset_if_not_exists, MOSCOW_TZ
+from backend.utils import MOSCOW_TZ
+from backend.services.asset_manager import upsert_asset
 
 
 class DigScanner:
@@ -23,6 +24,9 @@ class DigScanner:
         custom_args: str = ''
     ) -> Dict[str, Any]:
         """Запуск запроса Dig."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
             job = await db.get(ScanJob, job_id)
             if not job:
@@ -58,13 +62,15 @@ class DigScanner:
             # Извлекаем IP адреса из результатов для создания актива
             ip_addresses = self._extract_ips(parsed_result)
             
-            # Создаём активы для найденных IP
+            # Создаём активы для найденных IP с использованием унифицированной функции
             for ip in ip_addresses:
-                await create_asset_if_not_exists(
+                asset = await upsert_asset(
                     db=db,
                     ip_address=ip,
-                    hostname=target
+                    hostname=target,
+                    scanner_name="Dig"
                 )
+                logger.info(f"[Dig] Создан/обновлен актив: {ip} (hostname: {target})")
             
             # Коммитим создание активов
             await db.commit()
@@ -88,6 +94,7 @@ class DigScanner:
                 job.progress = 100.0
                 await db.commit()
             
+            logger.info(f"[Dig] Сканирование {job_id} завершено: найдено {len(ip_addresses)} IP")
             return {"status": "completed", "job_id": job_id, "result": parsed_result}
             
         except asyncio.CancelledError:
