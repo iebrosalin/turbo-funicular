@@ -207,7 +207,7 @@ export class TreeManager {
 
       if (assets.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Активы не найдены</td></tr>';
-        store.updateAssets([]);
+        store.setCurrentAssets([]);
         return;
       }
 
@@ -216,7 +216,7 @@ export class TreeManager {
         tbody.appendChild(tr);
       });
 
-      store.updateAssets(assets);
+      store.setCurrentAssets(assets);
 
     } catch (error) {
       console.error('Ошибка загрузки активов:', error);
