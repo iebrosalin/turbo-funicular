@@ -321,7 +321,7 @@ export class ScanResultsController {
   async stopJob(id) {
     if (!confirm('Остановить задачу?')) return;
     try {
-      const res = await Utils.apiRequest(`/api/scan-job/${id}/stop`, { method: 'POST' });
+      const res = await Utils.apiRequest(`/api/scans/scan-job/${id}/stop`, { method: 'POST' });
       Utils.showNotification(res.message || 'Задача остановлена', 'success');
       this.loadJobs();
     } catch(e) { 
@@ -332,7 +332,7 @@ export class ScanResultsController {
   async retryJob(id) {
     if (!confirm('Повторить задачу?')) return;
     try {
-      const res = await Utils.apiRequest(`/api/scan-job/${id}/retry`, { method: 'POST' });
+      const res = await Utils.apiRequest(`/api/scans/scan-job/${id}/retry`, { method: 'POST' });
       Utils.showNotification(res.message || 'Задача перезапущена', 'success');
       this.loadJobs();
       this.updateQueueStatus();
@@ -344,7 +344,7 @@ export class ScanResultsController {
   async deleteJob(id) {
     if (!confirm('Удалить из истории?')) return;
     try {
-      const res = await Utils.apiRequest(`/api/scan-job/${id}`, { method: 'DELETE' });
+      const res = await Utils.apiRequest(`/api/scans/scan-job/${id}`, { method: 'DELETE' });
       Utils.showNotification(res.message || 'Задача удалена из истории', 'success');
       this.loadJobs();
     } catch(e) { 
