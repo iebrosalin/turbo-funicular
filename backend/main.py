@@ -45,13 +45,17 @@ def apply_pending_migrations():
         # Определяем путь к директории backend
         backend_dir = Path(__file__).resolve().parent
         
-        # Запускаем alembic upgrade head
+        # Получаем DATABASE_URL из настроек и преобразуем для синхронного подключения
+        db_url = settings.DATABASE_URL.replace("+aiosqlite", "").replace("+asyncpg", "")
+        
+        # Запускаем alembic upgrade head с переменной окружения DATABASE_URL
+        env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parent.parent), "DATABASE_URL": db_url}
         result = subprocess.run(
             [sys.executable, "-m", "alembic", "upgrade", "head"],
             cwd=backend_dir,
             capture_output=True,
             text=True,
-            env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parent.parent)}
+            env=env
         )
         
         if result.returncode == 0:
