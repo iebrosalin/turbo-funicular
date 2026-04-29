@@ -8,9 +8,11 @@ from typing import Dict, List, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from backend.models.asset import Asset
 from backend.models.scan import ScanJob, ScanResult
+from backend.models.asset import Asset
 from backend.models.group import AssetGroup
+from backend.utils import MOSCOW_TZ
+from backend.services.asset_manager import upsert_asset, update_asset_ports
 
 
 class RustscanScanner:
@@ -143,20 +145,22 @@ class RustscanScanner:
         return found_ports
     
     async def _update_assets(self, db, targets, found_ports):
-        """Обновление активов с найденными портами."""
+        """Обновление активов с найденными портами с использованием унифицированных функций."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         for ip in targets:
-            stmt = select(Asset).where(Asset.ip_address == ip)
-            result = await db.execute(stmt)
-            asset = result.scalar_one_or_none()
-            
-            if not asset:
-                asset = Asset(ip_address=ip)
-                db.add(asset)
-                await db.flush()
+            # Создаем или обновляем актив
+            asset = await upsert_asset(
+                db=db,
+                ip_address=ip,
+                scanner_name="Rustscan"
+            )
             
             if ip in found_ports:
-                current_ports = set(asset.rustscan_ports or [])
-                current_ports.update(found_ports[ip])
-                asset.update_ports('rustscan', list(current_ports))
+                # Обновляем порты
+                update_asset_ports(asset, 'rustscan', found_ports[ip], scanner_name="Rustscan")
+            else:
+                logger.info(f"[Rustscan] Актив {ip} проверен, новые порты не найдены")
         
         await db.commit()

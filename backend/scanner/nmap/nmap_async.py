@@ -15,6 +15,7 @@ from backend.models.service import ServiceInventory
 from backend.models.scan import ScanJob, ScanResult
 from backend.models.group import AssetGroup
 from backend.utils import MOSCOW_TZ
+from backend.services.asset_manager import upsert_asset, upsert_service, update_asset_ports
 
 
 class NmapScanner:
@@ -145,7 +146,10 @@ class NmapScanner:
         return cmd
     
     async def _parse_results(self, db: AsyncSession, job_id: int, xml_file: str):
-        """Парсинг XML и обновление БД."""
+        """Парсинг XML и обновление БД с использованием унифицированных функций."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         tree = ET.parse(xml_file)
         root = tree.getroot()
         
@@ -172,6 +176,14 @@ class NmapScanner:
                 os_match_elem = os_elem.find('osmatch')
                 if os_match_elem is not None:
                     os_match = os_match_elem.get('name')
+            
+            # Парсим OS детали
+            os_family = None
+            os_version = None
+            if os_match:
+                parts = os_match.split()
+                os_family = parts[0] if parts else None
+                os_version = ' '.join(parts[1:]) if len(parts) > 1 else None
             
             found_ports = []
             ports_elem = host.find('ports')
@@ -208,7 +220,35 @@ class NmapScanner:
                                 if iss:
                                     service_data['ssl_issuer'] = iss.group(1).strip()
                     
-                    await self._update_asset_and_service(db, ip, hostname, os_match, port_num, protocol, service_data)
+                    # Создаем или обновляем актив
+                    asset = await upsert_asset(
+                        db=db,
+                        ip_address=ip,
+                        hostname=hostname,
+                        os_family=os_family,
+                        os_version=os_version,
+                        scanner_name="Nmap"
+                    )
+                    
+                    # Обновляем порты
+                    update_asset_ports(asset, 'nmap', [port_num], scanner_name="Nmap")
+                    
+                    # Создаем или обновляем сервис
+                    await upsert_service(
+                        db=db,
+                        asset=asset,
+                        port=port_num,
+                        protocol=protocol,
+                        state='open',
+                        service_name=service_data.get('name', 'unknown'),
+                        product=service_data.get('product', ''),
+                        version=service_data.get('version', ''),
+                        extra_info=service_data.get('extra_info', ''),
+                        script_output=service_data.get('script_output', ''),
+                        ssl_subject=service_data.get('ssl_subject'),
+                        ssl_issuer=service_data.get('ssl_issuer'),
+                        scanner_name="Nmap"
+                    )
             
             scan_result = ScanResult(
                 scan_job_id=job_id,
@@ -221,59 +261,3 @@ class NmapScanner:
             db.add(scan_result)
         
         await db.commit()
-    
-    async def _update_asset_and_service(self, db, ip, hostname, os_match, port_num, protocol, service_data):
-        """Обновление актива и сервиса."""
-        stmt = select(Asset).where(Asset.ip_address == ip)
-        result = await db.execute(stmt)
-        asset = result.scalar_one_or_none()
-        
-        if not asset:
-            asset = Asset(ip_address=ip, hostname=hostname)
-            db.add(asset)
-            await db.flush()
-        elif hostname and not asset.hostname:
-            asset.hostname = hostname
-        
-        if os_match and not asset.os_family:
-            parts = os_match.split()
-            asset.os_family = parts[0] if parts else None
-            asset.os_version = ' '.join(parts[1:]) if len(parts) > 1 else None
-        
-        current_ports = set(asset.nmap_ports or [])
-        current_ports.add(port_num)
-        asset.update_ports('nmap', list(current_ports))
-        
-        stmt = select(ServiceInventory).where(
-            ServiceInventory.asset_id == asset.id,
-            ServiceInventory.port == port_num,
-            ServiceInventory.protocol == protocol
-        )
-        result = await db.execute(stmt)
-        service = result.scalar_one_or_none()
-        
-        if not service:
-            service = ServiceInventory(
-                asset_id=asset.id,
-                port=port_num,
-                protocol=protocol,
-                state='open',
-                service_name=service_data.get('name', 'unknown'),
-                product=service_data.get('product', ''),
-                version=service_data.get('version', ''),
-                extra_info=service_data.get('extra_info', ''),
-                script_output=service_data.get('script_output', ''),
-                ssl_subject=service_data.get('ssl_subject'),
-                ssl_issuer=service_data.get('ssl_issuer'),
-                discovered_at=datetime.now(MOSCOW_TZ)
-            )
-            db.add(service)
-        else:
-            service.state = 'open'
-            service.service_name = service_data.get('name', 'unknown')
-            service.product = service_data.get('product', '')
-            service.version = service_data.get('version', '')
-            service.extra_info = service_data.get('extra_info', '')
-            service.last_seen = datetime.now(MOSCOW_TZ)
-        
-        await db.flush()

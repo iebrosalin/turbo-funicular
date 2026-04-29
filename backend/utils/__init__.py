@@ -60,7 +60,7 @@ async def create_asset_if_not_exists(
     asset = result.scalar_one_or_none()
     
     if asset:
-        logger.debug(f"Актив {ip_address} уже существует")
+        logger.info(f"[create_asset_if_not_exists] Актив {ip_address} уже существует")
         return asset
     
     # Создаём новый
@@ -73,7 +73,7 @@ async def create_asset_if_not_exists(
     db.add(asset)
     await db.flush()
     await db.refresh(asset)
-    logger.info(f"Создан новый актив: {ip_address}")
+    logger.info(f"[create_asset_if_not_exists] Создан новый актив: {ip_address} (hostname: {hostname})")
     return asset
 
 
