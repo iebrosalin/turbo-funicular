@@ -686,13 +686,77 @@ async def delete_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/scan-job/{job_id}/stop")
 async def stop_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     """Остановить задачу сканирования."""
-    return {"message": f"Задача {job_id} остановлена"}
+    from backend.models.scan import ScanJob, Scan
+    from sqlalchemy import select
+    from backend.services.scan_queue_manager import scan_queue_manager
+    
+    # Получаем задачу
+    query = select(ScanJob).where(ScanJob.id == job_id).options(selectinload(ScanJob.scan))
+    result = await db.execute(query)
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Задача сканирования с ID {job_id} не найдена")
+    
+    # Можно остановить только running или pending задачи
+    if job.status not in ['running', 'pending', 'queued']:
+        raise HTTPException(status_code=400, detail=f"Невозможно остановить задачу со статусом {job.status}")
+    
+    # Обновляем статус задачи
+    job.status = 'stopped'
+    if job.scan:
+        job.scan.status = 'stopped'
+    
+    # Удаляем из очереди менеджера если там есть
+    await scan_queue_manager.remove_from_queue(job_id)
+    
+    await db.commit()
+    
+    return {"message": f"Задача {job_id} остановлена", "job_id": job_id}
 
 
 @router.post("/scan-job/{job_id}/retry")
 async def retry_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     """Повторить задачу сканирования."""
-    return {"message": f"Задача {job_id} повторена"}
+    from backend.models.scan import ScanJob, Scan
+    from sqlalchemy import select
+    from backend.services.scan_queue_manager import scan_queue_manager
+    
+    # Получаем задачу с связанным сканированием
+    query = select(ScanJob).where(ScanJob.id == job_id).options(selectinload(ScanJob.scan))
+    result = await db.execute(query)
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Задача сканирования с ID {job_id} не найдена")
+    
+    # Можно перезапустить только завершенные или неудачные задачи
+    if job.status not in ['completed', 'failed', 'stopped', 'cancelled']:
+        raise HTTPException(status_code=400, detail=f"Невозможно перезапустить задачу со статусом {job.status}")
+    
+    # Обновляем статусы
+    job.status = 'queued'
+    job.error_message = None
+    job.completed_at = None
+    if job.scan:
+        job.scan.status = 'queued'
+        job.scan.progress = 0
+    
+    await db.commit()
+    
+    # Добавляем задачу обратно в очередь
+    targets = [job.scan.target] if job.scan and job.scan.target else []
+    parameters = {}
+    
+    await scan_queue_manager.add_scan(
+        db=db,
+        scan_job_id=job.id,
+        scan_type=job.job_type,
+        targets=targets,
+        parameters=parameters
+    )
+    
+    return {"message": f"Задача {job_id} перезапущена", "job_id": job_id}
 
 
 @router.get("/scan-job/{job_id}/download/{format}")
