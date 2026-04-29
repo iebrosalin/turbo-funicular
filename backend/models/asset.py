@@ -2,7 +2,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Bool
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
-from backend.db.base import Base
+from db.base import Base
 
 # Импортируем таблицу связи из base, чтобы избежать циклического импорта при импорте AssetGroup
 # Таблица связи many-to-many между активами и группами

@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Background
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from typing import List, Optional, Dict, Any
-from backend.db.session import get_db
-from backend.models.group import Group as AssetGroup
-from backend.schemas.group import GroupCreate, GroupUpdate, GroupResponse
-from backend.services.group_service import GroupService
+from db.session import get_db
+from models.group import Group as AssetGroup
+from schemas.group import GroupCreate, GroupUpdate, GroupResponse
+from services.group_service import GroupService
 from utils import build_group_tree, build_complex_query, log_asset_change, get_moscow_time
 import json
 

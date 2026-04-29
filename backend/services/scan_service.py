@@ -3,8 +3,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
-from backend.models.scan import Scan
-from backend.schemas.scan import ScanCreate, ScanUpdate, ScanStatus
+from models.scan import Scan
+from schemas.scan import ScanCreate, ScanUpdate, ScanStatus
 
 
 class ScanService:
