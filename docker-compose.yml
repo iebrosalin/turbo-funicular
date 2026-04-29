@@ -20,10 +20,10 @@ services:
       # Сохранение базы данных SQLite между перезапусками
       - app_data:/app/instance
       - ./tests:/app/tests
-    working_dir: /app/backend
+    working_dir: /app
     # Сначала применяем миграции, затем запускаем приложение
     command: >
-      sh -c "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port 5000"
+      sh -c "cd /app/backend && alembic upgrade head && cd /app && uvicorn backend.main:app --host 0.0.0.0 --port 5000"
     # Ограничение ресурсов (опционально)
     deploy:
       resources:
@@ -45,9 +45,8 @@ services:
       - ./backend:/app/backend
       - ./frontend:/app/frontend
       - ./tests:/app/tests
-      - playwright-cache:/ms-playwright
     working_dir: /app
-    command: pytest tests/ -v
+    command: sh -c "cd /app/backend && pytest tests/ -v"
     profiles:
       - test
     # Настройки для поддержки браузеров Playwright
@@ -71,7 +70,7 @@ services:
       - ./tests:/app/tests
       - playwright-cache:/ms-playwright
     working_dir: /app
-    command: pytest tests/test_ui.py -v -m ui
+    command: sh -c "cd /app/backend && pytest tests/test_ui.py -v -m ui"
     profiles:
       - test
       - test-ui-only
@@ -90,7 +89,7 @@ services:
       - ./frontend:/app/frontend
       - ./tests:/app/tests
     working_dir: /app
-    command: pytest tests/ -v -m "not ui"
+    command: sh -c "cd /app/backend && pytest tests/ -v -m "not ui""
     profiles:
       - test
       - test-api-only
