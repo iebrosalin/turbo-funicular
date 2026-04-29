@@ -5,14 +5,14 @@ from pathlib import Path
 import subprocess
 import sys
 
-from routes import assets, groups
+from backend.routes import assets, groups
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from core.config import settings
-from core.exceptions import (
+from backend.core.config import settings
+from backend.core.exceptions import (
     AppException, 
     global_exception_handler,
     validation_exception_handler,
@@ -21,11 +21,11 @@ from core.exceptions import (
 )
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
-from db.session import engine
-from routes import scans
-from db.base import Base  # Импорт для доступа ко всем моделям
+from backend.db.session import engine
+from backend.routes import scans
+from backend.db.base import Base  # Импорт для доступа ко всем моделям
 from sqlalchemy import create_engine
-from services.scan_queue_manager import scan_queue_manager
+from backend.services.scan_queue_manager import scan_queue_manager
 
 # Настройка логирования
 logging.basicConfig(
