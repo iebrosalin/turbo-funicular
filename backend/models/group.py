@@ -29,8 +29,8 @@ class Group(Base):
     def to_dict(self, include_children=False):
         """Конвертировать группу в словарь с подсчётом активов."""
         from sqlalchemy import select, func
-        from db.session import get_sync_session
-        from models.asset import asset_groups
+        from backend.db.session import get_sync_session
+        from backend.models.asset import asset_groups
         
         result = {
             'id': self.id,

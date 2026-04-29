@@ -4,8 +4,8 @@
 Каждая утилита находится в отдельном подмодуле.
 """
 
-from scanner.nmap.nmap_async import NmapScanner
-from scanner.rustscan.rustscan_async import RustscanScanner
-from scanner.dig.dig_async import DigScanner
+from backend.scanner.nmap.nmap_async import NmapScanner
+from backend.scanner.rustscan.rustscan_async import RustscanScanner
+from backend.scanner.dig.dig_async import DigScanner
 
 __all__ = ['NmapScanner', 'RustscanScanner', 'DigScanner']
