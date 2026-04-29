@@ -8,9 +8,9 @@ from typing import Dict, List, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from models.asset import Asset
-from models.scan import ScanJob, ScanResult
-from models.group import AssetGroup
+from backend.models.asset import Asset
+from backend.models.scan import ScanJob, ScanResult
+from backend.models.group import AssetGroup
 
 
 class RustscanScanner:

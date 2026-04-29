@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from scanner import NmapScanner, RustscanScanner, DigScanner
-from db.session import async_session_maker
+from backend.db.session import async_session_maker
 
 logger = logging.getLogger(__name__)
 
