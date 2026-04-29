@@ -9,8 +9,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import create_engine
-from backend.db.base import Base  # Импортирует все модели
-from backend.core.config import settings
+from db.base import Base  # Импортирует все модели
+from core.config import settings
 
 
 def init_db():
