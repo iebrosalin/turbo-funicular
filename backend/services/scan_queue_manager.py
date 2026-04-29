@@ -213,6 +213,10 @@ class ScanQueueManager:
             return True
         return False
     
+    async def remove_from_queue(self, scan_job_id: int):
+        """Удалить задачу из очереди (отменить если выполняется)."""
+        return await self.stop_scan(scan_job_id)
+    
     def get_progress(self, scan_job_id: int) -> Optional[Dict[str, Any]]:
         """Получить прогресс сканирования."""
         return self._progress.get(scan_job_id)
@@ -268,6 +272,12 @@ class UtilityScanQueueManager:
             return result
         finally:
             self._tasks.pop(task_id, None)
+    
+    async def remove_from_queue(self, scan_job_id: int):
+        """Удалить задачу из очереди (заглушка для совместимости)."""
+        # Для утилит пока не реализовано управление задачами по ID
+        logger.warning(f"remove_from_queue вызван для UtilityScanQueueManager с job_id={scan_job_id}")
+        return False
 
 
 # Глобальные экземпляры
