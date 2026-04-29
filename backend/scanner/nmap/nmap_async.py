@@ -14,7 +14,7 @@ from backend.models.asset import Asset
 from backend.models.service import ServiceInventory
 from backend.models.scan import ScanJob, ScanResult
 from backend.models.group import AssetGroup
-from utils import MOSCOW_TZ
+from backend.utils import MOSCOW_TZ
 
 
 class NmapScanner:

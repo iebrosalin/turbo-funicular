@@ -147,8 +147,8 @@ class NmapXmlImporter:
         Returns:
             Количество импортированных хостов
         """
-        from models.asset import Asset
-        from models.scan import ScanResult
+        from backend.models.asset import Asset
+        from backend.models.scan import ScanResult
         from utils import create_asset_if_not_exists, get_moscow_time
         
         imported_count = 0
