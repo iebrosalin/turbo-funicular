@@ -1,4 +1,5 @@
 from logging.config import fileConfig
+import os
 
 from sqlalchemy import pool, create_engine
 from sqlalchemy import engine_from_config
@@ -23,9 +24,13 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     """Запуск миграций в 'офлайн' режиме."""
-    url = config.get_main_option("sqlalchemy.url")
+    # Получаем URL из переменной окружения или используем значение по умолчанию
+    db_url = os.getenv("DATABASE_URL", "sqlite:////app/instance/app.db")
+    # Преобразуем async URL в sync для миграций
+    db_url = db_url.replace("+aiosqlite", "").replace("+asyncpg", "")
+    
     context.configure(
-        url=url,
+        url=db_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -37,9 +42,13 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Запуск миграций в 'онлайн' режиме."""
-    # Используем синхронный движок для миграций
+    # Получаем URL из переменной окружения или используем значение по умолчанию
+    db_url = os.getenv("DATABASE_URL", "sqlite:////app/instance/app.db")
+    # Преобразуем async URL в sync для миграций
+    db_url = db_url.replace("+aiosqlite", "").replace("+asyncpg", "")
+    
     connectable = create_engine(
-        config.get_section(config.config_ini_section, {}).get("sqlalchemy.url", ""),
+        db_url,
         poolclass=pool.NullPool,
         echo=False,
     )
