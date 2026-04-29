@@ -10,10 +10,10 @@ from typing import Dict, List, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from models.asset import Asset
-from models.service import ServiceInventory
-from models.scan import ScanJob, ScanResult
-from models.group import AssetGroup
+from backend.models.asset import Asset
+from backend.models.service import ServiceInventory
+from backend.models.scan import ScanJob, ScanResult
+from backend.models.group import AssetGroup
 from utils import MOSCOW_TZ
 
 

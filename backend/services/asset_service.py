@@ -2,9 +2,9 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
-from models.asset import Asset
-from models.group import Group
-from schemas.asset import AssetCreate, AssetUpdate
+from backend.models.asset import Asset
+from backend.models.group import Group
+from backend.schemas.asset import AssetCreate, AssetUpdate
 
 
 class AssetService:

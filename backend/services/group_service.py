@@ -2,8 +2,8 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
-from models.group import Group
-from schemas.group import GroupCreate, GroupUpdate
+from backend.models.group import Group
+from backend.schemas.group import GroupCreate, GroupUpdate
 
 
 class GroupService:

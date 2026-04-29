@@ -7,10 +7,10 @@ from typing import List, Optional, Dict, AsyncGenerator
 import asyncio
 import json
 import logging
-from db.session import get_db, async_session_maker
-from services.scan_service import ScanService
-from schemas.scan import ScanCreate, ScanUpdate, ScanResponse
-from models.scan import ScanJob
+from backend.db.session import get_db, async_session_maker
+from backend.services.scan_service import ScanService
+from backend.schemas.scan import ScanCreate, ScanUpdate, ScanResponse
+from backend.models.scan import ScanJob
 from datetime import datetime, timezone
 from pydantic import BaseModel
 
