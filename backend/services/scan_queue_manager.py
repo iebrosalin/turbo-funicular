@@ -52,12 +52,11 @@ class ScanQueueManager:
         
         logger.info(f"Добавление задачи сканирования {scan_job_id} ({scan_type})")
         
-        # Обновляем статус задачи
+        # Обновляем статус задачи - она уже в статусе "queued" из routes
         job = await db.get(ScanJob, scan_job_id)
         if not job:
             raise ValueError(f"Задача сканирования {scan_job_id} не найдена")
         
-        job.status = "pending"
         job.parameters = parameters
         await db.commit()
         

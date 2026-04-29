@@ -283,7 +283,7 @@ async def run_nmap_scan(
             name=f"Nmap scan: {target[:50] if target else 'known ports'}",
             target=target or "known_ports_only",
             scan_type="nmap",
-            status="pending",
+            status="queued",
             progress=0,
             created_at=datetime.now(timezone.utc)
         )
@@ -298,7 +298,7 @@ async def run_nmap_scan(
         new_job = ScanJob(
             scan_id=new_scan.id,
             job_type="nmap",
-            status="pending",
+            status="queued",
             created_at=datetime.now(timezone.utc)
         )
         
@@ -388,7 +388,7 @@ async def run_rustscan(
             name=f"Rustscan: {request.target[:50]}",
             target=request.target,
             scan_type="rustscan",
-            status="pending",
+            status="queued",
             progress=0,
             created_at=datetime.now(timezone.utc)
         )
@@ -403,7 +403,7 @@ async def run_rustscan(
         new_job = ScanJob(
             scan_id=new_scan.id,
             job_type="rustscan",
-            status="pending",
+            status="queued",
             created_at=datetime.now(timezone.utc)
         )
         
@@ -490,7 +490,7 @@ async def run_dig_scan(
             name=f"Dig scan: {request.targets_text[:50]}",
             target=request.targets_text,
             scan_type="dig",
-            status="pending",
+            status="queued",
             progress=0,
             created_at=datetime.now(timezone.utc)
         )
@@ -505,7 +505,7 @@ async def run_dig_scan(
         new_job = ScanJob(
             scan_id=new_scan.id,
             job_type="dig",
-            status="pending",
+            status="queued",
             created_at=datetime.now(timezone.utc)
         )
         

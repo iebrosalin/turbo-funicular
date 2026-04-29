@@ -200,11 +200,7 @@ export class TreeManager {
     try {
       const response = await Utils.apiRequest(url);
       
-      if (!response.ok) {
-        throw new Error(`Ошибка сервера: ${response.status}`);
-      }
-
-      const data = await response;
+      const data = response;
       const assets = Array.isArray(data) ? data : (data.assets || []);
 
       tbody.innerHTML = '';
