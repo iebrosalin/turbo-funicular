@@ -9,8 +9,8 @@ from typing import Dict, Optional, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from scanner import NmapScanner, RustscanScanner, DigScanner
-from db.session import async_session_maker
+from backend.scanner import NmapScanner, RustscanScanner, DigScanner
+from backend.db.session import async_session_maker
 
 logger = logging.getLogger(__name__)
 
