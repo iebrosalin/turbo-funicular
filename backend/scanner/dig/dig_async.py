@@ -6,8 +6,8 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.scan import ScanJob, ScanResult
-from models.asset import Asset
+from backend.models.scan import ScanJob, ScanResult
+from backend.models.asset import Asset
 from utils import create_asset_if_not_exists, MOSCOW_TZ
 
 

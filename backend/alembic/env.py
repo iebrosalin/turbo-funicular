@@ -15,12 +15,12 @@ if config.config_file_name is not None:
 
 # добавляем MetaData наших моделей для автогенерации миграций
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from db.base import Base
-from models.asset import Asset  # noqa
-from models.group import Group  # noqa
-from models.scan import Scan, ScanJob, ScanResult  # noqa
+from backend.db.base import Base
+from backend.models.asset import Asset  # noqa
+from backend.models.group import Group  # noqa
+from backend.models.scan import Scan, ScanJob, ScanResult  # noqa
 
 target_metadata = Base.metadata
 
