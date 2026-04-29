@@ -52,7 +52,7 @@ async def create_asset_if_not_exists(
     Returns:
         Экземпляр модели Asset
     """
-    from backend.models.asset import Asset
+    from models.asset import Asset
     
     # Проверяем существование
     query = select(Asset).where(Asset.ip_address == ip_address)
@@ -93,7 +93,7 @@ async def update_asset_dns_names(
     Returns:
         True если обновлено, False если нет изменений
     """
-    from backend.models.log import AssetChangeLog
+    from models.log import AssetChangeLog
     
     current_dns = asset.dns_names or []
     if set(current_dns) == set(dns_names):
@@ -134,7 +134,7 @@ async def log_asset_change(
         old_value: Старое значение (JSON строка)
         new_value: Новое значение (JSON строка)
     """
-    from backend.models.log import AssetChangeLog
+    from models.log import AssetChangeLog
     
     # Если asset=None (например, при создании группы), пропускаем логирование
     if asset is None:
@@ -282,8 +282,8 @@ def build_complex_query(
     Returns:
         Модифицированный запрос
     """
-    from backend.models.asset import Asset
-    from backend.models.group import AssetGroup
+    from models.asset import Asset
+    from models.group import AssetGroup
     
     query = base_query
     

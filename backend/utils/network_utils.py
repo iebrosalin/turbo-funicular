@@ -26,7 +26,7 @@ async def create_cidr_groups(
     Returns:
         Список созданных групп
     """
-    from backend.models.group import AssetGroup
+    from models.group import AssetGroup
     
     created_groups = []
     
