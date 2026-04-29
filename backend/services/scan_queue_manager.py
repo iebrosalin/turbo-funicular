@@ -82,7 +82,7 @@ class ScanQueueManager:
     ):
         """Выполнить сканирование."""
         from backend.models.scan import ScanJob, ScanResult
-        from utils import get_moscow_time
+        from backend.utils import get_moscow_time
         
         # Создаём новую сессию БД для фоновой задачи
         async with async_session_maker() as db:

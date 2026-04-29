@@ -149,7 +149,7 @@ class NmapXmlImporter:
         """
         from backend.models.asset import Asset
         from backend.models.scan import ScanResult
-        from utils import create_asset_if_not_exists, get_moscow_time
+        from backend.utils import create_asset_if_not_exists, get_moscow_time
         
         imported_count = 0
         
