@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional
-from backend.db.session import get_db
-from backend.services.asset_service import AssetService
-from backend.schemas.asset import AssetCreate, AssetUpdate, AssetResponse
-from backend.models.asset import Asset
+from db.session import get_db
+from services.asset_service import AssetService
+from schemas.asset import AssetCreate, AssetUpdate, AssetResponse
+from models.asset import Asset
 
 router = APIRouter(tags=["assets"])
 assets_router = router  # Алиас для совместимости импортов
@@ -46,7 +46,7 @@ async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_d
     asset = await service.create(asset_data)
     
     # Создаем ответ вручную, чтобы корректно установить group_id
-    from backend.schemas.asset import AssetResponse
+    from schemas.asset import AssetResponse
     group_id = None
     if asset.groups and len(asset.groups) > 0:
         group_id = asset.groups[0].id
