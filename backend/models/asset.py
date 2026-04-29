@@ -22,6 +22,8 @@ class Asset(Base):
     id = Column(Integer, primary_key=True, index=True)
     ip_address = Column(String(45), unique=True, nullable=False, index=True)  # Поддержка IPv6
     hostname = Column(String(255), nullable=True, index=True)
+    mac_address = Column(String(17), nullable=True, index=True)  # MAC адрес устройства
+    vendor = Column(String(255), nullable=True)  # Производитель устройства (по MAC)
 
     # Основная информация
     os_family = Column(String(50), nullable=True, index=True)  # Linux, Windows, etc.
@@ -85,6 +87,8 @@ class Asset(Base):
             'id': self.id,
             'ip_address': self.ip_address,
             'hostname': self.hostname,
+            'mac_address': self.mac_address,
+            'vendor': self.vendor,
             'os_family': self.os_family,
             'os_version': self.os_version,
             'device_type': self.device_type,
