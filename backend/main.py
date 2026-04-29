@@ -2,8 +2,6 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-import subprocess
-import sys
 
 from backend.routes import assets, groups
 from fastapi import FastAPI, Request
@@ -35,52 +33,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def apply_pending_migrations():
-    """
-    Применение всех ожидающих миграций Alembic перед запуском приложения.
-    """
-    try:
-        logger.info("🔍 Проверка ожидающих миграций Alembic...")
-        
-        # Определяем путь к директории backend
-        backend_dir = Path(__file__).resolve().parent
-        
-        # Получаем DATABASE_URL из настроек и преобразуем для синхронного подключения
-        db_url = settings.DATABASE_URL.replace("+aiosqlite", "").replace("+asyncpg", "")
-        
-        # Запускаем alembic upgrade head с переменной окружения DATABASE_URL
-        env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parent.parent), "DATABASE_URL": db_url}
-        result = subprocess.run(
-            [sys.executable, "-m", "alembic", "upgrade", "head"],
-            cwd=backend_dir,
-            capture_output=True,
-            text=True,
-            env=env
-        )
-        
-        if result.returncode == 0:
-            if "No target revision" in result.stdout or result.stdout.strip() == "":
-                logger.info("✅ Ожидающие миграции отсутствуют, база данных актуальна.")
-            else:
-                logger.info(f"✅ Миграции успешно применены:\n{result.stdout}")
-        else:
-            logger.warning(f"⚠️ Предупреждение при применении миграций:\n{result.stderr}")
-            
-    except FileNotFoundError:
-        logger.warning("⚠️ Alembic не найден, пропускаем проверку миграций.")
-    except Exception as e:
-        logger.error(f"❌ Ошибка при применении миграций: {e}")
-        # Не прерываем запуск приложения, только логируем ошибку
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Управление жизненным циклом приложения.
     """
-    # Применяем ожидающие миграции перед инициализацией БД
-    apply_pending_migrations()
-    
     # Проверка и инициализация базы данных при старте
     try:
         # Преобразуем async URL в sync для создания таблиц
