@@ -44,6 +44,8 @@ async def upsert_asset(
     result = await db.execute(stmt)
     asset = result.scalar_one_or_none()
     
+    now = datetime.now(MOSCOW_TZ)
+    
     if not asset:
         logger.info(f"[{scanner_name}] Создание нового актива: {ip_address}")
         asset = Asset(
@@ -54,7 +56,7 @@ async def upsert_asset(
             os_family=os_family,
             os_version=os_version,
             status=status,
-            last_seen=datetime.now(MOSCOW_TZ)
+            last_seen=now
         )
         db.add(asset)
     else:
@@ -81,7 +83,8 @@ async def upsert_asset(
             updated_fields.append(f"os_version={os_version}")
         
         asset.status = status
-        asset.last_seen = datetime.now(MOSCOW_TZ)
+        asset.last_seen = now  # Обновляем дату последнего сканирования
+        updated_fields.append(f"last_seen={now}")
         
         if updated_fields:
             logger.info(f"[{scanner_name}] Обновление актива {ip_address}: {', '.join(updated_fields)}")
