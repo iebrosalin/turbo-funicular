@@ -12,7 +12,7 @@
         <div class="row">
             <div class="col-md-3 col-lg-2 sidebar p-3 d-none d-md-block"><h5 class="mb-3"><i class="bi bi-folder-tree"></i> Группы</h5><div id="group-tree">{% include 'components/group_tree.html' %}</div></div>
             <div class="col-md-9 col-lg-10 p-4">
-                <nav class="navbar navbar-light mb-4 px-3"><div class="d-flex align-items-center"><a href="{{ url_for('main.asset_detail', id=asset.id) }}" class="btn btn-outline-dark me-3"><i class="bi bi-arrow-left"></i> Назад</a><span class="navbar-brand mb-0 h1"><i class="bi bi-clock-history"></i> История: {{ asset.ip_address }}</span></div><button class="theme-toggle" id="btn-toggle-theme"><i class="bi bi-moon"></i><i class="bi bi-sun"></i></button></nav>
+                <nav class="navbar navbar-light mb-4 px-3"><div class="d-flex align-items-center"><a href="{{ url_for('main.asset_detail', id=asset.id) }}" class="btn btn-outline-dark me-3"><i class="bi bi-arrow-left"></i> Назад</a><span class="navbar-brand mb-0 h1"><i class="bi bi-clock-history"></i> История: {{ asset.ip_address }}</span></div><button class="btn btn-sm btn-outline-secondary" id="themeToggle" title="Переключить тему"><i class="bi bi-sun-fill"></i></button></nav>
                 <div class="row">
                     <div class="col-lg-8">
                         <div class="card mb-4"><div class="card-header"><i class="bi bi-activity"></i> Таймлайн <span class="badge bg-primary float-end">{{ changes|length }}</span></div>

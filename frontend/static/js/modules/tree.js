@@ -335,6 +335,6 @@ export class TreeManager {
 export const treeManager = new TreeManager();
 
 // Экспорт отдельных методов для использования в других модулях
-export const filterByGroup = (groupId) => treeManager.filterByGroup(groupId);
+export const filterByGroup = (groupId, sourceFilter = null) => treeManager.filterByGroup(groupId, sourceFilter);
 export const loadAssets = (groupId = null, isUngrouped = false, sourceFilter = null) => treeManager.loadAssets(groupId, isUngrouped, sourceFilter);
 export const refreshGroupTree = () => treeManager.refresh();

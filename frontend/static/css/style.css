@@ -26,7 +26,41 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 .wrapper { display: flex; width: 100%; align-items: stretch; position: relative; }
 .navbar { background: var(--bg-card) !important; border: 1px solid var(--border-color); border-radius: 0.5rem; box-shadow: var(--shadow-sm); }
 .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 0.5rem; box-shadow: var(--shadow-sm); transition: all 0.3s ease; }
-.table { color: var(--text-primary); } .table thead { background: var(--bg-body); border-bottom: 2px solid var(--border-color); }
+.table { color: var(--text-primary); } 
+.table thead { background: var(--bg-body); border-bottom: 2px solid var(--border-color); }
+.table-light { background-color: rgba(0,0,0,0.03) !important; color: var(--text-secondary) !important; }
+[data-bs-theme="dark"] .table-light { background-color: rgba(255,255,255,0.05) !important; color: #adb5bd !important; }
+
+/* Адаптивные цвета для badge и header */
+.bg-primary { background-color: var(--bs-primary) !important; }
+.bg-success { background-color: var(--bs-success) !important; }
+.bg-danger { background-color: var(--bs-danger) !important; }
+.bg-warning { background-color: var(--bs-warning) !important; }
+.bg-info { background-color: var(--bs-info) !important; }
+.bg-light { background-color: var(--bg-body) !important; }
+
+/* Автоматический цвет текста для цветных фонов */
+.bg-primary, .bg-success, .bg-danger {
+    color: #fff !important;
+}
+
+[data-bs-theme="dark"] .bg-warning,
+[data-bs-theme="dark"] .bg-info {
+    color: #212529 !important;
+}
+
+[data-bs-theme="light"] .bg-warning,
+[data-bs-theme="light"] .bg-info {
+    color: #212529 !important;
+}
+
+[data-bs-theme="dark"] .bg-light {
+    color: var(--text-primary) !important;
+}
+
+/* Убираем жёсткий text-white, позволяя CSS управлять цветом */
+.text-white { color: #fff !important; }
+
 .form-control, .form-select { background: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-primary); }
 
 .sidebar {

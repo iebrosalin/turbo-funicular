@@ -66,10 +66,7 @@ export class DashboardController {
     document.getElementById('btn-bulk-move')?.addEventListener('click', () => this.#confirmBulkMove());
     document.getElementById('btn-bulk-delete')?.addEventListener('click', () => this.#confirmBulkDelete());
 
-    // Тема и добавление актива
-    document.getElementById('btn-toggle-theme')?.addEventListener('click', () => {
-      // Логика темы вынесена в ThemeManager, здесь только если нужно специфичное действие
-    });
+    // Тема уже управляется через ThemeController в main.js
     document.getElementById('btn-add-asset')?.addEventListener('click', () => this.#showAssetModal(null));
 
     // Делегирование событий для таблицы
