@@ -14,18 +14,26 @@ assets_router = router  # Алиас для совместимости импо�
 @router.get("", response_model=List[AssetResponse])
 async def get_assets(
     db: AsyncSession = Depends(get_db),
-    group_id: Optional[int] = Query(None, alias="group_id"),
+    group_id: Optional[str] = Query(None, alias="group_id"),
     search: Optional[str] = Query(None),
     ungrouped: Optional[bool] = Query(None)
 ):
     """Получить список активов с фильтрацией."""
     service = AssetService(db)
     
+    # Преобразуем group_id в int или None
+    group_id_int: Optional[int] = None
+    if group_id is not None and group_id != "null":
+        try:
+            group_id_int = int(group_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Некорректный формат group_id")
+    
     # Если передан ungrouped=true, игнорируем group_id
     if ungrouped is True:
-        group_id = None
+        group_id_int = None
     
-    assets = await service.get_all(group_id=group_id, search=search, ungrouped=ungrouped)
+    assets = await service.get_all(group_id=group_id_int, search=search, ungrouped=ungrouped)
     return assets
 
 
