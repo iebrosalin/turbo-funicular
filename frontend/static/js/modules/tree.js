@@ -104,6 +104,7 @@ export class TreeManager {
    * @param {string|number} groupId
    */
   handleGroupClick(groupId) {
+    console.log('[TreeManager] Клик по группе:', groupId);
     const assetsBody = document.getElementById('assets-body');
     if (!assetsBody) {
       console.log('Таблица активов не найдена. Пропускаем загрузку.');
@@ -163,13 +164,17 @@ export class TreeManager {
       return;
     }
 
+    console.log('[TreeManager] filterByGroup:', groupId);
     this.#updateActiveNode(groupId);
 
     if (groupId === 'ungrouped') {
+      console.log('[TreeManager] Загрузка активов без группы');
       this.loadAssets(null, true);
     } else if (groupId === 'all') {
+      console.log('[TreeManager] Загрузка всех активов');
       this.loadAssets(null, false);
     } else {
+      console.log('[TreeManager] Загрузка активов группы:', groupId);
       this.loadAssets(parseInt(groupId), false);
     }
   }
@@ -181,25 +186,31 @@ export class TreeManager {
    */
   async loadAssets(groupId = null, isUngrouped = false) {
     const tbody = document.getElementById('assets-body');
-    if (!tbody) return;
+    if (!tbody) {
+      console.error('[TreeManager] loadAssets: tbody не найден');
+      return;
+    }
 
+    console.log('[TreeManager] loadAssets: groupId=', groupId, 'isUngrouped=', isUngrouped);
     tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Загрузка...</p></td></tr>';
 
     const params = new URLSearchParams();
     
     if (isUngrouped) {
       params.append('ungrouped', 'true');
-      params.append('group_id', 'null'); 
     } else if (groupId !== null && groupId !== 'all') {
       params.append('group_id', String(groupId));
     }
 
     const queryString = params.toString();
     const url = `/api/assets${queryString ? '?' + queryString : ''}`;
+    
+    console.log('[TreeManager] Запрос к API:', url);
 
     try {
       const response = await Utils.apiRequest(url);
       
+      console.log('[TreeManager] Ответ от API:', response);
       const data = response;
       const assets = Array.isArray(data) ? data : (data.assets || []);
 
@@ -217,9 +228,10 @@ export class TreeManager {
       });
 
       store.setCurrentAssets(assets);
+      console.log('[TreeManager] Загружено активов:', assets.length);
 
     } catch (error) {
-      console.error('Ошибка загрузки активов:', error);
+      console.error('[TreeManager] Ошибка загрузки активов:', error);
       tbody.innerHTML = `<tr><td colspan="8" class="text-center text-danger py-4">Ошибка: ${error.message}</td></tr>`;
     }
   }
