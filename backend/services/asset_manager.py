@@ -55,9 +55,9 @@ async def upsert_asset(
             vendor=vendor,
             os_family=os_family,
             os_version=os_version,
-            status=status,
-            last_seen=now
+            status=status
         )
+        asset.last_seen = now
         db.add(asset)
     else:
         updated_fields = []
