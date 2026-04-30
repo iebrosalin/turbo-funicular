@@ -66,19 +66,34 @@ class DigScanner:
             logger.info(f"[Dig] IP-адреса: {ip_addresses}")
             
             # Создаём активы для найденных IP с использованием унифицированной функции
+            created_assets = []
             for ip in ip_addresses:
                 logger.info(f"[Dig] Создание актива для IP: {ip}")
-                asset = await upsert_asset(
-                    db=db,
-                    ip_address=ip,
-                    hostname=target,
-                    scanner_name="Dig"
-                )
-                logger.info(f"[Dig] Создан/обновлен актив: {ip} (hostname: {target}, asset_id: {asset.id})")
+                try:
+                    asset = await upsert_asset(
+                        db=db,
+                        ip_address=ip,
+                        hostname=target,
+                        scanner_name="Dig"
+                    )
+                    logger.info(f"[Dig] Создан/обновлен актив: {ip} (hostname: {target}, asset_id: {asset.id})")
+                    created_assets.append(asset)
+                except Exception as e:
+                    logger.error(f"[Dig] Ошибка создания актива для {ip}: {e}")
+                    import traceback
+                    logger.error(f"[Dig] Трассировка: {traceback.format_exc()}")
             
             # Коммитим создание активов
-            await db.commit()
-            logger.info(f"[Dig] Активы закоммичены в БД")
+            logger.info(f"[Dig] Попытка коммита {len(created_assets)} активов в БД")
+            try:
+                await db.commit()
+                logger.info(f"[Dig] Активы успешно закоммичены в БД")
+            except Exception as e:
+                logger.error(f"[Dig] Ошибка коммита: {e}")
+                import traceback
+                logger.error(f"[Dig] Трассировка: {traceback.format_exc()}")
+                await db.rollback()
+                logger.info(f"[Dig] Выполнен rollback транзакции")
             
             # Сохраняем результат сканирования
             scan_result = ScanResult(
