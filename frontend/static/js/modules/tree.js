@@ -105,6 +105,24 @@ export class TreeManager {
    */
   handleGroupClick(groupId) {
     console.log('[TreeManager] Клик по группе:', groupId);
+    
+    // Если мы не на главной странице (дашборде), перенаправляем туда
+    const isDashboard = window.location.pathname === '/' || window.location.pathname === '/index.html';
+    if (!isDashboard) {
+      const params = new URLSearchParams();
+      if (groupId === 'ungrouped') {
+        params.set('ungrouped', 'true');
+      } else if (groupId !== 'all') {
+        params.set('group_id', String(groupId));
+      }
+      
+      const url = params.toString() ? `/?${params.toString()}` : '/';
+      console.log('[TreeManager] Переход на дашборд:', url);
+      window.location.href = url;
+      return;
+    }
+
+    // Если мы уже на дашборде, фильтруем активы без перезагрузки
     const assetsBody = document.getElementById('assets-body');
     if (!assetsBody) {
       console.log('Таблица активов не найдена. Пропускаем загрузку.');
