@@ -1,7 +1,7 @@
 # 📚 Project Context: Network Asset Manager
 ## 1. Общая информация
 **Стек технологий:**
-- **Backend:** Python 3.12, FastAPI (Async), SQLAlchemy 2.0 (Async), Alembic, Pydantic v2.
+- **Backend:** Python 3.12, FastAPI (Async), SQLAlchemy 2.0 (Async), Pydantic v2.
 - **Frontend:** Vanilla JavaScript (ES6 Modules), HTML5, CSS3.
 - **Database:** SQLite (по умолчанию и единственная поддерживаемая БД).
 - **Infrastructure:** Docker, Docker Compose.
@@ -15,6 +15,7 @@
 - **Физическое создание файлов:** Все изменения кода выполняются реально в файловой системе `/workspace`. Симуляции исключены.
 - **Гибкость запуска:** Поддержка работы как в Docker, так и локально через `python app.py` без контейнеров.
 - **Только SQLite:** Проект полностью переведён на SQLite для упрощения развёртывания. PostgreSQL удалён.
+- **Без миграций:** Alembic удалён. База данных создаётся автоматически при старте приложения через `Base.metadata.create_all()`.
 ---
 ## 2. Структура проекта
 ```text
@@ -71,7 +72,6 @@
 - Выделение сервисного слоя для бизнес-логики (AssetService, GroupService, ScanService).
 - Реализация менеджера очередей сканирований (ScanQueueManager, UtilityScanQueueManager).
 - Модульная структура сканеров (nmap_async.py, rustscan_async.py, dig_async.py).
-- Настройка миграций Alembic.
 - Удаление интеграций Wazuh/osquery.
 - Вынос JS-логики из HTML в модули (ES6 modules).
 - Настройка инфраструктуры тестирования (Pytest, Pytest-Asyncio, Httpx).
@@ -80,6 +80,8 @@
 - Создание точки входа `app.py`: запуск одной командой `python app.py`.
 - Удаление PostgreSQL: проект полностью переведён на SQLite.
 - Удаление сервиса Adminer из Docker-конфигурации.
+- **Удаление Alembic:** Миграции удалены. База данных создаётся автоматически при старте через `Base.metadata.create_all()`.
+- **Обновление схемы БД:** Добавлены поля `mac_address`, `vendor` в таблицу `assets` и `job_type` в таблицу `scan_jobs`.
 
 📁 **Структура backend:**
 - `backend/main.py` - основное приложение FastAPI с lifespan, middleware CORS, обработчиками исключений
@@ -97,6 +99,7 @@
 - Дублирующиеся файлы (старые Dockerfile, папки api/v1).
 - Поддержка PostgreSQL и зависимость asyncpg.
 - Папка `backend/app/` - код перемещён непосредственно в `backend/`.
+- Alembic и все файлы миграций.
 ---
 ## 4. 🔗 Карта связей: UI ↔ JS ↔ Backend
 
@@ -147,15 +150,22 @@ docker-compose logs -f web
 
 ### Работа с базой данных
 ```bash
-# Применить миграции вручную (Docker)
-docker-compose exec web alembic upgrade head
+# База данных создаётся автоматически при старте приложения
+# Файл БД SQLite: instance/app.db
 
-# Создать новую миграцию после изменения моделей (Docker)
-docker-compose exec web alembic revision --autogenerate -m "Description"
+# Для сброса БД (удалить и создать заново):
+# Docker:
+docker compose down -v
+find . -name "*.db" -type f -delete
+docker compose build --no-cache web
+docker compose up -d
 
-# Для SQLite локально:
-# Файл БД: instance/app.db
-# Просмотр через: sqlite3 instance/app.db
+# Локально:
+rm instance/app.db
+python app.py
+
+# Просмотр БД через sqlite3:
+sqlite3 instance/app.db
 ```
 
 ### Тестирование
@@ -237,7 +247,6 @@ curl http://localhost:8000/api/assets
 - **FastAPI** 0.115.0 - веб-фреймворк
 - **Uvicorn** 0.30.6 - ASGI сервер
 - **SQLAlchemy** 2.0.31 + **aiosqlite** 0.20.0 - асинхронная работа с SQLite
-- **Alembic** 1.13.2 - миграции БД
 - **Pydantic** 2.8.2 - валидация данных
 - **Httpx** 0.27.0 - HTTP клиент для тестов
 - **Pytest** 8.3.2 + **pytest-asyncio** 0.23.8 - тестирование
