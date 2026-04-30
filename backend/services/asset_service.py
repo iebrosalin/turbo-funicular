@@ -13,7 +13,7 @@ class AssetService:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, group_id: Optional[int] = None, search: Optional[str] = None, ungrouped: Optional[bool] = None) -> List[Asset]:
+    async def get_all(self, group_id: Optional[int] = None, search: Optional[str] = None, ungrouped: Optional[bool] = None, source: Optional[str] = None) -> List[Asset]:
         """Получить все активы с фильтрацией."""
         query = select(Asset).options(selectinload(Asset.groups))
         
@@ -23,6 +23,10 @@ class AssetService:
         elif group_id is not None:
             # Фильтрация по many-to-many связи через таблицу asset_groups
             query = query.join(Asset.groups).where(Group.id == group_id)
+        
+        # Фильтрация по источнику
+        if source and source != 'all':
+            query = query.where(Asset.source == source)
         
         if search:
             query = query.where(

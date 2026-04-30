@@ -174,26 +174,27 @@ export class TreeManager {
   /**
    * Фильтрация активов по группе
    * @param {string|number|null} groupId
+   * @param {string|null} sourceFilter - Фильтр по источнику (manual, scanning, all)
    */
-  filterByGroup(groupId) {
+  filterByGroup(groupId, sourceFilter = null) {
     const tbody = document.getElementById('assets-body');
     if (!tbody) {
       console.warn(`Таблица не найдена. Пропускаем фильтрацию.`);
       return;
     }
 
-    console.log('[TreeManager] filterByGroup:', groupId);
+    console.log('[TreeManager] filterByGroup:', groupId, 'sourceFilter:', sourceFilter);
     this.#updateActiveNode(groupId);
 
     if (groupId === 'ungrouped') {
       console.log('[TreeManager] Загрузка активов без группы');
-      this.loadAssets(null, true);
+      this.loadAssets(null, true, sourceFilter);
     } else if (groupId === 'all') {
       console.log('[TreeManager] Загрузка всех активов');
-      this.loadAssets(null, false);
+      this.loadAssets(null, false, sourceFilter);
     } else {
       console.log('[TreeManager] Загрузка активов группы:', groupId);
-      this.loadAssets(parseInt(groupId), false);
+      this.loadAssets(parseInt(groupId), false, sourceFilter);
     }
   }
 
@@ -201,15 +202,16 @@ export class TreeManager {
    * Загрузка активов с сервера
    * @param {number|null} groupId
    * @param {boolean} isUngrouped
+   * @param {string|null} sourceFilter - Фильтр по источнику (manual, scanning, all)
    */
-  async loadAssets(groupId = null, isUngrouped = false) {
+  async loadAssets(groupId = null, isUngrouped = false, sourceFilter = null) {
     const tbody = document.getElementById('assets-body');
     if (!tbody) {
       console.error('[TreeManager] loadAssets: tbody не найден');
       return;
     }
 
-    console.log('[TreeManager] loadAssets: groupId=', groupId, 'isUngrouped=', isUngrouped);
+    console.log('[TreeManager] loadAssets: groupId=', groupId, 'isUngrouped=', isUngrouped, 'sourceFilter=', sourceFilter);
     tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Загрузка...</p></td></tr>';
 
     const params = new URLSearchParams();
@@ -218,6 +220,11 @@ export class TreeManager {
       params.append('ungrouped', 'true');
     } else if (groupId !== null && groupId !== 'all') {
       params.append('group_id', String(groupId));
+    }
+    
+    // Добавляем фильтр по источнику
+    if (sourceFilter && sourceFilter !== 'all') {
+      params.append('source', sourceFilter);
     }
 
     const queryString = params.toString();
@@ -329,5 +336,5 @@ export const treeManager = new TreeManager();
 
 // Экспорт отдельных методов для использования в других модулях
 export const filterByGroup = (groupId) => treeManager.filterByGroup(groupId);
-export const loadAssets = (groupId = null, isUngrouped = false) => treeManager.loadAssets(groupId, isUngrouped);
+export const loadAssets = (groupId = null, isUngrouped = false, sourceFilter = null) => treeManager.loadAssets(groupId, isUngrouped, sourceFilter);
 export const refreshGroupTree = () => treeManager.refresh();
