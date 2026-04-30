@@ -154,8 +154,18 @@ class DigScanner:
         for answer in answers:
             data = answer.get('data', '')
             rec_type = answer.get('type', '')
+            
+            # Для записей A и AAAA - извлекаем IP напрямую
             if rec_type in ['A', 'AAAA']:
                 if ':' in data or (data.count('.') == 3 and all(p.isdigit() for p in data.split('.'))):
                     ips.append(data)
+            # Для записей MX, NS - пытаемся извлечь доменное имя для последующего резолва
+            elif rec_type in ['MX', 'NS', 'CNAME']:
+                # Извлекаем доменное имя из данных записи
+                parts = data.split()
+                if parts:
+                    hostname = parts[-1].rstrip('.')
+                    logger.info(f"[Dig] Найдена запись {rec_type}: {hostname}")
         
+        logger.info(f"[Dig] Извлечено IP-адресов: {len(ips)}")
         return ips
