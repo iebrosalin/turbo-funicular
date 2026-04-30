@@ -147,7 +147,8 @@ class ScanQueueManager:
                                 job_id=scan_job_id,
                                 target=target,
                                 record_type=parameters.get('record_types', 'A'),
-                                custom_args=parameters.get('cli_args', '')
+                                custom_args=parameters.get('cli_args', ''),
+                                group_ids=parameters.get('group_ids')
                             )
                         else:
                             raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
@@ -155,8 +156,18 @@ class ScanQueueManager:
                         # Сохранение результата
                         if result_data and result_data.get('status') == 'completed' and 'result' in result_data:
                             parsed = result_data['result']
+                            
+                            # Получаем scan_id из job
+                            current_scan_id = job.scan_id
+                            if not current_scan_id:
+                                # Если scan_id не загружен, получаем его отдельно
+                                from sqlalchemy import select
+                                stmt = select(ScanJob.scan_id).where(ScanJob.id == scan_job_id)
+                                res = await db.execute(stmt)
+                                current_scan_id = res.scalar_one_or_none()
+                            
                             result = ScanResult(
-                                scan_id=job.scan_id,
+                                scan_id=current_scan_id,
                                 ip_address=target,
                                 hostname=parsed.get('hostname', target),
                                 ports=parsed.get('ports', []),

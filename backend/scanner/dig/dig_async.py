@@ -21,7 +21,8 @@ class DigScanner:
         job_id: int,
         target: str,
         record_type: str = 'A',
-        custom_args: str = ''
+        custom_args: str = '',
+        group_ids: Optional[List[int]] = None
     ) -> Dict[str, Any]:
         """Запуск запроса Dig."""
         import logging
@@ -74,7 +75,8 @@ class DigScanner:
                         db=db,
                         ip_address=ip,
                         hostname=target,
-                        scanner_name="Dig"
+                        scanner_name="Dig",
+                        group_ids=group_ids
                     )
                     logger.info(f"[Dig] Создан/обновлен актив: {ip} (hostname: {target}, asset_id: {asset.id})")
                     created_assets.append(asset)
@@ -96,7 +98,12 @@ class DigScanner:
                 logger.info(f"[Dig] Выполнен rollback транзакции")
             
             # Сохраняем результат сканирования
+            # Получаем scan_id из job
+            job = await db.get(ScanJob, job_id)
+            current_scan_id = job.scan_id if job else None
+            
             scan_result = ScanResult(
+                scan_id=current_scan_id,
                 scan_job_id=job_id,
                 ip_address=target,
                 hostname=target,

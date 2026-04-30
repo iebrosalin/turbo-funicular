@@ -63,8 +63,9 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     tree = build_group_tree(groups)
     
     # Подсчитываем активы без группы
+    from sqlalchemy import not_, exists
     ungrouped_count_query = select(func.count(Asset.id)).where(
-        ~Asset.groups.any()
+        not_(exists().where(asset_groups.c.asset_id == Asset.id))
     )
     ungrouped_result = await db.execute(ungrouped_count_query)
     ungrouped_count = ungrouped_result.scalar() or 0
@@ -185,9 +186,12 @@ async def move_group(
 @router.get("/ungrouped/count", response_model=Dict[str, int])
 async def get_ungrouped_count(db: AsyncSession = Depends(get_db)):
     """Получить количество активов без группы."""
-    from backend.models.asset import Asset
+    from backend.models.asset import Asset, asset_groups
+    from sqlalchemy import not_, exists
     
-    query = select(func.count()).select_from(Asset).where(Asset.group_id.is_(None))
+    query = select(func.count(Asset.id)).where(
+        not_(exists().where(asset_groups.c.asset_id == Asset.id))
+    )
     result = await db.execute(query)
     count = result.scalar()
     
