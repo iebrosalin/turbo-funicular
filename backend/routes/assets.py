@@ -14,12 +14,18 @@ assets_router = router  # Алиас для совместимости импо�
 @router.get("", response_model=List[AssetResponse])
 async def get_assets(
     db: AsyncSession = Depends(get_db),
-    group_id: Optional[int] = Query(None),
-    search: Optional[str] = Query(None)
+    group_id: Optional[int] = Query(None, alias="group_id"),
+    search: Optional[str] = Query(None),
+    ungrouped: Optional[bool] = Query(None)
 ):
     """Получить список активов с фильтрацией."""
     service = AssetService(db)
-    assets = await service.get_all(group_id=group_id, search=search)
+    
+    # Если передан ungrouped=true, игнорируем group_id
+    if ungrouped is True:
+        group_id = None
+    
+    assets = await service.get_all(group_id=group_id, search=search, ungrouped=ungrouped)
     return assets
 
 
