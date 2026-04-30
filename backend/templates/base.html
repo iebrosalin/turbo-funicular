@@ -54,33 +54,6 @@
 
     <!-- PAGE CONTENT -->
     <div id="content">
-        <!-- Верхняя панель -->
-        <nav class="navbar navbar-light mb-4 px-3">
-            <span class="navbar-brand mb-0 h1"><i class="bi bi-shield-check"></i> Asset Manager</span>
-            <div class="d-flex align-items-center flex-wrap gap-2">
-                <button class="btn btn-success me-2" id="btn-add-asset">
-                    <i class="bi bi-plus-lg"></i> Добавить актив
-                </button>
-                <button class="btn btn-sm btn-outline-secondary me-2" id="themeToggle" title="Переключить тему">
-                    <i class="bi bi-sun-fill"></i>
-                </button>
-                <a href="/scans" class="btn btn-outline-dark me-2">
-                    <i class="bi bi-wifi"></i> Сканирования
-                </a>
-                <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#scanModal">
-                    <i class="bi bi-upload"></i> Импорт
-                </button>
-                <button class="btn btn-outline-dark me-2" data-bs-toggle="collapse" data-bs-target="#filterPanel">
-                    <i class="bi bi-funnel"></i> Фильтры
-                </button>
-                <select id="data-source-filter" class="form-select form-select-sm" style="width: 160px;" aria-label="Фильтр по источнику">
-                    <option value="all">Все источники</option>
-                    <option value="scanning">🔍 Сканирование</option>
-                    <option value="manual">✏️ Ручной</option>
-                </select>
-            </div>
-        </nav>
-
         <!-- Основной контент страницы -->
         <main>
             {% block content %}{% endblock %}
