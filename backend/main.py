@@ -51,6 +51,24 @@ async def lifespan(app: FastAPI):
         # Создаем все таблицы, если их нет
         Base.metadata.create_all(bind=sync_engine)
         logger.info("✅ База данных проверена и инициализирована.")
+        
+        # Добавляем отсутствующие колонки в существующие таблицы (миграция)
+        from sqlalchemy import text, inspect
+        inspector = inspect(sync_engine)
+        
+        # Проверяем наличие колонки last_seen в таблице assets
+        if "assets" in inspector.get_table_names():
+            columns = [col['name'] for col in inspector.get_columns('assets')]
+            if 'last_seen' not in columns:
+                logger.info("🔧 Добавление колонки last_seen в таблицу assets...")
+                with sync_engine.begin() as conn:
+                    if "sqlite" in db_url:
+                        # Для SQLite используем ALTER TABLE ADD COLUMN
+                        conn.execute(text("ALTER TABLE assets ADD COLUMN last_seen DATETIME"))
+                    else:
+                        # Для PostgreSQL
+                        conn.execute(text("ALTER TABLE assets ADD COLUMN last_seen TIMESTAMP WITH TIME ZONE"))
+                logger.info("✅ Колонка last_seen успешно добавлена.")
     except Exception as e:
         logger.error(f"❌ Ошибка инициализации БД: {e}")
         raise
