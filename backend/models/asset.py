@@ -49,6 +49,7 @@ class Asset(Base):
     last_rustscan = Column(DateTime(timezone=True), nullable=True)
     last_nmap = Column(DateTime(timezone=True), nullable=True)
     last_dns_scan = Column(DateTime(timezone=True), nullable=True)
+    last_seen = Column(DateTime(timezone=True), nullable=True, index=True)  # Последняя дата любого сканирования
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now())
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(), onupdate=lambda: datetime.now())
@@ -104,6 +105,7 @@ class Asset(Base):
             'last_rustscan': self.last_rustscan.isoformat() if self.last_rustscan else None,
             'last_nmap': self.last_nmap.isoformat() if self.last_nmap else None,
             'last_dns_scan': self.last_dns_scan.isoformat() if self.last_dns_scan else None,
+            'last_seen': self.last_seen.isoformat() if self.last_seen else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'groups': [g.name for g in self.groups]
