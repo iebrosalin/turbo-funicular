@@ -147,7 +147,8 @@ class ScanQueueManager:
                                 job_id=scan_job_id,
                                 target=target,
                                 record_type=parameters.get('record_types', 'A'),
-                                custom_args=parameters.get('cli_args', '')
+                                custom_args=parameters.get('cli_args', ''),
+                                group_ids=parameters.get('group_ids')
                             )
                         else:
                             raise ValueError(f"Неизвестный тип сканирования: {scan_type}")

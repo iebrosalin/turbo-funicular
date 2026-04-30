@@ -21,7 +21,8 @@ class DigScanner:
         job_id: int,
         target: str,
         record_type: str = 'A',
-        custom_args: str = ''
+        custom_args: str = '',
+        group_ids: Optional[List[int]] = None
     ) -> Dict[str, Any]:
         """Запуск запроса Dig."""
         import logging
@@ -74,7 +75,8 @@ class DigScanner:
                         db=db,
                         ip_address=ip,
                         hostname=target,
-                        scanner_name="Dig"
+                        scanner_name="Dig",
+                        group_ids=group_ids
                     )
                     logger.info(f"[Dig] Создан/обновлен актив: {ip} (hostname: {target}, asset_id: {asset.id})")
                     created_assets.append(asset)

@@ -57,6 +57,7 @@ class DigScanRequest(BaseModel):
     dns_server: Optional[str] = None
     cli_args: Optional[str] = None
     record_types: Optional[str] = None
+    group_ids: Optional[List[int]] = None
 
 
 # ==========================================
@@ -520,7 +521,8 @@ async def run_dig_scan(
         parameters = {
             "dns_server": request.dns_server,
             "cli_args": request.cli_args,
-            "record_types": request.record_types
+            "record_types": request.record_types,
+            "group_ids": request.group_ids
         }
         logger.info(f"  - targets_list: {targets_list}")
         logger.info(f"  - parameters: {parameters}")
