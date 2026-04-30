@@ -96,7 +96,12 @@ class DigScanner:
                 logger.info(f"[Dig] Выполнен rollback транзакции")
             
             # Сохраняем результат сканирования
+            # Получаем scan_id из job
+            job = await db.get(ScanJob, job_id)
+            current_scan_id = job.scan_id if job else None
+            
             scan_result = ScanResult(
+                scan_id=current_scan_id,
                 scan_job_id=job_id,
                 ip_address=target,
                 hostname=target,

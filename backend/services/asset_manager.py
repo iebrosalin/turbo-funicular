@@ -24,7 +24,8 @@ async def upsert_asset(
     os_family: Optional[str] = None,
     os_version: Optional[str] = None,
     status: str = "up",
-    scanner_name: str = "unknown"
+    scanner_name: str = "unknown",
+    group_ids: Optional[List[int]] = None
 ) -> Asset:
     """
     Создать или обновить актив.
@@ -38,6 +39,7 @@ async def upsert_asset(
     :param os_version: Версия ОС (опционально)
     :param status: Статус актива
     :param scanner_name: Имя сканера для логирования
+    :param group_ids: Список ID групп для добавления актива (опционально)
     :return: Объект актива
     """
     stmt = select(Asset).where(Asset.ip_address == ip_address)
@@ -90,6 +92,22 @@ async def upsert_asset(
             logger.info(f"[{scanner_name}] Обновление актива {ip_address}: {', '.join(updated_fields)}")
         else:
             logger.debug(f"[{scanner_name}] Актив {ip_address} проверен, изменений нет")
+    
+    # Добавляем актив в группы если указаны group_ids
+    if group_ids:
+        from backend.models.group import Group
+        stmt = select(Group).where(Group.id.in_(group_ids))
+        result = await db.execute(stmt)
+        groups = result.scalars().all()
+        
+        # Получаем текущие группы актива
+        current_group_ids = {g.id for g in asset.groups}
+        
+        # Добавляем только те группы, в которых актива ещё нет
+        for group in groups:
+            if group.id not in current_group_ids:
+                asset.groups.append(group)
+                logger.info(f"[{scanner_name}] Актив {ip_address} добавлен в группу {group.name}")
     
     await db.flush()
     return asset
