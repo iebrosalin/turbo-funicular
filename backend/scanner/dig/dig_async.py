@@ -62,18 +62,23 @@ class DigScanner:
             # Извлекаем IP адреса из результатов для создания актива
             ip_addresses = self._extract_ips(parsed_result)
             
+            logger.info(f"[Dig] Найдено IP-адресов для создания активов: {len(ip_addresses)}")
+            logger.info(f"[Dig] IP-адреса: {ip_addresses}")
+            
             # Создаём активы для найденных IP с использованием унифицированной функции
             for ip in ip_addresses:
+                logger.info(f"[Dig] Создание актива для IP: {ip}")
                 asset = await upsert_asset(
                     db=db,
                     ip_address=ip,
                     hostname=target,
                     scanner_name="Dig"
                 )
-                logger.info(f"[Dig] Создан/обновлен актив: {ip} (hostname: {target})")
+                logger.info(f"[Dig] Создан/обновлен актив: {ip} (hostname: {target}, asset_id: {asset.id})")
             
             # Коммитим создание активов
             await db.commit()
+            logger.info(f"[Dig] Активы закоммичены в БД")
             
             # Сохраняем результат сканирования
             scan_result = ScanResult(
@@ -148,6 +153,9 @@ class DigScanner:
     
     def _extract_ips(self, parsed_result: Dict[str, Any]) -> List[str]:
         """Извлечение IP адресов из результатов Dig."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         ips = []
         answers = parsed_result.get('answers', [])
         
