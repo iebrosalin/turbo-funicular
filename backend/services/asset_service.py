@@ -13,11 +13,14 @@ class AssetService:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, group_id: Optional[int] = None, search: Optional[str] = None) -> List[Asset]:
+    async def get_all(self, group_id: Optional[int] = None, search: Optional[str] = None, ungrouped: Optional[bool] = None) -> List[Asset]:
         """Получить все активы с фильтрацией."""
         query = select(Asset).options(selectinload(Asset.groups))
         
-        if group_id is not None:
+        if ungrouped is True:
+            # Активы без групп (нет записей в asset_groups)
+            query = query.outerjoin(Asset.groups).where(Group.id.is_(None))
+        elif group_id is not None:
             # Фильтрация по many-to-many связи через таблицу asset_groups
             query = query.join(Asset.groups).where(Group.id == group_id)
         
