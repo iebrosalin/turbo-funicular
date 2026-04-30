@@ -34,6 +34,7 @@ class Asset(Base):
     status = Column(String(20), default='active', nullable=True, index=True)  # active, inactive, archived
     location = Column(String(100), nullable=True)
     owner = Column(String(100), nullable=True)
+    source = Column(String(20), default='manual', nullable=True, index=True)  # manual, scanning
 
     # DNS данные
     dns_names = Column(JSON, nullable=True, default=list)  # Список всех найденных имен
@@ -96,6 +97,7 @@ class Asset(Base):
             'status': self.status,
             'location': self.location,
             'owner': self.owner,
+            'source': self.source,
             'dns_names': self.dns_names,
             'fqdn': self.fqdn,
             'dns_records': self.dns_records,

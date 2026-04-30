@@ -16,7 +16,8 @@ async def get_assets(
     db: AsyncSession = Depends(get_db),
     group_id: Optional[str] = Query(None, alias="group_id"),
     search: Optional[str] = Query(None),
-    ungrouped: Optional[bool] = Query(None)
+    ungrouped: Optional[bool] = Query(None),
+    source: Optional[str] = Query(None)
 ):
     """Получить список активов с фильтрацией."""
     service = AssetService(db)
@@ -33,7 +34,7 @@ async def get_assets(
     if ungrouped is True:
         group_id_int = None
     
-    assets = await service.get_all(group_id=group_id_int, search=search, ungrouped=ungrouped)
+    assets = await service.get_all(group_id=group_id_int, search=search, ungrouped=ungrouped, source=source)
     return assets
 
 
