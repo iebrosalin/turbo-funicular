@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}История сканирований{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Заголовок и навигация -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-clock-history"></i> История сканирований</h2>
+        <div>
+            <a href="/scans" class="btn btn-outline-primary">
+                <i class="bi bi-wifi"></i> Новое сканирование
+            </a>
+        </div>
+    </div>
+
+    <!-- Таблица истории -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Список задач</h5>
+            <button id="refreshHistoryBtn" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-clockwise"></i> Обновить
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Тип</th>
+                            <th>Цель</th>
+                            <th>Статус</th>
+                            <th>Прогресс</th>
+                            <th>Время запуска</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <!-- Данные загружаются через JS -->
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-muted">Загрузка данных...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно деталей сканирования -->
+<div class="modal fade" id="scanDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Детали сканирования <span id="detailScanId"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <strong>Статус:</strong> <span id="detailStatus"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <strong>Прогресс:</strong> <span id="detailProgress"></span>
+                    </div>
+                </div>
+                <hr>
+                <h6>Результаты / Логи:</h6>
+                <pre id="detailOutput" class="bg-light p-3 rounded" style="max-height: 500px; overflow-y: auto; font-size: 0.85rem;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-warning" id="retryScanFromDetail"><i class="bi bi-arrow-repeat"></i> Повторить</button>
+                <button type="button" class="btn btn-danger" id="deleteScanFromDetail"><i class="bi bi-trash"></i> Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="/static/js/modules/scan_history.js"></script>
+{% endblock %}
