@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import uuid
 from backend.db.base import Base
 
 
@@ -10,6 +11,7 @@ class ActivityLog(Base):
     __tablename__ = "activity_logs"
     
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
     asset_id = Column(Integer, ForeignKey("assets.id", ondelete="CASCADE"), nullable=True, index=True)
     user_id = Column(Integer, nullable=True)  # NULL для системных действий
     action = Column(String(100), nullable=False)  # create, update, delete, login, etc.
@@ -30,6 +32,7 @@ class AssetChangeLog(Base):
     __tablename__ = "asset_change_logs"
     
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
     asset_id = Column(Integer, ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
     field_name = Column(String(100), nullable=False)  # Какое поле изменилось
     old_value = Column(Text, nullable=True)  # Старое значение (JSON строка)

@@ -32,6 +32,7 @@ class AssetResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     
     id: int
+    uuid: str
     ip_address: str
     hostname: Optional[str] = None
     os_family: Optional[str] = None
