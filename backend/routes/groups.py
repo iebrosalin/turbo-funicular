@@ -186,8 +186,11 @@ async def update_group(
 
 
 @router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_group(group_id: int, db: AsyncSession = Depends(get_db)):
-    """Удалить группу."""
+async def delete_group(
+    group_id: int, 
+    db: AsyncSession = Depends(get_db)
+):
+    """Удалить группу. Активы остаются в системе без этой группы."""
     service = GroupService(db)
     success = await service.delete(group_id)
     if not success:

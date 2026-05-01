@@ -146,12 +146,9 @@
             </div>
             <div class="modal-body">
                 <input type="hidden" id="delete-group-id">
-                <p class="text-warning"><i class="bi bi-exclamation-triangle"></i> Вы уверены?</p>
-                <div class="mb-3">
-                    <label class="form-label">Перенести активы в:</label>
-                    <select id="delete-move-assets" class="form-select hierarchy-select">
-                        <option value="">-- Удалить активы вместе с группой --</option>
-                    </select>
+                <p class="mb-3">Вы уверены, что хотите удалить группу?</p>
+                <div class="alert alert-info small">
+                    <i class="bi bi-info-circle"></i> Активы, входящие в эту группу, не будут удалены. Они просто потеряют принадлежность к этой группе.
                 </div>
             </div>
             <div class="modal-footer">

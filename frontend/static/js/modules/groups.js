@@ -298,26 +298,25 @@ export class GroupManager {
 
     document.getElementById('delete-group-id').value = id;
     
-    // Заполняем селект всеми группами кроме удаляемой
-    await Utils.populateParentSelect([String(id)], null);
-    
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
     modal.show();
   }
 
   async confirmDeleteGroup() {
     const groupId = document.getElementById('delete-group-id').value;
-    const moveToId = document.getElementById('delete-move-assets').value;
     
-    console.log('[confirmDeleteGroup] Вызов удаления группы:', groupId, 'moveToId:', moveToId);
+    console.log('[confirmDeleteGroup] Вызов удаления группы:', groupId);
     
     Utils.closeModalById('groupDeleteModal');
 
     try {
-      const response = await fetch(`/api/groups/${groupId}`, {
+      const url = `/api/groups/${groupId}`;
+      
+      console.log('[confirmDeleteGroup] Запрос URL:', url);
+      
+      const response = await fetch(url, {
         method: 'DELETE',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ move_to_id: moveToId || null })
+        headers: {'Content-Type': 'application/json'}
       });
       
       console.log('[confirmDeleteGroup] Ответ сервера:', response.status);
