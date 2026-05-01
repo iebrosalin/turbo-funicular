@@ -169,6 +169,152 @@ export class TreeManager {
 
     initListener('.tree-node[data-id="all"]', 'all');
     initListener('.tree-node[data-id="ungrouped"]', 'ungrouped');
+
+    // Инициализация массовых операций
+    this.#initBulkActions();
+  }
+
+  /**
+   * Инициализация кнопок массовых операций
+   * @private
+   */
+  #initBulkActions() {
+    const selectAllCheckbox = document.getElementById('select-all');
+    const bulkToolbar = document.getElementById('bulk-toolbar');
+    const selectedCountBadge = document.getElementById('selected-count');
+    const btnClearSelection = document.getElementById('btn-clear-selection');
+    const btnBulkMove = document.getElementById('btn-bulk-move');
+    const btnBulkDelete = document.getElementById('btn-bulk-delete');
+
+    if (!selectAllCheckbox || !bulkToolbar) return;
+
+    // Обработчик "Выбрать все"
+    selectAllCheckbox.addEventListener('change', (e) => {
+      const isChecked = e.target.checked;
+      const checkboxes = document.querySelectorAll('.asset-checkbox');
+      checkboxes.forEach(cb => {
+        cb.checked = isChecked;
+      });
+      this.#updateBulkToolbar();
+    });
+
+    // Делегирование событий для чекбоксов активов
+    const tbody = document.getElementById('assets-body');
+    if (tbody) {
+      tbody.addEventListener('change', (e) => {
+        if (e.target.classList.contains('asset-checkbox')) {
+          this.#updateBulkToolbar();
+        }
+      });
+    }
+
+    // Кнопка "Снять выделение"
+    if (btnClearSelection) {
+      btnClearSelection.addEventListener('click', () => {
+        const checkboxes = document.querySelectorAll('.asset-checkbox');
+        checkboxes.forEach(cb => {
+          cb.checked = false;
+        });
+        if (selectAllCheckbox) selectAllCheckbox.checked = false;
+        this.#updateBulkToolbar();
+      });
+    }
+
+    // Кнопка "В группу"
+    if (btnBulkMove) {
+      btnBulkMove.addEventListener('click', async () => {
+        const selectedIds = this.#getSelectedAssetIds();
+        if (selectedIds.length === 0) return;
+        
+        // TODO: Открыть модалку выбора группы
+        alert(`Переместить ${selectedIds.length} активов в группу (функционал в разработке)`);
+      });
+    }
+
+    // Кнопка "Удалить"
+    if (btnBulkDelete) {
+      btnBulkDelete.addEventListener('click', async () => {
+        const selectedIds = this.#getSelectedAssetIds();
+        if (selectedIds.length === 0) return;
+
+        if (!confirm(`Вы уверены, что хотите удалить ${selectedIds.length} активов? Это действие нельзя отменить.`)) {
+          return;
+        }
+
+        try {
+          const response = await fetch('/api/assets/bulk-delete', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ ids: selectedIds }),
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || 'Ошибка при удалении активов');
+          }
+
+          // Успешное удаление - перезагрузить список
+          await this.loadAssets(this.currentGroupId, this.currentGroupId === null);
+          
+          // Сбросить выделение
+          const checkboxes = document.querySelectorAll('.asset-checkbox');
+          checkboxes.forEach(cb => {
+            cb.checked = false;
+          });
+          if (selectAllCheckbox) selectAllCheckbox.checked = false;
+          this.#updateBulkToolbar();
+
+          // Показать уведомление
+          Utils.showFlashMessage(`Удалено ${selectedIds.length} активов`, 'success');
+        } catch (error) {
+          console.error('[Bulk Delete] Ошибка:', error);
+          Utils.showFlashMessage(`Ошибка: ${error.message}`, 'danger');
+        }
+      });
+    }
+  }
+
+  /**
+   * Обновление видимости и счетчика панели массовых операций
+   * @private
+   */
+  #updateBulkToolbar() {
+    const bulkToolbar = document.getElementById('bulk-toolbar');
+    const selectedCountBadge = document.getElementById('selected-count');
+    const selectAllCheckbox = document.getElementById('select-all');
+    
+    if (!bulkToolbar || !selectedCountBadge) return;
+
+    const checkboxes = document.querySelectorAll('.asset-checkbox:checked');
+    const count = checkboxes.length;
+
+    selectedCountBadge.textContent = count;
+
+    if (count > 0) {
+      bulkToolbar.style.display = 'flex';
+    } else {
+      bulkToolbar.style.display = 'none';
+    }
+
+    // Обновить состояние чекбокса "Выбрать все"
+    if (selectAllCheckbox) {
+      const allCheckboxes = document.querySelectorAll('.asset-checkbox');
+      const allChecked = allCheckboxes.length > 0 && allCheckboxes.length === count;
+      selectAllCheckbox.checked = allChecked;
+      selectAllCheckbox.indeterminate = count > 0 && count < allCheckboxes.length;
+    }
+  }
+
+  /**
+   * Получить массив ID выбранных активов
+   * @private
+   * @returns {number[]}
+   */
+  #getSelectedAssetIds() {
+    const checkboxes = document.querySelectorAll('.asset-checkbox:checked');
+    return Array.from(checkboxes).map(cb => parseInt(cb.dataset.id, 10));
   }
 
   /**
