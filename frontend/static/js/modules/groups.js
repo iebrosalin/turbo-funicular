@@ -50,8 +50,8 @@ export class GroupManager {
       await this.moveGroup();
     });
 
-    // Обработчик формы удаления группы
-    document.getElementById('groupDeleteForm')?.addEventListener('submit', async (e) => {
+    // Обработчик кнопки подтверждения удаления (вместо формы)
+    document.getElementById('btn-confirm-delete-group')?.addEventListener('click', async (e) => {
       e.preventDefault();
       await this.confirmDeleteGroup();
     });
@@ -220,6 +220,8 @@ export class GroupManager {
     const parentId = document.getElementById('edit-group-parent').value;
     const mode = document.querySelector('input[name="groupMode"]:checked')?.value;
 
+    console.log('[saveGroup] Сохранение группы:', { id, name, parentId, mode });
+
     let payload = {
       name: name,
       parent_id: parentId === '' ? null : parseInt(parentId),
@@ -251,6 +253,8 @@ export class GroupManager {
     const url = id ? `/api/groups/${id}` : '/api/groups';
     const method = id ? 'PUT' : 'POST';
 
+    console.log('[saveGroup] Запрос:', method, url, payload);
+
     try {
       const res = await fetch(url, {
         method,
@@ -258,9 +262,11 @@ export class GroupManager {
         body: JSON.stringify(payload)
       });
 
+      console.log('[saveGroup] Ответ сервера:', res.status);
+
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.error || 'Ошибка сохранения');
+        throw new Error(err.error || err.detail || 'Ошибка сохранения');
       }
 
       Utils.closeModalById('groupEditModal');
@@ -273,8 +279,10 @@ export class GroupManager {
       // Обновляем дерево и список активов
       await refreshGroupTree();
       await loadAssets();
+      
+      console.log('[saveGroup] Группа успешно сохранена');
     } catch (e) {
-      console.error('Ошибка сохранения группы:', e);
+      console.error('[saveGroup] Ошибка сохранения группы:', e);
       alert(e.message);
     }
   }
@@ -297,6 +305,8 @@ export class GroupManager {
     const groupId = document.getElementById('delete-group-id').value;
     const moveToId = document.getElementById('delete-move-assets').value;
     
+    console.log('[confirmDeleteGroup] Вызов удаления группы:', groupId, 'moveToId:', moveToId);
+    
     Utils.closeModalById('groupDeleteModal');
 
     try {
@@ -306,6 +316,8 @@ export class GroupManager {
         body: JSON.stringify({ move_to_id: moveToId || null })
       });
       
+      console.log('[confirmDeleteGroup] Ответ сервера:', response.status);
+      
       if (response.ok) {
         await refreshGroupTree();
         const currentGroupId = store.getState('currentGroupId');
@@ -314,11 +326,13 @@ export class GroupManager {
           loadAssets(); 
         }
       } else {
-        alert('Ошибка при удалении группы');
+        const errData = await response.json().catch(() => ({}));
+        console.error('[confirmDeleteGroup] Ошибка удаления:', errData);
+        alert('Ошибка при удалении группы: ' + (errData.detail || 'Неизвестная ошибка'));
       }
     } catch (error) {
-      console.error('Error:', error);
-      alert('Ошибка сети');
+      console.error('[confirmDeleteGroup] Исключение:', error);
+      alert('Ошибка сети: ' + error.message);
     }
   }
 
@@ -339,20 +353,33 @@ export class GroupManager {
     const groupId = document.getElementById('move-group-id').value;
     const newParentId = document.getElementById('move-group-parent').value;
 
+    console.log('[moveGroup] Перемещение группы:', groupId, 'в родителя:', newParentId);
+
     try {
-      const url = `/api/groups/${groupId}/move?new_parent_id=${newParentId === '' ? '' : newParentId}`;
+      const url = `/api/groups/${groupId}/move?new_parent_id=${newParentId === '' ? null : newParentId}`;
+      console.log('[moveGroup] Запрос URL:', url);
+      
       const res = await fetch(url, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'}
       });
 
-      if (!res.ok) throw new Error('Не удалось переместить группу');
+      console.log('[moveGroup] Ответ сервера:', res.status);
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Не удалось переместить группу');
+      }
 
       Utils.closeModalById('groupMoveModal');
       
+      // Обновляем дерево и список активов
       await refreshGroupTree();
+      await loadAssets();
+      
+      console.log('[moveGroup] Группа успешно перемещена');
     } catch (e) {
-      console.error('Ошибка перемещения группы:', e);
+      console.error('[moveGroup] Ошибка перемещения группы:', e);
       alert(e.message);
     }
   }

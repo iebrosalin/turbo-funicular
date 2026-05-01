@@ -63,6 +63,25 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     
     tree = build_group_tree(groups)
     
+    # Создаём плоский список с глубиной из дерева
+    flat_with_depth = []
+    def flatten_tree(nodes):
+        for node in nodes:
+            # Копируем данные узла
+            flat_node = {
+                'id': node['id'],
+                'name': node['name'],
+                'parent_id': node.get('parent_id'),
+                'depth': node.get('depth', 0),
+                'assets_count': node.get('assets_count', 0),
+                'direct_count': node.get('direct_count', 0)
+            }
+            flat_with_depth.append(flat_node)
+            if node.get('children'):
+                flatten_tree(node['children'])
+    
+    flatten_tree(tree)
+    
     # Подсчитываем активы без группы
     from sqlalchemy import not_, exists
     ungrouped_count_query = select(func.count(Asset.id)).where(
@@ -74,7 +93,7 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     # Возвращаем в формате, ожидаемом фронтендом
     return {
         "tree": tree,
-        "flat": groups,
+        "flat": flat_with_depth,
         "ungrouped_count": ungrouped_count
     }
 
