@@ -49,7 +49,7 @@ export class TreeManager {
       });
     }
     
-    this.#updateCounts(counts, groups);
+    this.#updateCounts(counts);
   }
 
   /**
@@ -60,7 +60,7 @@ export class TreeManager {
     const node = document.createElement('div');
     node.className = 'tree-node';
     node.dataset.id = group.id;
-    node.style.paddingLeft = `${depth * 5}px`;
+    node.style.paddingLeft = `${depth * 20}px`;
 
     const icon = document.createElement('i');
     icon.className = 'bi bi-folder folder-icon';
@@ -75,9 +75,7 @@ export class TreeManager {
     const badge = document.createElement('span');
     badge.className = 'badge bg-secondary ms-auto';
     badge.id = `count-${group.id}`;
-    // Используем direct_count из объекта группы или из counts
-    const countValue = group.direct_count ?? counts[group.id] ?? group.assets_count ?? 0;
-    badge.textContent = countValue;
+    badge.textContent = counts[group.id] !== undefined ? counts[group.id] : 0;
     node.appendChild(badge);
 
     return node;
@@ -87,15 +85,11 @@ export class TreeManager {
    * Обновить счетчики
    * @private
    */
-  #updateCounts(counts, groups) {
+  #updateCounts(counts) {
     let totalDirectCount = 0;
-    
-    // Считаем сумму всех direct_count из переданных групп
-    if (groups && Array.isArray(groups)) {
-      groups.forEach(g => {
-        totalDirectCount += g.direct_count ?? g.count ?? 0;
-      });
-    }
+    store.getState('groups')?.forEach(g => {
+      totalDirectCount += g.direct_count ?? g.count ?? 0;
+    });
     totalDirectCount += counts?.ungrouped ?? 0;
 
     const allBadge = document.getElementById('count-all');
@@ -103,16 +97,6 @@ export class TreeManager {
 
     const ungroupedBadge = document.getElementById('count-ungrouped');
     if (ungroupedBadge) ungroupedBadge.textContent = counts?.ungrouped ?? 0;
-    
-    // Обновляем счетчики для каждой группы в DOM
-    if (groups && Array.isArray(groups)) {
-      groups.forEach(g => {
-        const badge = document.getElementById(`count-${g.id}`);
-        if (badge) {
-          badge.textContent = g.direct_count ?? counts[g.id] ?? g.assets_count ?? 0;
-        }
-      });
-    }
   }
 
   /**
@@ -242,8 +226,8 @@ export class TreeManager {
         const selectedIds = this.#getSelectedAssetIds();
         if (selectedIds.length === 0) return;
         
-        // Открыть модальное окно для выбора группы
-        await this.#openBulkMoveModal(selectedIds);
+        // TODO: Открыть модалку выбора группы
+        alert(`Переместить ${selectedIds.length} активов в группу (функционал в разработке)`);
       });
     }
 
@@ -331,114 +315,6 @@ export class TreeManager {
   #getSelectedAssetIds() {
     const checkboxes = document.querySelectorAll('.asset-checkbox:checked');
     return Array.from(checkboxes).map(cb => parseInt(cb.dataset.id, 10));
-  }
-
-  /**
-   * Открыть модальное окно для массового перемещения активов
-   * @private
-   * @param {number[]} selectedIds - Массив ID выбранных активов
-   */
-  async #openBulkMoveModal(selectedIds) {
-    const modalElement = document.getElementById('bulkMoveModal');
-    const countBadge = document.getElementById('bulk-move-count');
-    const groupSelect = document.getElementById('target-group-select');
-    const executeBtn = document.getElementById('btn-execute-bulk-move');
-
-    if (!modalElement || !countBadge || !groupSelect || !executeBtn) {
-      console.error('[Bulk Move] Элементы модального окна не найдены');
-      return;
-    }
-
-    // Обновить счетчик выбранных активов
-    countBadge.textContent = selectedIds.length;
-
-    // Заполнить выпадающий список групп
-    groupSelect.innerHTML = '<option value="">-- Без группы --</option>';
-    const groups = store.getState('groups') || [];
-    groups.forEach(group => {
-      const option = document.createElement('option');
-      option.value = group.id;
-      option.textContent = '  '.repeat(group.depth || 0) + group.name;
-      groupSelect.appendChild(option);
-    });
-
-    // Сохранить ID выбранных активов в кнопке (как data-атрибут)
-    executeBtn.dataset.selectedIds = JSON.stringify(selectedIds);
-
-    // Показать модальное окно
-    const modal = new bootstrap.Modal(modalElement);
-    modal.show();
-
-    // Обработчик кнопки "Переместить" (удаляем предыдущие обработчики клонированием)
-    const newExecuteBtn = executeBtn.cloneNode(true);
-    executeBtn.parentNode.replaceChild(newExecuteBtn, executeBtn);
-
-    newExecuteBtn.addEventListener('click', async () => {
-      const targetGroupId = groupSelect.value;
-      const idsToMove = JSON.parse(newExecuteBtn.dataset.selectedIds);
-
-      if (!targetGroupId && targetGroupId !== '') {
-        // Пустое значение означает перемещение в корень (без группы)
-        await this.#executeBulkMove(idsToMove, null);
-      } else {
-        await this.#executeBulkMove(idsToMove, parseInt(targetGroupId, 10));
-      }
-
-      modal.hide();
-    });
-  }
-
-  /**
-   * Выполнить массовое перемещение активов
-   * @private
-   * @param {number[]} assetIds - Массив ID активов для перемещения
-   * @param {number|null} groupId - ID целевой группы (null для перемещения в корень)
-   */
-  async #executeBulkMove(assetIds, groupId) {
-    try {
-      const response = await fetch('/api/assets/bulk-move', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ids: assetIds,
-          group_id: groupId
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Ошибка при перемещении активов');
-      }
-
-      // Перезагрузить список активов
-      await this.loadAssets(this.currentGroupId, this.currentGroupId === null);
-      
-      // Сбросить выделение
-      const checkboxes = document.querySelectorAll('.asset-checkbox');
-      checkboxes.forEach(cb => {
-        cb.checked = false;
-      });
-      const selectAllCheckbox = document.getElementById('select-all');
-      if (selectAllCheckbox) {
-        selectAllCheckbox.checked = false;
-        selectAllCheckbox.indeterminate = false;
-      }
-      this.#updateBulkToolbar();
-
-      // Обновить дерево групп (счетчики)
-      await this.refresh();
-
-      // Показать уведомление
-      const groupName = groupId 
-        ? (store.getState('groups')?.find(g => g.id === groupId)?.name || 'выбранную группу')
-        : 'корень (без группы)';
-      Utils.showFlashMessage(`Перемещено ${assetIds.length} активов в группу "${groupName}"`, 'success');
-    } catch (error) {
-      console.error('[Bulk Move] Ошибка:', error);
-      Utils.showFlashMessage(`Ошибка: ${error.message}`, 'danger');
-    }
   }
 
   /**
@@ -538,26 +414,13 @@ export class TreeManager {
   #createAssetRow(asset) {
     const tr = document.createElement('tr');
     
-    // Получаем имя первой группы или пустое значение
-    const groupName = asset.groups && asset.groups.length > 0 
-      ? asset.groups[0].name 
-      : null;
-    
-    // Формируем отображение ОС из os_family и os_version
-    let osDisplay = '<span class="text-muted">-</span>';
-    if (asset.os_family) {
-      osDisplay = asset.os_version 
-        ? `${asset.os_family} (${asset.os_version})`
-        : asset.os_family;
-    }
-    
     tr.innerHTML = `
       <td><input type="checkbox" class="form-check-input asset-checkbox" data-id="${asset.id}"></td>
       <td><strong>${asset.ip_address ?? 'N/A'}</strong></td>
       <td>${asset.hostname ?? '<span class="text-muted">-</span>'}</td>
-      <td>${osDisplay}</td>
+      <td>${asset.os_info ?? '<span class="text-muted">-</span>'}</td>
       <td><small>${asset.open_ports ?? '<span class="text-muted">-</span>'}</small></td>
-      <td>${groupName ? `<span class="badge bg-light text-dark border">${groupName}</span>` : '<span class="badge bg-secondary">Без группы</span>'}</td>
+      <td>${asset.group_name ? `<span class="badge bg-light text-dark border">${asset.group_name}</span>` : '<span class="badge bg-secondary">Без группы</span>'}</td>
       <td class="text-end">
         <button class="btn btn-sm btn-outline-primary edit-asset-btn" data-id="${asset.id}" title="Редактировать">
           <i class="bi bi-pencil"></i>

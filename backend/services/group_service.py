@@ -73,21 +73,11 @@ class GroupService:
         return group
     
     async def delete(self, group_id: int) -> bool:
-        """Удалить группу. Активы остаются в системе без этой группы."""
+        """Удалить группу."""
         group = await self.get_by_id(group_id)
         if not group:
             return False
         
-        # Удаляем все связи активов с этой группой (активы остаются в системе)
-        from backend.models.asset import asset_groups
-        from sqlalchemy import delete
-        
-        delete_stmt = delete(asset_groups).where(
-            asset_groups.c.group_id == group_id
-        )
-        await self.db.execute(delete_stmt)
-        
-        # Теперь удаляем саму группу
         query = delete(Group).where(Group.id == group_id)
         await self.db.execute(query)
         await self.db.flush()

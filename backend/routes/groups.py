@@ -63,25 +63,6 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     
     tree = build_group_tree(groups)
     
-    # Создаём плоский список с глубиной из дерева
-    flat_with_depth = []
-    def flatten_tree(nodes):
-        for node in nodes:
-            # Копируем данные узла
-            flat_node = {
-                'id': node['id'],
-                'name': node['name'],
-                'parent_id': node.get('parent_id'),
-                'depth': node.get('depth', 0),
-                'assets_count': node.get('assets_count', 0),
-                'direct_count': node.get('direct_count', 0)
-            }
-            flat_with_depth.append(flat_node)
-            if node.get('children'):
-                flatten_tree(node['children'])
-    
-    flatten_tree(tree)
-    
     # Подсчитываем активы без группы
     from sqlalchemy import not_, exists
     ungrouped_count_query = select(func.count(Asset.id)).where(
@@ -93,7 +74,7 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     # Возвращаем в формате, ожидаемом фронтендом
     return {
         "tree": tree,
-        "flat": flat_with_depth,
+        "flat": groups,
         "ungrouped_count": ungrouped_count
     }
 
@@ -133,8 +114,6 @@ async def create_group(
     try:
         # Создание группы
         group = await service.create(group_data)
-        
-        await db.commit()  # Фиксируем транзакцию после создания группы
 
         # Логирование
         await log_asset_change(
@@ -148,7 +127,6 @@ async def create_group(
         # Если это динамическая группа с filter_rules, обновляем состав
         if hasattr(group_data, 'filter_rules') and group_data.filter_rules:
             await service.update_dynamic_group_members(group.id, group_data.filter_rules)
-            await db.commit()  # Фиксируем после обновления состава динамической группы
 
         return group
         
@@ -175,27 +153,20 @@ async def update_group(
     if not group:
         raise HTTPException(status_code=404, detail="Группа не найдена")
     
-    await db.commit()  # Фиксируем транзакцию после обновления группы
-    
     # Если это динамическая группа, обновляем состав
     if hasattr(group_data, 'filter_rules') and group_data.filter_rules is not None:
         await service.update_dynamic_group_members(group.id, group_data.filter_rules)
-        await db.commit()  # Фиксируем после обновления состава динамической группы
     
     return group
 
 
 @router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_group(
-    group_id: int, 
-    db: AsyncSession = Depends(get_db)
-):
-    """Удалить группу. Активы остаются в системе без этой группы."""
+async def delete_group(group_id: int, db: AsyncSession = Depends(get_db)):
+    """Удалить группу."""
     service = GroupService(db)
     success = await service.delete(group_id)
     if not success:
         raise HTTPException(status_code=404, detail="Группа не найдена")
-    await db.commit()  # Фиксируем транзакцию после удаления группы
 
 
 @router.post("/{group_id}/move", response_model=GroupResponse)
@@ -209,7 +180,6 @@ async def move_group(
     group = await service.move(group_id, new_parent_id)
     if not group:
         raise HTTPException(status_code=400, detail="Cyclic dependency detected or invalid parent")
-    await db.commit()  # Фиксируем транзакцию после перемещения группы
     return group
 
 

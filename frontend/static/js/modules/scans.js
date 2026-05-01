@@ -172,10 +172,7 @@ export class ScanManager {
         h += `<p><strong>Найдено хостов:</strong> ${d.results.length}</p><div class="list-group">`;
         d.results.forEach(x => {
           const ports = x.ports?.join ? x.ports.join(', ') : 'Нет';
-          const osFamily = x.os_family || '';
-          const osVersion = x.os_version || '';
-          const osDisplay = osFamily ? (osVersion ? `${osFamily} (${osVersion})` : osFamily) : '-';
-          const osInfo = osDisplay !== '-' ? `<p class="mb-0"><strong>ОС:</strong> ${osDisplay}</p>` : '';
+          const osInfo = x.os && x.os !== '-' ? `<p class="mb-0"><strong>ОС:</strong> ${x.os}</p>` : '';
           h += `<div class="list-group-item"><div class="d-flex justify-content-between"><h6 class="mb-1">${x.ip}</h6><small>${x.scanned_at}</small></div><p class="mb-1"><strong>Порты:</strong> ${ports}</p>${osInfo}</div>`;
         });
         h += '</div>';

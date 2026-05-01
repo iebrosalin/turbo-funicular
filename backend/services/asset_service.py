@@ -108,10 +108,7 @@ class AssetService:
     
     async def get_by_id(self, asset_id: int) -> Optional[Asset]:
         """Получить актив по ID."""
-        query = select(Asset).options(
-            selectinload(Asset.groups),
-            selectinload(Asset.services)
-        ).where(Asset.id == asset_id)
+        query = select(Asset).options(selectinload(Asset.groups)).where(Asset.id == asset_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
     

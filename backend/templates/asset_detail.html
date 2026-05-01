@@ -10,19 +10,16 @@
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="/">Дашборд</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index">Дашборд</a></li>
                     <li class="breadcrumb-item active" aria-current="page">{{ asset.ip_address }} {% if asset.fqdn %}({{ asset.fqdn }}){% endif %}</li>
                 </ol>
             </nav>
             <h2><i class="bi bi-pc-display"></i> {{ asset.hostname or "Без имени" }} 
                 <small class="text-muted fs-4">({{ asset.ip_address }})</small>
             </h2>
-            {% set status_badge = 'success' if asset.status == 'active' else 'secondary' %}
-            <span class="badge bg-{{ status_badge }}">{{ asset.status }}</span>
+            <span class="badge bg-{{ 'success' if asset.status == 'active' else 'secondary' }}">{{ asset.status }}</span>
             <span class="badge bg-info">{{ asset.device_type }}</span>
-            {% if asset.os_name %}
-                <span class="badge bg-secondary">{{ asset.os_name }}</span>
-            {% elif asset.os_family %}
+            {% if asset.os_family %}
                 <span class="badge bg-secondary">{{ asset.os_family }} {{ asset.os_version }}</span>
             {% endif %}
         </div>
@@ -66,31 +63,9 @@
                                 <tr><th>Hostname:</th><td>{{ asset.hostname or '-' }}</td></tr>
                                 <tr><th>FQDN:</th><td>{{ asset.fqdn or '-' }}</td></tr>
                                 <tr><th>Тип устройства:</th><td>{{ asset.device_type }}</td></tr>
-                                <tr><th>ОС:</th>
-                                    <td>
-                                        {% if asset.os_name %}
-                                            {{ asset.os_name }}
-                                        {% elif asset.os_family %}
-                                            {{ asset.os_family }} {{ asset.os_version }}
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
+                                <tr><th>ОС:</th><td>{{ asset.os_family }} {{ asset.os_version }}</td></tr>
                                 <tr><th>Владелец:</th><td>{{ asset.owner or '-' }}</td></tr>
                                 <tr><th>Локация:</th><td>{{ asset.location or '-' }}</td></tr>
-                                <tr><th>Описание:</th><td>{{ asset.description or '-' }}</td></tr>
-                                <tr><th>Теги:</th>
-                                    <td>
-                                        {% if asset.tags %}
-                                            {% for tag in asset.tags %}
-                                                <span class="badge bg-info">{{ tag }}</span>
-                                            {% endfor %}
-                                        {% else %}
-                                            <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
                                 <tr><th>Группы:</th>
                                     <td>
                                         {% if asset.groups %}

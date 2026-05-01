@@ -84,6 +84,8 @@ async def count_assets_by_filter(
                 # Поле не найдено в модели, пробуем альтернативные имена
                 if rule.field == 'ip_address':
                     field_value = getattr(asset, 'ip', None)
+                elif rule.field == 'os_info':
+                    field_value = getattr(asset, 'os_family', None)
                 elif rule.field == 'device_role':
                     field_value = getattr(asset, 'role', None)
                 elif rule.field == 'scanners_used':
@@ -129,9 +131,6 @@ async def get_assets(
     rules: Optional[str] = Query(None)  # JSON строка с правилами фильтрации
 ):
     """Получить список активов с фильтрацией."""
-    import logging
-    logger = logging.getLogger(__name__)
-    
     service = AssetService(db)
     
     # Преобразуем group_id в int или None
@@ -167,40 +166,7 @@ async def get_assets(
         source=source,
         rules=filter_rules
     )
-    
-    # Отладочная информация
-    logger.info(f"[DEBUG] GET /api/assets: found {len(assets)} assets")
-    
-    # Явно формируем ответ в виде списка словарей для корректной сериализации
-    assets_data = []
-    for asset in assets:
-        groups_info = []
-        group_ids = []
-        if asset.groups:
-            groups_info = [g.name if hasattr(g, 'name') else str(g) for g in asset.groups]
-            group_ids = [g.id if hasattr(g, 'id') else None for g in asset.groups]
-        
-        logger.info(f"[DEBUG] Asset {asset.id} ({asset.ip_address}): group_ids={group_ids}, groups={groups_info}")
-        
-        # Создаем словарь вручную, чтобы избежать проблем с сериализацией ORM-объектов
-        asset_dict = {
-            "id": asset.id,
-            "ip_address": asset.ip_address,
-            "hostname": asset.hostname,
-            "os_name": asset.os_name,
-            "os_family": asset.os_family,
-            "os_version": asset.os_version,
-            "description": asset.description,
-            "tags": asset.tags,
-            "status": asset.status,
-            "source": asset.source,
-            "created_at": asset.created_at,
-            "updated_at": asset.updated_at,
-            "groups": group_ids  # Передаем только ID групп (список чисел)
-        }
-        assets_data.append(asset_dict)
-    
-    return assets_data
+    return assets
 
 
 @router.get("/{asset_id}", response_model=AssetResponse)
@@ -228,7 +194,7 @@ async def get_asset_page(request: Request, asset_id: int, db: AsyncSession = Dep
 
 
 @router.post("", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)
-async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_db)) -> AssetResponse:
+async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_db)):
     """Создать новый актив."""
     service = AssetService(db)
     
@@ -238,76 +204,50 @@ async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=400, detail="Актив с таким IP уже существует")
     
     asset = await service.create(asset_data)
-    await db.commit()  # Фиксируем транзакцию после создания
     
-    # Создаем ответ вручную, чтобы корректно установить group_id и group_name
+    # Создаем ответ вручную, чтобы корректно установить group_id
+    from backend.schemas.asset import AssetResponse
     group_id = None
-    group_name = None
-    groups_list = []
-    
     if asset.groups and len(asset.groups) > 0:
         group_id = asset.groups[0].id
-        group_name = asset.groups[0].name
-        groups_list = [{"id": g.id, "name": g.name} for g in asset.groups]
     
     return AssetResponse(
         id=asset.id,
-        uuid=asset.uuid,
         ip_address=asset.ip_address,
         hostname=asset.hostname,
-        os_name=asset.os_name,
         os_family=asset.os_family,
-        os_version=asset.os_version,
-        description=asset.description,
-        tags=asset.tags,
         status=asset.status,
         location=asset.location,
         group_id=group_id,
-        group_name=group_name,
-        groups=groups_list if groups_list else None,
         created_at=asset.created_at,
         updated_at=asset.updated_at
     )
 
 
 @router.put("/{asset_id}", response_model=AssetResponse)
-async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession = Depends(get_db)) -> AssetResponse:
+async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession = Depends(get_db)):
     """Обновить актив."""
     service = AssetService(db)
     asset = await service.update(asset_id, asset_data)
     if not asset:
         raise HTTPException(status_code=404, detail="Актив не найден")
     
-    await db.commit()  # Фиксируем транзакцию после обновления
-    
     # Явно загружаем связи для ответа
     await db.refresh(asset, attribute_names=['groups'])
     
-    # Создаем ответ вручную, чтобы корректно установить group_id и group_name
+    # Создаем ответ вручную, чтобы корректно установить group_id
     group_id = None
-    group_name = None
-    groups_list = []
-    
     if asset.groups and len(asset.groups) > 0:
         group_id = asset.groups[0].id
-        group_name = asset.groups[0].name
-        groups_list = [{"id": g.id, "name": g.name} for g in asset.groups]
     
     return AssetResponse(
         id=asset.id,
-        uuid=asset.uuid,
         ip_address=asset.ip_address,
         hostname=asset.hostname,
-        os_name=asset.os_name,
         os_family=asset.os_family,
-        os_version=asset.os_version,
-        description=asset.description,
-        tags=asset.tags,
         status=asset.status,
         location=asset.location,
         group_id=group_id,
-        group_name=group_name,
-        groups=groups_list if groups_list else None,
         created_at=asset.created_at,
         updated_at=asset.updated_at
     )
@@ -320,16 +260,10 @@ async def delete_asset(asset_id: int, db: AsyncSession = Depends(get_db)):
     success = await service.delete(asset_id)
     if not success:
         raise HTTPException(status_code=404, detail="Актив не найден")
-    await db.commit()  # Фиксируем транзакцию после удаления
 
 
 class BulkDeleteRequest(BaseModel):
     ids: List[int]
-
-
-class BulkMoveRequest(BaseModel):
-    ids: List[int]
-    group_id: Optional[int] = None
 
 
 @router.post("/bulk-delete", status_code=status.HTTP_204_NO_CONTENT)
@@ -339,16 +273,15 @@ async def delete_bulk_assets(request: BulkDeleteRequest, db: AsyncSession = Depe
     deleted_count = await service.delete_batch(request.ids)
     if deleted_count == 0:
         raise HTTPException(status_code=404, detail="Активы не найдены")
-    await db.commit()  # Фиксируем транзакцию после пакетного удаления
 
 
 @router.post("/bulk-move", status_code=status.HTTP_200_OK)
 async def bulk_move_assets(
-    request: BulkMoveRequest,
+    asset_ids: List[int],
+    group_id: Optional[int],
     db: AsyncSession = Depends(get_db)
 ):
     """Переместить несколько активов в другую группу."""
     service = AssetService(db)
-    moved_count = await service.move_to_group_batch(request.ids, request.group_id)
-    await db.commit()  # Фиксируем транзакцию после пакетного перемещения
+    moved_count = await service.move_to_group_batch(asset_ids, group_id)
     return {"message": f"Перемещено активов: {moved_count}", "count": moved_count}
