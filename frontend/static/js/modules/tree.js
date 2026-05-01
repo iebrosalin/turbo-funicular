@@ -269,6 +269,7 @@ export class TreeManager {
     const tr = document.createElement('tr');
     
     tr.innerHTML = `
+      <td><input type="checkbox" class="form-check-input asset-checkbox" data-id="${asset.id}"></td>
       <td><strong>${asset.ip_address ?? 'N/A'}</strong></td>
       <td>${asset.hostname ?? '<span class="text-muted">-</span>'}</td>
       <td>${asset.os_info ?? '<span class="text-muted">-</span>'}</td>
