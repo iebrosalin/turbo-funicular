@@ -340,10 +340,10 @@ export class GroupManager {
     const newParentId = document.getElementById('move-group-parent').value;
 
     try {
-      const res = await fetch(`/api/groups/${groupId}/move`, {
+      const url = `/api/groups/${groupId}/move?new_parent_id=${newParentId === '' ? '' : newParentId}`;
+      const res = await fetch(url, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ parent_id: newParentId === '' ? null : parseInt(newParentId) })
+        headers: {'Content-Type': 'application/json'}
       });
 
       if (!res.ok) throw new Error('Не удалось переместить группу');
