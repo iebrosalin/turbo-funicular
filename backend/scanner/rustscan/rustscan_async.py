@@ -44,8 +44,6 @@ class RustscanScanner:
             final_targets = await self._prepare_targets(db, target, group_ids)
             cmd = self._build_command(final_targets, ports, custom_args, base_name)
             
-            print(f"🚀 Запуск Rustscan: {' '.join(cmd)}")
-            
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -56,7 +54,6 @@ class RustscanScanner:
             async for line in process.stdout:
                 line_decoded = line.decode().strip()
                 output_lines.append(line_decoded)
-                print(line_decoded)
             
             await process.wait()
             

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File, Body, Request
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File, Body, Request, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -236,17 +236,37 @@ async def import_scan(
         raise HTTPException(status_code=500, detail=f"Ошибка импорта: {str(e)}")
 
 
-@router.post("/import-xml")
+@router.post("/import-nmap-xml")
 async def import_xml_scan(
     file: UploadFile = File(...),
+    group_id: Optional[int] = Form(None),
     db: AsyncSession = Depends(get_db)
 ):
     """Импортировать XML результаты сканирования (nmap)."""
+    import tempfile
+    import os
+    from backend.utils.nmap_xml_importer import NmapXmlImporter
+    
     try:
-        content = await file.read()
-        # Здесь должна быть логика парсинга Nmap XML
-        return {"message": "XML файл загружен", "filename": file.filename}
+        # Сохраняем файл во временное хранилище
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.xml') as tmp_file:
+            content = await file.read()
+            tmp_file.write(content)
+            tmp_path = tmp_file.name
+        
+        try:
+            # Импортируем данные из XML
+            importer = NmapXmlImporter(db)
+            count = await importer.import_file(tmp_path, group_id=group_id)
+            
+            return {"message": f"Импорт успешно завершен", "count": count, "filename": file.filename}
+        finally:
+            # Удаляем временный файл
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+                
     except Exception as e:
+        logger.error(f"Ошибка импорта XML: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Ошибка импорта XML: {str(e)}")
 
 

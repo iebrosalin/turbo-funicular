@@ -51,7 +51,6 @@ class NmapScanner:
             )
             
             cmd = self._build_command(final_targets, final_ports, scripts, custom_args, base_name)
-            print(f"🚀 Запуск Nmap: {' '.join(cmd)}")
             
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -60,7 +59,7 @@ class NmapScanner:
             )
             
             async for line in process.stdout:
-                print(line.decode().strip())
+                pass
             
             await process.wait()
             

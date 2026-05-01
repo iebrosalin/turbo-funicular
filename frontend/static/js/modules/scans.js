@@ -288,7 +288,7 @@ export class ScanManager {
       }, 5000);
     };
 
-    console.log('✅ SSE подключение установлено');
+    
   }
 
   /**
@@ -323,7 +323,7 @@ export class ScanManager {
 
     // Логгируем только важные изменения статуса
     if (jobData.status === 'completed' || jobData.status === 'failed') {
-      console.log(`✅ Сканирование #${jobData.id} завершилось со статусом: ${jobData.status}`);
+      
     }
   }
 
@@ -334,7 +334,7 @@ export class ScanManager {
     if (this.eventSource) {
       this.eventSource.close();
       this.eventSource = null;
-      console.log('🛑 SSE подключение закрыто');
+      
     }
   }
 } // <--- ДОБАВЛЕНО: закрытие класса ScanManager
