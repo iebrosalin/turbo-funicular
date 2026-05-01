@@ -187,20 +187,17 @@ async def scans_page(request: Request):
     return templates.TemplateResponse("scans.html", {"request": request})
 
 @app.get("/assets/{asset_id}")
-async def asset_detail(request: Request, asset_id: int):
+async def asset_detail(request: Request, asset_id: int, db: AsyncSession = Depends(get_db)):
     """Страница детали актива."""
-    db = get_db()
-    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    from backend.services.asset_service import AssetService
+    service = AssetService(db)
+    asset = await service.get_by_id(asset_id)
     if not asset:
         raise HTTPException(status_code=404, detail="Актив не найден")
     
-    # Получаем группы актива через many-to-many связь
-    groups = db.query(Group).join(asset_groups).filter(asset_groups.c.group_id == Group.id, asset_groups.c.asset_id == asset_id).all()
-    
     return templates.TemplateResponse("asset_detail.html", {
         "request": request, 
-        "asset": asset,
-        "groups": groups
+        "asset": asset
     })
 
 

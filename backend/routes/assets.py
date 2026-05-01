@@ -131,6 +131,9 @@ async def get_assets(
     rules: Optional[str] = Query(None)  # JSON строка с правилами фильтрации
 ):
     """Получить список активов с фильтрацией."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     service = AssetService(db)
     
     # Преобразуем group_id в int или None
@@ -166,6 +169,15 @@ async def get_assets(
         source=source,
         rules=filter_rules
     )
+    
+    # Отладочная информация
+    logger.info(f"[DEBUG] GET /api/assets: found {len(assets)} assets")
+    for asset in assets:
+        groups_info = []
+        if asset.groups:
+            groups_info = [g.name if hasattr(g, 'name') else str(g) for g in asset.groups]
+        logger.info(f"[DEBUG] Asset {asset.id} ({asset.ip_address}): group_id={asset.group_id}, groups={groups_info}")
+    
     return assets
 
 
@@ -194,7 +206,7 @@ async def get_asset_page(request: Request, asset_id: int, db: AsyncSession = Dep
 
 
 @router.post("", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)
-async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_db)):
+async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_db)) -> AssetResponse:
     """Создать новый актив."""
     service = AssetService(db)
     
@@ -206,27 +218,34 @@ async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_d
     asset = await service.create(asset_data)
     await db.commit()  # Фиксируем транзакцию после создания
     
-    # Создаем ответ вручную, чтобы корректно установить group_id
-    from backend.schemas.asset import AssetResponse
+    # Создаем ответ вручную, чтобы корректно установить group_id и group_name
     group_id = None
+    group_name = None
+    groups_list = []
+    
     if asset.groups and len(asset.groups) > 0:
         group_id = asset.groups[0].id
+        group_name = asset.groups[0].name
+        groups_list = [{"id": g.id, "name": g.name} for g in asset.groups]
     
     return AssetResponse(
         id=asset.id,
+        uuid=asset.uuid,
         ip_address=asset.ip_address,
         hostname=asset.hostname,
         os_family=asset.os_family,
         status=asset.status,
         location=asset.location,
         group_id=group_id,
+        group_name=group_name,
+        groups=groups_list if groups_list else None,
         created_at=asset.created_at,
         updated_at=asset.updated_at
     )
 
 
 @router.put("/{asset_id}", response_model=AssetResponse)
-async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession = Depends(get_db)):
+async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession = Depends(get_db)) -> AssetResponse:
     """Обновить актив."""
     service = AssetService(db)
     asset = await service.update(asset_id, asset_data)
@@ -238,19 +257,27 @@ async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession 
     # Явно загружаем связи для ответа
     await db.refresh(asset, attribute_names=['groups'])
     
-    # Создаем ответ вручную, чтобы корректно установить group_id
+    # Создаем ответ вручную, чтобы корректно установить group_id и group_name
     group_id = None
+    group_name = None
+    groups_list = []
+    
     if asset.groups and len(asset.groups) > 0:
         group_id = asset.groups[0].id
+        group_name = asset.groups[0].name
+        groups_list = [{"id": g.id, "name": g.name} for g in asset.groups]
     
     return AssetResponse(
         id=asset.id,
+        uuid=asset.uuid,
         ip_address=asset.ip_address,
         hostname=asset.hostname,
         os_family=asset.os_family,
         status=asset.status,
         location=asset.location,
         group_id=group_id,
+        group_name=group_name,
+        groups=groups_list if groups_list else None,
         created_at=asset.created_at,
         updated_at=asset.updated_at
     )

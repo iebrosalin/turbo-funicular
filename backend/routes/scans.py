@@ -310,7 +310,7 @@ async def run_nmap_scan(
         )
         
         db.add(new_scan)
-        await db.commit()
+        await db.flush()
         await db.refresh(new_scan)
         logger.info(f"✓ Запись сканирования создана: ID={new_scan.id}, name={new_scan.name}, target={new_scan.target}")
         
@@ -324,7 +324,7 @@ async def run_nmap_scan(
         )
         
         db.add(new_job)
-        await db.commit()
+        await db.flush()
         await db.refresh(new_job)
         logger.info(f"✓ Задача сканирования создана: ID={new_job.id}, scan_id={new_job.scan_id}, job_type={new_job.job_type}")
         
@@ -415,7 +415,7 @@ async def run_rustscan(
         )
         
         db.add(new_scan)
-        await db.commit()
+        await db.flush()
         await db.refresh(new_scan)
         logger.info(f"✓ Запись сканирования создана: ID={new_scan.id}, target={new_scan.target}")
         
@@ -429,7 +429,7 @@ async def run_rustscan(
         )
         
         db.add(new_job)
-        await db.commit()
+        await db.flush()
         await db.refresh(new_job)
         logger.info(f"✓ Задача сканирования создана: ID={new_job.id}, scan_id={new_job.scan_id}")
         
@@ -517,7 +517,7 @@ async def run_dig_scan(
         )
         
         db.add(new_scan)
-        await db.commit()
+        await db.flush()
         await db.refresh(new_scan)
         logger.info(f"✓ Запись сканирования создана: ID={new_scan.id}, target={new_scan.target}")
         
@@ -531,7 +531,7 @@ async def run_dig_scan(
         )
         
         db.add(new_job)
-        await db.commit()
+        await db.flush()
         await db.refresh(new_job)
         logger.info(f"✓ Задача сканирования создана: ID={new_job.id}, scan_id={new_job.scan_id}")
         
@@ -787,6 +787,7 @@ async def retry_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
         parameters=job.parameters,
     )
     db.add(new_job)
+    await db.flush()
     await db.commit()
     
     # Добавляем новую задачу в очередь
