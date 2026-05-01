@@ -174,9 +174,11 @@ async def get_assets(
     logger.info(f"[DEBUG] GET /api/assets: found {len(assets)} assets")
     for asset in assets:
         groups_info = []
+        group_ids = []
         if asset.groups:
             groups_info = [g.name if hasattr(g, 'name') else str(g) for g in asset.groups]
-        logger.info(f"[DEBUG] Asset {asset.id} ({asset.ip_address}): group_id={asset.group_id}, groups={groups_info}")
+            group_ids = [g.id if hasattr(g, 'id') else None for g in asset.groups]
+        logger.info(f"[DEBUG] Asset {asset.id} ({asset.ip_address}): group_ids={group_ids}, groups={groups_info}")
     
     return assets
 
