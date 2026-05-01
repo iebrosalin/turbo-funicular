@@ -4,101 +4,175 @@
 
 {% block content %}
 <div class="container-fluid py-4">
-    <!-- Панель управления -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h2><i class="bi bi-wifi"></i> Управление сканированиями</h2>
-                <button class="btn btn-primary" id="newScanBtn">
-                    <i class="bi bi-plus-lg"></i> Новое сканирование
-                </button>
-            </div>
+    <h2 class="mb-4"><i class="bi bi-wifi"></i> Управление сканированиями</h2>
 
-            <!-- Табы для выбора типа сканирования -->
-            <ul class="nav nav-tabs mb-3" id="scanTypeTab" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="nmap-tab" data-bs-toggle="tab" data-bs-target="#nmap-pane" type="button" role="tab">Nmap</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="rustscan-tab" data-bs-toggle="tab" data-bs-target="#rustscan-pane" type="button" role="tab">Rustscan</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="dig-tab" data-bs-toggle="tab" data-bs-target="#dig-pane" type="button" role="tab">Dig (DNS)</button>
-                </li>
-            </ul>
+    <!-- Табы для выбора типа сканирования -->
+    <ul class="nav nav-tabs mb-3" id="scanTypeTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="nmap-tab" data-bs-toggle="tab" data-bs-target="#nmap-pane" type="button" role="tab">Nmap (Глубокое)</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="rustscan-tab" data-bs-toggle="tab" data-bs-target="#rustscan-pane" type="button" role="tab">Rustscan (Быстрый)</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="dig-tab" data-bs-toggle="tab" data-bs-target="#dig-pane" type="button" role="tab">Dig (DNS)</button>
+        </li>
+    </ul>
 
-            <!-- Содержимое табов -->
-            <div class="tab-content bg-light p-3 border rounded-bottom" id="scanTypeTabContent">
-                <!-- Nmap Form -->
-                <div class="tab-pane fade show active" id="nmap-pane" role="tabpanel">
-                    <form id="nmapScanForm" class="row g-3">
-                        <div class="col-md-6">
-                            <label for="nmapTarget" class="form-label">Цель (IP, диапазон или хост)</label>
-                            <input type="text" class="form-control" id="nmapTarget" required placeholder="192.168.1.0/24">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="nmapProfile" class="form-label">Профиль сканирования</label>
-                            <select class="form-select" id="nmapProfile">
-                                <option value="quick">Быстрый (-F)</option>
-                                <option value="standard" selected>Стандартный (-sV -sC)</option>
-                                <option value="full">Полный (-p-)</option>
-                                <option value="aggressive">Агрессивный (-A)</option>
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <button type="submit" class="btn btn-success"><i class="bi bi-play-fill"></i> Запустить Nmap</button>
-                        </div>
-                    </form>
+    <!-- Содержимое табов -->
+    <div class="tab-content bg-light p-4 border rounded-bottom mb-5" id="scanTypeTabContent">
+        <!-- Nmap Form -->
+        <div class="tab-pane fade show active" id="nmap-pane" role="tabpanel">
+            <form id="nmapScanForm" class="row g-3">
+                <div class="col-md-8">
+                    <label for="nmapTarget" class="form-label">Цель (IP, диапазон, хост)</label>
+                    <input type="text" class="form-control" id="nmapTarget" required placeholder="192.168.1.0/24 или example.com">
+                    <div class="form-text">Поддерживаются списки IP через запятую.</div>
+                </div>
+                <div class="col-md-4">
+                    <label for="nmapProfile" class="form-label">Профиль</label>
+                    <select class="form-select" id="nmapProfile" onchange="toggleNmapCustomArgs()">
+                        <option value="quick">Быстрый (-F)</option>
+                        <option value="standard" selected>Стандартный (-sV -sC)</option>
+                        <option value="full">Полный перебор портов (-p-)</option>
+                        <option value="aggressive">Агрессивный (-A -T4)</option>
+                        <option value="custom">Свои аргументы</option>
+                    </select>
+                </div>
+                
+                <!-- Дополнительные поля для Nmap -->
+                <div class="col-md-6 d-none" id="nmapCustomArgsContainer">
+                    <label for="nmapCustomArgs" class="form-label">Аргументы Nmap</label>
+                    <input type="text" class="form-control" id="nmapCustomArgs" placeholder="-sS -Pn --script http-title">
+                    <div class="form-text">Вводите только флаги, без команды nmap.</div>
+                </div>
+                
+                <div class="col-md-6" id="nmapPortsContainer">
+                    <label for="nmapPorts" class="form-label">Порты (опционально)</label>
+                    <input type="text" class="form-control" id="nmapPorts" placeholder="80,443,8080 или 1-1000">
                 </div>
 
-                <!-- Rustscan Form -->
-                <div class="tab-pane fade" id="rustscan-pane" role="tabpanel">
-                    <form id="rustscanScanForm" class="row g-3">
-                        <div class="col-md-6">
-                            <label for="rustscanTarget" class="form-label">Цель (IP или диапазон)</label>
-                            <input type="text" class="form-control" id="rustscanTarget" required placeholder="192.168.1.1">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="rustscanPorts" class="form-label">Порты (опционально)</label>
-                            <input type="text" class="form-control" id="rustscanPorts" placeholder="1-1000, 80, 443">
-                        </div>
-                        <div class="col-12">
-                            <button type="submit" class="btn btn-success"><i class="bi bi-play-fill"></i> Запустить Rustscan</button>
-                        </div>
-                    </form>
+                <div class="col-md-6">
+                    <label class="form-label d-block">Скрипты NSE</label>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="nmapScriptDefault" checked>
+                        <label class="form-check-label" for="nmapScriptDefault">default</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="nmapScriptSafe">
+                        <label class="form-check-label" for="nmapScriptSafe">safe</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="nmapScriptVuln">
+                        <label class="form-check-label" for="nmapScriptVuln">vuln</label>
+                    </div>
                 </div>
 
-                <!-- Dig Form -->
-                <div class="tab-pane fade" id="dig-pane" role="tabpanel">
-                    <form id="digScanForm" class="row g-3">
-                        <div class="col-md-6">
-                            <label for="digDomain" class="form-label">Домен</label>
-                            <input type="text" class="form-control" id="digDomain" required placeholder="example.com">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="digType" class="form-label">Тип записи</label>
-                            <select class="form-select" id="digType">
-                                <option value="ANY" selected>ANY</option>
-                                <option value="A">A</option>
-                                <option value="AAAA">AAAA</option>
-                                <option value="MX">MX</option>
-                                <option value="TXT">TXT</option>
-                                <option value="NS">NS</option>
-                            </select>
-                        </div>
-                        <div class="col-12">
-                            <button type="submit" class="btn btn-success"><i class="bi bi-play-fill"></i> Запустить Dig</button>
-                        </div>
-                    </form>
+                <div class="col-12 mt-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="nmapSaveAssets" checked>
+                        <label class="form-check-label" for="nmapSaveAssets">Сохранять найденные активы в базу</label>
+                    </div>
                 </div>
-            </div>
+
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-play-fill"></i> Запустить Nmap</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Rustscan Form -->
+        <div class="tab-pane fade" id="rustscan-pane" role="tabpanel">
+            <form id="rustscanScanForm" class="row g-3">
+                <div class="col-md-8">
+                    <label for="rustscanTarget" class="form-label">Цель (IP или диапазон)</label>
+                    <input type="text" class="form-control" id="rustscanTarget" required placeholder="192.168.1.1">
+                </div>
+                <div class="col-md-4">
+                    <label for="rustscanTopPorts" class="form-label">Топ портов</label>
+                    <select class="form-select" id="rustscanTopPorts">
+                        <option value="1000">Топ-1000</option>
+                        <option value="500">Топ-500</option>
+                        <option value="100">Топ-100</option>
+                        <option value="all">Все (1-65535)</option>
+                        <option value="custom">Свой диапазон</option>
+                    </select>
+                </div>
+
+                <div class="col-md-6 d-none" id="rustscanPortsContainer">
+                    <label for="rustscanPortsRange" class="form-label">Диапазон портов</label>
+                    <input type="text" class="form-control" id="rustscanPortsRange" placeholder="1-1000, 80, 443">
+                </div>
+
+                <div class="col-md-6">
+                    <label for="rustscanCustomArgs" class="form-label">Доп. аргументы</label>
+                    <input type="text" class="form-control" id="rustscanCustomArgs" placeholder="-u 5000 -t 2500">
+                    <div class="form-text">Например: -u (ултра) или -t (таймаут).</div>
+                </div>
+
+                <div class="col-12 mt-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="rustscanSaveAssets" checked>
+                        <label class="form-check-label" for="rustscanSaveAssets">Сохранять активы</label>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <button type="submit" class="btn btn-success"><i class="bi bi-play-fill"></i> Запустить Rustscan</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Dig Form -->
+        <div class="tab-pane fade" id="dig-pane" role="tabpanel">
+            <form id="digScanForm" class="row g-3">
+                <div class="col-md-6">
+                    <label for="digDomain" class="form-label">Домен</label>
+                    <input type="text" class="form-control" id="digDomain" required placeholder="example.com">
+                </div>
+                <div class="col-md-3">
+                    <label for="digType" class="form-label">Тип записи</label>
+                    <select class="form-select" id="digType">
+                        <option value="ANY">ANY</option>
+                        <option value="A">A</option>
+                        <option value="AAAA">AAAA</option>
+                        <option value="MX">MX</option>
+                        <option value="TXT">TXT</option>
+                        <option value="NS">NS</option>
+                        <option value="CNAME">CNAME</option>
+                        <option value="SOA">SOA</option>
+                        <option value="PTR">PTR</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="digServer" class="form-label">DNS Сервер</label>
+                    <input type="text" class="form-control" id="digServer" placeholder="8.8.8.8">
+                    <div class="form-text">Оставьте пустым для системного.</div>
+                </div>
+                
+                <div class="col-md-6">
+                    <label for="digCustomArgs" class="form-label">Доп. аргументы</label>
+                    <input type="text" class="form-control" id="digCustomArgs" placeholder="+short +trace">
+                </div>
+
+                <div class="col-12 mt-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="digSaveAssets" checked>
+                        <label class="form-check-label" for="digSaveAssets">Создавать активы из DNS записей</label>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <button type="submit" class="btn btn-info text-white"><i class="bi bi-play-fill"></i> Запустить Dig</button>
+                </div>
+            </form>
         </div>
     </div>
 
-    <!-- История сканирований (Бесконечная прокрутка) -->
-    <div class="row mt-5">
+    <!-- Активные задачи -->
+    <div class="row mb-5">
         <div class="col-12">
-            <h4><i class="bi bi-clock-history"></i> История сканирований</h4>
+            <h4 class="text-primary"><i class="bi bi-clock-history"></i> Активные сканирования</h4>
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
                     <thead class="table-light">
@@ -107,8 +181,33 @@
                             <th>Тип</th>
                             <th>Цель</th>
                             <th>Статус</th>
-                            <th>Прогресс</th>
+                            <th style="width: 200px;">Прогресс</th>
                             <th>Начало</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activeScansBody">
+                        <tr><td colspan="7" class="text-center text-muted">Нет активных задач</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- История сканирований -->
+    <div class="row">
+        <div class="col-12">
+            <h4><i class="bi bi-archive"></i> История сканирований</h4>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Тип</th>
+                            <th>Цель</th>
+                            <th>Статус</th>
+                            <th>Длительность</th>
+                            <th>Завершено</th>
                             <th>Действия</th>
                         </tr>
                     </thead>
@@ -129,16 +228,19 @@
     </div>
 </div>
 
-<!-- Модальное окно нового сканирования (заглушка, если нужно переопределить поведение кнопок) -->
-<div class="modal fade" id="newScanModal" tabindex="-1">
-    <div class="modal-dialog">
+<!-- Модальное окно логов (Real-time) -->
+<div class="modal fade" id="scanLogsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Новое сканирование</h5>
+                <h5 class="modal-title">Логи сканирования <span id="logScanId"></span></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
-                <p>Используйте вкладки выше для настройки и запуска сканирования.</p>
+            <div class="modal-body bg-dark text-white font-monospace p-3" id="scanLogContent" style="height: 400px; overflow-y: auto;">
+                Ожидание логов...
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
             </div>
         </div>
     </div>
@@ -146,10 +248,10 @@
 
 <!-- Модальное окно результатов -->
 <div class="modal fade" id="scanResultModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Результаты сканирования</h5>
+                <h5 class="modal-title">Результаты сканирования <span id="resultScanId"></span></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body" id="scanResultContent">
