@@ -172,15 +172,33 @@ async def get_assets(
     
     # Отладочная информация
     logger.info(f"[DEBUG] GET /api/assets: found {len(assets)} assets")
+    
+    # Явно формируем ответ в виде списка словарей для корректной сериализации
+    assets_data = []
     for asset in assets:
         groups_info = []
         group_ids = []
         if asset.groups:
             groups_info = [g.name if hasattr(g, 'name') else str(g) for g in asset.groups]
             group_ids = [g.id if hasattr(g, 'id') else None for g in asset.groups]
+        
         logger.info(f"[DEBUG] Asset {asset.id} ({asset.ip_address}): group_ids={group_ids}, groups={groups_info}")
+        
+        # Создаем словарь вручную, чтобы избежать проблем с сериализацией ORM-объектов
+        asset_dict = {
+            "id": asset.id,
+            "ip_address": asset.ip_address,
+            "hostname": asset.hostname,
+            "os": asset.os,
+            "status": asset.status,
+            "source": asset.source,
+            "created_at": asset.created_at,
+            "updated_at": asset.updated_at,
+            "groups": group_ids  # Передаем только ID групп (список чисел)
+        }
+        assets_data.append(asset_dict)
     
-    return assets
+    return assets_data
 
 
 @router.get("/{asset_id}", response_model=AssetResponse)
