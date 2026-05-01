@@ -39,5 +39,7 @@ class AssetResponse(BaseModel):
     status: Optional[str] = "active"
     location: Optional[str] = None
     group_id: Optional[int] = None  # Возвращаем ID первой группы для совместимости
+    group_name: Optional[str] = None  # Добавляем имя группы для отображения
+    groups: Optional[List[dict]] = None  # Добавляем полную информацию о группах
     created_at: datetime
     updated_at: Optional[datetime] = None

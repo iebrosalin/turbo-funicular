@@ -1,5 +1,6 @@
 // static/js/modules/assets.js
 import { store } from './index.js';
+import { Utils } from './utils.js';
 
 export class AssetManager {
   constructor(targetTableId = 'assets-body') {
@@ -36,6 +37,125 @@ export class AssetManager {
         }
       }
     });
+  }
+
+  /**
+   * Отрисовка таблицы активов
+   * @param {Array} assets - Массив активов
+   * @param {Array} visibleColumns - Список видимых колонок
+   */
+  render(assets, visibleColumns) {
+    console.log('[AssetManager] render called with', assets.length, 'assets');
+    console.log('[AssetManager] visibleColumns:', visibleColumns);
+    
+    if (!this.tbody) {
+      console.error('[AssetManager] tbody not found');
+      return;
+    }
+
+    this.tbody.innerHTML = '';
+    
+    if (!assets || assets.length === 0) {
+      this.tbody.innerHTML = '<tr><td colspan="100" class="text-center text-muted">Активы не найдены</td></tr>';
+      return;
+    }
+
+    assets.forEach(asset => {
+      const row = this.createRow(asset, visibleColumns);
+      if (row) {
+        this.tbody.appendChild(row);
+      }
+    });
+    
+    console.log('[AssetManager] rendered', this.tbody.querySelectorAll('tr').length, 'rows');
+  }
+
+  /**
+   * Создание строки таблицы для актива
+   * @param {Object} asset - Объект актива
+   * @param {Array} visibleColumns - Список видимых колонок
+   * @returns {HTMLTableRowElement}
+   */
+  createRow(asset, visibleColumns) {
+    console.log('[AssetManager] createRow for asset:', asset);
+    
+    const tr = document.createElement('tr');
+    tr.className = 'asset-row';
+    tr.style.cursor = 'pointer';
+    
+    // Чекбокс выбора
+    const tdCheckbox = document.createElement('td');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'form-check-input asset-checkbox';
+    checkbox.value = asset.id;
+    tdCheckbox.appendChild(checkbox);
+    tr.appendChild(tdCheckbox);
+    
+    // Колонки данных
+    const columns = visibleColumns || ['ip_address', 'hostname', 'os_family', 'status', 'device_type', 'open_ports', 'group_name', 'source'];
+    
+    columns.forEach(col => {
+      const td = document.createElement('td');
+      let value = asset[col];
+      
+      // Особая обработка для группы
+      if (col === 'group_name' || col === 'group_id') {
+        console.log('[AssetManager] Processing group for asset', asset.id, ':', asset.groups, 'group_id:', asset.group_id);
+        
+        if (asset.groups && Array.isArray(asset.groups) && asset.groups.length > 0) {
+          // groups - это массив объектов или строк
+          const groupName = typeof asset.groups[0] === 'object' ? asset.groups[0].name : asset.groups[0];
+          value = groupName;
+          console.log('[AssetManager] Group name from groups array:', value);
+        } else if (asset.group_name) {
+          value = asset.group_name;
+          console.log('[AssetManager] Group name from group_name field:', value);
+        } else if (asset.group_id) {
+          value = `ID: ${asset.group_id}`;
+          console.log('[AssetManager] Only group_id available:', value);
+        } else {
+          value = 'Без группы';
+          console.log('[AssetManager] No group information');
+        }
+      }
+      
+      // Обработка портов
+      if (col === 'open_ports') {
+        if (!value || (Array.isArray(value) && value.length === 0)) {
+          value = '-';
+        } else if (Array.isArray(value)) {
+          value = value.join(', ');
+        }
+      }
+      
+      // Обработка null/undefined
+      if (value === null || value === undefined) {
+        value = '<span class="text-muted">-</span>';
+      } else if (col === 'status') {
+        // Бейдж для статуса
+        const badgeClass = value === 'active' ? 'success' : 'secondary';
+        value = `<span class="badge bg-${badgeClass}">${value}</span>`;
+      } else if (col === 'ip_address') {
+        // Жирный шрифт для IP
+        value = `<strong>${value}</strong>`;
+      }
+      
+      td.innerHTML = value;
+      tr.appendChild(td);
+    });
+    
+    // Колонка действий
+    const tdActions = document.createElement('td');
+    tdActions.className = 'text-end';
+    tdActions.innerHTML = `
+      <button class="btn btn-sm btn-outline-primary edit-asset-btn" data-id="${asset.id}" title="Редактировать">
+        <i class="bi bi-pencil"></i>
+      </button>
+    `;
+    tr.appendChild(tdActions);
+    
+    return tr;
   }
 
   #handleSelectAll(checkbox) {
