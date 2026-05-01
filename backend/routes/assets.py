@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from typing import List, Optional
+from typing import List, Optional, Any
+from pydantic import BaseModel
 from backend.db.session import get_db
 from backend.services.asset_service import AssetService
 from backend.schemas.asset import AssetCreate, AssetUpdate, AssetResponse
@@ -9,6 +10,74 @@ from backend.models.asset import Asset
 
 router = APIRouter(tags=["assets"])
 assets_router = router  # Алиас для совместимости импортов
+
+
+class FilterRule(BaseModel):
+    field: str
+    operation: str
+    value: str
+
+
+class FilterRequest(BaseModel):
+    rules: List[FilterRule]
+
+
+@router.post("/count", response_model=dict)
+async def count_assets_by_filter(
+    filter_request: FilterRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Подсчитать количество активов по правилам фильтрации."""
+    service = AssetService(db)
+    
+    # Получаем все активы и фильтруем на уровне Python (упрощенно)
+    # В будущем можно оптимизировать через SQL запросы
+    assets = await service.get_all()
+    
+    filtered = []
+    for asset in assets:
+        match = True
+        for rule in filter_request.rules:
+            field_value = getattr(asset, rule.field, None)
+            if field_value is None:
+                # Поле не найдено в модели, пробуем альтернативные имена
+                if rule.field == 'ip_address':
+                    field_value = getattr(asset, 'ip', None)
+                elif rule.field == 'os_info':
+                    field_value = getattr(asset, 'os_family', None)
+                elif rule.field == 'device_role':
+                    field_value = getattr(asset, 'role', None)
+                elif rule.field == 'scanners_used':
+                    field_value = getattr(asset, 'scanners', None)
+            
+            if field_value is None:
+                field_value = ''
+            else:
+                field_value = str(field_value).lower()
+            
+            search_value = rule.value.lower()
+            
+            if rule.operation == 'eq':
+                if field_value != search_value:
+                    match = False
+            elif rule.operation == 'neq':
+                if field_value == search_value:
+                    match = False
+            elif rule.operation == 'contains':
+                if search_value not in field_value:
+                    match = False
+            elif rule.operation == 'in':
+                values_list = [v.strip().lower() for v in search_value.split(',')]
+                if field_value not in values_list:
+                    match = False
+            
+            if not match:
+                break
+        
+        if match:
+            filtered.append(asset)
+    
+    return {"count": len(filtered)}
 
 
 @router.get("", response_model=List[AssetResponse])

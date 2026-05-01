@@ -95,9 +95,17 @@ export class GroupManager {
       if (nameInput) nameInput.required = true;
       if (parentSelect) parentSelect.disabled = false;
       
+      // Инициализируем FilterBuilder если еще не создан
       const root = document.getElementById('group-filter-root');
-      if (root && root.children.length === 0) {
-        this.addDynamicRule();
+      if (root && !this.dynamicFilterBuilder) {
+        this.dynamicFilterBuilder = new FilterBuilder('group-filter-root', {
+          mode: 'modal',
+          onApply: (rules) => {
+            console.log('Modal filter rules:', rules);
+            // Правила сохраняются в форму при отправке
+          },
+          initialRules: []
+        });
       }
     }
   }
@@ -176,14 +184,29 @@ export class GroupManager {
       if (dynCheck) dynCheck.checked = false;
     }
     
+    // Сбрасываем старый FilterBuilder если был
+    if (this.dynamicFilterBuilder) {
+      this.dynamicFilterBuilder = null;
+    }
+    
     this.toggleGroupMode();
 
-    if (groupData.is_dynamic && groupData.filter_rules) {
-      const root = document.getElementById('group-filter-root');
-      if (root) root.innerHTML = '';
-      groupData.filter_rules.forEach(rule => {
-        this.addDynamicRule(rule.field, rule.op, rule.value);
-      });
+    // Инициализируем FilterBuilder с правилами из группы
+    if (groupData.is_dynamic && groupData.filter_rules && groupData.filter_rules.length > 0) {
+      // Ждем пока toggleGroupMode создаст экземпляр, затем загружаем правила
+      setTimeout(() => {
+        if (this.dynamicFilterBuilder) {
+          // Очищаем и добавляем правила
+          this.dynamicFilterBuilder.container.querySelector('.filter-rules').innerHTML = '';
+          groupData.filter_rules.forEach(rule => {
+            this.dynamicFilterBuilder.addRuleRow({
+              field: rule.field,
+              operation: rule.op,
+              value: rule.value
+            });
+          });
+        }
+      }, 100);
     }
 
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
@@ -212,13 +235,15 @@ export class GroupManager {
       payload.cidr_network = cidr;
       payload.cidr_mask = mask;
     } else if (mode === 'dynamic') {
-      const rules = [];
-      document.querySelectorAll('.filter-condition').forEach(el => {
-        const field = el.querySelector('.rule-field').value;
-        const op = el.querySelector('.rule-op').value;
-        const value = el.querySelector('.rule-val').value.trim();
-        if (field && value) rules.push({ field, op, value });
-      });
+      // Получаем правила из FilterBuilder
+      let rules = [];
+      if (this.dynamicFilterBuilder) {
+        rules = this.dynamicFilterBuilder.getRules().map(r => ({
+          field: r.field,
+          op: r.operation,
+          value: r.value
+        }));
+      }
       payload.filter_rules = rules;
     }
 
@@ -238,6 +263,11 @@ export class GroupManager {
       }
 
       Utils.closeModalById('groupEditModal');
+      
+      // Сбрасываем ссылку на FilterBuilder
+      if (this.dynamicFilterBuilder) {
+        this.dynamicFilterBuilder = null;
+      }
       
       // Обновляем дерево и список активов
       await refreshGroupTree();
