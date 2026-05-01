@@ -954,3 +954,12 @@ async def delete_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
     success = await service.delete(scan_id)
     if not success:
         raise HTTPException(status_code=404, detail="Сканирование не найдено")
+
+# -----------------------------------------------------------------------------
+# Страница истории сканирований
+# -----------------------------------------------------------------------------
+
+@router.get("/history", response_class=HTMLResponse)
+async def scan_history_page(request: Request):
+    """Страница истории сканирований."""
+    return templates.TemplateResponse("scan_history.html", {"request": request})
