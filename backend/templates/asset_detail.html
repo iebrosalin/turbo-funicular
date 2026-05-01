@@ -10,14 +10,15 @@
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index">Дашборд</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Дашборд</a></li>
                     <li class="breadcrumb-item active" aria-current="page">{{ asset.ip_address }} {% if asset.fqdn %}({{ asset.fqdn }}){% endif %}</li>
                 </ol>
             </nav>
             <h2><i class="bi bi-pc-display"></i> {{ asset.hostname or "Без имени" }} 
                 <small class="text-muted fs-4">({{ asset.ip_address }})</small>
             </h2>
-            <span class="badge bg-{{ 'success' if asset.status == 'active' else 'secondary' }}">{{ asset.status }}</span>
+            {% set status_badge = 'success' if asset.status == 'active' else 'secondary' %}
+            <span class="badge bg-{{ status_badge }}">{{ asset.status }}</span>
             <span class="badge bg-info">{{ asset.device_type }}</span>
             {% if asset.os_family %}
                 <span class="badge bg-secondary">{{ asset.os_family }} {{ asset.os_version }}</span>
