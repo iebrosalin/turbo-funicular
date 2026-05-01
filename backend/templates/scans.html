@@ -112,6 +112,19 @@
 
                 <div class="col-12 mt-3">
                     <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="rustscanRunNmapAfter">
+                        <label class="form-check-label" for="rustscanRunNmapAfter">Запустить Nmap по открытым портам</label>
+                    </div>
+                </div>
+
+                <div class="col-md-8 d-none" id="rustscanNmapArgsContainer">
+                    <label for="rustscanNmapArgs" class="form-label">Аргументы для Nmap</label>
+                    <input type="text" class="form-control" id="rustscanNmapArgs" placeholder="-sV -sC -O">
+                    <div class="form-text">Аргументы, которые будут переданы в Nmap после сканирования портов.</div>
+                </div>
+
+                <div class="col-12 mt-3">
+                    <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="rustscanSaveAssets" checked>
                         <label class="form-check-label" for="rustscanSaveAssets">Сохранять активы</label>
                     </div>
@@ -169,12 +182,77 @@
         </div>
     </div>
 
-    <!-- Активные задачи -->
+    <!-- Очереди сканирования -->
     <div class="row mb-5">
-        <div class="col-12">
-            <h4 class="text-primary"><i class="bi bi-clock-history"></i> Активные сканирования</h4>
+        <!-- Эксклюзивная очередь (Nmap, Rustscan) -->
+        <div class="col-md-6 mb-4">
+            <h5 class="text-warning"><i class="bi bi-lock-fill"></i> Эксклюзивная очередь (Nmap / Rustscan)</h5>
+            <p class="text-muted small">Только одна задача этого типа может выполняться одновременно.</p>
             <div class="table-responsive">
-                <table class="table table-hover align-middle">
+                <table class="table table-sm table-hover align-middle" id="exclusive-queue-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Тип</th>
+                            <th>Цель</th>
+                            <th>Статус</th>
+                            <th>Прогресс</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody><!-- Заполняется JS --></tbody>
+                </table>
+            </div>
+            <div id="exclusive-empty" class="text-center py-3 text-muted" style="display:none;">Очередь пуста</div>
+        </div>
+
+        <!-- Параллельная очередь (Dig и др.) -->
+        <div class="col-md-6 mb-4">
+            <h5 class="text-success"><i class="bi bi-layers-fill"></i> Параллельная очередь (Dig, др.)</h5>
+            <p class="text-muted small">Может выполняться несколько задач одновременно.</p>
+            <div class="table-responsive">
+                <table class="table table-sm table-hover align-middle" id="parallel-queue-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th>ID</th>
+                            <th>Тип</th>
+                            <th>Цель</th>
+                            <th>Статус</th>
+                            <th>Прогресс</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody><!-- Заполняется JS --></tbody>
+                </table>
+            </div>
+            <div id="parallel-empty" class="text-center py-3 text-muted" style="display:none;">Очередь пуста</div>
+        </div>
+    </div>
+
+    <!-- История сканирований -->
+    <div class="mb-5">
+        <h4 class="text-primary"><i class="bi bi-clock-history"></i> История сканирований</h4>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle" id="history-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>ID</th>
+                        <th>Дата</th>
+                        <th>Тип</th>
+                        <th>Цель</th>
+                        <th>Статус</th>
+                        <th>Длительность</th>
+                        <th>Действия</th>
+                    </tr>
+                </thead>
+                <tbody><!-- Заполняется JS --></tbody>
+            </table>
+        </div>
+        <div id="history-empty" class="text-center py-3 text-muted" style="display:none;">История пуста</div>
+        <div class="text-center mt-2">
+            <button class="btn btn-sm btn-outline-secondary" id="load-more-history">Загрузить еще</button>
+        </div>
+    </div>
                     <thead class="table-light">
                         <tr>
                             <th>ID</th>

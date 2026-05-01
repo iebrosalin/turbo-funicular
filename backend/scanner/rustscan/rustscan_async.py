@@ -25,9 +25,11 @@ class RustscanScanner:
         target: str,
         ports: str = '',
         custom_args: str = '',
-        group_ids: Optional[List[int]] = None
+        group_ids: Optional[List[int]] = None,
+        run_nmap_after: bool = False,
+        nmap_args: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Запуск сканирования Rustscan."""
+        """Запуск сканирования Rustscan с опциональным запуском Nmap после."""
         output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
         os.makedirs(output_dir, exist_ok=True)
         base_name = os.path.join(output_dir, 'rustscan')
@@ -75,6 +77,11 @@ class RustscanScanner:
                 scanned_at=datetime.now()
             )
             db.add(scan_result)
+            
+            # Если запрошено, запускаем Nmap по найденным портам
+            if run_nmap_after and found_ports:
+                logger.info(f"[Rustscan] Запуск Nmap для {target} с аргументами: {nmap_args}")
+                await self._trigger_nmap_scan(db, target, found_ports, nmap_args)
             
             job = await db.get(ScanJob, job_id)
             if job:
@@ -161,3 +168,56 @@ class RustscanScanner:
                 logger.info(f"[Rustscan] Актив {ip} проверен, новые порты не найдены")
         
         await db.commit()
+
+    async def _trigger_nmap_scan(self, db: AsyncSession, target: str, found_ports: Dict[str, List[int]], nmap_args: Optional[str]):
+        """Создание задачи Nmap для сканирования найденных портов."""
+        from backend.models.scan import Scan, ScanJob
+        from datetime import datetime
+        
+        # Формируем список портов через запятую
+        all_ports = set()
+        for ports in found_ports.values():
+            all_ports.update(ports)
+        ports_str = ','.join(map(str, sorted(all_ports)))
+        
+        # Создаем новую запись Scan
+        new_scan = Scan(
+            target=target,
+            scan_type='nmap',
+            profile='custom',
+            status='pending',
+            progress=0.0,
+            created_at=datetime.utcnow()
+        )
+        db.add(new_scan)
+        await db.flush()  # Получаем ID
+        
+        # Создаем задачу ScanJob
+        new_job = ScanJob(
+            scan_id=new_scan.id,
+            job_type='nmap',
+            status='pending',
+            priority=5,
+            created_at=datetime.utcnow(),
+            parameters={
+                'target': target,
+                'ports': ports_str,
+                'custom_args': nmap_args or '',
+                'source': 'rustscan_auto'
+            }
+        )
+        db.add(new_job)
+        await db.commit()
+        
+        logger.info(f"[Rustscan] Создана задача Nmap (job_id={new_job.id}) для портов: {ports_str}")
+        
+        # Запускаем задачу немедленно через ScanQueueManager
+        from backend.services.scan_queue_manager import scan_queue_manager
+        # Добавляем задачу в очередь, откуда она будет подхвачена воркером
+        asyncio.create_task(scan_queue_manager.add_scan_simple(
+            job_id=new_job.id,
+            scan_type='nmap',
+            target=target,
+            ports=ports_str,
+            custom_args=nmap_args or ''
+        ))

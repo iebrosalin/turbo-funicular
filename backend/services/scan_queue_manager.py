@@ -73,6 +73,46 @@ class ScanQueueManager:
         
         return task
     
+    async def add_scan_simple(
+        self,
+        job_id: int,
+        scan_type: str,
+        target: str,
+        ports: str = '',
+        custom_args: str = ''
+    ):
+        """Упрощённый метод добавления задачи (для вызова из rustscan)."""
+        from backend.db.session import async_session_maker
+        from backend.models.scan import ScanJob
+        
+        logger.info(f"Добавление задачи сканирования {job_id} ({scan_type}) через add_scan_simple")
+        
+        async with async_session_maker() as db:
+            job = await db.get(ScanJob, job_id)
+            if not job:
+                raise ValueError(f"Задача сканирования {job_id} не найдена")
+            
+            job.parameters = {
+                'target': target,
+                'ports': ports,
+                'custom_args': custom_args,
+                'source': 'rustscan_auto'
+            }
+            await db.commit()
+            
+            # Создаём асинхронную задачу
+            task = asyncio.create_task(
+                self._run_scan(job_id, scan_type, [target], job.parameters)
+            )
+            self._tasks[job_id] = task
+            self._progress[job_id] = {
+                "total": 1,
+                "current": 0,
+                "started_at": datetime.utcnow()
+            }
+            
+            return task
+    
     async def _run_scan(
         self,
         scan_job_id: int,
@@ -139,7 +179,9 @@ class ScanQueueManager:
                                 target=target,
                                 ports=parameters.get('ports', ''),
                                 custom_args=parameters.get('custom_args', ''),
-                                group_ids=parameters.get('group_ids')
+                                group_ids=parameters.get('group_ids'),
+                                run_nmap_after=parameters.get('run_nmap_after', False),
+                                nmap_args=parameters.get('nmap_args')
                             )
                         elif scan_type == 'dig':
                             result_data = await scanner.scan(
