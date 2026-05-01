@@ -1,5 +1,60 @@
 <!-- templates/components/modals_scans.html -->
 
+<!-- Модальное окно запуска сканирования -->
+<div class="modal fade" id="scanModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="scanForm">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-wifi"></i> Новое сканирование</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Целевые хосты</label>
+                        <input type="text" name="target" id="scan-target" class="form-control" 
+                               placeholder="192.168.1.0/24 или 10.0.0.1,10.0.0.2" required>
+                        <div class="form-text">IP адреса, диапазоны или CIDR через запятую</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Порты</label>
+                        <input type="text" name="ports" id="scan-ports" class="form-control" 
+                               placeholder="80,443,22 или 1-1000">
+                        <div class="form-text">Оставьте пустым для сканирования топ-1000 портов</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Группа назначения</label>
+                        <select name="group_id" id="scan-group-id" class="form-select hierarchy-select">
+                            <option value="">Без группы</option>
+                            {% if all_groups %}
+                                {% for g in all_groups %}
+                                    <option value="{{ g.id }}">{% if g.depth > 0 %}{{ '    ' * g.depth }}└─ {% endif %}{{ g.name }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Тип сканирования</label>
+                        <select name="scan_type" id="scan-type" class="form-select">
+                            <option value="quick">Быстрое (топ-100 портов)</option>
+                            <option value="standard" selected>Стандартное (топ-1000 портов)</option>
+                            <option value="full">Полное (все порты 1-65535)</option>
+                            <option value="custom">Свои порты</option>
+                        </select>
+                    </div>
+                    <div id="scan-progress" class="progress mt-3" style="display:none;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-play-fill"></i> Запустить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- Модальное окно ошибки сканирования -->
 <div class="modal fade" id="scanErrorModal" tabindex="-1">
     <div class="modal-dialog modal-lg">

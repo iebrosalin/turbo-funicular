@@ -1,0 +1,532 @@
+{% extends "base.html" %}
+
+{% block title %}UI Kit - Компоненты{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="h3 mb-3">UI Kit - Компоненты интерфейса</h1>
+            <p class="text-muted">Демонстрация всех компонентов в текущей теме (светлая/тёмная)</p>
+        </div>
+    </div>
+
+    <!-- Цвета темы -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">🎨 Цветовая палитра темы</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-2 col-sm-4">
+                            <div class="p-3 rounded text-center theme-bg-primary text-primary-emphasis">
+                                <strong>Primary</strong>
+                                <small class="d-block mt-2">Основной</small>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-4">
+                            <div class="p-3 rounded text-center theme-bg-secondary text-secondary-emphasis">
+                                <strong>Secondary</strong>
+                                <small class="d-block mt-2">Вторичный</small>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-4">
+                            <div class="p-3 rounded text-center theme-bg-success text-success-emphasis">
+                                <strong>Success</strong>
+                                <small class="d-block mt-2">Успех</small>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-4">
+                            <div class="p-3 rounded text-center theme-bg-danger text-danger-emphasis">
+                                <strong>Danger</strong>
+                                <small class="d-block mt-2">Ошибка</small>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-4">
+                            <div class="p-3 rounded text-center theme-bg-warning text-warning-emphasis">
+                                <strong>Warning</strong>
+                                <small class="d-block mt-2">Предупреждение</small>
+                            </div>
+                        </div>
+                        <div class="col-md-2 col-sm-4">
+                            <div class="p-3 rounded text-center theme-bg-info text-info-emphasis">
+                                <strong>Info</strong>
+                                <small class="d-block mt-2">Инфо</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row g-3 mt-1">
+                        <div class="col-md-3 col-sm-6">
+                            <div class="p-3 rounded text-center" style="background-color: var(--bs-body-bg); color: var(--bs-body-color); border: 1px solid var(--bs-border-color);">
+                                <strong>Body BG</strong>
+                                <small class="d-block mt-2">Фон страницы</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <div class="p-3 rounded text-center" style="background-color: var(--bs-body-color); color: var(--bs-body-bg);">
+                                <strong>Body Color</strong>
+                                <small class="d-block mt-2">Основной текст</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <div class="p-3 rounded text-center" style="background-color: var(--bs-tertiary-bg); color: var(--bs-body-color); border: 1px solid var(--bs-border-color);">
+                                <strong>Tertiary BG</strong>
+                                <small class="d-block mt-2">Третичный фон</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-sm-6">
+                            <div class="p-3 rounded text-center" style="background-color: var(--bs-emphasis-color); color: var(--bs-body-bg);">
+                                <strong>Emphasis</strong>
+                                <small class="d-block mt-2">Акцентный цвет</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Типографика -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">📝 Типографика</h5>
+                </div>
+                <div class="card-body">
+                    <h1>Заголовок H1</h1>
+                    <h2>Заголовок H2</h2>
+                    <h3>Заголовок H3</h3>
+                    <h4>Заголовок H4</h4>
+                    <h5>Заголовок H5</h5>
+                    <h6>Заголовок H6</h6>
+                    <hr>
+                    <p class="lead">Lead текст - выделенный абзац</p>
+                    <p>Обычный параграф текста. Проверяем читаемость в обеих темах.</p>
+                    <p class="text-muted">Приглушённый текст (muted)</p>
+                    <p><a href="#" class="text-decoration-none">Ссылка без подчёркивания</a></p>
+                    <p><strong>Жирный текст</strong>, <em>курсив</em>, <mark>выделенный текст</mark></p>
+                    <p><small>Мелкий текст (small)</small></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Кнопки -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">🔘 Кнопки</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="mb-3">Основные кнопки:</h6>
+                    <div class="mb-3">
+                        <button class="btn btn-primary me-2 mb-2">Primary</button>
+                        <button class="btn btn-secondary me-2 mb-2">Secondary</button>
+                        <button class="btn btn-success me-2 mb-2">Success</button>
+                        <button class="btn btn-danger me-2 mb-2">Danger</button>
+                        <button class="btn btn-warning me-2 mb-2">Warning</button>
+                        <button class="btn btn-info me-2 mb-2">Info</button>
+                        <button class="btn btn-light me-2 mb-2">Light</button>
+                        <button class="btn btn-dark me-2 mb-2">Dark</button>
+                    </div>
+
+                    <h6 class="mb-3">Outline кнопки:</h6>
+                    <div class="mb-3">
+                        <button class="btn btn-outline-primary me-2 mb-2">Primary</button>
+                        <button class="btn btn-outline-secondary me-2 mb-2">Secondary</button>
+                        <button class="btn btn-outline-success me-2 mb-2">Success</button>
+                        <button class="btn btn-outline-danger me-2 mb-2">Danger</button>
+                        <button class="btn btn-outline-warning me-2 mb-2">Warning</button>
+                        <button class="btn btn-outline-info me-2 mb-2">Info</button>
+                        <button class="btn btn-outline-light me-2 mb-2">Light</button>
+                        <button class="btn btn-outline-dark me-2 mb-2">Dark</button>
+                    </div>
+
+                    <h6 class="mb-3">Размеры кнопок:</h6>
+                    <div class="mb-3">
+                        <button class="btn btn-primary btn-lg me-2 mb-2">Large</button>
+                        <button class="btn btn-primary me-2 mb-2">Default</button>
+                        <button class="btn btn-primary btn-sm me-2 mb-2">Small</button>
+                    </div>
+
+                    <h6 class="mb-3">Кнопки с иконками:</h6>
+                    <div class="mb-3">
+                        <button class="btn btn-outline-dark me-2 mb-2">
+                            <i class="bi bi-wifi"></i> Сканирования
+                        </button>
+                        <button class="btn btn-outline-dark me-2 mb-2">
+                            <i class="bi bi-funnel"></i> Фильтры
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary me-2 mb-2">
+                            <i class="bi bi-x-lg"></i> Снять
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary me-2 mb-2">
+                            <i class="bi bi-folder2-open"></i> В группу
+                        </button>
+                        <button class="btn btn-sm btn-danger me-2 mb-2">
+                            <i class="bi bi-trash"></i> Удалить
+                        </button>
+                    </div>
+
+                    <h6 class="mb-3">Состояния кнопок:</h6>
+                    <div class="mb-3">
+                        <button class="btn btn-primary me-2 mb-2" disabled>Disabled</button>
+                        <button class="btn btn-primary me-2 mb-2">
+                            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            Loading...
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Формы -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">📋 Формы</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Text Input</label>
+                                <input type="text" class="form-control" placeholder="Введите текст">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Select</label>
+                                <select class="form-select" id="data-source-filter">
+                                    <option value="all">Все источники</option>
+                                    <option value="scanning">🔍 Сканирование</option>
+                                    <option value="manual">✏️ Ручной</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Textarea</label>
+                                <textarea class="form-control" rows="3"></textarea>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Checkbox</label>
+                                <div>
+                                    <input type="checkbox" class="form-check-input" id="check1" checked>
+                                    <label class="form-check-label ms-2" for="check1">Checked</label>
+                                </div>
+                                <div>
+                                    <input type="checkbox" class="form-check-input" id="check2">
+                                    <label class="form-check-label ms-2" for="check2">Unchecked</label>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Radio</label>
+                                <div>
+                                    <input type="radio" class="form-check-input" name="radio1" id="radio1" checked>
+                                    <label class="form-check-label ms-2" for="radio1">Option 1</label>
+                                </div>
+                                <div>
+                                    <input type="radio" class="form-check-input" name="radio1" id="radio2">
+                                    <label class="form-check-label ms-2" for="radio2">Option 2</label>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Switch</label>
+                                <div>
+                                    <input type="checkbox" class="form-check-input form-switch" id="switch1" checked>
+                                    <label class="form-check-label ms-2" for="switch1">Enabled</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Таблицы -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">📊 Таблицы</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="mb-3">Стандартная таблица:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:40px"><input type="checkbox" class="form-check-input"></th>
+                                    <th>IP</th>
+                                    <th>Hostname</th>
+                                    <th>OS</th>
+                                    <th>Порты</th>
+                                    <th>Группа</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><input type="checkbox" class="form-check-input"></td>
+                                    <td>192.168.1.1</td>
+                                    <td>server-01</td>
+                                    <td>Linux</td>
+                                    <td>22, 80, 443</td>
+                                    <td>Servers</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><input type="checkbox" class="form-check-input"></td>
+                                    <td>192.168.1.2</td>
+                                    <td>workstation-01</td>
+                                    <td>Windows</td>
+                                    <td>445, 3389</td>
+                                    <td>Workstations</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><input type="checkbox" class="form-check-input"></td>
+                                    <td>192.168.1.3</td>
+                                    <td>router-01</td>
+                                    <td>Cisco IOS</td>
+                                    <td>22, 23</td>
+                                    <td>Network</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <h6 class="mt-4 mb-3">Таблица с границами:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Name</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>1</td>
+                                    <td>Item 1</td>
+                                    <td><span class="badge bg-success">Active</span></td>
+                                </tr>
+                                <tr>
+                                    <td>2</td>
+                                    <td>Item 2</td>
+                                    <td><span class="badge bg-warning">Pending</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Бейджи и алерты -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">🏷️ Бейджи и Алерты</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="mb-3">Бейджи:</h6>
+                    <div class="mb-4">
+                        <span class="badge bg-primary me-2">Primary</span>
+                        <span class="badge bg-secondary me-2">Secondary</span>
+                        <span class="badge bg-success me-2">Success</span>
+                        <span class="badge bg-danger me-2">Danger</span>
+                        <span class="badge bg-warning me-2">Warning</span>
+                        <span class="badge bg-info me-2">Info</span>
+                        <span class="badge bg-light me-2">Light</span>
+                        <span class="badge bg-dark me-2">Dark</span>
+                    </div>
+
+                    <h6 class="mb-3">Алерты:</h6>
+                    <div class="alert alert-primary" role="alert">
+                        <i class="bi bi-info-circle me-2"></i>Primary alert message
+                    </div>
+                    <div class="alert alert-success" role="alert">
+                        <i class="bi bi-check-circle me-2"></i>Success alert message
+                    </div>
+                    <div class="alert alert-warning" role="alert">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Warning alert message
+                    </div>
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-x-circle me-2"></i>Danger alert message
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Карточки -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">📦 Пример карточки</h5>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">Заголовок карточки</h5>
+                    <p class="card-text">Пример содержимого карточки. Проверяем отображение в текущей теме.</p>
+                    <a href="#" class="btn btn-primary">Действие</a>
+                </div>
+                <div class="card-footer text-muted">
+                    Футер карточки
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card bg-primary text-white">
+                <div class="card-header">
+                    <h5 class="mb-0">Цветная карточка</h5>
+                </div>
+                <div class="card-body">
+                    <h5 class="card-title">Primary фон</h5>
+                    <p class="card-text">Карточка с цветным фоном для акцентов.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Навигация -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">🧭 Навигация</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="mb-3">Tabs:</h6>
+                    <ul class="nav nav-tabs mb-4">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#">Active</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">Link</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">Link</a>
+                        </li>
+                    </ul>
+
+                    <h6 class="mb-3">Pills:</h6>
+                    <ul class="nav nav-pills mb-4">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#">Active</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">Link</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#">Link</a>
+                        </li>
+                    </ul>
+
+                    <h6 class="mb-3">Breadcrumb:</h6>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="#">Home</a></li>
+                            <li class="breadcrumb-item"><a href="#">Library</a></li>
+                            <li class="breadcrumb-item active" aria-current="page">Data</li>
+                        </ol>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress bars -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">📊 Progress Bars</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Default</label>
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar" style="width: 75%">75%</div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Success</label>
+                        <div class="progress">
+                            <div class="progress-bar bg-success" role="progressbar" style="width: 60%">60%</div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Warning</label>
+                        <div class="progress">
+                            <div class="progress-bar bg-warning" role="progressbar" style="width: 45%">45%</div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Danger</label>
+                        <div class="progress">
+                            <div class="progress-bar bg-danger" role="progressbar" style="width: 30%">30%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Утилиты -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">🛠️ Утилиты отображения</h5>
+                </div>
+                <div class="card-body">
+                    <h6 class="mb-3">Текстовые цвета:</h6>
+                    <div class="mb-3">
+                        <p class="text-primary">.text-primary</p>
+                        <p class="text-secondary">.text-secondary</p>
+                        <p class="text-success">.text-success</p>
+                        <p class="text-danger">.text-danger</p>
+                        <p class="text-warning">.text-warning</p>
+                        <p class="text-info">.text-info</p>
+                        <p class="text-muted">.text-muted</p>
+                        <p class="text-body">.text-body</p>
+                    </div>
+
+                    <h6 class="mb-3">Фоновые цвета:</h6>
+                    <div class="mb-3 d-flex flex-wrap gap-2">
+                        <span class="badge bg-primary p-3">.bg-primary</span>
+                        <span class="badge bg-secondary p-3">.bg-secondary</span>
+                        <span class="badge bg-success p-3">.bg-success</span>
+                        <span class="badge bg-danger p-3">.bg-danger</span>
+                        <span class="badge bg-warning p-3">.bg-warning</span>
+                        <span class="badge bg-info p-3">.bg-info</span>
+                        <span class="badge bg-light p-3 text-dark">.bg-light</span>
+                        <span class="badge bg-dark p-3">.bg-dark</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

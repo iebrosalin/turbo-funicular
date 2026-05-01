@@ -27,6 +27,11 @@ export class GroupManager {
   }
 
   #initListeners() {
+    // Обработчик кнопки создания группы
+    document.getElementById('btn-create-group')?.addEventListener('click', () => {
+      this.showCreateGroupModal(null);
+    });
+
     // Обработчик переключения режима группы
     document.querySelectorAll('input[name="groupMode"]').forEach(radio => {
       radio.addEventListener('change', () => this.toggleGroupMode());

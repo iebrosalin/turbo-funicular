@@ -190,3 +190,8 @@ async def utilities(request: Request):
 async def asset_taxonomy(request: Request):
     """Страница таксономии активов."""
     return templates.TemplateResponse("asset_taxonomy.html", {"request": request})
+
+@app.get("/ui-kit")
+async def ui_kit(request: Request):
+    """Страница UI Kit для демонстрации компонентов."""
+    return templates.TemplateResponse("ui_kit.html", {"request": request})
