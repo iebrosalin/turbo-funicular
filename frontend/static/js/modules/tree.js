@@ -49,7 +49,7 @@ export class TreeManager {
       });
     }
     
-    this.#updateCounts(counts);
+    this.#updateCounts(counts, groups);
   }
 
   /**
@@ -75,7 +75,9 @@ export class TreeManager {
     const badge = document.createElement('span');
     badge.className = 'badge bg-secondary ms-auto';
     badge.id = `count-${group.id}`;
-    badge.textContent = counts[group.id] !== undefined ? counts[group.id] : 0;
+    // Используем direct_count из объекта группы или из counts
+    const countValue = group.direct_count ?? counts[group.id] ?? group.assets_count ?? 0;
+    badge.textContent = countValue;
     node.appendChild(badge);
 
     return node;
@@ -85,11 +87,15 @@ export class TreeManager {
    * Обновить счетчики
    * @private
    */
-  #updateCounts(counts) {
+  #updateCounts(counts, groups) {
     let totalDirectCount = 0;
-    store.getState('groups')?.forEach(g => {
-      totalDirectCount += g.direct_count ?? g.count ?? 0;
-    });
+    
+    // Считаем сумму всех direct_count из переданных групп
+    if (groups && Array.isArray(groups)) {
+      groups.forEach(g => {
+        totalDirectCount += g.direct_count ?? g.count ?? 0;
+      });
+    }
     totalDirectCount += counts?.ungrouped ?? 0;
 
     const allBadge = document.getElementById('count-all');
@@ -97,6 +103,16 @@ export class TreeManager {
 
     const ungroupedBadge = document.getElementById('count-ungrouped');
     if (ungroupedBadge) ungroupedBadge.textContent = counts?.ungrouped ?? 0;
+    
+    // Обновляем счетчики для каждой группы в DOM
+    if (groups && Array.isArray(groups)) {
+      groups.forEach(g => {
+        const badge = document.getElementById(`count-${g.id}`);
+        if (badge) {
+          badge.textContent = g.direct_count ?? counts[g.id] ?? g.assets_count ?? 0;
+        }
+      });
+    }
   }
 
   /**

@@ -236,13 +236,20 @@ def build_group_tree(groups: List[Any]) -> List[Dict]:
     def group_to_dict(g):
         if hasattr(g, 'to_dict'):
             return g.to_dict()
-        return {'id': g.id, 'name': g.name, 'assets_count': getattr(g, 'assets_count', 0)}
+        return {
+            'id': g.id, 
+            'name': g.name, 
+            'assets_count': getattr(g, 'assets_count', 0),
+            'direct_count': getattr(g, 'direct_count', 0)
+        }
     
     groups_dict = {}
     for g in groups:
         data = group_to_dict(g)
         data['children'] = []
         data['parent_id'] = g.parent_id
+        data['assets_count'] = getattr(g, 'assets_count', 0)
+        data['direct_count'] = getattr(g, 'direct_count', 0)
         groups_dict[g.id] = data
     
     tree = []

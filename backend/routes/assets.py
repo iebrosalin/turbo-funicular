@@ -204,6 +204,7 @@ async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_d
         raise HTTPException(status_code=400, detail="Актив с таким IP уже существует")
     
     asset = await service.create(asset_data)
+    await db.commit()  # Фиксируем транзакцию после создания
     
     # Создаем ответ вручную, чтобы корректно установить group_id
     from backend.schemas.asset import AssetResponse
@@ -231,6 +232,8 @@ async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession 
     asset = await service.update(asset_id, asset_data)
     if not asset:
         raise HTTPException(status_code=404, detail="Актив не найден")
+    
+    await db.commit()  # Фиксируем транзакцию после обновления
     
     # Явно загружаем связи для ответа
     await db.refresh(asset, attribute_names=['groups'])
@@ -260,6 +263,7 @@ async def delete_asset(asset_id: int, db: AsyncSession = Depends(get_db)):
     success = await service.delete(asset_id)
     if not success:
         raise HTTPException(status_code=404, detail="Актив не найден")
+    await db.commit()  # Фиксируем транзакцию после удаления
 
 
 class BulkDeleteRequest(BaseModel):
@@ -278,6 +282,7 @@ async def delete_bulk_assets(request: BulkDeleteRequest, db: AsyncSession = Depe
     deleted_count = await service.delete_batch(request.ids)
     if deleted_count == 0:
         raise HTTPException(status_code=404, detail="Активы не найдены")
+    await db.commit()  # Фиксируем транзакцию после пакетного удаления
 
 
 @router.post("/bulk-move", status_code=status.HTTP_200_OK)
@@ -288,4 +293,5 @@ async def bulk_move_assets(
     """Переместить несколько активов в другую группу."""
     service = AssetService(db)
     moved_count = await service.move_to_group_batch(request.ids, request.group_id)
+    await db.commit()  # Фиксируем транзакцию после пакетного перемещения
     return {"message": f"Перемещено активов: {moved_count}", "count": moved_count}
