@@ -14,6 +14,119 @@ export class ScanManager {
   #init() {
     // Запуск прослушивания событий от сервера (SSE)
     this.startEventListening();
+    // Инициализация обработчиков модальных окон
+    this.#initModalHandlers();
+  }
+
+  /**
+   * Инициализация обработчиков модальных окон сканирования
+   */
+  #initModalHandlers() {
+    // Обработчик формы запуска сканирования
+    const scanForm = document.getElementById('scanForm');
+    if (scanForm) {
+      scanForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.#submitScan(scanForm);
+      });
+    }
+
+    // Обработчик изменения типа сканирования
+    const scanTypeSelect = document.getElementById('scan-type');
+    if (scanTypeSelect) {
+      scanTypeSelect.addEventListener('change', (e) => {
+        const portsInput = document.getElementById('scan-ports');
+        const type = e.target.value;
+        
+        if (type === 'quick') {
+          portsInput.value = '';
+          portsInput.placeholder = 'Топ-100 портов (автоматически)';
+          portsInput.disabled = true;
+        } else if (type === 'standard') {
+          portsInput.value = '';
+          portsInput.placeholder = 'Топ-1000 портов (автоматически)';
+          portsInput.disabled = true;
+        } else if (type === 'full') {
+          portsInput.value = '';
+          portsInput.placeholder = 'Все порты 1-65535 (автоматически)';
+          portsInput.disabled = true;
+        } else if (type === 'custom') {
+          portsInput.value = '';
+          portsInput.placeholder = '80,443,22 или 1-1000';
+          portsInput.disabled = false;
+        }
+      });
+    }
+  }
+
+  /**
+   * Отправка формы сканирования
+   */
+  async #submitScan(form) {
+    const target = document.getElementById('scan-target').value.trim();
+    const scanType = document.getElementById('scan-type').value;
+    const groupId = document.getElementById('scan-group-id').value;
+    let ports = document.getElementById('scan-ports').value.trim();
+
+    if (!target) {
+      Utils.showNotification('Укажите целевые хосты', 'warning');
+      return;
+    }
+
+    // Определение портов в зависимости от типа
+    if (scanType === 'quick' && !ports) {
+      ports = '-F'; // nmap флаг для быстрых портов
+    } else if (scanType === 'standard' && !ports) {
+      ports = ''; // стандартные топ-1000
+    } else if (scanType === 'full' && !ports) {
+      ports = '-p-'; // все порты
+    }
+
+    const progressDiv = document.getElementById('scan-progress');
+    if (progressDiv) progressDiv.style.display = 'block';
+
+    try {
+      const formData = new FormData();
+      formData.append('target', target);
+      if (ports) formData.append('ports', ports);
+      if (groupId) formData.append('group_id', groupId);
+      formData.append('scan_type', scanType);
+
+      const response = await fetch('/api/scans/start', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка запуска сканирования');
+      }
+
+      const result = await response.json();
+      
+      // Закрытие модального окна
+      const modalEl = document.getElementById('scanModal');
+      if (modalEl) {
+        const modal = bootstrap.Modal.getInstance(modalEl);
+        if (modal) modal.hide();
+      }
+
+      Utils.showNotification(`Сканирование #${result.id} запущено`, 'success');
+      
+      // Очистка формы
+      form.reset();
+      
+      // Обновление истории сканирований
+      if (typeof window.scanResultsController !== 'undefined') {
+        window.scanResultsController.loadHistory();
+      }
+    } catch (error) {
+      console.error('Ошибка запуска сканирования:', error);
+      Utils.showNotification(error.message, 'danger');
+    } finally {
+      const progressDiv = document.getElementById('scan-progress');
+      if (progressDiv) progressDiv.style.display = 'none';
+    }
   }
 
   /**
