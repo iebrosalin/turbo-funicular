@@ -269,6 +269,7 @@ export class TreeManager {
     const tr = document.createElement('tr');
     
     tr.innerHTML = `
+      <td><input type="checkbox" class="form-check-input asset-checkbox" data-id="${asset.id}"></td>
       <td><strong>${asset.ip_address ?? 'N/A'}</strong></td>
       <td>${asset.hostname ?? '<span class="text-muted">-</span>'}</td>
       <td>${asset.os_info ?? '<span class="text-muted">-</span>'}</td>
@@ -328,6 +329,24 @@ export class TreeManager {
     } catch (err) {
       console.error('Ошибка обновления дерева:', err);
     }
+  }
+  /**
+   * Применение пользовательских фильтров
+   * @param {Array} rules - Массив правил фильтрации
+   */
+  applyCustomFilters(rules) {
+    console.log('🔍 Применение пользовательских фильтров:', rules);
+    // Фильтрация происходит на стороне клиента в main.js
+    // Этот метод может быть использован для дополнительной логики
+  }
+
+  /**
+   * Очистка всех фильтров
+   */
+  clearFilters() {
+    console.log('🧹 Очистка фильтров');
+    // Сброс фильтров и загрузка всех активов текущей группы
+    this.filterByGroup(this.currentGroupId || 'all');
   }
 }
 

@@ -1,5 +1,6 @@
 // static/js/main.js
 import { store, treeManager, assetManager, groupManager, scanManager, themeController } from './modules/index.js';
+import { FilterBuilder } from './filter-builder.js';
 
 class App {
   constructor() {
@@ -124,6 +125,9 @@ class App {
         treeManager.filterByGroup(currentGroupId, sourceFilter);
       });
     }
+
+    // Инициализация конструктора фильтров
+    this.#initFilterBuilder();
   }
 
   async #loadInitialData() {
@@ -179,114 +183,43 @@ class App {
     
     if (!filterRoot) return;
 
-    const FILTER_FIELDS = [
-      { value: 'ip_address', text: 'IP Адрес' }, 
-      { value: 'hostname', text: 'Hostname' },
-      { value: 'os_info', text: 'ОС (Сканирование)' }, 
-      { value: 'device_role', text: 'Роль устройства' },
-      { value: 'open_ports', text: 'Открытые порты' }, 
-      { value: 'status', text: 'Статус' },
-      { value: 'notes', text: 'Заметки' }, 
-      { value: 'scanners_used', text: 'Сканеры (JSON)' },
-      { value: 'source', text: 'Источник данных' }
-    ];
-
-    const FILTER_OPS = [
-      { value: 'eq', text: '=' }, 
-      { value: 'ne', text: '≠' }, 
-      { value: 'like', text: 'содержит' }, 
-      { value: 'in', text: 'в списке' }
-    ];
-
-    const addRule = (field = '', op = 'eq', value = '') => {
-      const div = document.createElement('div');
-      div.className = 'filter-condition mb-2';
-      div.innerHTML = `
-        <div class="input-group input-group-sm">
-          <select class="form-select rule-field">${FILTER_FIELDS.map(f => `<option value="${f.value}" ${f.value===field?'selected':''}>${f.text}</option>`).join('')}</select>
-          <select class="form-select rule-op" style="max-width:100px">${FILTER_OPS.map(o => `<option value="${o.value}" ${o.value===op?'selected':''}>${o.text}</option>`).join('')}</select>
-          <input type="text" class="form-control rule-val" value="${value}" placeholder="Значение">
-          <button class="btn btn-outline-danger btn-remove-rule" type="button">×</button>
-        </div>
-      `;
-      filterRoot.appendChild(div);
-    };
-
-    // Обработчик удаления правила
-    filterRoot.addEventListener('click', (e) => {
-      if (e.target.classList.contains('btn-remove-rule')) {
-        e.target.closest('.filter-condition')?.remove();
-      }
-    });
-
-    // Кнопка "Применить"
-    btnApply?.addEventListener('click', () => {
-      this.filterRules = [];
-      const conditions = filterRoot.querySelectorAll('.filter-condition');
-      
-      conditions.forEach(cond => {
-        const field = cond.querySelector('.rule-field').value;
-        const op = cond.querySelector('.rule-op').value;
-        const value = cond.querySelector('.rule-val').value.trim();
+    // Используем единый класс FilterBuilder
+    this.dashboardFilterBuilder = new FilterBuilder('filter-root', {
+      mode: 'dashboard',
+      onApply: (rules) => {
+        this.filterRules = rules;
+        console.log('🔍 Применены правила фильтрации:', rules);
         
-        if (value) {
-          this.filterRules.push({ field, op, value });
-        }
-      });
-
-      // Применяем фильтры через treeManager
-      if (treeManager && typeof treeManager.applyCustomFilters === 'function') {
-        treeManager.applyCustomFilters(this.filterRules);
-      } else {
-        console.log('🔍 Применены правила фильтрации:', this.filterRules);
-        // Здесь можно вызвать обновление таблицы активов
-        if (assetManager && typeof assetManager.render === 'function') {
-          // Фильтрация активов на клиенте
-          const allAssets = store.getState('assets') || [];
-          const filtered = allAssets.filter(asset => {
-            return this.filterRules.every(rule => {
-              const assetValue = asset[rule.field];
-              if (assetValue === null || assetValue === undefined) return false;
-              
-              const strValue = Array.isArray(assetValue) ? assetValue.join(' ') : String(assetValue);
-              
-              switch (rule.op) {
-                case 'eq': return strValue === rule.value;
-                case 'ne': return strValue !== rule.value;
-                case 'like': return strValue.toLowerCase().includes(rule.value.toLowerCase());
-                case 'in': return rule.value.split(',').map(v => v.trim()).some(v => strValue.includes(v));
-                default: return true;
-              }
+        // Применяем фильтры через treeManager
+        if (treeManager && typeof treeManager.applyCustomFilters === 'function') {
+          treeManager.applyCustomFilters(rules);
+        } else {
+          // Резервная логика - фильтрация на клиенте
+          if (assetManager && typeof assetManager.render === 'function') {
+            const allAssets = store.getState('assets') || [];
+            const filtered = allAssets.filter(asset => {
+              return rules.every(rule => {
+                const assetValue = asset[rule.field];
+                if (assetValue === null || assetValue === undefined) return false;
+                
+                const strValue = Array.isArray(assetValue) ? assetValue.join(' ') : String(assetValue);
+                
+                switch (rule.operation) {
+                  case 'eq': return strValue === rule.value;
+                  case 'neq': return strValue !== rule.value;
+                  case 'contains': return strValue.toLowerCase().includes(rule.value.toLowerCase());
+                  case 'in': return rule.value.split(',').map(v => v.trim()).some(v => strValue.includes(v));
+                  default: return true;
+                }
+              });
             });
-          });
-          
-          assetManager.render(filtered, ['ip_address', 'hostname', 'os_family', 'status', 'device_type']);
+            
+            assetManager.render(filtered, ['ip_address', 'hostname', 'os_family', 'status', 'device_type']);
+          }
         }
-      }
+      },
+      initialRules: []
     });
-
-    // Кнопка "Сброс"
-    btnReset?.addEventListener('click', () => {
-      filterRoot.innerHTML = '';
-      this.filterRules = [];
-      
-      // Добавляем одно пустое правило для удобства
-      addRule();
-      
-      // Сбрасываем фильтры
-      if (treeManager && typeof treeManager.clearFilters === 'function') {
-        treeManager.clearFilters();
-      }
-      
-      // Перерисовываем все активы
-      const allAssets = store.getState('assets') || [];
-      if (assetManager && typeof assetManager.render === 'function') {
-        assetManager.render(allAssets, ['ip_address', 'hostname', 'os_family', 'status', 'device_type']);
-      }
-    });
-
-    // Добавляем первое правило при инициализации
-    addRule();
   }
 }
 
