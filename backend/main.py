@@ -22,7 +22,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from backend.db.session import engine
 from backend.routes import scans
 from backend.db.base import Base  # Импорт для доступа ко всем моделям
-from sqlalchemy import create_engine
+from backend.models.asset import Asset, asset_groups
+from backend.models.group import Group
+from backend.db.session import get_db
+from fastapi import HTTPException
+from sqlalchemy import create_engine, select, func
 from backend.services.scan_queue_manager import scan_queue_manager
 
 # Настройка логирования
@@ -184,7 +188,19 @@ async def scans_page(request: Request):
 @app.get("/assets/{asset_id}")
 async def asset_detail(request: Request, asset_id: int):
     """Страница детали актива."""
-    return templates.TemplateResponse("asset_detail.html", {"request": request, "asset_id": asset_id})
+    db = get_db()
+    asset = db.query(Asset).filter(Asset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Актив не найден")
+    
+    # Получаем группы актива через many-to-many связь
+    groups = db.query(Group).join(asset_groups).filter(asset_groups.c.group_id == Group.id, asset_groups.c.asset_id == asset_id).all()
+    
+    return templates.TemplateResponse("asset_detail.html", {
+        "request": request, 
+        "asset": asset,
+        "groups": groups
+    })
 
 @app.get("/assets/{asset_id}/history")
 async def asset_history(request: Request, asset_id: int):
@@ -205,3 +221,8 @@ async def asset_taxonomy(request: Request):
 async def ui_kit(request: Request):
     """Страница UI Kit для демонстрации компонентов."""
     return templates.TemplateResponse("ui_kit.html", {"request": request})
+
+@app.get("/settings")
+async def settings_page(request: Request):
+    """Страница настроек приложения."""
+    return templates.TemplateResponse("settings.html", {"request": request})

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Настройки{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-gear-fill me-2"></i>Настройки приложения</h5>
+                </div>
+                <div class="card-body">
+                    
+                    <!-- Настройки темы -->
+                    <div class="mb-4">
+                        <h6 class="border-bottom pb-2 mb-3">
+                            <i class="bi bi-palette-fill me-2"></i>Оформление
+                        </h6>
+                        
+                        <div class="form-group">
+                            <label class="form-label fw-bold">Тема интерфейса</label>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="themeSwitch" role="switch">
+                                <label class="form-check-label" for="themeSwitch">
+                                    <span id="themeLabel">Тёмная тема</span>
+                                </label>
+                            </div>
+                            <small class="text-muted d-block">
+                                <i class="bi bi-info-circle me-1"></i>
+                                По умолчанию используется тёмная тема. Переключатель активирует светлую тему.
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Настройки отображения (заготовка) -->
+                    <div class="mb-4">
+                        <h6 class="border-bottom pb-2 mb-3">
+                            <i class="bi bi-list-ul me-2"></i>Отображение данных
+                        </h6>
+                        <div class="alert alert-info py-2 small">
+                            <i class="bi bi-tools me-2"></i>Раздел в разработке
+                        </div>
+                    </div>
+
+                    <!-- Сохранение -->
+                    <div class="d-flex justify-content-end">
+                        <button class="btn btn-primary" id="btn-save-settings">
+                            <i class="bi bi-check-lg me-2"></i>Сохранить настройки
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+            
+            <div class="text-center mt-3">
+                <a href="/" class="text-decoration-none">
+                    <i class="bi bi-arrow-left me-1"></i>Вернуться на дашборд
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const themeSwitch = document.getElementById('themeSwitch');
+    const themeLabel = document.getElementById('themeLabel');
+    const saveBtn = document.getElementById('btn-save-settings');
+    
+    // Инициализация состояния переключателя
+    const currentTheme = localStorage.getItem('theme') || 'dark';
+    if (currentTheme === 'light') {
+        themeSwitch.checked = true;
+        themeLabel.textContent = 'Светлая тема';
+    } else {
+        themeSwitch.checked = false;
+        themeLabel.textContent = 'Тёмная тема';
+    }
+
+    // Обработка изменения переключателя
+    themeSwitch.addEventListener('change', function() {
+        if (this.checked) {
+            themeLabel.textContent = 'Светлая тема';
+            document.documentElement.setAttribute('data-bs-theme', 'light');
+        } else {
+            themeLabel.textContent = 'Тёмная тема';
+            document.documentElement.setAttribute('data-bs-theme', 'dark');
+        }
+    });
+
+    // Сохранение настроек
+    saveBtn.addEventListener('click', function() {
+        const newTheme = themeSwitch.checked ? 'light' : 'dark';
+        localStorage.setItem('theme', newTheme);
+        
+        // Визуальное подтверждение
+        const originalText = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<i class="bi bi-check-all me-2"></i>Сохранено!';
+        saveBtn.classList.replace('btn-primary', 'btn-success');
+        
+        setTimeout(() => {
+            saveBtn.innerHTML = originalText;
+            saveBtn.classList.replace('btn-success', 'btn-primary');
+        }, 2000);
+    });
+});
+</script>
+{% endblock %}

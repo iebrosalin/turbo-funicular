@@ -284,9 +284,18 @@ export class TreeManager {
     
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', (e) => {
-      if (e.target.closest('button')) return;
+      // Игнорируем клики по чекбоксам и кнопкам
+      if (e.target.closest('button') || e.target.closest('input[type="checkbox"]')) return;
       window.location.href = `/asset/${asset.id}`;
     });
+
+    // Обработчик для чекбокса - предотвращаем всплытие
+    const checkbox = tr.querySelector('.asset-checkbox');
+    if (checkbox) {
+      checkbox.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+    }
 
     const editBtn = tr.querySelector('.edit-asset-btn');
     if (editBtn) {

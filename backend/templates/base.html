@@ -41,6 +41,12 @@
                             <span class="group-name">Сканирования</span>
                         </a>
                     </li>
+                    <li>
+                        <a href="/settings" class="tree-node {% if request.scope.get('endpoint') and 'settings_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
+                            <i class="bi bi-gear-fill folder-icon"></i>
+                            <span class="group-name">Настройки</span>
+                        </a>
+                    </li>
                 </ul>
             </div>
 
