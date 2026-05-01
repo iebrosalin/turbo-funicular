@@ -366,3 +366,15 @@ export const treeManager = new TreeManager();
 export const filterByGroup = (groupId, sourceFilter = null) => treeManager.filterByGroup(groupId, sourceFilter);
 export const loadAssets = (groupId = null, isUngrouped = false, sourceFilter = null) => treeManager.loadAssets(groupId, isUngrouped, sourceFilter);
 export const refreshGroupTree = () => treeManager.refresh();
+
+// Обработчик кнопки импорта сканирования
+document.addEventListener('DOMContentLoaded', function() {
+    const importBtn = document.getElementById('importScanBtn');
+    if (importBtn) {
+        importBtn.addEventListener('click', function() {
+            // Модалка открывается автоматически через data-bs-toggle, 
+            // здесь можно добавить дополнительную логику если нужно
+            console.log('Import scan button clicked');
+        });
+    }
+});

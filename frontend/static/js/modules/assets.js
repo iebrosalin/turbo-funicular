@@ -141,3 +141,51 @@ export class AssetManager {
 
 // Создаем и экспортируем экземпляр по умолчанию
 export const assetManager = new AssetManager();
+
+// Обработчик кнопки сканирования на странице детали актива
+document.addEventListener('DOMContentLoaded', function() {
+    const scanBtn = document.getElementById('scanCurrentAssetBtn');
+    if (scanBtn) {
+        scanBtn.addEventListener('click', function() {
+            // Получаем ID актива из data-атрибута или URL страницы
+            const assetId = window.location.pathname.split('/').pop();
+            if (assetId && !isNaN(assetId)) {
+                startAssetScan(parseInt(assetId));
+            } else {
+                alert('Не удалось определить ID актива');
+            }
+        });
+    }
+});
+
+// Функция запуска сканирования актива
+function startAssetScan(assetId) {
+    if (!confirm('Запустить сканирование для этого актива?')) {
+        return;
+    }
+    
+    fetch(`/api/scans/create`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            target_id: assetId,
+            scan_type: 'nmap',
+            name: `Сканирование актива ${assetId}`
+        })
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Ошибка запуска сканирования');
+        return response.json();
+    })
+    .then(data => {
+        alert('Сканирование запущено');
+        // Опционально: перенаправить на страницу сканирований
+        // window.location.href = '/scans';
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка при запуске сканирования: ' + error.message);
+    });
+}
