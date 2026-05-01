@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Bool
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
+import uuid
 from backend.db.base import Base
 
 # Импортируем таблицу связи из base, чтобы избежать циклического импорта при импорте AssetGroup
@@ -20,6 +21,7 @@ class Asset(Base):
     __tablename__ = 'assets'
 
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
     ip_address = Column(String(45), unique=True, nullable=False, index=True)  # Поддержка IPv6
     hostname = Column(String(255), nullable=True, index=True)
     mac_address = Column(String(17), nullable=True, index=True)  # MAC адрес устройства
@@ -87,6 +89,7 @@ class Asset(Base):
     def to_dict(self):
         return {
             'id': self.id,
+            'uuid': self.uuid,
             'ip_address': self.ip_address,
             'hostname': self.hostname,
             'mac_address': self.mac_address,

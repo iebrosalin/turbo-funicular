@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import uuid
 from backend.db.base import Base
 
 
@@ -10,6 +11,7 @@ class Group(Base):
     __tablename__ = "groups"
     
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
     name = Column(String(255), nullable=False, unique=True, index=True)
     description = Column(Text, nullable=True)
     parent_id = Column(Integer, ForeignKey("groups.id", ondelete="CASCADE"), nullable=True, index=True)
@@ -34,6 +36,7 @@ class Group(Base):
         
         result = {
             'id': self.id,
+            'uuid': self.uuid,
             'name': self.name,
             'description': self.description,
             'parent_id': self.parent_id,

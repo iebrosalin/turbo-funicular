@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import uuid
 from backend.db.base import Base
 
 
@@ -10,6 +11,7 @@ class ServiceInventory(Base):
     __tablename__ = "service_inventory"
     
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
     asset_id = Column(Integer, ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
     port = Column(Integer, nullable=False)
     protocol = Column(String(10), default="tcp")  # tcp, udp

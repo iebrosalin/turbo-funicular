@@ -39,6 +39,7 @@ class ScanResponse(ScanBase):
     model_config = ConfigDict(from_attributes=True)
     
     id: int
+    uuid: str
     status: str
     progress: int
     result: Optional[str] = None

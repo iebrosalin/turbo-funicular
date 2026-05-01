@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Boolean, JSON
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+import uuid
 from backend.db.base import Base
 
 
@@ -10,6 +11,7 @@ class Scan(Base):
     __tablename__ = "scans"
     
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
     name = Column(String(255), nullable=False)
     target = Column(String(500), nullable=False)  # IP, диапазон или список
     scan_type = Column(String(50), default="nmap")  # nmap, rustscan, ping
@@ -32,6 +34,7 @@ class ScanJob(Base):
     __tablename__ = "scan_jobs"
     
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
     scan_id = Column(Integer, ForeignKey("scans.id", ondelete="CASCADE"), nullable=False)
     job_type = Column(String(50), nullable=False)  # nmap, rustscan, dig
     status = Column(String(50), default="pending")  # pending, running, completed, failed
@@ -52,6 +55,7 @@ class ScanResult(Base):
     __tablename__ = "scan_results"
     
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
     scan_id = Column(Integer, ForeignKey("scans.id", ondelete="CASCADE"), nullable=False)
     scan_job_id = Column(Integer, ForeignKey("scan_jobs.id", ondelete="CASCADE"), nullable=True)
     asset_id = Column(Integer, ForeignKey("assets.id", ondelete="CASCADE"), nullable=True)
