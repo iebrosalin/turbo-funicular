@@ -153,7 +153,8 @@ class GroupService:
             match = True
             for rule in rules:
                 field = rule.get('field', '')
-                operation = rule.get('operation', '')
+                # Поддержка обоих вариантов: 'operation' и 'op'
+                operation = rule.get('operation') or rule.get('op', '')
                 value = str(rule.get('value', '')).lower()
                 
                 # Получаем значение поля из актива

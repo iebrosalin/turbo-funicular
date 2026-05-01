@@ -10,6 +10,7 @@ export class Store {
     lastSelectedIndex: -1,
     currentGroupId: null,
     currentAssets: [],
+    groups: [],  // Добавлено ключ groups
     contextMenu: null,
     editModal: null,
     createModal: null,
@@ -154,6 +155,7 @@ export class Store {
       lastSelectedIndex: -1,
       currentGroupId: null,
       currentAssets: [],
+      groups: [],
       contextMenu: null,
       editModal: null,
       createModal: null,
