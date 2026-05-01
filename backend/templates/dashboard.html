@@ -30,15 +30,15 @@
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label for="search-filter" class="form-label">Поиск и фильтрация</label>
-                    <input type="text" class="form-control" id="search-filter" placeholder="Начните ввод (например: os=Linux, port:22)...">
+                    <label for="asset-filter" class="form-label">Поиск и фильтрация</label>
+                    <input type="text" class="form-control" id="asset-filter" placeholder="Начните ввод (например: os=Linux, port:22)...">
                     <div class="form-text">Поддерживаются операторы: =, !=, like, contains, >, <, in.</div>
                 </div>
                 <div class="col-md-3">
-                    <label for="group-by" class="form-label">Группировка</label>
-                    <select class="form-select" id="group-by">
-                        <option value="">Без группировки</option>
-                        <option value="groups">По группам</option>
+                    <label for="group-by-select" class="form-label">Группировка</label>
+                    <select class="form-select" id="group-by-select">
+                        <option value="none">Без группировки</option>
+                        <option value="group">По группам</option>
                         <option value="os_family">По ОС</option>
                         <option value="device_type">По типу устройства</option>
                         <option value="status">По статусу</option>
@@ -46,7 +46,7 @@
                 </div>
                 <div class="col-md-3">
                     <label for="columns-select" class="form-label">Колонки</label>
-                    <select class="form-select" id="columns-select" multiple size="3">
+                    <select class="form-select" id="columns-select" multiple size="5">
                         <option value="ip_address" selected>IP Адрес</option>
                         <option value="hostname" selected>Hostname</option>
                         <option value="os_family">ОС</option>
@@ -54,8 +54,9 @@
                         <option value="status" selected>Статус</option>
                         <option value="open_ports">Порты</option>
                         <option value="groups">Группы</option>
-                        <option value="last_nmap">Last Nmap</option>
-                        <option value="last_rustscan">Last Rustscan</option>
+                        <option value="last_nmap_scan">Last Nmap</option>
+                        <option value="last_rustscan_scan">Last Rustscan</option>
+                        <option value="source">Источник</option>
                     </select>
                     <div class="form-text">Ctrl+Click для выбора</div>
                 </div>

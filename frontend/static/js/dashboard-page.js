@@ -12,7 +12,7 @@ export class DashboardController {
     this.allAssets = [];
     this.filteredAssets = [];
     this.currentGrouping = 'none';
-    this.visibleColumns = ['ip_address', 'hostname', 'os_family', 'status', 'device_type'];
+    this.visibleColumns = ['ip_address', 'hostname', 'os_family', 'status', 'device_type', 'open_ports', 'source'];
     this.searchQuery = '';
     
     this.assetManager = new AssetManager('assets-table');
@@ -54,6 +54,12 @@ export class DashboardController {
     document.getElementById('group-by-select')?.addEventListener('change', (e) => {
       this.currentGrouping = e.target.value;
       this.#updateURL();
+      this.applyFilters();
+    });
+
+    // Выбор колонок
+    document.getElementById('columns-select')?.addEventListener('change', (e) => {
+      this.visibleColumns = Array.from(e.selectedOptions).map(opt => opt.value);
       this.applyFilters();
     });
 
