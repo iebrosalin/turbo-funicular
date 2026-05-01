@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from backend.routes import assets, groups
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -24,7 +24,8 @@ from backend.routes import scans
 from backend.db.base import Base  # Импорт для доступа ко всем моделям
 from backend.models.asset import Asset, asset_groups
 from backend.models.group import Group
-from backend.db.session import get_db
+from backend.db.session import engine, get_db
+from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException
 from sqlalchemy import create_engine, select, func
 from backend.services.scan_queue_manager import scan_queue_manager
@@ -200,6 +201,21 @@ async def asset_detail(request: Request, asset_id: int):
         "request": request, 
         "asset": asset,
         "groups": groups
+    })
+
+
+@app.get("/asset/view/{asset_id}")
+async def asset_view_page(request: Request, asset_id: int, db: AsyncSession = Depends(get_db)):
+    """Страница просмотра актива (альтернативный маршрут для совместимости)."""
+    from backend.services.asset_service import AssetService
+    service = AssetService(db)
+    asset = await service.get_by_id(asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Актив не найден")
+    
+    return templates.TemplateResponse("asset_detail.html", {
+        "request": request,
+        "asset": asset
     })
 
 @app.get("/assets/{asset_id}/history")
