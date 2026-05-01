@@ -3,9 +3,15 @@
     <td><input type="checkbox" class="form-check-input asset-checkbox" value="{{ asset.id }}"></td>
     <td><a href="/asset/{{ asset.id }}" class="text-decoration-none"><strong>{{ asset.ip_address }}</strong></a></td>
     <td>{{ asset.hostname or '—' }}</td>
-    <td><span class="text-muted small">{{ asset.os_info or '—' }}</span></td>
+    <td>
+        {% if asset.os_family %}
+            <span class="small">{{ asset.os_family }}{% if asset.os_version %} ({{ asset.os_version }}){% endif %}</span>
+        {% else %}
+            <span class="text-muted small">—</span>
+        {% endif %}
+    </td>
     <td><small class="text-muted">{{ asset.open_ports or '—' }}</small></td>
-    <td><span class="badge bg-light text-dark border">{{ asset.group.name if asset.group else '—' }}</span></td>
+    <td><span class="badge bg-light text-dark border">{{ asset.groups[0].name if asset.groups and asset.groups|length > 0 else '—' }}</span></td>
     <td><a href="/asset/{{ asset.id }}" class="btn btn-sm btn-outline-info"><i class="bi bi-eye"></i></a></td>
 </tr>
 {% else %}

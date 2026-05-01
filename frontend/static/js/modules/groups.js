@@ -8,10 +8,14 @@ export class GroupManager {
     this.FILTER_FIELDS = [
       { value: 'ip_address', text: 'IP Адрес' }, 
       { value: 'hostname', text: 'Hostname' },
-      { value: 'os_info', text: 'ОС (Сканирование)' }, 
+      { value: 'os_name', text: 'ОС (Название)' },
+      { value: 'os_family', text: 'ОС (Семейство)' },
+      { value: 'os_version', text: 'ОС (Версия)' }, 
       { value: 'device_role', text: 'Роль устройства' },
       { value: 'open_ports', text: 'Открытые порты' }, 
       { value: 'status', text: 'Статус' },
+      { value: 'description', text: 'Описание' },
+      { value: 'tags', text: 'Теги' },
       { value: 'notes', text: 'Заметки' }, 
       { value: 'scanners_used', text: 'Сканеры (JSON)' }
     ];

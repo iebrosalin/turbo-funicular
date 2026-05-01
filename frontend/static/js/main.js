@@ -204,7 +204,7 @@ class App {
               });
             });
             
-            assetManager.render(filtered, ['ip_address', 'hostname', 'os_family', 'status', 'device_type']);
+            assetManager.render(filtered, ['ip_address', 'hostname', 'os_name', 'status', 'device_type']);
           }
         }
       },

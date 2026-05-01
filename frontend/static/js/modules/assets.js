@@ -93,30 +93,46 @@ export class AssetManager {
     tr.appendChild(tdCheckbox);
     
     // Колонки данных
-    const columns = visibleColumns || ['ip_address', 'hostname', 'os_family', 'status', 'device_type', 'open_ports', 'group_name', 'source'];
+    const columns = visibleColumns || ['ip_address', 'hostname', 'os_name', 'status', 'device_type', 'open_ports', 'group_name', 'source'];
     
     columns.forEach(col => {
       const td = document.createElement('td');
       let value = asset[col];
       
-      // Особая обработка для группы
-      if (col === 'group_name' || col === 'group_id') {
-        console.log('[AssetManager] Processing group for asset', asset.id, ':', asset.groups, 'group_id:', asset.group_id);
+      // Особая обработка для группы - выводим ВСЕ группы списком
+      if (col === 'group_name' || col === 'group_id' || col === 'groups') {
+        console.log('[AssetManager] Processing groups for asset', asset.id, ':', asset.groups);
         
         if (asset.groups && Array.isArray(asset.groups) && asset.groups.length > 0) {
-          // groups - это массив объектов или строк
-          const groupName = typeof asset.groups[0] === 'object' ? asset.groups[0].name : asset.groups[0];
-          value = groupName;
-          console.log('[AssetManager] Group name from groups array:', value);
-        } else if (asset.group_name) {
-          value = asset.group_name;
-          console.log('[AssetManager] Group name from group_name field:', value);
-        } else if (asset.group_id) {
-          value = `ID: ${asset.group_id}`;
-          console.log('[AssetManager] Only group_id available:', value);
+          // groups - это массив ID (чисел). Нужно найти имена групп.
+          // Предполагаем, что store.allGroups доступен или передаётся как контекст
+          const allGroups = window.allGroups || (store && store.groups) || [];
+          
+          const groupNames = asset.groups.map(groupId => {
+            const groupObj = allGroups.find(g => g.id === groupId);
+            return groupObj ? groupObj.name : `ID: ${groupId}`;
+          });
+          
+          // Формируем HTML с бейджами для каждой группы
+          value = groupNames.map(name => 
+            `<span class="badge bg-secondary me-1">${name}</span>`
+          ).join('');
+          
+          console.log('[AssetManager] Rendered groups:', value);
         } else {
-          value = 'Без группы';
+          value = '<span class="text-muted">Без группы</span>';
           console.log('[AssetManager] No group information');
+        }
+      }
+      
+      // Обработка ОС - приоритет os_name над os_family
+      if (col === 'os_name') {
+        if (asset.os_name) {
+          value = asset.os_name;
+        } else if (asset.os_family) {
+          value = asset.os_version ? `${asset.os_family} (${asset.os_version})` : asset.os_family;
+        } else {
+          value = '-';
         }
       }
       
