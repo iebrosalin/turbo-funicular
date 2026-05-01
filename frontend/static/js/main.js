@@ -116,16 +116,6 @@ class App {
       });
     }
 
-    // Обработчик фильтра по источнику данных
-    const dataSourceFilter = document.getElementById('data-source-filter');
-    if (dataSourceFilter) {
-      dataSourceFilter.addEventListener('change', (e) => {
-        const sourceFilter = e.target.value;
-        const currentGroupId = treeManager.currentGroupId || 'all';
-        treeManager.filterByGroup(currentGroupId, sourceFilter);
-      });
-    }
-
     // Инициализация конструктора фильтров
     this.#initFilterBuilder();
   }
