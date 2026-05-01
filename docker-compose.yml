@@ -6,93 +6,44 @@ services:
     container_name: asset_management
     ports:
       - "5000:5000"
-    #restart: unless-stopped
     environment:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
       - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/app.db}
       - ENVIRONMENT=${ENVIRONMENT:-production}
-      # Для разработки можно включить reload, но в production режиме это отключено
       - UVICORN_RELOAD=${UVICORN_RELOAD:-false}
     volumes:
-      # Монтирование исходного кода для разработки (изменения локально применяются сразу)
       - ./backend:/app/backend
       - ./frontend:/app/frontend
-      # Сохранение базы данных SQLite между перезапусками
       - app_data:/app/instance
       - ./tests:/app/tests
     working_dir: /app
-    # Запускаем приложение без миграций (БД создается автоматически)
     command: >
       sh -c "uvicorn backend.main:app --host 0.0.0.0 --port 5000"
-    # Ограничение ресурсов (опционально)
     deploy:
       resources:
         limits:
           cpus: '1.0'
           memory: 512M
 
-  # Сервис для запуска всех тестов (API + UI) через команду: docker compose run --rm pytest
-  pytest:
-    build: .
-    container_name: asset_management_pytest
+  # Сервис для запуска интеграционных тестов с Playwright
+  e2e-tests:
+    image: mcr.microsoft.com/playwright/python:v1.49.0-jammy
+    container_name: asset_management_e2e
     depends_on:
       - web
     environment:
       - BASE_URL=http://web:5000
-      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/app.db}
       - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
     volumes:
-      - ./backend:/app/backend
-      - ./frontend:/app/frontend
-      - ./tests:/app/tests
-    working_dir: /app
-    command: sh -c "cd /app/backend && pytest tests/ -v"
-    profiles:
-      - test
-    # Настройки для поддержки браузеров Playwright
-    cap_add:
-      - SYS_ADMIN
-    shm_size: '2gb'
-
-  # Сервис для запуска только UI тестов с Playwright
-  test-ui:
-    build: .
-    container_name: asset_management_tests_ui
-    depends_on:
-      - web
-    environment:
-      - BASE_URL=http://web:5000
-      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/app.db}
-      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-    volumes:
-      - ./backend:/app/backend
-      - ./frontend:/app/frontend
       - ./tests:/app/tests
       - playwright-cache:/ms-playwright
     working_dir: /app
-    command: sh -c "cd /app/backend && pytest tests/test_ui.py -v -m ui"
+    command: sh -c "pip install pytest requests && cd /app && pytest tests/integration -v --tb=short"
     profiles:
-      - test
-      - test-ui-only
+      - e2e
     cap_add:
       - SYS_ADMIN
     shm_size: '2gb'
-
-  # Сервис для запуска только API тестов
-  test-api:
-    build: .
-    container_name: asset_management_tests_api
-    environment:
-      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/app.db}
-    volumes:
-      - ./backend:/app/backend
-      - ./frontend:/app/frontend
-      - ./tests:/app/tests
-    working_dir: /app
-    command: sh -c "cd /app/backend && pytest tests/ -v -m "not ui""
-    profiles:
-      - test
-      - test-api-only
 
 volumes:
   app_data:
