@@ -538,13 +538,18 @@ export class TreeManager {
   #createAssetRow(asset) {
     const tr = document.createElement('tr');
     
+    // Получаем имя первой группы или пустое значение
+    const groupName = asset.groups && asset.groups.length > 0 
+      ? asset.groups[0].name 
+      : null;
+    
     tr.innerHTML = `
       <td><input type="checkbox" class="form-check-input asset-checkbox" data-id="${asset.id}"></td>
       <td><strong>${asset.ip_address ?? 'N/A'}</strong></td>
       <td>${asset.hostname ?? '<span class="text-muted">-</span>'}</td>
       <td>${asset.os_info ?? '<span class="text-muted">-</span>'}</td>
       <td><small>${asset.open_ports ?? '<span class="text-muted">-</span>'}</small></td>
-      <td>${asset.group_name ? `<span class="badge bg-light text-dark border">${asset.group_name}</span>` : '<span class="badge bg-secondary">Без группы</span>'}</td>
+      <td>${groupName ? `<span class="badge bg-light text-dark border">${groupName}</span>` : '<span class="badge bg-secondary">Без группы</span>'}</td>
       <td class="text-end">
         <button class="btn btn-sm btn-outline-primary edit-asset-btn" data-id="${asset.id}" title="Редактировать">
           <i class="bi bi-pencil"></i>
