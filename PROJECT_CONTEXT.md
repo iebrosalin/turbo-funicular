@@ -1,261 +1,173 @@
 # 📚 Project Context: Network Asset Manager
+
 ## 1. Общая информация
 **Стек технологий:**
 - **Backend:** Python 3.12, FastAPI (Async), SQLAlchemy 2.0 (Async), Pydantic v2.
-- **Frontend:** Vanilla JavaScript (ES6 Modules), HTML5, CSS3.
-- **Database:** SQLite (по умолчанию и единственная поддерживаемая БД).
+- **Frontend:** Vanilla JavaScript (ES6 Modules), HTML5, CSS3, Bootstrap 5.3+.
+- **Database:** SQLite (единственная поддерживаемая БД). Все сущности имеют поле `uuid`.
 - **Infrastructure:** Docker, Docker Compose.
-- **Testing:** Pytest, Pytest-Asyncio, Httpx.
+- **Testing:** Playwright (E2E в Docker). Unit/Integration тесты на Pytest удалены.
 - **Tools:** Nmap, Rustscan, Dig (dnsutils).
+
 **Архитектурные принципы:**
 - Разделение ответственности (Routes → Services → Models).
 - Асинхронность на всех уровнях (I/O операции).
 - Строгая валидация данных через Pydantic схемы.
-- Отсутствие серверного рендеринга (SPA-подход на vanilla JS).
-- **Физическое создание файлов:** Все изменения кода выполняются реально в файловой системе `/workspace`. Симуляции исключены.
-- **Гибкость запуска:** Поддержка работы как в Docker, так и локально через `python app.py` без контейнеров.
-- **Только SQLite:** Проект полностью переведён на SQLite для упрощения развёртывания. PostgreSQL удалён.
-- **Без миграций:** Alembic удалён. База данных создаётся автоматически при старте приложения через `Base.metadata.create_all()`.
+- **Модульный Frontend:** Строгое использование ES6 Modules (`type="module"`). Глобальная область видимости запрещена.
+- **Единый источник истины:** Логика фильтрации (`FilterBuilder`) унифицирована для дашборда и модальных окон групп.
+- **Темная тема по умолчанию:** Приложение стартует в темной теме. Переключение только через `/settings`.
+- **Физическое создание файлов:** Все изменения кода выполняются реально в файловой системе `/workspace`.
+- **Гибкость запуска:** Поддержка работы как в Docker, так и локально.
+- **Без миграций:** Alembic удален. Схема БД создается/обновляется при старте (`create_all`). Существующие записи получают UUID автоматически.
+
 ---
+
 ## 2. Структура проекта
 ```text
 /workspace/
-├── app.py                 # Точка входа для локального запуска (uvicorn wrapper)
-├── .env                   # Конфигурация окружения (DATABASE_URL, настройки)
-├── .env.example           # Шаблон конфигурации
+├── app.py                 # Точка входа (uvicorn wrapper)
+├── .env                   # Конфигурация (DATABASE_URL, настройки)
 ├── requirements.txt       # Зависимости Python
-├── docker-compose.yml     # Конфигурация Docker
-├── Dockerfile             # Образ приложения
-├── instance/              # Локальная БД SQLite (создается автоматически)
-│   └── app.db
+├── docker-compose.yml     # Конфигурация Docker (профиль 'e2e' для тестов)
+├── instance/              # Локальная БД SQLite (app.db)
 ├── backend/
-│   ├── main.py            # Приложение FastAPI (lifespan, роутеры, middleware)
+│   ├── main.py            # FastAPI app (lifespan, роутеры)
 │   ├── core/              # Конфигурация, исключения
 │   ├── db/                # Сессии БД, базовые модели
-│   ├── models/            # SQLAlchemy модели (Asset, Group, Scan, Log, Service)
-│   ├── schemas/           # Pydantic схемы (Request/Response)
-│   ├── services/          # Бизнес-логика + Менеджеры очередей сканирований
-│   │   ├── asset_service.py
-│   │   ├── group_service.py
-│   │   ├── scan_service.py
-│   │   └── scan_queue_manager.py  # ScanQueueManager, UtilityScanQueueManager
-│   ├── routes/            # API endpoints (FastAPI routers)
-│   │   ├── assets.py
-│   │   ├── groups.py
-│   │   └── scans.py
-│   ├── scanner/           # Модули сканирования
-│   │   ├── nmap/          # NmapScanner (nmap_async.py)
-│   │   ├── rustscan/      # RustscanScanner (rustscan_async.py)
-│   │   └── dig/           # DigScanner (dig_async.py)
-│   ├── utils/             # Утилиты (время, сеть, импорт Nmap XML)
+│   ├── models/            # SQLAlchemy модели (Asset, Group, Scan...) с полем uuid
+│   ├── schemas/           # Pydantic схемы
+│   ├── services/          # Бизнес-логика + Менеджеры очередей
+│   ├── routes/            # API endpoints (assets, groups, scans, settings)
+│   ├── scanner/           # Асинхронные сканеры (nmap, rustscan, dig)
+│   ├── utils/             # Утилиты
 │   └── templates/         # HTML шаблоны (Jinja2)
-│       ├── components/    # Переиспользуемые компоненты
-│       └── *.html         # Страницы (dashboard, scans, assets, utilities)
+│       ├── base.html      # Базовый шаблон (без переключателя темы в хедере)
+│       ├── index.html     # Дашборд (с FilterBuilder)
+│       ├── settings.html  # Страница настроек (переключение темы)
+│       └── ...
 ├── frontend/
 │   └── static/
 │       ├── js/
-│       │   ├── modules/   # Переиспользуемая логика (assets.js, groups.js, tree.js, scans.js)
-│       │   ├── pages/     # Логика страниц (dashboard-page.js, scans-page.js)
-│       │   └── main.js    # Инициализация приложения
-│       └── css/           # Стили
+│       │   ├── modules/   # Переиспользуемая логика (utils.js, tree.js, groups.js)
+│       │   ├── filter-builder.js # Единый класс конструктора фильтров
+│       │   └── main.js    # Инициализация приложения (App class)
+│       └── css/
+│           └── style.css  # Стили с CSS переменными (Dark/Light themes)
 └── tests/
-    ├── unit/              # Unit тесты
-    ├── integration/       # Integration тесты
-    ├── conftest.py        # pytest fixtures
-    └── factories.py       # Тестовые фабрики
+    └── integration/       # Playwright E2E тесты
+        ├── conftest.py
+        └── test_scanners_e2e.py # Тесты Dig, Nmap, Rustscan
 ```
+
 ---
+
 ## 3. 🔧 Текущий статус проекта
 
 ✅ **Завершено:**
-- Переход на асинхронный стек (FastAPI + AsyncSQLAlchemy + aiosqlite).
-- Выделение сервисного слоя для бизнес-логики (AssetService, GroupService, ScanService).
-- Реализация менеджера очередей сканирований (ScanQueueManager, UtilityScanQueueManager).
-- Модульная структура сканеров (nmap_async.py, rustscan_async.py, dig_async.py).
-- Удаление интеграций Wazuh/osquery.
-- Вынос JS-логики из HTML в модули (ES6 modules).
-- Настройка инфраструктуры тестирования (Pytest, Pytest-Asyncio, Httpx).
-- Полное покрытие тестами (Unit + Integration).
-- Поддержка SQLite: возможность запуска без Docker и PostgreSQL.
-- Создание точки входа `app.py`: запуск одной командой `python app.py`.
-- Удаление PostgreSQL: проект полностью переведён на SQLite.
-- Удаление сервиса Adminer из Docker-конфигурации.
-- **Удаление Alembic:** Миграции удалены. База данных создаётся автоматически при старте через `Base.metadata.create_all()`.
-- **Обновление схемы БД:** Добавлены поля `mac_address`, `vendor` в таблицу `assets` и `job_type` в таблицу `scan_jobs`.
-
-📁 **Структура backend:**
-- `backend/main.py` - основное приложение FastAPI с lifespan, middleware CORS, обработчиками исключений
-- `backend/routes/` - API endpoints (assets, groups, scans)
-- `backend/services/` - бизнес-логика и менеджеры очередей
-- `backend/scanner/` - асинхронные сканеры (nmap, rustscan, dig)
-- `backend/models/` - SQLAlchemy модели (Asset, Group, Scan, ScanJob, ScanResult, ServiceInventory, Log)
-- `backend/templates/` - HTML шаблоны Jinja2
+- **ES6 Модули:** Полный рефакторинг JS. Удалены глобальные переменные, исправлены импорты/экспорты.
+- **UUID:** Поле `uuid` добавлено во все основные таблицы. Реализована автогенерация и миграция старых записей.
+- **FilterBuilder:** Создан единый класс для построения сложных запросов (Dashboard + Dynamic Groups).
+- **E2E Тесты:** Интеграционные тесты на Playwright в Docker. Старые тесты удалены. Добавлены тесты реальных сканеров (Dig, Nmap, Rustscan).
+- **UI/UX:**
+  - Темная тема по умолчанию.
+  - Страница настроек `/settings`.
+  - Исправлена контрастность кнопок и таблиц в темной теме.
+  - Исправлено поведение чекбоксов (без перехода по клику).
+  - Исправлена ошибка 404 на странице деталей актива.
+- **Backend API:**
+  - Поддержка сложной фильтрации (`rules` JSON) в `/api/assets`.
+  - Эндпоинт `/api/groups/preview` для предпросмотра динамических групп.
 
 ❌ **Удалено:**
-- Авторизация и пользователи (режим анонимного админа).
-- Синхронные блокирующие вызовы БД.
-- Инлайн-скрипты в шаблонах.
-- Сервис Adminer.
-- Дублирующиеся файлы (старые Dockerfile, папки api/v1).
-- Поддержка PostgreSQL и зависимость asyncpg.
-- Папка `backend/app/` - код перемещён непосредственно в `backend/`.
-- Alembic и все файлы миграций.
+- Старые unit/integration тесты на Pytest/Httpx.
+- Лишние профили в `docker-compose.yml`.
+- Переключатель темы из хедера (перенесен в настройки).
+- Файлы `.cursorrules`, `CONTEXT.md`.
+
 ---
+
 ## 4. 🔗 Карта связей: UI ↔ JS ↔ Backend
 
-| Функционал | HTML Элемент | JS Модуль / Функция | API Endpoint | Backend Service |
+| Функционал | HTML Элемент | JS Модуль / Класс | API Endpoint | Backend Service |
 | :--- | :--- | :--- | :--- | :--- |
-| **Дерево групп** | `.group-node` | `tree.js` → `handleGroupClick()` | `GET /api/groups/tree` | `GroupService.get_tree()` |
-| **Фильтр активов** | `#asset-filter` | `dashboard-page.js` → `applyFilters()` | `GET /api/assets?search=...` | `AssetService.filter()` |
-| **Создание актива** | `#asset-form` | `assets.js` → `handleAssetSubmit()` | `POST /api/assets` | `AssetService.create()` |
-| **Удаление актива** | `.btn-delete-asset` | `assets.js` → `confirmAndDelete()` | `DELETE /api/assets/{id}` | `AssetService.delete()` |
-| **Запуск скана** | `#scan-form` | `scans.js` → `submitScanForm()` | `POST /api/scans/start/nmap` | `ScanQueueManager.add_scan()` |
-| **Результаты скана** | `.btn-view-results` | `scans.js` → `viewScanResults()` | `GET /api/scans/jobs/{job_id}` | `ScanService.get_job()` |
-| **Очередь сканирований** | `.scan-queue` | `scans.js` → `refreshQueue()` | `GET /api/scans/jobs` | `ScanQueueManager.get_queue()` |
-| **Импорт Nmap XML** | `#import-form` | `utilities.js` → `uploadXml()` | `POST /api/utilities/import-nmap-xml` | `NmapXmlImporter.parse_file()` |
-| **Динамические группы** | `#group-rules` | `groups.js` → `saveDynamicGroup()` | `POST /api/groups` (с `filter_rules`) | `GroupService.create_dynamic()` |
-| **Просмотр сканов** | `.scan-list` | `scans-page.js` → `loadScans()` | `GET /api/scans` | `ScanService.get_all()` |
-| **Активные сканы** | `.active-scans` | `scans-page.js` → `loadActiveScans()` | `GET /api/scans/active` | `ScanService.get_active()` |
+| **Дерево групп** | `.group-node` | `TreeManager` (`modules/tree.js`) | `GET /api/groups/tree` | `GroupService.get_tree()` |
+| **Конструктор фильтров** | `#filter-root` | `FilterBuilder` (`filter-builder.js`) | `POST /api/assets` (rules) | `AssetService.filter_complex()` |
+| **Предпросмотр группы** | `#group-preview-count` | `FilterBuilder` (method `checkRules`) | `POST /api/groups/preview` | `GroupService.preview_count()` |
+| **Создание актива** | `#asset-form` | `App` (`main.js`) | `POST /api/assets` | `AssetService.create()` |
+| **Детали актива** | `.asset-row` | `App` (`main.js`) | `GET /api/assets/{uuid}` | `AssetService.get_by_uuid()` |
+| **Запуск скана** | `#scan-form` | `ScanManager` | `POST /api/scans/start/nmap` | `ScanQueueManager.add_scan()` |
+| **Настройки темы** | `#theme-select` | `ThemeController` | `PUT /api/settings/theme` | `SettingsService.update()` |
+| **E2E Сканеры** | N/A | `test_scanners_e2e.py` | `POST /api/scans/start/*` | `ScanQueueManager` |
+
 ---
-## 5. 🛠️ Практические команды и инструкции
 
-### Запуск проекта (Локально без Docker)
+## 5. 🛠️ Практические команды
+
+### Запуск проекта
 ```bash
-# Установка зависимостей
-pip install -r requirements.txt
-
-# Запуск приложения (SQLite создается автоматически в instance/app.db)
+# Локально
 python app.py
 
-# Приложение доступно на http://localhost:8000
-# Документация API: http://localhost:8000/docs
-# Swagger UI: http://localhost:8000/docs
-# ReDoc: http://localhost:8000/redoc
+# Docker
+docker compose up --build
 ```
 
-### Запуск проекта (Docker)
+### Тестирование (E2E)
 ```bash
-# Сборка и запуск всех сервисов
-docker-compose up --build
+# Запуск только E2E тестов в Docker
+docker compose --profile e2e up --exit-code-from e2e-tests
 
-# Запуск в фоновом режиме
-docker-compose up -d
-
-# Остановка и удаление контейнеров + томов (сброс БД)
-docker-compose down -v
-
-# Просмотр логов
-docker-compose logs -f web
+# Запуск конкретных тестов сканеров
+docker compose --profile e2e run --rm e2e-tests tests/integration/test_scanners_e2e.py
 ```
 
-### Работа с базой данных
+### Работа с БД
 ```bash
-# База данных создаётся автоматически при старте приложения
-# Файл БД SQLite: instance/app.db
-
-# Для сброса БД (удалить и создать заново):
-# Docker:
-docker compose down -v
-find . -name "*.db" -type f -delete
-docker compose build --no-cache web
-docker compose up -d
-
-# Локально:
+# Сброс БД (удаление файла и пересоздание)
 rm instance/app.db
-python app.py
-
-# Просмотр БД через sqlite3:
-sqlite3 instance/app.db
+# При следующем старте БД создастся заново, UUID сгенерируются для новых записей.
 ```
 
-### Тестирование
-```bash
-# Запуск всех тестов (локально)
-pytest tests/ --cov=backend -v
-
-# Запуск всех тестов (Docker)
-docker-compose exec web pytest --cov=backend -v
-
-# Запуск конкретных тестов
-pytest tests/unit/ -v
-pytest tests/integration/ -v
-```
-
-### Отладка
-```bash
-# Просмотр логов backend (Docker)
-docker-compose logs -f web
-
-# Войти в контейнер web (Docker)
-docker-compose exec web bash
-
-# Проверка здоровья
-curl http://localhost:8000/health
-
-# Проверка API
-curl http://localhost:8000/api/assets
-```
-
-### Конфигурация портов
-| Сервис | Порт | Описание |
-| :--- | :--- | :--- |
-| **Frontend/API** | 8000 | Приложение и Swagger UI (/docs) |
 ---
+
 ## 6. 📋 Протокол работы и ограничения
 
-### 🚫 Критические запреты (Строго без согласования)
+### 🚫 Критические запреты
+1.  **Файл .gitignore:** ЗАПРЕЩЕНО добавлять, удалять или изменять правила игнорирования файлов.
+2.  **Системные пакеты:** ЗАПРЕЩЕНО менять набор инструментов сканирования в Dockerfile без критической необходимости.
+3.  **Безопасность:** ЗАПРЕЩЕНО внедрять аутентификацию/авторизацию. Режим "Анонимный администратор".
+4.  **PostgreSQL:** ЗАПРЕЩЕНО возвращать поддержку PostgreSQL. Только SQLite.
+5.  **Вывод файлов:** ЗАПРЕЩЕНО утверждать о создании или изменении файла без его немедленного вывода через `cat` или `view`. Общение продолжается только после предоставления реального содержимого.
 
-Следующие действия ЗАПРЕЩЕНЫ и будут отклонены:
+### ✅ Правила исполнения
+- **Двойное удаление:** При удалении файлов выполнять команду дважды для гарантии синхронизации FS.
+- **Прямое действие:** Минимум обсуждений, максимум кода. Сначала действие, потом отчет.
+- **Проверка импортов:** Все JS файлы должны быть валидными ES6 модулями с явными импортами.
+- **Реальный вывод:** Любой ответ о состоянии файла должен содержать его полное содержимое (через `cat` или `view`).
 
-1.  **Файл .gitignore:**
-    *   ЗАПРЕЩЕНО добавлять, удалять или изменять правила игнорирования файлов.
-    *   Этот файл контролирует чистоту репозитория.
-
-2.  **Системные пакеты в Dockerfile:**
-    *   ЗАПРЕЩЕНО изменять список пакетов apt-get install (особенно инструменты сканирования: nmap, rustscan, dnsutils).
-    *   Любые изменения должны быть обоснованы критической необходимостью.
-
-3.  **Веб-интерфейс (Frontend):**
-    *   ЗАПРЕЩЕНО менять структуру HTML, CSS стили или логику JavaScript без предварительного утверждения макета и функционала.
-    *   Интерфейс должен оставаться стабильным.
-
-4.  **Безопасность и Пользователи (NO AUTH):**
-    *   КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО внедрять системы аутентификации (JWT, сессии, OAuth), авторизации (RBAC), формы входа или регистрации.
-    *   Приложение должно работать в режиме «Анонимный администратор» (полный доступ ко всем функциям без пароля).
-    *   Любые попытки добавить меры безопасности считаются нарушением архитектуры текущего этапа.
-
-5.  **PostgreSQL:**
-    *   ЗАПРЕЩЕНО возвращать поддержку PostgreSQL или добавлять зависимости asyncpg/psycopg2.
-    *   Проект использует только SQLite.
-
-### Обновление контекста
-Файл PROJECT_CONTEXT.md должен обновляться после каждого значительного изменения архитектуры, добавления новых модулей или изменения правил безопасности.
 ---
-## 7. ⚠️ Известные ограничения
 
-- **Безопасность:** Отсутствует аутентификация и авторизация. Приложение доступно по сети без ограничений (режим разработки/доверенной сети).
-- **Фоновые задачи:** Сканирования выполняются асинхронно через `ScanQueueManager` в рамках процесса приложения.
-- **Масштабирование:** Текущая конфигурация рассчитана на одиночный инстанс backend с SQLite. Для высокой нагрузки рекомендуется использовать Docker с настройками производительности SQLite.
-- **Режим запуска:** SQLite полностью функционален для всех операций проекта.
-- **Сканеры:** Реализованы асинхронные версии сканеров (Nmap, Rustscan, Dig) в модуле `backend/scanner/`.
+## 7. ⚠️ Известные ограничения
+- **Безопасность:** Полный доступ без пароля.
+- **Масштабирование:** Одиночный инстанс с SQLite.
+- **Темы:** Переключение темы работает через `localStorage` и CSS переменные. Серверная часть хранит предпочтение опционально.
 
 ---
 
 ## 8. 📦 Зависимости проекта
 
-### Python зависимости (requirements.txt)
-- **FastAPI** 0.115.0 - веб-фреймворк
-- **Uvicorn** 0.30.6 - ASGI сервер
-- **SQLAlchemy** 2.0.31 + **aiosqlite** 0.20.0 - асинхронная работа с SQLite
-- **Pydantic** 2.8.2 - валидация данных
-- **Httpx** 0.27.0 - HTTP клиент для тестов
-- **Pytest** 8.3.2 + **pytest-asyncio** 0.23.8 - тестирование
+### Python зависимости
+- **FastAPI** 0.115.0
+- **Uvicorn** 0.30.6
+- **SQLAlchemy** 2.0.31 + **aiosqlite** 0.20.0
+- **Pydantic** 2.8.2
+- **Playwright** (для E2E тестов)
 
-### Системные зависимости (Dockerfile)
-- **nmap** - сетевое сканирование
-- **rustscan** - быстрый сканер портов
-- **dnsutils** (dig) - DNS запросы
+### Системные зависимости
+- **nmap**
+- **rustscan**
+- **dnsutils** (dig)
 
 ---
 
-*Последнее обновление: Апрель 2026*
+*Последнее обновление: Май 2026*
