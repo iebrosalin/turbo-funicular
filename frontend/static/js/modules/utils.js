@@ -32,8 +32,9 @@ export class Utils {
         nodes.forEach(node => {
           if (excludeIds.includes(String(node.id))) return;
 
-          const indent = '    '; // 4 пробела на уровень для лучшей видимости вложенности
-          const label = indent.repeat(level) + node.name;
+          // Используем символы тире для визуализации иерархии, так как CSS padding не работает в <option>
+          const prefix = level > 0 ? '— '.repeat(level) : '';
+          const label = prefix + node.name;
           
           const option = document.createElement('option');
           option.value = node.id;

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional, Dict, Any
 from backend.db.session import get_db
 from backend.models.group import Group as AssetGroup
@@ -109,30 +110,29 @@ async def create_group(
     Поддерживает статические и динамические группы (с filter_rules).
     """
     service = GroupService(db)
-    
-    # Проверка на дубликат имени
-    existing = await service.get_all()
-    if any(g.name == group_data.name for g in existing):
-        raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
-    
-    # Создание группы
-    group = await service.create(group_data)
-    
-    # Логирование
-    await log_asset_change(
-        db=db,
-        asset=None,  # Группа не актив
-        field_name="group_created",
-        old_value="null",
-        new_value=json.dumps({"group_id": group.id, "name": group.name})
-    )
-    
-    # Если это динамическая группа с filter_rules, обновляем состав
-    if hasattr(group_data, 'filter_rules') and group_data.filter_rules:
-        await service.update_dynamic_group_members(group.id, group_data.filter_rules)
-    
-    return group
 
+    try:
+        # Создание группы
+        group = await service.create(group_data)
+
+        # Логирование
+        await log_asset_change(
+            db=db,
+            asset=None,  # Группа не актив
+            field_name="group_created",
+            old_value="null",
+            new_value=json.dumps({"group_id": group.id, "name": group.name})
+        )
+
+        # Если это динамическая группа с filter_rules, обновляем состав
+        if hasattr(group_data, 'filter_rules') and group_data.filter_rules:
+            await service.update_dynamic_group_members(group.id, group_data.filter_rules)
+
+        return group
+        
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
 
 @router.put("/{group_id}", response_model=GroupResponse)
 async def update_group(
