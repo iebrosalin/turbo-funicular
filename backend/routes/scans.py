@@ -764,19 +764,12 @@ async def retry_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     
     # Создаем новое сканирование с теми же параметрами
     new_scan = Scan(
+        name=old_scan.name,
         target=old_scan.target,
         scan_type=old_scan.scan_type,
-        parameters=old_scan.parameters,
         status='queued',
         progress=0,
-        created_at=datetime.datetime.utcnow(),
-        group_ids=old_scan.group_ids,
-        known_ports_only=old_scan.known_ports_only,
-        ports=old_scan.ports,
-        scripts=old_scan.scripts,
-        custom_args=old_scan.custom_args,
-        run_nmap_after=old_scan.run_nmap_after,
-        nmap_args=old_scan.nmap_args,
+        group_id=old_scan.group_id,
     )
     db.add(new_scan)
     await db.flush()  # Чтобы получить ID нового сканирования

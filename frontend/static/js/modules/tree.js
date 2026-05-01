@@ -286,7 +286,7 @@ export class TreeManager {
     tr.addEventListener('click', (e) => {
       // Игнорируем клики по чекбоксам и кнопкам
       if (e.target.closest('button') || e.target.closest('input[type="checkbox"]')) return;
-      window.location.href = `/asset/${asset.id}`;
+      window.location.href = `/asset/view/${asset.id}`;
     });
 
     // Обработчик для чекбокса - предотвращаем всплытие

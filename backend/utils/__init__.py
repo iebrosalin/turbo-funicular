@@ -144,8 +144,7 @@ async def log_asset_change(
         asset_id=asset.id,
         field_name=field_name,
         old_value=old_value,
-        new_value=new_value,
-        changed_at=get_moscow_time()
+        new_value=new_value
     )
     db.add(change_log)
     await db.flush()

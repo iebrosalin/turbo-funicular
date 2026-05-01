@@ -177,6 +177,16 @@ export class ScanResultsController {
       await this.#submitDigScan(e.target);
     });
 
+    // Кнопки "Новое сканирование" и "Импорт Nmap XML"
+    document.getElementById('newScanBtn')?.addEventListener('click', () => {
+        // Можно добавить логику предзаполнения, если нужно
+    });
+    
+    document.getElementById('importNmapBtn')?.addEventListener('click', () => this.#loadGroupsForImport());
+    
+    // Кнопка запуска простого сканирования из модального окна
+    document.getElementById('startSimpleScanBtn')?.addEventListener('click', () => this.#handleSimpleScan());
+    
     // Импорт XML
     document.getElementById('import-xml-btn')?.addEventListener('click', () => this.#handleXmlImport());
 
@@ -538,8 +548,86 @@ export class ScanResultsController {
   }
 
   #handleXmlImport() {
-    // Логика импорта XML
-    alert('Функционал импорта XML (в разработке)');
+    const fileInput = document.getElementById('xml-file');
+    const groupId = document.getElementById('import-group')?.value;
+    
+    if (!fileInput || !fileInput.files[0]) {
+      alert('Выберите XML файл для импорта');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('xml_file', fileInput.files[0]);
+    if (groupId) formData.append('group_id', groupId);
+
+    fetch('/api/scans/import-nmap-xml', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => {
+      if (!response.ok) throw new Error('Ошибка импорта');
+      return response.json();
+    })
+    .then(data => {
+      alert(`Импорт завершен! Создано активов: ${data.imported_count || 0}`);
+      const modal = bootstrap.Modal.getInstance(document.getElementById('importXmlModal'));
+      if (modal) modal.hide();
+      this.loadJobs();
+    })
+    .catch(error => {
+      console.error('Ошибка импорта:', error);
+      alert(`Ошибка: ${error.message}`);
+    });
+  }
+
+  async #handleSimpleScan() {
+    // Получаем данные из активной вкладки модального окна
+    const activeTab = document.querySelector('#newScanModal .tab-pane.active');
+    if (!activeTab) return;
+
+    const targetInput = activeTab.querySelector('input[id*="target"]');
+    const groupSelect = document.getElementById('simple-scan-group-id');
+    const scanTypeSelect = document.getElementById('simple-scan-type');
+    
+    if (!targetInput || !targetInput.value.trim()) {
+      alert('Введите цель сканирования');
+      return;
+    }
+
+    const target = targetInput.value.trim();
+    const groupId = groupSelect?.value || '';
+    const scanType = scanTypeSelect?.value || 'standard';
+
+    try {
+      const response = await fetch('/api/scans/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target,
+          group_id: groupId ? parseInt(groupId) : null,
+          scan_type: scanType
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка запуска сканирования');
+      }
+
+      const result = await response.json();
+      alert(`Сканирование запущено! ID: ${result.id}`);
+      
+      // Закрываем модальное окно
+      const modal = bootstrap.Modal.getInstance(document.getElementById('newScanModal'));
+      if (modal) modal.hide();
+      
+      // Обновляем список задач
+      this.loadJobs();
+      
+    } catch (error) {
+      console.error('Ошибка запуска сканирования:', error);
+      alert(`Ошибка: ${error.message}`);
+    }
   }
 
   async #readFileAsText(file) {

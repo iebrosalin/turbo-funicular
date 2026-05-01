@@ -5,294 +5,59 @@
 
 {% block content %}
 <div class="container-fluid py-4">
-    <div class="row mb-4">
+    <!-- Таблица сканирований -->
+    <div class="row">
         <div class="col-12">
-            <h2 class="mb-3"><i class="bi bi-radar"></i> Управление сканированиями</h2>
-            <p class="text-muted">Запуск задач сканирования через очереди. Nmap и Rustscan выполняются последовательно в отдельной очереди.</p>
-        </div>
-    </div>
-
-    <!-- Статус очередей -->
-    <div class="row mb-4" id="queue-status-container">
-        <div class="col-md-6">
-            <div class="card border-primary mb-3">
-                <div class="card-header bg-primary text-white">
-                    <i class="bi bi-queue"></i> Очередь Nmap/Rustscan
-                </div>
-                <div class="card-body">
-                    <h5 class="card-title">Статус: <span id="nmap-queue-status">Загрузка...</span></h5>
-                    <p class="card-text">В очереди: <strong id="nmap-queue-count">0</strong> задач</p>
-                    <small class="text-muted">Текущая задача: <span id="nmap-current-job">Нет</span></small>
-                    <div id="nmap-queue-list" class="mt-2 small"></div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-6">
-            <div class="card border-success mb-3">
-                <div class="card-header bg-success text-white">
-                    <i class="bi bi-hdd-network"></i> Очередь Утилит (Dig)
-                </div>
-                <div class="card-body">
-                    <h5 class="card-title">Статус: <span id="utility-queue-status">Загрузка...</span></h5>
-                    <p class="card-text">В очереди: <strong id="utility-queue-count">0</strong> задач</p>
-                    <small class="text-muted">Текущая задача: <span id="utility-current-job">Нет</span></small>
-                    <div id="utility-queue-list" class="mt-2 small"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Табы для выбора утилиты -->
-    <ul class="nav nav-tabs mb-3" id="scanTabs" role="tablist">
-        <li class="nav-item" role="presentation">
-            <button class="nav-link active" id="nmap-tab" data-bs-toggle="tab" data-bs-target="#nmap-pane" type="button" role="tab">Nmap</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="rustscan-tab" data-bs-toggle="tab" data-bs-target="#rustscan-pane" type="button" role="tab">Rustscan</button>
-        </li>
-        <li class="nav-item" role="presentation">
-            <button class="nav-link" id="dig-tab" data-bs-toggle="tab" data-bs-target="#dig-pane" type="button" role="tab">Dig (DNS)</button>
-        </li>
-    </ul>
-
-    <div class="tab-content" id="scanTabsContent">
-        
-        <!-- NMAP FORM -->
-        <div class="tab-pane fade show active" id="nmap-pane" role="tabpanel">
             <div class="card shadow-sm">
-                <div class="card-body">
-                    <form id="nmap-form">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="nmap-target" class="form-label">Цель (IP, CIDR, Hostname)</label>
-                                <input type="text" class="form-control scan-input" id="nmap-target" data-scan-type="nmap" placeholder="192.168.1.0/24 или example.com">
-                                <div class="form-text">Можно указать несколько целей через пробел.</div>
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <label class="form-label d-block">Порты</label>
-                                <div class="form-check form-switch d-inline-block me-3">
-                                    <input class="form-check-input" type="checkbox" id="nmap-known-ports-only">
-                                    <label class="form-check-label" for="nmap-known-ports-only">
-                                        🔍 Только известные порты из групп
-                                    </label>
-                                </div>
-                                <input type="text" class="form-control d-inline-block" id="nmap-ports" placeholder="22,80,443 или 1-1000" style="width: 200px;">
-                                <div class="form-text text-danger d-none" id="nmap-ports-warning">
-                                    <i class="bi bi-exclamation-triangle"></i> Поле заблокировано: используются порты из выбранных групп.
-                                </div>
-                            </div>
-
-                            <div class="col-md-12">
-                                <label for="nmap-groups" class="form-label">Группы активов (для известных портов)</label>
-                                <select class="form-select" id="nmap-groups" multiple disabled>
-                                    <!-- Заполняется JS -->
-                                </select>
-                                <div class="form-text">Выберите группы, если включена опция "Только известные порты".</div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="nmap-scripts" class="form-label">Скрипты (NSE)</label>
-                                <input type="text" class="form-control scan-input" id="nmap-scripts" data-scan-type="nmap" placeholder="default, vuln, http-title">
-                            </div>
-
-                            <div class="col-md-6">
-                                <label for="nmap-custom-args" class="form-label">Дополнительные аргументы</label>
-                                <input type="text" class="form-control scan-input" id="nmap-custom-args" data-scan-type="nmap" placeholder="-sV -O -T4">
-                                <div class="form-text text-warning d-none" id="nmap-args-warning">
-                                    <i class="bi bi-exclamation-triangle"></i> Аргументы портов (-p) игнорируются при сканировании известных портов.
-                                </div>
-                            </div>
-
-                            <div class="col-12">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="bi bi-play-fill"></i> Запустить Nmap
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- RUSTSCAN FORM -->
-        <div class="tab-pane fade" id="rustscan-pane" role="tabpanel">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <form id="rustscan-form">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="rustscan-target" class="form-label">Цель (IP, CIDR)</label>
-                                <input type="text" class="form-control scan-input" id="rustscan-target" data-scan-type="rustscan" placeholder="192.168.1.1">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="rustscan-ports" class="form-label">Порты (опционально)</label>
-                                <input type="text" class="form-control scan-input" id="rustscan-ports" data-scan-type="rustscan" placeholder="1-65535 (по умолчанию все)">
-                            </div>
-                            <div class="col-md-12">
-                                <label for="rustscan-custom-args" class="form-label">Аргументы Rustscan + Nmap</label>
-                                <input type="text" class="form-control scan-input" id="rustscan-custom-args" data-scan-type="rustscan" placeholder="--top 1000 -- -sC -sV">
-                                <div class="form-text">Используйте <code>--</code> для разделения аргументов rustscan и nmap.</div>
-                            </div>
-                            <div class="col-md-12">
-                                <div class="form-check">
-                                    <input class="form-check-input" type="checkbox" id="rustscan-run-nmap" checked>
-                                    <label class="form-check-label" for="rustscan-run-nmap">
-                                        Автоматически запустить Nmap после сканирования
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="col-md-12">
-                                <label for="rustscan-nmap-args" class="form-label">Аргументы для последующего Nmap</label>
-                                <input type="text" class="form-control scan-input" id="rustscan-nmap-args" data-scan-type="nmap" placeholder="-sC -sV --script=vuln">
-                            </div>
-                            <div class="col-12">
-                                <button type="submit" class="btn btn-warning text-dark">
-                                    <i class="bi bi-lightning-fill"></i> Запустить Rustscan
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- DIG FORM -->
-        <div class="tab-pane fade" id="dig-pane" role="tabpanel">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <form id="dig-form" enctype="multipart/form-data">
-                        <div class="row g-3">
-                            <div class="col-md-12">
-                                <label for="dig-targets" class="form-label">Список доменов/IP (каждый с новой строки)</label>
-                                <textarea class="form-control scan-input" id="dig-targets" data-scan-type="dig" rows="5" placeholder="example.com&#10;google.com&#10;192.168.1.1"></textarea>
-                                <div class="form-text">Или загрузите файл со списком DNS-имен.</div>
-                            </div>
-                            <div class="col-md-12">
-                                <label for="dig-file" class="form-label">Загрузить файл со списком DNS-имен</label>
-                                <input type="file" class="form-control" id="dig-file" accept=".txt,.csv,.lst" placeholder="">
-                                <div class="form-text">Поддерживаемые форматы: .txt, .csv, .lst (одно имя в каждой строке)</div>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="dig-server" class="form-label">DNS Сервер</label>
-                                <input type="text" class="form-control scan-input" id="dig-server" data-scan-type="dig" value="77.88.8.8" placeholder="@8.8.8.8">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="dig-types" class="form-label">Типы записей (через запятую)</label>
-                                <input type="text" class="form-control scan-input" id="dig-types" data-scan-type="dig" placeholder="A, AAAA, MX, TXT, NS, CNAME, SOA, PTR, SRV">
-                                <div class="form-text">Оставьте пустым для всех основных типов.</div>
-                            </div>
-                            <div class="col-md-12">
-                                <label for="dig-cli-args" class="form-label">Дополнительные аргументы Dig</label>
-                                <input type="text" class="form-control scan-input" id="dig-cli-args" data-scan-type="dig" placeholder="+short +trace">
-                            </div>
-                            <div class="col-12">
-                                <button type="submit" class="btn btn-success">
-                                    <i class="bi bi-search"></i> Запустить Dig
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Модальное окно импорта XML -->
-    <div class="modal fade" id="importXmlModal" tabindex="-1" aria-labelledby="importXmlModalLabel" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="importXmlModalLabel">
-                        <i class="bi bi-upload"></i> Импорт XML Nmap
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="import-xml-form" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label for="xml-file" class="form-label">Выберите XML файл</label>
-                            <input type="file" class="form-control" id="xml-file" name="xml_file" accept=".xml" required>
-                            <div class="form-text">Файл должен быть в формате XML вывода Nmap (-oX)</div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="import-group" class="form-label">Группа для активов (опционально)</label>
-                            <select class="form-select" id="import-group" name="group_id">
-                                <option value="">Не добавлять в группу</option>
-                                <!-- Заполняется JS -->
-                            </select>
-                            <div class="form-text">Импортированные активы будут добавлены в выбранную группу</div>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
-                    <button type="button" class="btn btn-success" id="import-xml-btn">
-                        <i class="bi bi-upload"></i> Импортировать
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-list-task"></i> История сканирований</h5>
+                    <button class="btn btn-sm btn-outline-secondary" id="refreshScansBtn">
+                        <i class="bi bi-arrow-clockwise"></i> Обновить
                     </button>
                 </div>
-            </div>
-        </div>
-    </div>
-    <!-- История заданий -->
-    <div class="row mt-5">
-        <div class="col-12">
-            <h4><i class="bi bi-clock-history"></i> История заданий</h4>
-            <div class="table-responsive">
-                <table class="table table-striped table-hover" id="jobs-table">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Тип</th>
-                            <th>Цель</th>
-                            <th>Статус</th>
-                            <th>Прогресс</th>
-                            <th>Создано</th>
-                            <th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Заполняется JS -->
-                    </tbody>
-                </table>
-            </div>
-            <button class="btn btn-sm btn-outline-secondary" id="btn-refresh-jobs">
-                <i class="bi bi-arrow-clockwise"></i> Обновить
-            </button>
-        </div>
-    </div>
-
-    <!-- Таблица активов группы (SPA функционал) -->
-    <div class="row mt-5" id="assets-container" style="display: none;">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h4><i class="bi bi-hdd-network"></i> Активы группы</h4>
-                <button class="btn btn-outline-secondary btn-sm" id="back-to-scans-btn">
-                    <i class="bi bi-arrow-left"></i> Вернуться к сканированиям
-                </button>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-striped table-hover" id="assets-table">
-                    <thead>
-                        <tr>
-                            <th>IP</th>
-                            <th>Hostname</th>
-                            <th>MAC</th>
-                            <th>Группы</th>
-                            <th>Порты</th>
-                            <th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody id="assets-table-body">
-                        <!-- Заполняется JS -->
-                    </tbody>
-                </table>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Цель</th>
+                                    <th>Тип</th>
+                                    <th>Статус</th>
+                                    <th>Прогресс</th>
+                                    <th>Создано</th>
+                                    <th>Завершено</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scansTableBody">
+                                <tr>
+                                    <td colspan="8" class="text-center text-muted py-4">Загрузка...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Подключение скриптов -->
-<script type="module" src="/static/js/main.js"></script>
-<script type="module" src="/static/js/scans-page.js"></script>
+<!-- Модальное окно просмотра результатов -->
+<div class="modal fade" id="scanResultModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Результаты сканирования</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="scanResultContent">
+                <div class="text-center py-4">Загрузка...</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
