@@ -135,7 +135,12 @@ async def get_assets(
     
     # Преобразуем group_id в int или None
     group_id_int: Optional[int] = None
-    if group_id is not None and group_id != "null":
+    
+    # Специальная обработка для значения "ungrouped" - активы без группы
+    if group_id == "ungrouped":
+        group_id_int = None
+        ungrouped = True
+    elif group_id is not None and group_id != "null":
         try:
             group_id_int = int(group_id)
         except ValueError:

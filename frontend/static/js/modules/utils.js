@@ -180,7 +180,7 @@ export class Utils {
   }
 
   /**
-   * Показ уведомлений
+   * Показ уведомлений (алиас для showFlashMessage)
    * @param {string} message 
    * @param {string} type 
    */
@@ -198,6 +198,24 @@ export class Utils {
     container.prepend(alert);
     
     setTimeout(() => alert.remove(), 5000);
+  }
+
+  /**
+   * Показ всплывающих сообщений (Flash messages)
+   * @param {string} type - 'success', 'error', 'warning', 'info'
+   * @param {string} message - Текст сообщения
+   */
+  static showFlashMessage(type, message) {
+    // Маппинг типов для Bootstrap alert классов
+    const typeMap = {
+      'success': 'success',
+      'error': 'danger',
+      'warning': 'warning',
+      'info': 'info'
+    };
+    
+    const bsType = typeMap[type] || 'info';
+    this.showNotification(message, bsType);
   }
 }
 
