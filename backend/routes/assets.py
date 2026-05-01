@@ -84,8 +84,6 @@ async def count_assets_by_filter(
                 # Поле не найдено в модели, пробуем альтернативные имена
                 if rule.field == 'ip_address':
                     field_value = getattr(asset, 'ip', None)
-                elif rule.field == 'os_info':
-                    field_value = getattr(asset, 'os_family', None)
                 elif rule.field == 'device_role':
                     field_value = getattr(asset, 'role', None)
                 elif rule.field == 'scanners_used':
@@ -189,7 +187,11 @@ async def get_assets(
             "id": asset.id,
             "ip_address": asset.ip_address,
             "hostname": asset.hostname,
-            "os": asset.os,
+            "os_name": asset.os_name,
+            "os_family": asset.os_family,
+            "os_version": asset.os_version,
+            "description": asset.description,
+            "tags": asset.tags,
             "status": asset.status,
             "source": asset.source,
             "created_at": asset.created_at,
@@ -253,7 +255,11 @@ async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_d
         uuid=asset.uuid,
         ip_address=asset.ip_address,
         hostname=asset.hostname,
+        os_name=asset.os_name,
         os_family=asset.os_family,
+        os_version=asset.os_version,
+        description=asset.description,
+        tags=asset.tags,
         status=asset.status,
         location=asset.location,
         group_id=group_id,
@@ -292,7 +298,11 @@ async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession 
         uuid=asset.uuid,
         ip_address=asset.ip_address,
         hostname=asset.hostname,
+        os_name=asset.os_name,
         os_family=asset.os_family,
+        os_version=asset.os_version,
+        description=asset.description,
+        tags=asset.tags,
         status=asset.status,
         location=asset.location,
         group_id=group_id,

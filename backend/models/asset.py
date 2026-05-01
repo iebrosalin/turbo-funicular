@@ -28,9 +28,14 @@ class Asset(Base):
     vendor = Column(String(255), nullable=True)  # Производитель устройства (по MAC)
 
     # Основная информация
+    os_name = Column(String(100), nullable=True)  # Полное название ОС (например, "Ubuntu 22.04")
     os_family = Column(String(50), nullable=True, index=True)  # Linux, Windows, etc.
     os_version = Column(String(100), nullable=True)
     device_type = Column(String(50), default='unknown', nullable=True, index=True)  # server, workstation, network_device
+    
+    # Дополнительные поля
+    description = Column(Text, nullable=True)  # Комментарии и заметки
+    tags = Column(JSON, nullable=True, default=list)  # Список тегов для фильтрации
 
     # Статус и метаданные
     status = Column(String(20), default='active', nullable=True, index=True)  # active, inactive, archived
@@ -94,9 +99,12 @@ class Asset(Base):
             'hostname': self.hostname,
             'mac_address': self.mac_address,
             'vendor': self.vendor,
+            'os_name': self.os_name,
             'os_family': self.os_family,
             'os_version': self.os_version,
             'device_type': self.device_type,
+            'description': self.description,
+            'tags': self.tags,
             'status': self.status,
             'location': self.location,
             'owner': self.owner,

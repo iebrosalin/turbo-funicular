@@ -12,7 +12,7 @@ export class DashboardController {
     this.allAssets = [];
     this.filteredAssets = [];
     this.currentGrouping = 'none';
-    this.visibleColumns = ['ip_address', 'hostname', 'os_family', 'status', 'device_type', 'open_ports', 'source'];
+    this.visibleColumns = ['ip_address', 'hostname', 'os_name', 'status', 'device_type', 'open_ports', 'source'];
     this.searchQuery = '';
     
     this.assetManager = new AssetManager('assets-table');
@@ -127,8 +127,13 @@ export class DashboardController {
       if (this.currentGrouping === 'group') {
         const assetGroups = asset.groups || [];
         key = assetGroups.length > 0 ? assetGroups[0] : 'Без группы';
-      } else if (['os_family', 'status', 'device_type'].includes(this.currentGrouping)) {
-        key = asset[this.currentGrouping] || 'Неизвестно';
+      } else if (['os_name', 'os_family', 'status', 'device_type'].includes(this.currentGrouping)) {
+        // Для os_name используем приоритет: os_name > os_family
+        if (this.currentGrouping === 'os_name') {
+          key = asset.os_name || (asset.os_family ? `${asset.os_family} ${asset.os_version || ''}`.trim() : 'Неизвестно');
+        } else {
+          key = asset[this.currentGrouping] || 'Неизвестно';
+        }
       }
 
       if (!groups[key]) groups[key] = [];

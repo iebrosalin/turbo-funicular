@@ -543,11 +543,19 @@ export class TreeManager {
       ? asset.groups[0].name 
       : null;
     
+    // Формируем отображение ОС из os_family и os_version
+    let osDisplay = '<span class="text-muted">-</span>';
+    if (asset.os_family) {
+      osDisplay = asset.os_version 
+        ? `${asset.os_family} (${asset.os_version})`
+        : asset.os_family;
+    }
+    
     tr.innerHTML = `
       <td><input type="checkbox" class="form-check-input asset-checkbox" data-id="${asset.id}"></td>
       <td><strong>${asset.ip_address ?? 'N/A'}</strong></td>
       <td>${asset.hostname ?? '<span class="text-muted">-</span>'}</td>
-      <td>${asset.os_info ?? '<span class="text-muted">-</span>'}</td>
+      <td>${osDisplay}</td>
       <td><small>${asset.open_ports ?? '<span class="text-muted">-</span>'}</small></td>
       <td>${groupName ? `<span class="badge bg-light text-dark border">${groupName}</span>` : '<span class="badge bg-secondary">Без группы</span>'}</td>
       <td class="text-end">
