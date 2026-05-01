@@ -14,7 +14,7 @@
                     <li class="breadcrumb-item active" aria-current="page">{{ asset.ip_address }} {% if asset.fqdn %}({{ asset.fqdn }}){% endif %}</li>
                 </ol>
             </nav>
-            <h2><i class="bi bi-pc-display"></i> {{ asset.hostname or 'Без имени' }} 
+            <h2><i class="bi bi-pc-display"></i> {{ asset.hostname or "Без имени" }} 
                 <small class="text-muted fs-4">({{ asset.ip_address }})</small>
             </h2>
             <span class="badge bg-{{ 'success' if asset.status == 'active' else 'secondary' }}">{{ asset.status }}</span>
@@ -89,7 +89,7 @@
                                 <tr><th width="40%">Последний Rustscan:</th>
                                     <td>
                                         {% if asset.last_rustscan %}
-                                            {{ asset.last_rustscan.strftime('%d.%m.%Y %H:%M
+                                            {{ asset.last_rustscan.strftime('%d.%m.%Y %H:%M') }}
                                             <span class="badge bg-warning text-dark">{{ asset.rustscan_ports|length }} портов</span>
                                         {% else %}
                                             <span class="text-muted">Не проводилось</span>
@@ -99,7 +99,7 @@
                                 <tr><th>Последний Nmap:</th>
                                     <td>
                                         {% if asset.last_nmap %}
-                                            {{ asset.last_nmap.strftime('%d.%m.%Y %H:%M
+                                            {{ asset.last_nmap.strftime('%d.%m.%Y %H:%M') }}
                                             <span class="badge bg-success">{{ asset.nmap_ports|length }} портов</span>
                                         {% else %}
                                             <span class="text-muted">Не проводилось</span>
@@ -109,7 +109,7 @@
                                 <tr><th>Последний DNS (Dig):</th>
                                     <td>
                                         {% if asset.last_dns_scan %}
-                                            {{ asset.last_dns_scan.strftime('%d.%m.%Y %H:%M
+                                            {{ asset.last_dns_scan.strftime('%d.%m.%Y %H:%M') }}
                                         {% else %}
                                             <span class="text-muted">Не проводилось</span>
                                         {% endif %}
@@ -180,7 +180,7 @@
                                                         <strong>Issuer:</strong> {{ service.ssl_issuer }}<br>
                                                         <strong>Valid:</strong> 
                                                         {% if service.ssl_not_before and service.ssl_not_after %}
-                                                            {{ service.ssl_not_before.strftime('%d.%m.%Y - {{ service.ssl_not_after.strftime('%d.%m.%Y
+                                                            {{ service.ssl_not_before.strftime('%d.%m.%Y') }} - {{ service.ssl_not_after.strftime('%d.%m.%Y') }}
                                                         {% endif %}
                                                     </small>
                                                 </div>
@@ -274,7 +274,7 @@
                                 {% if asset.activity_logs %}
                                     {% for log in asset.activity_logs|sort(attribute='created_at', reverse=true) %}
                                     <tr>
-                                        <td>{{ log.created_at.strftime('%d.%m.%Y %H:%M</td>
+                                        <td>{{ log.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
                                         <td><span class="badge bg-secondary">{{ log.event_type }}</span></td>
                                         <td>{{ log.description }}</td>
                                         <td>
