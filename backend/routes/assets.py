@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional, Any, Dict
 from pydantic import BaseModel
 import json
+import os
 
 from backend.db.session import get_db
 from backend.services.asset_service import AssetService
@@ -13,6 +16,10 @@ from backend.utils.query_parser import parse_query, QueryParserError
 
 router = APIRouter(tags=["assets"])
 assets_router = router  # Алиас для совместимости импортов
+
+# Инициализация шаблонов
+templates_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
+templates = Jinja2Templates(directory=templates_path)
 
 
 class FilterRule(BaseModel):
@@ -165,6 +172,20 @@ async def get_asset(asset_id: int, db: AsyncSession = Depends(get_db)):
     if not asset:
         raise HTTPException(status_code=404, detail="Актив не найден")
     return asset
+
+
+@router.get("/view/{asset_id}", response_class=HTMLResponse)
+async def get_asset_page(request: Request, asset_id: int, db: AsyncSession = Depends(get_db)):
+    """Отобразить страницу детали актива."""
+    service = AssetService(db)
+    asset = await service.get_by_id(asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="Актив не найден")
+    
+    return templates.TemplateResponse("asset_detail.html", {
+        "request": request,
+        "asset": asset
+    })
 
 
 @router.post("", response_model=AssetResponse, status_code=status.HTTP_201_CREATED)
