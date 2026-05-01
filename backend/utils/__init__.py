@@ -231,25 +231,17 @@ def build_group_tree(groups: List[Any]) -> List[Dict]:
         groups: Список объектов Group
     
     Returns:
-        Список словарей с древовидной структурой и глубиной
+        Список словарей с древовидной структурой
     """
     def group_to_dict(g):
         if hasattr(g, 'to_dict'):
             return g.to_dict()
-        return {
-            'id': g.id, 
-            'name': g.name, 
-            'assets_count': getattr(g, 'assets_count', 0),
-            'direct_count': getattr(g, 'direct_count', 0)
-        }
+        return {'id': g.id, 'name': g.name, 'assets_count': getattr(g, 'assets_count', 0)}
     
     groups_dict = {}
     for g in groups:
         data = group_to_dict(g)
         data['children'] = []
-        data['parent_id'] = g.parent_id
-        data['assets_count'] = getattr(g, 'assets_count', 0)
-        data['direct_count'] = getattr(g, 'direct_count', 0)
         groups_dict[g.id] = data
     
     tree = []
@@ -265,15 +257,6 @@ def build_group_tree(groups: List[Any]) -> List[Dict]:
             else:
                 # Если родитель не найден, добавляем в корень
                 tree.append(group_data)
-    
-    # Вычисляем глубину для каждой группы
-    def set_depth(nodes, depth=0):
-        for node in nodes:
-            node['depth'] = depth
-            if node.get('children'):
-                set_depth(node['children'], depth + 1)
-    
-    set_depth(tree)
     
     return tree
 
