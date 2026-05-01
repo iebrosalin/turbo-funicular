@@ -739,10 +739,11 @@ async def stop_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/scan-job/{job_id}/retry")
 async def retry_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
-    """Повторить задачу сканирования."""
+    """Повторить задачу сканирования (создать новую задачу с теми же параметрами)."""
     from backend.models.scan import ScanJob, Scan
     from sqlalchemy import select
     from backend.services.scan_queue_manager import scan_queue_manager
+    import datetime
     
     # Получаем задачу с связанным сканированием
     query = select(ScanJob).where(ScanJob.id == job_id).options(selectinload(ScanJob.scan))
@@ -756,29 +757,57 @@ async def retry_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     if job.status not in ['completed', 'failed', 'stopped', 'cancelled']:
         raise HTTPException(status_code=400, detail=f"Невозможно перезапустить задачу со статусом {job.status}")
     
-    # Обновляем статусы
-    job.status = 'queued'
-    job.error_message = None
-    job.completed_at = None
-    if job.scan:
-        job.scan.status = 'queued'
-        job.scan.progress = 0
+    # Получаем параметры из старого сканирования
+    old_scan = job.scan
+    if not old_scan:
+        raise HTTPException(status_code=400, detail="Сканирование не найдено для этой задачи")
     
+    # Создаем новое сканирование с теми же параметрами
+    new_scan = Scan(
+        target=old_scan.target,
+        scan_type=old_scan.scan_type,
+        parameters=old_scan.parameters,
+        status='queued',
+        progress=0,
+        created_at=datetime.datetime.utcnow(),
+        group_ids=old_scan.group_ids,
+        known_ports_only=old_scan.known_ports_only,
+        ports=old_scan.ports,
+        scripts=old_scan.scripts,
+        custom_args=old_scan.custom_args,
+        run_nmap_after=old_scan.run_nmap_after,
+        nmap_args=old_scan.nmap_args,
+    )
+    db.add(new_scan)
+    await db.flush()  # Чтобы получить ID нового сканирования
+    
+    # Создаем новую задачу для нового сканирования
+    new_job = ScanJob(
+        scan_id=new_scan.id,
+        job_type=job.job_type,
+        status='queued',
+        error_message=None,
+        created_at=datetime.datetime.utcnow(),
+        started_at=None,
+        completed_at=None,
+        worker_id=None,
+        parameters=job.parameters,
+    )
+    db.add(new_job)
     await db.commit()
     
-    # Добавляем задачу обратно в очередь
-    targets = [job.scan.target] if job.scan and job.scan.target else []
-    parameters = {}
+    # Добавляем новую задачу в очередь
+    targets = [new_scan.target] if new_scan.target else []
     
     await scan_queue_manager.add_scan(
         db=db,
-        scan_job_id=job.id,
-        scan_type=job.job_type,
+        scan_job_id=new_job.id,
+        scan_type=new_job.job_type,
         targets=targets,
-        parameters=parameters
+        parameters=new_scan.parameters or {}
     )
     
-    return {"message": f"Задача {job_id} перезапущена", "job_id": job_id}
+    return {"message": f"Создана новая задача {new_job.id} для сканирования {new_scan.id}", "job_id": new_job.id, "scan_id": new_scan.id}
 
 
 @router.get("/scan-job/{job_id}/download/{format}")
