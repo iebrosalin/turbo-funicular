@@ -60,7 +60,7 @@ export class TreeManager {
     const node = document.createElement('div');
     node.className = 'tree-node';
     node.dataset.id = group.id;
-    node.style.paddingLeft = `${depth * 20}px`;
+    node.style.paddingLeft = `${depth * 5}px`;
 
     const icon = document.createElement('i');
     icon.className = 'bi bi-folder folder-icon';
@@ -226,8 +226,8 @@ export class TreeManager {
         const selectedIds = this.#getSelectedAssetIds();
         if (selectedIds.length === 0) return;
         
-        // TODO: Открыть модалку выбора группы
-        alert(`Переместить ${selectedIds.length} активов в группу (функционал в разработке)`);
+        // Открыть модальное окно для выбора группы
+        await this.#openBulkMoveModal(selectedIds);
       });
     }
 
@@ -315,6 +315,114 @@ export class TreeManager {
   #getSelectedAssetIds() {
     const checkboxes = document.querySelectorAll('.asset-checkbox:checked');
     return Array.from(checkboxes).map(cb => parseInt(cb.dataset.id, 10));
+  }
+
+  /**
+   * Открыть модальное окно для массового перемещения активов
+   * @private
+   * @param {number[]} selectedIds - Массив ID выбранных активов
+   */
+  async #openBulkMoveModal(selectedIds) {
+    const modalElement = document.getElementById('bulkMoveModal');
+    const countBadge = document.getElementById('bulk-move-count');
+    const groupSelect = document.getElementById('target-group-select');
+    const executeBtn = document.getElementById('btn-execute-bulk-move');
+
+    if (!modalElement || !countBadge || !groupSelect || !executeBtn) {
+      console.error('[Bulk Move] Элементы модального окна не найдены');
+      return;
+    }
+
+    // Обновить счетчик выбранных активов
+    countBadge.textContent = selectedIds.length;
+
+    // Заполнить выпадающий список групп
+    groupSelect.innerHTML = '<option value="">-- Без группы --</option>';
+    const groups = store.getState('groups') || [];
+    groups.forEach(group => {
+      const option = document.createElement('option');
+      option.value = group.id;
+      option.textContent = '  '.repeat(group.depth || 0) + group.name;
+      groupSelect.appendChild(option);
+    });
+
+    // Сохранить ID выбранных активов в кнопке (как data-атрибут)
+    executeBtn.dataset.selectedIds = JSON.stringify(selectedIds);
+
+    // Показать модальное окно
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
+
+    // Обработчик кнопки "Переместить" (удаляем предыдущие обработчики клонированием)
+    const newExecuteBtn = executeBtn.cloneNode(true);
+    executeBtn.parentNode.replaceChild(newExecuteBtn, executeBtn);
+
+    newExecuteBtn.addEventListener('click', async () => {
+      const targetGroupId = groupSelect.value;
+      const idsToMove = JSON.parse(newExecuteBtn.dataset.selectedIds);
+
+      if (!targetGroupId && targetGroupId !== '') {
+        // Пустое значение означает перемещение в корень (без группы)
+        await this.#executeBulkMove(idsToMove, null);
+      } else {
+        await this.#executeBulkMove(idsToMove, parseInt(targetGroupId, 10));
+      }
+
+      modal.hide();
+    });
+  }
+
+  /**
+   * Выполнить массовое перемещение активов
+   * @private
+   * @param {number[]} assetIds - Массив ID активов для перемещения
+   * @param {number|null} groupId - ID целевой группы (null для перемещения в корень)
+   */
+  async #executeBulkMove(assetIds, groupId) {
+    try {
+      const response = await fetch('/api/assets/bulk-move', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ids: assetIds,
+          group_id: groupId
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Ошибка при перемещении активов');
+      }
+
+      // Перезагрузить список активов
+      await this.loadAssets(this.currentGroupId, this.currentGroupId === null);
+      
+      // Сбросить выделение
+      const checkboxes = document.querySelectorAll('.asset-checkbox');
+      checkboxes.forEach(cb => {
+        cb.checked = false;
+      });
+      const selectAllCheckbox = document.getElementById('select-all');
+      if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+        selectAllCheckbox.indeterminate = false;
+      }
+      this.#updateBulkToolbar();
+
+      // Обновить дерево групп (счетчики)
+      await this.refresh();
+
+      // Показать уведомление
+      const groupName = groupId 
+        ? (store.getState('groups')?.find(g => g.id === groupId)?.name || 'выбранную группу')
+        : 'корень (без группы)';
+      Utils.showFlashMessage(`Перемещено ${assetIds.length} активов в группу "${groupName}"`, 'success');
+    } catch (error) {
+      console.error('[Bulk Move] Ошибка:', error);
+      Utils.showFlashMessage(`Ошибка: ${error.message}`, 'danger');
+    }
   }
 
   /**
