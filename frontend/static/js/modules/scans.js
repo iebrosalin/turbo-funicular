@@ -16,6 +16,79 @@ export class ScanManager {
     this.startEventListening();
     // Инициализация обработчиков модальных окон
     this.#initModalHandlers();
+    // Инициализация обработчиков форм сканирования
+    this.#initScanForms();
+  }
+
+  /**
+   * Инициализация обработчиков форм сканирования (Nmap, Rustscan, Dig)
+   */
+  #initScanForms() {
+    // Форма Nmap
+    const nmapForm = document.getElementById('nmapScanForm');
+    if (nmapForm) {
+      nmapForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.#submitNmapScan(nmapForm);
+      });
+      
+      // Обработчик изменения профиля Nmap
+      const nmapProfile = document.getElementById('nmapProfile');
+      const nmapCustomArgsContainer = document.getElementById('nmapCustomArgsContainer');
+      if (nmapProfile && nmapCustomArgsContainer) {
+        nmapProfile.addEventListener('change', (e) => {
+          if (e.target.value === 'custom') {
+            nmapCustomArgsContainer.classList.remove('d-none');
+          } else {
+            nmapCustomArgsContainer.classList.add('d-none');
+          }
+        });
+      }
+    }
+
+    // Форма Rustscan
+    const rustscanForm = document.getElementById('rustscanScanForm');
+    if (rustscanForm) {
+      rustscanForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.#submitRustscanScan(rustscanForm);
+      });
+      
+      // Обработчик выбора топ портов
+      const rustscanTopPorts = document.getElementById('rustscanTopPorts');
+      const rustscanPortsContainer = document.getElementById('rustscanPortsContainer');
+      if (rustscanTopPorts && rustscanPortsContainer) {
+        rustscanTopPorts.addEventListener('change', (e) => {
+          if (e.target.value === 'custom') {
+            rustscanPortsContainer.classList.remove('d-none');
+          } else {
+            rustscanPortsContainer.classList.add('d-none');
+          }
+        });
+      }
+      
+      // Обработчик чекбокса запуска Nmap
+      const rustscanRunNmapAfter = document.getElementById('rustscanRunNmapAfter');
+      const rustscanNmapArgsContainer = document.getElementById('rustscanNmapArgsContainer');
+      if (rustscanRunNmapAfter && rustscanNmapArgsContainer) {
+        rustscanRunNmapAfter.addEventListener('change', (e) => {
+          if (e.target.checked) {
+            rustscanNmapArgsContainer.classList.remove('d-none');
+          } else {
+            rustscanNmapArgsContainer.classList.add('d-none');
+          }
+        });
+      }
+    }
+
+    // Форма Dig
+    const digForm = document.getElementById('digScanForm');
+    if (digForm) {
+      digForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.#submitDigScan(digForm);
+      });
+    }
   }
 
   /**
@@ -60,7 +133,168 @@ export class ScanManager {
   }
 
   /**
-   * Отправка формы сканирования
+   * Отправка формы сканирования Nmap
+   */
+  async #submitNmapScan(form) {
+    const target = document.getElementById('nmapTarget').value.trim();
+    const profile = document.getElementById('nmapProfile').value;
+    const ports = document.getElementById('nmapPorts').value.trim();
+    const scripts = document.getElementById('nmapScripts').value.trim();
+    const customArgs = document.getElementById('nmapCustomArgs').value.trim();
+    const saveAssets = document.getElementById('nmapSaveAssets').checked;
+
+    if (!target) {
+      Utils.showNotification('Укажите целевые хосты', 'warning');
+      return;
+    }
+
+    try {
+      const payload = {
+        target,
+        profile,
+        ports: ports || undefined,
+        scripts: scripts || undefined,
+        custom_args: (profile === 'custom' ? customArgs : undefined),
+        save_assets: saveAssets
+      };
+
+      const response = await fetch('/api/scans/nmap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка запуска сканирования');
+      }
+
+      const result = await response.json();
+      Utils.showNotification(`Сканирование Nmap #${result.job_id} запущено`, 'success');
+      form.reset();
+      if (typeof window.scanResultsController !== 'undefined') {
+        window.scanResultsController.loadHistory();
+      }
+    } catch (error) {
+      console.error('Ошибка запуска Nmap:', error);
+      Utils.showNotification(error.message, 'danger');
+    }
+  }
+
+  /**
+   * Отправка формы сканирования Rustscan
+   */
+  async #submitRustscanScan(form) {
+    const target = document.getElementById('rustscanTarget').value.trim();
+    const topPorts = document.getElementById('rustscanTopPorts').value;
+    const portsRange = document.getElementById('rustscanPortsRange').value.trim();
+    const customArgs = document.getElementById('rustscanCustomArgs').value.trim();
+    const runNmapAfter = document.getElementById('rustscanRunNmapAfter').checked;
+    const nmapArgs = document.getElementById('rustscanNmapArgs').value.trim();
+    const saveAssets = document.getElementById('rustscanSaveAssets').checked;
+
+    if (!target) {
+      Utils.showNotification('Укажите целевые хосты', 'warning');
+      return;
+    }
+
+    let ports = '';
+    if (topPorts === 'custom') {
+      ports = portsRange;
+    } else if (topPorts === 'all') {
+      ports = '1-65535';
+    } else {
+      ports = `--top-ports ${topPorts}`;
+    }
+
+    try {
+      const payload = {
+        target,
+        ports: ports || undefined,
+        custom_args: customArgs || undefined,
+        run_nmap_after: runNmapAfter,
+        nmap_args: runNmapAfter ? (nmapArgs || undefined) : undefined,
+        save_assets: saveAssets
+      };
+
+      const response = await fetch('/api/scans/rustscan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка запуска сканирования');
+      }
+
+      const result = await response.json();
+      let msg = `Сканирование Rustscan #${result.job_id} запущено`;
+      if (runNmapAfter) {
+        msg += '. После завершения будет запущен Nmap.';
+      }
+      Utils.showNotification(msg, 'success');
+      form.reset();
+      // Скрыть поле аргументов Nmap
+      document.getElementById('rustscanNmapArgsContainer')?.classList.add('d-none');
+      if (typeof window.scanResultsController !== 'undefined') {
+        window.scanResultsController.loadHistory();
+      }
+    } catch (error) {
+      console.error('Ошибка запуска Rustscan:', error);
+      Utils.showNotification(error.message, 'danger');
+    }
+  }
+
+  /**
+   * Отправка формы сканирования Dig
+   */
+  async #submitDigScan(form) {
+    const targetsText = document.getElementById('digTargetsText').value.trim();
+    const recordTypes = document.getElementById('digRecordTypes').value;
+    const dnsServer = document.getElementById('digDnsServer').value.trim();
+    const cliArgs = document.getElementById('digCliArgs').value.trim();
+    const saveAssets = document.getElementById('digSaveAssets').checked;
+
+    if (!targetsText) {
+      Utils.showNotification('Укажите домены для сканирования', 'warning');
+      return;
+    }
+
+    try {
+      const payload = {
+        targets_text: targetsText,
+        record_types: recordTypes,
+        dns_server: dnsServer || undefined,
+        cli_args: cliArgs || undefined,
+        save_assets: saveAssets
+      };
+
+      const response = await fetch('/api/scans/dig', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка запуска сканирования');
+      }
+
+      const result = await response.json();
+      Utils.showNotification(`Сканирование Dig #${result.job_id} запущено`, 'success');
+      form.reset();
+      if (typeof window.scanResultsController !== 'undefined') {
+        window.scanResultsController.loadHistory();
+      }
+    } catch (error) {
+      console.error('Ошибка запуска Dig:', error);
+      Utils.showNotification(error.message, 'danger');
+    }
+  }
+
+  /**
+   * Отправка формы сканирования (устаревшая, для совместимости)
    */
   async #submitScan(form) {
     const target = document.getElementById('scan-target').value.trim();
@@ -257,7 +491,67 @@ export class ScanManager {
     } catch (error) {
       console.error('Ошибка обновления истории сканирований:', error);
     }
-  } // <--- ДОБАВЛЕНО: закрытие метода updateScanHistory
+  }
+
+  /**
+   * Обновление таблиц очередей (Эксклюзивная и Параллельная)
+   */
+  async updateQueueTables() {
+    try {
+      const res = await fetch('/api/scans/status');
+      if (!res.ok) return;
+      const jobs = await res.json();
+
+      const exclusiveBody = document.querySelector('#exclusive-queue-table tbody');
+      const parallelBody = document.querySelector('#parallel-queue-table tbody');
+      const exclusiveEmpty = document.getElementById('exclusive-empty');
+      const parallelEmpty = document.getElementById('parallel-empty');
+
+      if (!exclusiveBody || !parallelBody) return;
+
+      exclusiveBody.innerHTML = '';
+      parallelBody.innerHTML = '';
+
+      let hasExclusive = false;
+      let hasParallel = false;
+
+      jobs.forEach(job => {
+        if (job.status === 'pending' || job.status === 'running') {
+          const isExclusive = ['nmap', 'rustscan'].includes(job.scan_type);
+          const targetBody = isExclusive ? exclusiveBody : parallelBody;
+          
+          if (isExclusive) hasExclusive = true;
+          else hasParallel = true;
+
+          const row = document.createElement('tr');
+          row.id = `scan-row-${job.id}`;
+          row.innerHTML = `
+            <td><small>${job.id}</small></td>
+            <td><span class="badge bg-${job.scan_type === 'nmap' ? 'primary' : job.scan_type === 'rustscan' ? 'info' : 'secondary'}">${job.scan_type.toUpperCase()}</span></td>
+            <td><strong>${job.target}</strong></td>
+            <td><span class="badge status-badge bg-${job.status === 'running' ? 'warning text-dark' : 'secondary'}">${job.status}</span></td>
+            <td style="width: 150px;">
+              <div class="progress" style="height: 6px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: ${job.progress}%"></div>
+              </div>
+              <small class="text-muted progress-text">${job.progress}%</small>
+            </td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary" onclick="scanManager.viewScanResults(${job.id})"><i class="bi bi-eye"></i></button>
+              ${job.status === 'running' ? `<button class="btn btn-sm btn-outline-danger" onclick="scanManager.cancelScan(${job.id})"><i class="bi bi-x-circle"></i></button>` : ''}
+            </td>
+          `;
+          targetBody.appendChild(row);
+        }
+      });
+
+      if (exclusiveEmpty) exclusiveEmpty.style.display = hasExclusive ? 'none' : 'block';
+      if (parallelEmpty) parallelEmpty.style.display = hasParallel ? 'none' : 'block';
+
+    } catch (error) {
+      console.error('Ошибка обновления очередей:', error);
+    }
+  } // <--- ДОБАВЛЕНО: закрытие метода updateQueueTables
 
   /**
    * Прослушивание событий от сервера через SSE (Server-Sent Events)
@@ -273,6 +567,8 @@ export class ScanManager {
       try {
         const data = JSON.parse(event.data);
         this.updateScanStatusInUI(data);
+        // Обновляем таблицы очередей при получении события
+        this.updateQueueTables();
       } catch (e) {
         console.error('Ошибка парсинга SSE события:', e);
       }
@@ -288,7 +584,15 @@ export class ScanManager {
       }, 5000);
     };
 
+    // Первичная загрузка очередей и истории
+    this.updateQueueTables();
+    this.updateScanHistory();
     
+    // Периодическое обновление каждые 5 секунд
+    setInterval(() => {
+      this.updateQueueTables();
+      this.updateScanHistory();
+    }, 5000);
   }
 
   /**
