@@ -102,7 +102,7 @@ export class GroupManager {
         this.dynamicFilterBuilder = new FilterBuilder('group-filter-root', {
           mode: 'modal',
           onApply: (rules) => {
-            console.log('Modal filter rules:', rules);
+            
             // Правила сохраняются в форму при отправке
           },
           initialRules: []

@@ -48,7 +48,7 @@ export class ScanModalManager {
     progressDiv.style.display = 'block';
     
     try {
-      const response = await fetch('/api/scans/import', { 
+      const response = await fetch('/api/scans/import-nmap-xml', { 
         method: 'POST',
         body: formData
       });

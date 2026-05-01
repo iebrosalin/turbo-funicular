@@ -104,7 +104,7 @@ export class TreeManager {
    * @param {string|number} groupId
    */
   handleGroupClick(groupId) {
-    console.log('[TreeManager] Клик по группе:', groupId);
+    
     
     // Если мы не на главной странице (дашборде), перенаправляем туда
     const isDashboard = window.location.pathname === '/' || window.location.pathname === '/index.html';
@@ -117,7 +117,7 @@ export class TreeManager {
       }
       
       const url = params.toString() ? `/?${params.toString()}` : '/';
-      console.log('[TreeManager] Переход на дашборд:', url);
+      
       window.location.href = url;
       return;
     }
@@ -125,7 +125,7 @@ export class TreeManager {
     // Если мы уже на дашборде, фильтруем активы без перезагрузки
     const assetsBody = document.getElementById('assets-body');
     if (!assetsBody) {
-      console.log('Таблица активов не найдена. Пропускаем загрузку.');
+      
       this.#updateActiveNode(groupId);
       return;
     }
@@ -183,17 +183,17 @@ export class TreeManager {
       return;
     }
 
-    console.log('[TreeManager] filterByGroup:', groupId, 'sourceFilter:', sourceFilter);
+    
     this.#updateActiveNode(groupId);
 
     if (groupId === 'ungrouped') {
-      console.log('[TreeManager] Загрузка активов без группы');
+      
       this.loadAssets(null, true, sourceFilter);
     } else if (groupId === 'all') {
-      console.log('[TreeManager] Загрузка всех активов');
+      
       this.loadAssets(null, false, sourceFilter);
     } else {
-      console.log('[TreeManager] Загрузка активов группы:', groupId);
+      
       this.loadAssets(parseInt(groupId), false, sourceFilter);
     }
   }
@@ -211,7 +211,7 @@ export class TreeManager {
       return;
     }
 
-    console.log('[TreeManager] loadAssets: groupId=', groupId, 'isUngrouped=', isUngrouped, 'sourceFilter=', sourceFilter);
+    
     tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Загрузка...</p></td></tr>';
 
     const params = new URLSearchParams();
@@ -230,12 +230,12 @@ export class TreeManager {
     const queryString = params.toString();
     const url = `/api/assets${queryString ? '?' + queryString : ''}`;
     
-    console.log('[TreeManager] Запрос к API:', url);
+    
 
     try {
       const response = await Utils.apiRequest(url);
       
-      console.log('[TreeManager] Ответ от API:', response);
+      
       const data = response;
       const assets = Array.isArray(data) ? data : (data.assets || []);
 
@@ -253,7 +253,7 @@ export class TreeManager {
       });
 
       store.setCurrentAssets(assets);
-      console.log('[TreeManager] Загружено активов:', assets.length);
+      
 
     } catch (error) {
       console.error('[TreeManager] Ошибка загрузки активов:', error);
@@ -344,7 +344,7 @@ export class TreeManager {
    * @param {Array} rules - Массив правил фильтрации
    */
   applyCustomFilters(rules) {
-    console.log('🔍 Применение пользовательских фильтров:', rules);
+    
     // Фильтрация происходит на стороне клиента в main.js
     // Этот метод может быть использован для дополнительной логики
   }
@@ -353,7 +353,7 @@ export class TreeManager {
    * Очистка всех фильтров
    */
   clearFilters() {
-    console.log('🧹 Очистка фильтров');
+    
     // Сброс фильтров и загрузка всех активов текущей группы
     this.filterByGroup(this.currentGroupId || 'all');
   }

@@ -26,7 +26,7 @@ class App {
       // Горячие клавиши
       this.#initHotkeys();
 
-      console.log('✅ Приложение инициализировано');
+      
     } catch (error) {
       console.error('❌ Ошибка инициализации приложения:', error);
     }
@@ -188,7 +188,7 @@ class App {
       mode: 'dashboard',
       onApply: (rules) => {
         this.filterRules = rules;
-        console.log('🔍 Применены правила фильтрации:', rules);
+        
         
         // Применяем фильтры через treeManager
         if (treeManager && typeof treeManager.applyCustomFilters === 'function') {

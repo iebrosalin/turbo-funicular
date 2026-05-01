@@ -38,7 +38,6 @@ class DigScanner:
             await db.commit()
             
             cmd = self._build_command(target, record_type, custom_args)
-            print(f"🔍 Запуск Dig: {' '.join(cmd)}")
             
             process = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -50,7 +49,6 @@ class DigScanner:
             async for line in process.stdout:
                 line_decoded = line.decode().strip()
                 output_lines.append(line_decoded)
-                print(line_decoded)
             
             await process.wait()
             
