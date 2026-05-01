@@ -3,10 +3,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional, Any
 from pydantic import BaseModel
+import json
+
 from backend.db.session import get_db
 from backend.services.asset_service import AssetService
 from backend.schemas.asset import AssetCreate, AssetUpdate, AssetResponse
 from backend.models.asset import Asset
+from backend.utils.query_parser import parse_query, QueryParserError
 
 router = APIRouter(tags=["assets"])
 assets_router = router  # Алиас для совместимости импортов
@@ -20,6 +23,37 @@ class FilterRule(BaseModel):
 
 class FilterRequest(BaseModel):
     rules: List[FilterRule]
+
+
+# Кэш схемы полей
+_asset_schema_cache: Optional[List[Dict[str, Any]]] = None
+
+@router.get("/schema")
+async def get_asset_schema(db: AsyncSession = Depends(get_db)):
+    """Возвращает список доступных полей для фильтрации с типами и операторами."""
+    global _asset_schema_cache
+    
+    if _asset_schema_cache is None:
+        columns = []
+        for column in Asset.__table__.columns:
+            col_type = str(column.type).lower()
+            ops = ["=", "like", "reg_match"]
+            if "int" in col_type or "integer" in col_type:
+                ops.append("in")
+            elif "string" in col_type or "text" in col_type or "varchar" in col_type:
+                ops.append("in")
+            
+            # Исключаем служебные поля
+            if column.name not in ['id', 'created_at', 'updated_at']:
+                columns.append({
+                    "field": column.name,
+                    "type": col_type,
+                    "operators": ops,
+                    "label": column.name.replace("_", " ").title()
+                })
+        _asset_schema_cache = columns
+    
+    return {"schema": _asset_schema_cache}
 
 
 @router.post("/count", response_model=dict)
