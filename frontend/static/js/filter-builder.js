@@ -3,6 +3,8 @@
  * Используется на дашборде и в модальных окнах динамических групп
  */
 
+import { Utils } from './modules/utils.js';
+
 class FilterBuilder {
     constructor(containerId, options = {}) {
         this.container = document.getElementById(containerId);
