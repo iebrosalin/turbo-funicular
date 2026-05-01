@@ -13,7 +13,7 @@ class AssetService:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, group_id: Optional[int] = None, search: Optional[str] = None, ungrouped: Optional[bool] = None, source: Optional[str] = None) -> List[Asset]:
+    async def get_all(self, group_id: Optional[int] = None, search: Optional[str] = None, ungrouped: Optional[bool] = None, source: Optional[str] = None, rules: Optional[List[dict]] = None) -> List[Asset]:
         """Получить все активы с фильтрацией."""
         query = select(Asset).options(selectinload(Asset.groups))
         
@@ -35,7 +35,76 @@ class AssetService:
             )
         
         result = await self.db.execute(query)
-        return list(result.scalars().unique().all())
+        assets = list(result.scalars().unique().all())
+        
+        # Применяем сложные правила фильтрации на уровне Python
+        if rules:
+            filtered = []
+            for asset in assets:
+                match = True
+                for rule in rules:
+                    field = rule.get('field', '')
+                    operation = rule.get('operation', '')
+                    value = str(rule.get('value', '')).lower()
+                    
+                    # Получаем значение поля из актива
+                    field_value = getattr(asset, field, None)
+                    
+                    # Маппинг альтернативных имен полей
+                    if field_value is None:
+                        if field == 'ip_address':
+                            field_value = getattr(asset, 'ip_address', None)
+                        elif field == 'hostname':
+                            field_value = getattr(asset, 'hostname', None)
+                        elif field == 'os_family':
+                            field_value = getattr(asset, 'os_family', None)
+                        elif field == 'device_role':
+                            field_value = getattr(asset, 'device_type', None)
+                        elif field == 'open_ports':
+                            field_value = getattr(asset, 'open_ports', None)
+                        elif field == 'status':
+                            field_value = getattr(asset, 'status', None)
+                        elif field == 'source':
+                            field_value = getattr(asset, 'source', None)
+                        elif field == 'group_name':
+                            # Для группы берем имя первой группы
+                            if asset.groups and len(asset.groups) > 0:
+                                field_value = asset.groups[0].name
+                            else:
+                                field_value = ''
+                    
+                    if field_value is None:
+                        field_value = ''
+                    elif isinstance(field_value, list):
+                        # Для списков (порты) конвертируем в строку
+                        field_value = ','.join(map(str, field_value)).lower()
+                    else:
+                        field_value = str(field_value).lower()
+                    
+                    # Применяем операцию
+                    if operation == 'eq':
+                        if field_value != value:
+                            match = False
+                    elif operation == 'neq':
+                        if field_value == value:
+                            match = False
+                    elif operation == 'contains':
+                        if value not in field_value:
+                            match = False
+                    elif operation == 'in':
+                        values_list = [v.strip().lower() for v in value.split(',')]
+                        if field_value not in values_list:
+                            match = False
+                    
+                    if not match:
+                        break
+                
+                if match:
+                    filtered.append(asset)
+            
+            return filtered
+        
+        return assets
     
     async def get_by_id(self, asset_id: int) -> Optional[Asset]:
         """Получить актив по ID."""

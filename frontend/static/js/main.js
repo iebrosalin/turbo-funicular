@@ -1,5 +1,6 @@
 // static/js/main.js
 import { store, treeManager, assetManager, groupManager, scanManager, themeController } from './modules/index.js';
+import { FilterBuilder } from './filter-builder.js';
 
 class App {
   constructor() {

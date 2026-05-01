@@ -86,7 +86,8 @@ async def get_assets(
     group_id: Optional[str] = Query(None, alias="group_id"),
     search: Optional[str] = Query(None),
     ungrouped: Optional[bool] = Query(None),
-    source: Optional[str] = Query(None)
+    source: Optional[str] = Query(None),
+    rules: Optional[str] = Query(None)  # JSON строка с правилами фильтрации
 ):
     """Получить список активов с фильтрацией."""
     service = AssetService(db)
@@ -103,7 +104,22 @@ async def get_assets(
     if ungrouped is True:
         group_id_int = None
     
-    assets = await service.get_all(group_id=group_id_int, search=search, ungrouped=ungrouped, source=source)
+    # Парсим правила фильтрации если переданы
+    filter_rules = None
+    if rules:
+        try:
+            import json
+            filter_rules = json.loads(rules)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Некорректный формат правил фильтрации")
+    
+    assets = await service.get_all(
+        group_id=group_id_int, 
+        search=search, 
+        ungrouped=ungrouped, 
+        source=source,
+        rules=filter_rules
+    )
     return assets
 
 

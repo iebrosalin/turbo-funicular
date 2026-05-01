@@ -287,5 +287,8 @@ class FilterBuilder {
     }
 }
 
-// Делаем класс глобально доступным
+// Экспорт для использования в других модулях
+export { FilterBuilder };
+
+// Делаем класс глобально доступным (для обратной совместимости)
 window.FilterBuilder = FilterBuilder;

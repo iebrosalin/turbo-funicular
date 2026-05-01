@@ -1,6 +1,7 @@
 import { Utils } from './utils.js';
 import { refreshGroupTree, loadAssets, filterByGroup } from './tree.js';
 import { store } from '../store.js';
+import { FilterBuilder } from '../filter-builder.js';
 
 export class GroupManager {
   constructor() {
