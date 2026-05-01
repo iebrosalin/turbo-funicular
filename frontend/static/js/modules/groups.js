@@ -223,7 +223,7 @@ export class GroupManager {
     let payload = {
       name: name,
       parent_id: parentId === '' ? null : parseInt(parentId),
-      mode: mode
+      group_type: mode === 'manual' ? 'manual' : (mode === 'cidr' ? 'cidr' : 'dynamic')
     };
 
     if (mode === 'cidr') {
