@@ -59,16 +59,26 @@ async def lifespan(app: FastAPI):
         # Проверяем наличие колонки last_seen в таблице assets
         if "assets" in inspector.get_table_names():
             columns = [col['name'] for col in inspector.get_columns('assets')]
+            
+            # Добавляем колонку last_seen если её нет
             if 'last_seen' not in columns:
                 logger.info("🔧 Добавление колонки last_seen в таблицу assets...")
                 with sync_engine.begin() as conn:
                     if "sqlite" in db_url:
-                        # Для SQLite используем ALTER TABLE ADD COLUMN
                         conn.execute(text("ALTER TABLE assets ADD COLUMN last_seen DATETIME"))
                     else:
-                        # Для PostgreSQL
                         conn.execute(text("ALTER TABLE assets ADD COLUMN last_seen TIMESTAMP WITH TIME ZONE"))
                 logger.info("✅ Колонка last_seen успешно добавлена.")
+            
+            # Добавляем колонку source если её нет
+            if 'source' not in columns:
+                logger.info("🔧 Добавление колонки source в таблицу assets...")
+                with sync_engine.begin() as conn:
+                    if "sqlite" in db_url:
+                        conn.execute(text("ALTER TABLE assets ADD COLUMN source VARCHAR(20) DEFAULT 'manual'"))
+                    else:
+                        conn.execute(text("ALTER TABLE assets ADD COLUMN source VARCHAR(20) DEFAULT 'manual'"))
+                logger.info("✅ Колонка source успешно добавлена.")
     except Exception as e:
         logger.error(f"❌ Ошибка инициализации БД: {e}")
         raise
