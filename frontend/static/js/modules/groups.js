@@ -452,24 +452,21 @@ export class GroupManager {
   }
 
   #initActiveScans() {
-    const container = document.getElementById('active-scans-list');
+    const container = document.getElementById('sidebar-tasks-container');
     if (!container) return;
 
-    const updateScans = async () => {
-      try {
-        const res = await fetch('/api/scans/status');
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+    const renderSection = (activeJobs, error = false) => {
+      let html = `
+        <div class="sidebar-section">
+          <div class="sidebar-section-title">Активные задачи</div>
+          <div id="active-scans-list">
+      `;
 
-        const jobs = data.recent_jobs || [];
-        const activeJobs = jobs.filter(j => ['running', 'pending', 'queued'].includes(j.status));
-
-        if (activeJobs.length === 0) {
-          container.innerHTML = '<div class="text-center text-muted small py-3">Нет активных задач</div>';
-          return;
-        }
-
-        let html = '';
+      if (error) {
+        html += '<div class="text-center text-danger small py-3">Ошибка загрузки</div>';
+      } else if (activeJobs.length === 0) {
+        html += '<div class="text-center text-muted small py-3">Нет активных задач</div>';
+      } else {
         activeJobs.forEach(job => {
           let statusClass = 'status-pending';
           let statusText = 'Ожидание';
@@ -506,12 +503,29 @@ export class GroupManager {
           </div>
           `;
         });
+      }
 
-        container.innerHTML = html;
+      html += `
+          </div>
+        </div>
+      `;
+      container.innerHTML = html;
+    };
+
+    const updateScans = async () => {
+      try {
+        const res = await fetch('/api/scans/status');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const jobs = data.recent_jobs || [];
+        const activeJobs = jobs.filter(j => ['running', 'pending', 'queued'].includes(j.status));
+
+        renderSection(activeJobs);
 
       } catch (e) {
         console.error('Ошибка обновления сканирований:', e);
-        container.innerHTML = '<div class="text-danger small p-2">Ошибка загрузки</div>';
+        renderSection([], true);
       }
     };
 
