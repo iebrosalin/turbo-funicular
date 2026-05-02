@@ -401,6 +401,12 @@ export class GroupManager {
       const treeNode = e.target.closest('.tree-node');
       if (!treeNode) return;
 
+      // Блокируем контекстное меню для системных узлов "Все активы" и "Без группы"
+      const groupId = treeNode.dataset.id;
+      if (groupId === 'all' || groupId === 'ungrouped') {
+        return;
+      }
+
       const groupTree = document.getElementById('group-tree');
       if (!groupTree || !groupTree.contains(treeNode)) return;
 
@@ -409,10 +415,6 @@ export class GroupManager {
 
       e.preventDefault();
       e.stopPropagation();
-
-      const groupId = treeNode.dataset.id;
-      const isUngrouped = groupId === 'ungrouped';
-      const isAll = groupId === 'all';
 
       ctx.style.display = 'block';
       ctx.style.left = e.pageX + 'px';
@@ -423,12 +425,11 @@ export class GroupManager {
       const moveItem = ctx.querySelector('[data-action="move"]');
       const deleteItem = ctx.querySelector('[data-action="delete"]');
 
-      const isSystemNode = isUngrouped || isAll;
-
-      if (createItem) createItem.style.display = isSystemNode ? 'none' : 'block';
-      if (renameItem) renameItem.style.display = isSystemNode ? 'none' : 'block';
-      if (moveItem) moveItem.style.display = isSystemNode ? 'none' : 'block';
-      if (deleteItem) deleteItem.style.display = isSystemNode ? 'none' : 'block';
+      // Для обычных групп показываем все пункты меню
+      if (createItem) createItem.style.display = 'block';
+      if (renameItem) renameItem.style.display = 'block';
+      if (moveItem) moveItem.style.display = 'block';
+      if (deleteItem) deleteItem.style.display = 'block';
 
       ctx.dataset.groupId = groupId;
     });

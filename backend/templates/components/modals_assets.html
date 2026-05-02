@@ -117,3 +117,81 @@
         </div>
     </div>
 </div>
+
+<!-- Modal for editing asset -->
+<div class="modal fade" id="assetModal" tabindex="-1" aria-labelledby="assetModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h4 class="modal-title" id="assetModalLabel">Редактирование актива</h4>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="assetForm">
+                <div class="modal-body">
+                    <input type="hidden" id="assetId">
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="assetIp" class="form-label">IP адрес *</label>
+                            <input type="text" class="form-control" id="assetIp" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="assetHostname" class="form-label">Hostname</label>
+                            <input type="text" class="form-control" id="assetHostname">
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="assetOsInfo" class="form-label">ОС</label>
+                            <input type="text" class="form-control" id="assetOsInfo">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="assetMac" class="form-label">MAC адрес</label>
+                            <input type="text" class="form-control" id="assetMac">
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="assetDeviceType" class="form-label">Тип устройства</label>
+                            <select class="form-select" id="assetDeviceType">
+                                <option value="unknown">Неизвестно</option>
+                                <option value="server">Сервер</option>
+                                <option value="workstation">Рабочая станция</option>
+                                <option value="network">Сетевое устройство</option>
+                                <option value="printer">Принтер</option>
+                                <option value="iot">IoT устройство</option>
+                                <option value="other">Другое</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="assetStatus" class="form-label">Статус</label>
+                            <select class="form-select" id="assetStatus">
+                                <option value="active">Активен</option>
+                                <option value="inactive">Неактивен</option>
+                                <option value="maintenance">В обслуживании</option>
+                                <option value="decommissioned">Списан</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="assetOwner" class="form-label">Владелец</label>
+                            <input type="text" class="form-control" id="assetOwner">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="assetLocation" class="form-label">Локация</label>
+                            <input type="text" class="form-control" id="assetLocation">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

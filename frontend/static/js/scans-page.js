@@ -24,6 +24,11 @@ export class ScanResultsController {
     await this.loadJobs();
     await this.updateQueueStatus();
     
+    // Загружаем историю сканирований если есть контейнер
+    if (document.getElementById('scansHistoryBody')) {
+      await this.loadHistory();
+    }
+    
     // Автообновление каждые 5 секунд
     this.startPolling();
   }
@@ -730,13 +735,65 @@ export class ScanResultsController {
       reader.readAsText(file);
     });
   }
+
+  /**
+   * Просмотр результатов сканирования (для совместимости с templates/scans.html)
+   */
+  async viewScanResults(id) {
+    const modalId = 'scanResultModal';
+    const modalEl = document.getElementById(modalId);
+    if (!modalEl) {
+      // Если модальное окно не найдено, просто загружаем историю
+      await this.loadHistory();
+      return;
+    }
+
+    const m = new bootstrap.Modal(modalEl);
+    const c = document.getElementById('scanResultContent');
+    const titleEl = document.getElementById('resultScanId');
+    
+    if (titleEl) titleEl.textContent = `#${id}`;
+    if (c) c.innerHTML = '<div class="text-center"><div class="spinner-border"></div><p class="mt-2">Загрузка...</p></div>';
+    
+    m.show();
+    
+    try {
+      const r = await fetch(`/api/scans/${id}/results`);
+      const d = await r.json();
+      
+      let h = `<h6>#${d.job.id} - ${d.job.scan_type.toUpperCase()}</h6>`;
+      h += `<p><strong>Цель:</strong> ${d.job.target}</p>`;
+      h += `<p><strong>Статус:</strong> <span class="badge bg-${d.job.status === 'completed' ? 'success' : d.job.status === 'failed' ? 'danger' : 'warning'}">${d.job.status}</span></p>`;
+      h += `<p><strong>Прогресс:</strong> ${d.job.progress}%</p>`;
+      if (d.job.started_at) h += `<p><strong>Начало:</strong> ${d.job.started_at}</p>`;
+      if (d.job.completed_at) h += `<p><strong>Завершение:</strong> ${d.job.completed_at}</p>`;
+      h += `<hr>`;
+      
+      if (d.job.status === 'failed') {
+        h += '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Сканирование завершилось с ошибкой.</div>';
+      } else if (!d.results || d.results.length === 0) {
+        h += '<p class="text-muted">Нет результатов</p>';
+      } else {
+        h += `<p><strong>Найдено хостов:</strong> ${d.results.length}</p><div class="list-group">`;
+        d.results.forEach(x => {
+          const ports = x.ports?.join ? x.ports.join(', ') : 'Нет';
+          const osInfo = x.os && x.os !== '-' ? `<p class="mb-0"><strong>ОС:</strong> ${x.os}</p>` : '';
+          h += `<div class="list-group-item"><div class="d-flex justify-content-between"><h6 class="mb-1">${x.ip}</h6><small>${x.scanned_at}</small></div><p class="mb-1"><strong>Порты:</strong> ${ports}</p>${osInfo}</div>`;
+        });
+        h += '</div>';
+      }
+      if (c) c.innerHTML = h;
+    } catch (err) { 
+      if (c) c.innerHTML = `<div class="alert alert-danger">Ошибка загрузки результатов: ${err.message}</div>`;
+    }
+  }
 }
 
 // Инициализация контроллера после загрузки DOM
 // Используем setTimeout чтобы убедиться, что DOM полностью готов
 setTimeout(() => {
   
-  if (document.getElementById('nmap-form') || document.getElementById('rustscan-form') || document.getElementById('dig-form')) {
+  if (document.getElementById('nmap-form') || document.getElementById('rustscan-form') || document.getElementById('dig-form') || document.getElementById('scansHistoryBody')) {
     
     window.scanResultsController = new ScanResultsController();
   } else {

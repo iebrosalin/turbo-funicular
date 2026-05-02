@@ -10,7 +10,7 @@
         <div>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index">Дашборд</a></li>
+                    <li class="breadcrumb-item"><a href="{{ url_for('dashboard.index') }}">Дашборд</a></li>
                     <li class="breadcrumb-item active" aria-current="page">{{ asset.ip_address }} {% if asset.fqdn %}({{ asset.fqdn }}){% endif %}</li>
                 </ol>
             </nav>
@@ -347,4 +347,46 @@
         </div>
     </div>
 </div>
+
+<!-- Подключаем скрипт для страницы детали актива -->
+<script type="module">
+import { store } from '/static/js/modules/index.js';
+
+document.addEventListener('DOMContentLoaded', () => {
+    const assetId = {{ asset.id }};
+    
+    // Кнопка сканирования текущего актива
+    document.getElementById('scanCurrentAssetBtn')?.addEventListener('click', async () => {
+        const target = '{{ asset.ip_address }}';
+        if (!target) {
+            alert('IP адрес актива не указан');
+            return;
+        }
+        
+        // Открываем модальное окно сканирования с предустановленным таргетом
+        const scanModal = new bootstrap.Modal(document.getElementById('scanModal'));
+        document.getElementById('scanTarget').value = target;
+        scanModal.show();
+    });
+    
+    // Подписка на обновления актива через Store
+    store.subscribe((state) => {
+        const assets = state.assets || [];
+        const updatedAsset = assets.find(a => a.id === assetId);
+        
+        if (!updatedAsset) {
+            // Актив был удалён - перенаправляем на дашборд
+            if (confirm('Этот актив был удалён. Перейти на дашборд?')) {
+                window.location.href = '/';
+            }
+            return;
+        }
+        
+        // Обновляем данные на странице при изменении актива
+        console.log('[DEBUG] Актив обновлён:', updatedAsset);
+        // Здесь можно добавить логику обновления полей на странице
+    });
+});
+</script>
+
 {% endblock %}

@@ -56,7 +56,8 @@ class RustscanRequest(BaseModel):
 
 
 class DigScanRequest(BaseModel):
-    targets_text: str
+    target: str
+    args: Optional[str] = None
     dns_server: Optional[str] = None
     cli_args: Optional[str] = None
     record_types: Optional[str] = None
@@ -552,7 +553,8 @@ async def run_dig_scan(
     
     logger = logging.getLogger(__name__)
     
-    target = request_data.targets_text
+    target = request_data.target
+    args = request_data.args
     dns_server = request_data.dns_server
     cli_args = request_data.cli_args
     record_types = request_data.record_types
@@ -560,13 +562,14 @@ async def run_dig_scan(
     group_ids = request_data.group_ids
     
     if not target:
-        raise HTTPException(status_code=400, detail="Параметр 'targets_text' обязателен")
+        raise HTTPException(status_code=400, detail="Параметр 'target' обязателен")
     
     logger.info("=" * 60)
     logger.info("=== ПОЛУЧЕН ЗАПРОС НА DIG СКАНИРОВАНИЕ (JSON) ===")
     logger.info("=" * 60)
     logger.info(f"Входящие данные запроса:")
     logger.info(f"  - target: {target}")
+    logger.info(f"  - args: {args}")
     logger.info(f"  - dns_server: {dns_server}")
     logger.info(f"  - cli_args: {cli_args}")
     logger.info(f"  - record_types: {record_types}")
@@ -606,8 +609,9 @@ async def run_dig_scan(
         
         # Добавляем задачу в очередь выполнения
         logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
-        targets_list = [t.strip() for t in target.split(',') if t.strip()]
+        targets_list = [target.strip()] if target.strip() else []
         parameters = {
+            "args": args,
             "dns_server": dns_server,
             "cli_args": cli_args,
             "record_types": record_types,
