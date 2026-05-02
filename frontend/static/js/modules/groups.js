@@ -32,10 +32,7 @@ export class GroupManager {
   }
 
   #initListeners() {
-    // Обработчик кнопки создания группы (поддержка обоих ID)
-    document.getElementById('btn-create-group')?.addEventListener('click', () => {
-      this.showCreateGroupModal(null);
-    });
+    // Обработчик кнопки создания группы
     document.getElementById('btn-add-group')?.addEventListener('click', () => {
       this.showCreateGroupModal(null);
     });
