@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, scoped_session
 from backend.core.config import settings
 from backend.db.base import Base  # Импортируем Base из base.py
 
@@ -40,17 +41,8 @@ def get_sync_session():
     return sync_session_maker()
 
 
-class Base(DeclarativeBase):
-    """Базовый класс для моделей."""
-    pass
-
-
 # Импортируем все модели чтобы они зарегистрировались в Base.metadata
 from backend.models import asset, group, service, scan, log
-
-# Инициализируем таблицу логов изменений после регистрации всех моделей
-from backend.db.base import init_change_log_table
-init_change_log_table()
 
 
 async def get_db():
