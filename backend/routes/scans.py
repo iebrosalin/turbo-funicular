@@ -969,10 +969,29 @@ async def retry_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     # Получаем параметры из старой задачи
     parameters = job.parameters or {}
     
+    # Определяем target из параметров или из связанного сканирования
+    target = None
+    if parameters.get('target'):
+        target = parameters['target']
+    elif parameters.get('domain'):
+        target = parameters['domain']
+    elif parameters.get('targets_list') and len(parameters['targets_list']) > 0:
+        target = parameters['targets_list'][0]
+    else:
+        # Если target не найден в параметрах, пробуем загрузить связанное сканирование
+        if not job.scan:
+            scan_result = await db.execute(select(Scan).where(Scan.id == job.scan_id))
+            scan_obj = scan_result.scalar_one_or_none()
+            if scan_obj and scan_obj.target:
+                target = scan_obj.target
+    
+    if not target:
+        raise HTTPException(status_code=400, detail="Не удалось определить цель сканирования для повторного запуска")
+    
     # Создаем новое сканирование с теми же параметрами
     new_scan = Scan(
         name=parameters.get('name', f"Retry {job.job_type} {job_id}"),
-        target=parameters.get('target'),
+        target=target,
         scan_type=job.job_type,
         status='queued',
         progress=0,
