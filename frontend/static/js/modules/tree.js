@@ -487,8 +487,8 @@ export class TreeManager {
     
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', (e) => {
-      // Игнорируем клики по чекбоксам и кнопкам
-      if (e.target.closest('button') || e.target.closest('input[type="checkbox"]')) return;
+      // Игнорируем клики по чекбоксам, кнопкам и ссылкам
+      if (e.target.closest('button') || e.target.closest('input[type="checkbox"]') || e.target.closest('a')) return;
       window.location.href = `/assets/${asset.id}`;
     });
 
