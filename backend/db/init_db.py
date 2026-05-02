@@ -18,11 +18,17 @@ async def init_db():
     """Инициализация базы данных."""
     # Импортируем все модели чтобы они зарегистрировались в metadata
     from backend.models import Asset, Group, Scan, ScanJob, ScanResult, ActivityLog, ServiceInventory
+    from backend.db.session import asset_change_logs_table
     
     async with engine.begin() as conn:
-        # Создаем все таблицы
+        # Создаем все таблицы ORM
         await conn.run_sync(
             lambda conn: Asset.metadata.create_all(conn)
+        )
+        
+        # Создаем таблицу asset_change_logs вручную (Core API)
+        await conn.run_sync(
+            lambda conn: asset_change_logs_table.create(conn, checkfirst=True)
         )
         
         # Проверяем результат

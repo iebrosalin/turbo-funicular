@@ -44,6 +44,26 @@ def get_sync_session():
 # Импортируем все модели чтобы они зарегистрировались в Base.metadata
 from backend.models import asset, group, service, scan, log
 
+# Определяем таблицу asset_change_logs для Core API (без foreign key для упрощения)
+from sqlalchemy import Table, MetaData, Column, Integer, String, DateTime, JSON
+from datetime import datetime
+metadata = MetaData()
+
+asset_change_logs_table = Table(
+    'asset_change_logs',
+    metadata,
+    Column('id', Integer, primary_key=True),
+    Column('asset_id', Integer, nullable=False),  # Без FK для упрощения
+    Column('username', String(255)),
+    Column('action', String(50), nullable=False),  # create, update, delete
+    Column('changed_fields', JSON),
+    Column('created_at', DateTime, default=datetime.now)
+)
+
+# Экспортируем таблицу для использования в других модулях
+import backend.db.base
+backend.db.base.asset_change_logs_table = asset_change_logs_table
+
 
 async def get_db():
     """Dependency для получения сессии БД."""
