@@ -470,7 +470,9 @@ export class TreeManager {
       <td><small>${asset.open_ports ?? '<span class="text-muted">-</span>'}</small></td>
       <td>${asset.group_name ? `<span class="badge bg-light text-dark border">${asset.group_name}</span>` : '<span class="badge bg-secondary">Без группы</span>'}</td>
       <td class="text-end">
-        <span class="text-muted small" title="Ручное редактирование отключено"><i class="bi bi-lock"></i></span>
+        <button class="btn btn-sm btn-outline-primary btn-edit-asset" title="Редактировать актив" data-id="${asset.id}">
+          <i class="bi bi-pencil"></i>
+        </button>
       </td>
     `;
     
@@ -478,8 +480,29 @@ export class TreeManager {
     tr.addEventListener('click', (e) => {
       // Игнорируем клики по чекбоксам и кнопкам
       if (e.target.closest('button') || e.target.closest('input[type="checkbox"]')) return;
-      window.location.href = `/asset/view/${asset.id}`;
+      window.location.href = `/assets/${asset.id}`;
     });
+
+    // Обработчик для кнопки редактирования
+    const editBtn = tr.querySelector('.btn-edit-asset');
+    if (editBtn) {
+      editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // Открываем модальное окно редактирования актива
+        const modal = new bootstrap.Modal(document.getElementById('assetModal'));
+        document.getElementById('assetId').value = asset.id;
+        document.getElementById('assetIp').value = asset.ip_address || '';
+        document.getElementById('assetHostname').value = asset.hostname || '';
+        document.getElementById('assetOsInfo').value = asset.os_info || '';
+        document.getElementById('assetMac').value = asset.mac_address || '';
+        document.getElementById('assetDeviceType').value = asset.device_type || 'unknown';
+        document.getElementById('assetStatus').value = asset.status || 'active';
+        document.getElementById('assetOwner').value = asset.owner || '';
+        document.getElementById('assetLocation').value = asset.location || '';
+        document.getElementById('assetModalLabel').textContent = 'Редактирование актива';
+        modal.show();
+      });
+    }
 
     // Обработчик для чекбокса - предотвращаем всплытие
     const checkbox = tr.querySelector('.asset-checkbox');

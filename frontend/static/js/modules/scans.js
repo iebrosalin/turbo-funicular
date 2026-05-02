@@ -146,13 +146,90 @@ export class ScanManager {
     if (customArgs) args += ` ${customArgs}`;
     args += ` ${domain}`;
 
-    await this.#sendScanRequest('dig', domain, args, saveAssets);
+    try {
+      await Utils.apiRequest('/api/scans/dig', {
+        method: 'POST',
+        body: JSON.stringify({
+          target: domain,
+          args: args,
+          scan_type: 'dig',
+          save_assets: saveAssets,
+          record_types: recordType,
+          dns_server: server,
+          cli_args: customArgs
+        })
+      });
+
+      Utils.showNotification('DNS сканирование запущено', 'success');
+      form.reset();
+      this.loadJobs();
+    } catch (error) {
+      console.error('[ScanResultsController] Dig scan error:', error);
+      Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
+    }
+  }
+
+  /**
+   * Загрузка истории сканирований
+   */
+  async loadHistory() {
+    try {
+      const response = await fetch('/api/scans/history');
+      if (!response.ok) return;
+      const jobs = await response.json();
+      
+      const tbody = document.getElementById('scansHistoryBody');
+      if (!tbody) return;
+      
+      tbody.innerHTML = '';
+      
+      if (!jobs || jobs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">История пуста</td></tr>';
+        return;
+      }
+      
+      jobs.forEach(job => {
+        const tr = document.createElement('tr');
+        let statusClass = 'bg-secondary';
+        if (job.status === 'completed') statusClass = 'bg-success';
+        if (job.status === 'running') statusClass = 'bg-warning text-dark';
+        if (job.status === 'failed') statusClass = 'bg-danger';
+        
+        const duration = job.completed_at && job.started_at 
+          ? Math.round((new Date(job.completed_at) - new Date(job.started_at)) / 1000) + ' сек'
+          : '-';
+        
+        tr.innerHTML = `
+          <td>${job.id}</td>
+          <td><span class="badge bg-info">${job.scan_type}</span></td>
+          <td>${job.target || '-'}</td>
+          <td><span class="badge ${statusClass}">${job.status}</span></td>
+          <td>${duration}</td>
+          <td>${job.completed_at ? new Date(job.completed_at).toLocaleString('ru-RU') : '-'}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary" onclick="window.scanResultsController.viewScanResults(${job.id})">
+              <i class="bi bi-eye"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } catch (e) {
+      console.error('Load history error:', e);
+    }
+  }
+
+  /**
+   * Отображение очереди задач
+   */
+  async renderQueue() {
+    await this.updateQueueStatus();
   }
 
   /**
    * Универсальная отправка запроса на сканирование
    */
-  async #sendScanRequest(scanType, target, args, saveAssets) {
+  async #sendScanRequest(scanType, target, args, saveAssets, recordTypes = null, dnsServer = null, cliArgs = null) {
     const progressDiv = document.getElementById('scan-progress');
     if (progressDiv) progressDiv.style.display = 'block';
 
@@ -164,6 +241,13 @@ export class ScanManager {
         scan_type: scanType,
         save_assets: saveAssets
       };
+
+      // Добавляем специфичные поля для dig
+      if (scanType === 'dig') {
+        if (recordTypes) requestData.record_types = recordTypes.join(',');
+        if (dnsServer) requestData.dns_server = dnsServer;
+        if (cliArgs) requestData.cli_args = cliArgs;
+      }
 
       // Определяем правильный эндпоинт для каждого типа сканирования
       let endpoint;
