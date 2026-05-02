@@ -83,7 +83,8 @@ export class DashboardController {
 
     // Выбор колонок
     document.getElementById('columns-select')?.addEventListener('change', (e) => {
-      this.visibleColumns = Array.from(e.target.selectedOptions).map(opt => opt.value);
+      const selectedOptions = Array.from(e.target.options).filter(opt => opt.selected);
+      this.visibleColumns = selectedOptions.map(opt => opt.value);
       this.applyFilters();
     });
 
