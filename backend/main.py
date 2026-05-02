@@ -33,9 +33,13 @@ from backend.services.scan_queue_manager import scan_queue_manager
 # Настройка логирования
 logging.basicConfig(
     level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()]
 )
 logger = logging.getLogger(__name__)
+
+# Подавляем излишне подробные логи aiosqlite, чтобы видеть только важные сообщения
+logging.getLogger('aiosqlite').setLevel(logging.WARNING)
 
 
 @asynccontextmanager
