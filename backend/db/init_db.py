@@ -17,7 +17,7 @@ from sqlalchemy import text
 async def init_db():
     """Инициализация базы данных."""
     # Импортируем все модели чтобы они зарегистрировались в metadata
-    from backend.models import Asset, Group, Scan, ScanJob, ScanResult, ActivityLog, AssetChangeLog, ServiceInventory
+    from backend.models import Asset, Group, Scan, ScanJob, ScanResult, ActivityLog, ServiceInventory
     
     async with engine.begin() as conn:
         # Создаем все таблицы

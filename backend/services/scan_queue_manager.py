@@ -286,7 +286,11 @@ class ScanQueueManager:
                 if job:
                     job.status = "completed"
                     job.completed_at = datetime.utcnow()
-                    job.progress = 100.0
+                    # Обновляем прогресс родительского сканирования
+                    if job.scan:
+                        job.scan.progress = 100
+                        job.scan.status = "completed"
+                        job.scan.completed_at = datetime.utcnow()
                     await db.commit()
                 
                 logger.info(f"[DEBUG] Сканирование {scan_job_id} завершено успешно")

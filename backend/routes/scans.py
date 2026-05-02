@@ -776,25 +776,40 @@ async def get_scan_jobs(db: AsyncSession = Depends(get_db)):
 
 @router.get("/scan-job/{job_id}")
 async def get_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
-    """Получить задачу сканирования."""
-    from backend.models.scan import ScanJob
+    """Получить задачу сканирования с результатами."""
+    from backend.models.scan import ScanJob, ScanResult
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
     
-    # Получаем задачу с связанным сканированием
-    query = select(ScanJob).where(ScanJob.id == job_id).options(selectinload(ScanJob.scan))
+    # Получаем задачу с связанным сканированием и результатами
+    query = select(ScanJob).where(ScanJob.id == job_id).options(
+        selectinload(ScanJob.scan),
+        selectinload(ScanJob.results)
+    )
     result = await db.execute(query)
     job = result.scalar_one_or_none()
     
     if not job:
         raise HTTPException(status_code=404, detail=f"Задача сканирования с ID {job_id} не найдена")
     
+    # Собираем raw_output из всех результатов
+    raw_output_parts = []
+    for res in job.results:
+        if res.raw_output:
+            raw_output_parts.append(f"# Host: {res.ip_address}\n{res.raw_output}")
+    
     return {
         "id": job.id,
+        "uuid": job.uuid,
         "scan_id": job.scan_id,
         "job_type": job.job_type,
         "status": job.status,
+        "priority": job.priority,
+        "worker_id": job.worker_id,
+        "parameters": job.parameters,
         "error_message": job.error_message,
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "completed_at": job.completed_at.isoformat() if job.completed_at else None,
         "created_at": job.created_at.isoformat() if job.created_at else None,
         "scan": {
             "id": job.scan.id if job.scan else None,
@@ -803,7 +818,20 @@ async def get_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
             "scan_type": job.scan.scan_type if job.scan else None,
             "status": job.scan.status if job.scan else None,
             "progress": job.scan.progress if job.scan else 0,
-        } if job.scan else None
+        } if job.scan else None,
+        "results": [
+            {
+                "id": r.id,
+                "ip_address": r.ip_address,
+                "status": r.status,
+                "ports": r.ports,
+                "services": r.services,
+                "raw_output": r.raw_output,
+                "scanned_at": r.scanned_at.isoformat() if r.scanned_at else None
+            }
+            for r in job.results
+        ],
+        "raw_output": "\n\n".join(raw_output_parts) if raw_output_parts else None
     }
 
 
@@ -858,6 +886,64 @@ async def stop_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     await db.commit()
     
     return {"message": f"Задача {job_id} остановлена", "job_id": job_id}
+
+
+@router.put("/scan-job/{job_id}")
+async def update_scan_job(job_id: int, request_data: dict, db: AsyncSession = Depends(get_db)):
+    """Обновить задачу сканирования (CRUD операция Update)."""
+    from backend.models.scan import ScanJob
+    from sqlalchemy import select
+    
+    # Получаем задачу
+    query = select(ScanJob).where(ScanJob.id == job_id)
+    result = await db.execute(query)
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Задача сканирования с ID {job_id} не найдена")
+    
+    # Обновляем поля из запроса
+    update_fields = ['status', 'priority', 'error_message']
+    for field in update_fields:
+        if field in request_data:
+            setattr(job, field, request_data[field])
+    
+    await db.commit()
+    await db.refresh(job)
+    
+    return {"message": f"Задача {job_id} обновлена", "job": {
+        "id": job.id,
+        "status": job.status,
+        "priority": job.priority,
+        "error_message": job.error_message
+    }}
+
+
+@router.delete("/scan-job/{job_id}/force")
+async def force_delete_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
+    """Принудительно удалить задачу сканирования даже если она выполняется (CRUD операция Delete)."""
+    from backend.models.scan import ScanJob
+    from sqlalchemy import select
+    from backend.services.scan_queue_manager import scan_queue_manager
+    
+    # Получаем задачу
+    query = select(ScanJob).where(ScanJob.id == job_id)
+    result = await db.execute(query)
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Задача сканирования с ID {job_id} не найдена")
+    
+    # Если задача выполняется, сначала останавливаем её
+    if job.status in ['running', 'pending', 'queued']:
+        job.status = 'stopped'
+        await scan_queue_manager.remove_from_queue(job_id)
+    
+    # Удаляем задачу
+    await db.delete(job)
+    await db.commit()
+    
+    return {"message": f"Задача {job_id} удалена", "job_id": job_id}
 
 
 @router.post("/scan-job/{job_id}/retry")
