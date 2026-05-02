@@ -462,10 +462,19 @@ export class TreeManager {
   #createAssetRow(asset) {
     const tr = document.createElement('tr');
     
+    // Создаем ссылку на детальную страницу для IP или hostname
+    const ipLink = asset.ip_address 
+      ? `<a href="/assets/${asset.id}" class="text-decoration-none text-dark"><strong>${asset.ip_address}</strong></a>` 
+      : '<strong>N/A</strong>';
+    
+    const hostnameDisplay = asset.hostname 
+      ? (asset.ip_address ? `<a href="/assets/${asset.id}" class="text-decoration-none text-dark">${asset.hostname}</a>` : `<strong>${asset.hostname}</strong>`)
+      : '<span class="text-muted">-</span>';
+
     tr.innerHTML = `
       <td><input type="checkbox" class="form-check-input asset-checkbox" data-id="${asset.id}"></td>
-      <td><strong>${asset.ip_address ?? 'N/A'}</strong></td>
-      <td>${asset.hostname ?? '<span class="text-muted">-</span>'}</td>
+      <td>${ipLink}</td>
+      <td>${hostnameDisplay}</td>
       <td>${asset.os_info ?? '<span class="text-muted">-</span>'}</td>
       <td><small>${asset.open_ports ?? '<span class="text-muted">-</span>'}</small></td>
       <td>${asset.group_name ? `<span class="badge bg-light text-dark border">${asset.group_name}</span>` : '<span class="badge bg-secondary">Без группы</span>'}</td>
