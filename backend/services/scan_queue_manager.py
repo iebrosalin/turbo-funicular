@@ -70,7 +70,9 @@ class ScanQueueManager:
                     # Если нет активных эксклюзивных задач, берем из очереди
                     has_exclusive_running = any(
                         job_id in self._tasks and not self._tasks[job_id].done()
-                        for job_id, _ in list(self._exclusive_queue._queue)
+                        for item in list(self._exclusive_queue._queue)
+                        if isinstance(item, tuple) and len(item) >= 1
+                        for job_id in [item[0]]
                     )
                     
                     if not has_exclusive_running:

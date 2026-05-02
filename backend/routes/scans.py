@@ -36,7 +36,7 @@ scans_router = router  # Алиас для совместимости импор
 
 
 class NmapScanRequest(BaseModel):
-    target: Optional[str] = None
+    target: str
     ports: Optional[str] = None
     scripts: Optional[str] = None
     custom_args: Optional[str] = None
@@ -1260,24 +1260,34 @@ async def get_scans(db: AsyncSession = Depends(get_db)):
     return scans
 
 
-@router.get("/{scan_id}/results", response_model=ScanResponse)
-async def get_scan_results(scan_id: int, db: AsyncSession = Depends(get_db)):
+@router.get("/{scan_id:path}/results", response_model=ScanResponse)
+async def get_scan_results(scan_id: str, db: AsyncSession = Depends(get_db)):
     """Получить результаты сканирования по ID (алиас для /{scan_id})."""
-    service = ScanService(db)
-    scan = await service.get_by_id(scan_id)
-    if not scan:
-        raise HTTPException(status_code=404, detail="Сканирование не найдено")
-    return scan
+    # Пробуем преобразовать scan_id в int
+    try:
+        scan_id_int = int(scan_id)
+        service = ScanService(db)
+        scan = await service.get_by_id(scan_id_int)
+        if not scan:
+            raise HTTPException(status_code=404, detail="Сканирование не найдено")
+        return scan
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Неверный формат scan_id: {scan_id}. Ожидается целое число.")
 
 
-@router.get("/{scan_id}", response_model=ScanResponse)
-async def get_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
+@router.get("/{scan_id:path}", response_model=ScanResponse)
+async def get_scan(scan_id: str, db: AsyncSession = Depends(get_db)):
     """Получить сканирование по ID."""
-    service = ScanService(db)
-    scan = await service.get_by_id(scan_id)
-    if not scan:
-        raise HTTPException(status_code=404, detail="Сканирование не найдено")
-    return scan
+    # Пробуем преобразовать scan_id в int
+    try:
+        scan_id_int = int(scan_id)
+        service = ScanService(db)
+        scan = await service.get_by_id(scan_id_int)
+        if not scan:
+            raise HTTPException(status_code=404, detail="Сканирование не найдено")
+        return scan
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Неверный формат scan_id: {scan_id}. Ожидается целое число.")
 
 
 @router.post("", response_model=ScanResponse, status_code=status.HTTP_201_CREATED)
