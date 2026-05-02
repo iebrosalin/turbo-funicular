@@ -342,7 +342,7 @@ async function handleScanSubmit(event, scanType) {
 
 // Обновление списка активных задач в сайдбаре
 function updateActiveTasks(type, target) {
-    const list = document.getElementById('active-scans-list');
+    const list = document.getElementById('sidebar-tasks-container');
     if (!list) return;
     
     const statusLabels = {
@@ -352,20 +352,23 @@ function updateActiveTasks(type, target) {
     };
     
     const newItem = document.createElement('div');
-    newItem.className = 'scan-list-item d-flex justify-content-between align-items-center';
+    newItem.className = 'scan-list-item d-flex justify-content-between align-items-center p-2 border-bottom';
     newItem.innerHTML = `
         <div class="text-truncate" style="max-width: 140px;">
-            <span class="scan-status-dot status-running"></span>
+            <span class="badge bg-warning text-dark me-2">Running</span>
             ${statusLabels[type]}: ${target}
         </div>
-        <span class="badge bg-warning text-dark">Running</span>
     `;
     
-    // Удаляем заглушку если есть
-    const placeholder = list.querySelector('.text-center');
-    if (placeholder) placeholder.remove();
+    // Добавляем заголовок секции если его нет
+    if (!list.querySelector('.sidebar-section-title')) {
+        const title = document.createElement('div');
+        title.className = 'sidebar-section-title mt-3 mb-2';
+        title.textContent = 'Активные сканирования';
+        list.insertBefore(title, list.firstChild);
+    }
     
-    list.insertBefore(newItem, list.firstChild);
+    list.appendChild(newItem);
 }
 
 // Добавляем обработчик для Rustscan при загрузке страницы
@@ -380,18 +383,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% block extra_js %}
 <script type="module">
-import { scanManager } from '/static/js/modules/scans.js';
 import { treeManager } from '/static/js/modules/tree.js';
 
 console.log('[DEBUG scans.html] extra_js выполнен');
 console.log('[DEBUG scans.html] Контейнер #sidebar-content существует:', !!document.getElementById('sidebar-content'));
 
 // Явно вызываем refresh для дерева групп после загрузки страницы
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log('[DEBUG scans.html] DOMContentLoaded в extra_js');
+// Используем setTimeout чтобы убедиться что DOM полностью загружен
+setTimeout(async () => {
+    console.log('[DEBUG scans.html] Вызов treeManager.refresh()...');
     const container = document.getElementById('sidebar-content');
     if (container) {
-        console.log('[DEBUG scans.html] Вызов treeManager.refresh()...');
+        console.log('[DEBUG scans.html] Контейнер найден, вызываем refresh');
         try {
             await treeManager.refresh();
             console.log('[DEBUG scans.html] treeManager.refresh() завершен успешно');
@@ -401,6 +404,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
         console.warn('[DEBUG scans.html] Контейнер не найден, пропускаем refresh');
     }
-});
+}, 100);
 </script>
 {% endblock %}
