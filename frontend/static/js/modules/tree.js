@@ -487,8 +487,8 @@ export class TreeManager {
     
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', (e) => {
-      // Если клик был по ссылке (IP или hostname), ничего не делаем - браузер сам перейдет
-      if (e.target.closest('a')) return;
+      // Если клик был по ссылке или внутри ссылки (IP или hostname), ничего не делаем - браузер сам перейдет
+      if (e.target.closest('a[href]')) return;
 
       // Игнорируем клики по чекбоксам и кнопкам
       if (e.target.closest('button') || e.target.closest('input[type="checkbox"]')) return;
