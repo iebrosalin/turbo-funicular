@@ -32,9 +32,81 @@
                 initTreeTogglers();
             });
         });
-        function handleUpload(formId, resId, url){document.getElementById(formId).addEventListener('submit', async e=>{e.preventDefault();const f=e.target;const fd=new FormData(f);const r=document.getElementById(resId);r.innerHTML='<div class="text-center"><div class="spinner-border"></div></div>';try{const res=await fetch(url,{method:'POST',body:fd});if(res.ok){const blob=await res.blob();const u=window.URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=res.headers.get('Content-Disposition').split('filename=')[1];document.body.appendChild(a);a.click();r.innerHTML='<div class="alert alert-success">Готово!</div>';setTimeout(()=>{bootstrap.Modal.getInstance(document.getElementById(formId.replace('Form','Modal'))).hide();r.innerHTML='';f.reset();},2000);}else{const err=await res.json();r.innerHTML=`<div class="alert alert-danger">${err.error}</div>`;}}catch(err){r.innerHTML=`<div class="alert alert-danger">${err.message}</div>`;}});}
-        handleUpload('nmapRustscanForm','nmapRustscanResult','/utilities/nmap-to-rustscan');
-        handleUpload('extractPortsForm','extractPortsResult','/utilities/extract-ports');
-    </script>
+        // Инициализация дерева групп
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshGroupTree().then(() => {
+                initTreeTogglers();
+            });
+        });
+
+        // Обработка загрузки файлов через JSON (base64)
+        function handleUploadJson(formId, resId, url) {
+            document.getElementById(formId).addEventListener('submit', async e => {
+                e.preventDefault();
+                const form = document.getElementById(formId);
+                const fileInput = form.querySelector('input[type="file"]');
+                const resultDiv = document.getElementById(resId);
+                
+                if (!fileInput.files.length) {
+                    resultDiv.innerHTML = '<div class="alert alert-warning">Выберите файл</div>';
+                    return;
+                }
+                
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                
+                resultDiv.innerHTML = '<div class="text-center"><div class="spinner-border"></div></div>';
+                
+                reader.onload = async (event) => {
+                    const base64Data = event.target.result.split(',')[1];
+                    
+                    try {
+                        const res = await fetch(url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ 
+                                filename: file.name,
+                                content: base64Data 
+                            })
+                        });
+                        
+                        if (res.ok) {
+                            const blob = await res.blob();
+                            const u = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = u;
+                            const disposition = res.headers.get('Content-Disposition');
+                            if (disposition) {
+                                a.download = disposition.split('filename=')[1].replace(/"/g, '');
+                            } else {
+                                a.download = file.name.replace('.xml', '.txt');
+                            }
+                            document.body.appendChild(a);
+                            a.click();
+                            resultDiv.innerHTML = '<div class="alert alert-success">Готово!</div>';
+                            setTimeout(() => {
+                                bootstrap.Modal.getInstance(document.getElementById(formId.replace('Form', 'Modal'))).hide();
+                                resultDiv.innerHTML = '';
+                                form.reset();
+                            }, 2000);
+                        } else {
+                            const err = await res.json();
+                            resultDiv.innerHTML = `<div class="alert alert-danger">${err.error || err.detail}</div>`;
+                        }
+                    } catch (err) {
+                        resultDiv.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+                    }
+                };
+                
+                reader.onerror = () => {
+                    resultDiv.innerHTML = '<div class="alert alert-danger">Ошибка чтения файла</div>';
+                };
+                
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        handleUploadJson('nmapRustscanForm', 'nmapRustscanResult', '/utilities/nmap-to-rustscan');
+        handleUploadJson('extractPortsForm', 'extractPortsResult', '/utilities/extract-ports');
 </body>
 </html>

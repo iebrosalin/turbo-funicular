@@ -1,15 +1,45 @@
-INFO:     Started server process [648]
+INFO:     Will watch for changes in these directories: ['/workspace']
+INFO:     Uvicorn running on http://0.0.0.0:5000 (Press CTRL+C to quit)
+INFO:     Started reloader process [3359] using WatchFiles
+INFO:     Started server process [3367]
 INFO:     Waiting for application startup.
-2026-05-02 08:49:38,635 - backend.main - INFO - ✅ База данных проверена и инициализирована.
-2026-05-02 08:49:38,649 - backend.main - INFO - ✅ Подключение к базе данных установлено.
-2026-05-02 08:49:38,649 - backend.main - INFO - 🚀 Приложение успешно запущено.
-2026-05-02 08:49:38,649 - backend.services.scan_queue_manager - INFO - ScanQueueManager запущен
+2026-05-02 09:09:08,133 - backend.main - INFO - ✅ База данных проверена и инициализирована.
+2026-05-02 09:09:08,135 - backend.main - INFO - ✅ Подключение к базе данных установлено.
+2026-05-02 09:09:08,135 - backend.main - INFO - 🚀 Приложение успешно запущено.
+2026-05-02 09:09:08,135 - backend.services.scan_queue_manager - INFO - ScanQueueManager запущен
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     127.0.0.1:49318 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49320 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49322 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49324 - "GET /api/groups/tree HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49326 - "GET /api/assets HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49328 - "GET /static/js/dashboard-page.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49330 - "GET /static/js/modules/tree.js HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'backend/routes/scans.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-05-02 09:11:09,488 - backend.main - INFO - 🛑 Остановка приложения...
+2026-05-02 09:11:09,488 - backend.services.scan_queue_manager - INFO - ScanQueueManager остановлен
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3367]
+INFO:     Started server process [3736]
+INFO:     Waiting for application startup.
+2026-05-02 09:11:12,150 - backend.main - INFO - ✅ База данных проверена и инициализирована.
+2026-05-02 09:11:12,153 - backend.main - INFO - ✅ Подключение к базе данных установлено.
+2026-05-02 09:11:12,153 - backend.main - INFO - 🚀 Приложение успешно запущено.
+2026-05-02 09:11:12,153 - backend.services.scan_queue_manager - INFO - ScanQueueManager запущен
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'backend/routes/scans.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-05-02 09:11:25,092 - backend.main - INFO - 🛑 Остановка приложения...
+2026-05-02 09:11:25,092 - backend.services.scan_queue_manager - INFO - ScanQueueManager остановлен
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3736]
+INFO:     Started server process [3738]
+INFO:     Waiting for application startup.
+2026-05-02 09:11:27,855 - backend.main - INFO - ✅ База данных проверена и инициализирована.
+2026-05-02 09:11:27,867 - backend.main - INFO - ✅ Подключение к базе данных установлено.
+2026-05-02 09:11:27,867 - backend.main - INFO - 🚀 Приложение успешно запущено.
+2026-05-02 09:11:27,867 - backend.services.scan_queue_manager - INFO - ScanQueueManager запущен
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-05-02 09:11:54,837 - backend.main - INFO - 🛑 Остановка приложения...
+2026-05-02 09:11:54,837 - backend.services.scan_queue_manager - INFO - ScanQueueManager остановлен
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3738]
+INFO:     Stopping reloader process [3359]

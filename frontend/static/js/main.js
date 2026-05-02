@@ -107,14 +107,7 @@ class App {
       });
     }
     
-    // Обработчик формы актива
-    const assetForm = document.getElementById('assetForm');
-    if (assetForm) {
-      assetForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        assetManager.saveAsset(e);
-      });
-    }
+    // Обработчик формы актива удалён - ручное добавление активов отключено
 
     // Инициализация конструктора фильтров
     this.#initFilterBuilder();
