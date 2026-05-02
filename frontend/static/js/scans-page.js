@@ -209,6 +209,32 @@ export class ScanResultsController {
 
   #setupEventListeners() {
     
+    // Переключение видимости поля custom args для Nmap
+    const nmapProfile = document.getElementById('nmapProfile');
+    const nmapCustomArgsContainer = document.getElementById('nmapCustomArgsContainer');
+    if (nmapProfile && nmapCustomArgsContainer) {
+      nmapProfile.addEventListener('change', () => {
+        if (nmapProfile.value === 'custom') {
+          nmapCustomArgsContainer.classList.remove('d-none');
+        } else {
+          nmapCustomArgsContainer.classList.add('d-none');
+        }
+      });
+    }
+
+    // Переключение видимости поля портов для Rustscan
+    const rustscanTopPorts = document.getElementById('rustscanTopPorts');
+    const rustscanPortsContainer = document.getElementById('rustscanPortsContainer');
+    if (rustscanTopPorts && rustscanPortsContainer) {
+      rustscanTopPorts.addEventListener('change', () => {
+        if (rustscanTopPorts.value === 'custom') {
+          rustscanPortsContainer.classList.remove('d-none');
+        } else {
+          rustscanPortsContainer.classList.add('d-none');
+        }
+      });
+    }
+
     // Делегирование событий для кнопок управления заданиями
     const jobsTable = document.getElementById('scansHistoryBody');
     
