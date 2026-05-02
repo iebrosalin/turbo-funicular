@@ -138,7 +138,17 @@ class App {
         console.log('[DEBUG] treeManager.refresh() завершен');
         console.log('[DEBUG] Содержимое контейнера после refresh:', treeContainer.innerHTML ? treeContainer.innerHTML.substring(0, 150) + '...' : '(пусто)');
       } else {
-        console.log('[DEBUG] Контейнер сайдбара не найден, пропускаем инициализацию дерева');
+        console.log('[DEBUG] Контейнер сайдбара не найден, пробуем через setTimeout...');
+        // Если контейнер не найден сразу, пробуем еще раз через 200мс
+        setTimeout(async () => {
+          const retryContainer = document.getElementById('sidebar-content');
+          if (retryContainer) {
+            console.log('[DEBUG] Повторная попытка: контейнер найден, вызываем refresh');
+            await treeManager.refresh();
+          } else {
+            console.warn('[DEBUG] Контейнер не найден после повторной попытки');
+          }
+        }, 200);
       }
       
       // SSE подключение уже установлено в конструкторе ScanManager
