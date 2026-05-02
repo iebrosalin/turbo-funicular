@@ -2,12 +2,154 @@
 import { store } from './index.js';
 
 export class AssetManager {
-  constructor(targetTableId = 'assets-body') {
+  constructor(targetTableId = 'assets-table') {
     this.targetTableId = targetTableId;
-    this.tbody = document.getElementById(targetTableId);
-    if (this.tbody) {
+    this.table = document.getElementById(targetTableId);
+    this.theadRow = this.table?.querySelector('#table-header-row');
+    this.tbody = this.table?.querySelector('#table-body');
+    if (this.table && this.tbody) {
       this.#initListeners();
     }
+  }
+
+  /**
+   * Отрисовка таблицы активов
+   * @param {Array} assets - массив активов
+   * @param {Array} columns - массив видимых колонок
+   */
+  render(assets, columns) {
+    if (!this.table || !this.tbody || !this.theadRow) {
+      console.error('AssetManager: таблица или её части не найдены');
+      return;
+    }
+
+    // Отрисовка заголовков
+    this.#renderHeader(columns);
+
+    // Отрисовка тела таблицы
+    this.tbody.innerHTML = '';
+    
+    if (!assets || assets.length === 0) {
+      this.tbody.innerHTML = '<tr><td colspan="100%" class="text-center text-muted py-4">Нет данных для отображения</td></tr>';
+      return;
+    }
+
+    assets.forEach(asset => {
+      const tr = this.createRow(asset, columns);
+      this.tbody.appendChild(tr);
+    });
+
+    // Обновление счетчиков
+    this.#updateCounts(assets);
+  }
+
+  /**
+   * Отрисовка заголовков таблицы
+   * @param {Array} columns - массив видимых колонок
+   */
+  #renderHeader(columns) {
+    this.theadRow.innerHTML = '';
+    
+    // Чекбокс для выбора всех
+    const thSelect = document.createElement('th');
+    thSelect.className = 'text-center';
+    thSelect.style.width = '40px';
+    thSelect.innerHTML = '<input type="checkbox" id="select-all" class="form-check-input">';
+    this.theadRow.appendChild(thSelect);
+
+    // Колонки
+    const columnNames = {
+      ip_address: 'IP Адрес',
+      hostname: 'Hostname',
+      os_name: 'ОС',
+      os_family: 'ОС (семейство)',
+      status: 'Статус',
+      device_type: 'Тип устройства',
+      open_ports: 'Открытые порты',
+      source: 'Источник',
+      groups: 'Группы',
+      last_nmap_scan: 'Last Nmap',
+      last_rustscan_scan: 'Last Rustscan'
+    };
+
+    columns.forEach(col => {
+      const th = document.createElement('th');
+      th.textContent = columnNames[col] || col;
+      this.theadRow.appendChild(th);
+    });
+
+    // Колонка действий
+    const thActions = document.createElement('th');
+    thActions.className = 'text-end';
+    thActions.style.width = '80px';
+    thActions.textContent = 'Действия';
+    this.theadRow.appendChild(thActions);
+  }
+
+  /**
+   * Создание строки таблицы для актива
+   * @param {Object} asset - объект актива
+   * @param {Array} columns - массив видимых колонок
+   * @returns {HTMLTableRowElement}
+   */
+  createRow(asset, columns) {
+    const tr = document.createElement('tr');
+    tr.className = 'asset-row';
+    tr.dataset.assetId = asset.id;
+
+    // Чекбокс
+    const tdSelect = document.createElement('td');
+    tdSelect.className = 'text-center';
+    tdSelect.innerHTML = `<input type="checkbox" class="form-check-input asset-checkbox asset-select" value="${asset.id}">`;
+    tr.appendChild(tdSelect);
+
+    // Колонки
+    columns.forEach(col => {
+      const td = document.createElement('td');
+      let val = asset[col];
+      
+      if (val === null || val === undefined) {
+        td.innerHTML = '<span class="text-muted">—</span>';
+      } else if (Array.isArray(val)) {
+        td.textContent = val.join(', ');
+      } else if (col === 'open_ports') {
+        // Форматирование портов
+        if (typeof val === 'string') {
+          td.textContent = val;
+        } else {
+          td.textContent = JSON.stringify(val);
+        }
+      } else if (col === 'status') {
+        // Бейдж для статуса
+        const badgeClass = {
+          'active': 'bg-success',
+          'inactive': 'bg-secondary',
+          'down': 'bg-danger',
+          'unknown': 'bg-warning'
+        }[val] || 'bg-secondary';
+        td.innerHTML = `<span class="badge ${badgeClass}">${val}</span>`;
+      } else {
+        td.textContent = val;
+      }
+      
+      tr.appendChild(td);
+    });
+
+    // Кнопка удаления
+    const tdActions = document.createElement('td');
+    tdActions.className = 'text-end';
+    tdActions.innerHTML = `<button class="btn btn-sm btn-outline-danger btn-delete-asset" data-asset-id="${asset.id}" title="Удалить"><i class="bi bi-trash"></i></button>`;
+    tr.appendChild(tdActions);
+
+    return tr;
+  }
+
+  #updateCounts(assets) {
+    const totalCountEl = document.getElementById('total-count');
+    const filteredCountEl = document.getElementById('filtered-count');
+    
+    if (totalCountEl) totalCountEl.textContent = store.getState('assets')?.length || 0;
+    if (filteredCountEl) filteredCountEl.textContent = assets?.length || 0;
   }
 
   #initListeners() {
