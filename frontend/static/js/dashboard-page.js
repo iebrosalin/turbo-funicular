@@ -3,6 +3,8 @@ import { store } from './store.js';
 import { Utils } from './modules/utils.js';
 import { AssetManager } from './modules/assets.js';
 import { FilterAutocompleteManager } from './filter-helpers.js';
+import { treeManager, refreshGroupTree } from './modules/tree.js';
+import { GroupManager } from './modules/groups.js';
 
 /**
  * Контроллер страницы дашборда.
@@ -18,6 +20,7 @@ export class DashboardController {
     
     this.assetManager = new AssetManager('table-body');
     this.filterAutocomplete = new FilterAutocompleteManager();
+    this.groupManager = new GroupManager();
     
     this.#init();
   }
@@ -25,6 +28,9 @@ export class DashboardController {
   async #init() {
     this.#loadStateFromURL();
     this.#setupEventListeners();
+    
+    // Инициализация дерева групп и загрузка данных
+    await refreshGroupTree();
     
     // Подписка на обновления активов из Store
     store.subscribe('assets', (assets) => {
@@ -383,3 +389,8 @@ export class DashboardController {
     URL.revokeObjectURL(url);
   }
 }
+
+// Инициализация контроллера при загрузке страницы
+document.addEventListener('DOMContentLoaded', () => {
+  window.dashboardController = new DashboardController();
+});
