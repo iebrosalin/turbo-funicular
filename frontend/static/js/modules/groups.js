@@ -484,7 +484,7 @@ export class GroupManager {
           }
 
           const progress = job.progress || 0;
-          const typeBadge = job.scan_type === 'nmap' ? 'bg-primary' : (job.scan_type === 'rustscan' ? 'bg-warning text-dark' : 'bg-info text-dark');
+          const typeBadge = job.scan_type === 'nmap' ? 'bg-primary' : (job.scan_type === 'rustscan' ? 'bg-warning' : 'bg-info');
 
           html += `
           <div class="scan-list-item">

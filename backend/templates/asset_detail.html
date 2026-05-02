@@ -90,7 +90,7 @@
                                     <td>
                                         {% if asset.last_rustscan %}
                                             {{ asset.last_rustscan.strftime('%d.%m.%Y %H:%M') }}
-                                            <span class="badge bg-warning text-dark">{{ asset.rustscan_ports|length }} портов</span>
+                                            <span class="badge bg-warning">{{ asset.rustscan_ports|length }} портов</span>
                                         {% else %}
                                             <span class="text-muted">Не проводилось</span>
                                         {% endif %}
@@ -128,7 +128,7 @@
                         <div class="card-body">
                             <div class="d-flex flex-wrap gap-2">
                                 {% for name in asset.dns_names %}
-                                    <span class="badge bg-info text-dark">{{ name }}</span>
+                                    <span class="badge bg-info">{{ name }}</span>
                                 {% endfor %}
                             </div>
                         </div>

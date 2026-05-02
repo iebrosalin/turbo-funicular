@@ -45,6 +45,9 @@
 
     <!-- PAGE CONTENT -->
     <div id="content" class="w-100">
+        <!-- Контейнер для уведомлений -->
+        <div id="notifications-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1100;"></div>
+        
         <!-- Основной контент страницы -->
         <main class="py-4">
             {% block content %}{% endblock %}

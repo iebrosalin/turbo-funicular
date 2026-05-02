@@ -238,7 +238,7 @@ export class ScanResultsController {
         if (job.status === 'completed') statusClass = 'bg-success';
         if (job.status === 'running') statusClass = 'bg-primary';
         if (job.status === 'failed') statusClass = 'bg-danger';
-        if (['pending', 'queued'].includes(job.status)) statusClass = 'bg-warning text-dark';
+        if (['pending', 'queued'].includes(job.status)) statusClass = 'bg-warning';
 
         let actions = '';
         if (['pending', 'queued'].includes(job.status)) {
