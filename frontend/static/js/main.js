@@ -1,6 +1,7 @@
 // static/js/main.js
 import { store, treeManager, assetManager, groupManager, scanManager, themeController } from './modules/index.js';
 import { FilterBuilder } from './filter-builder.js';
+import { Utils } from './modules/utils.js';
 
 class App {
   constructor() {
@@ -19,6 +20,9 @@ class App {
 
       // Загрузка начальных данных
       await this.#loadInitialData();
+
+      // Загрузка списка активов в сайдбар (для всех страниц)
+      await this.#loadSidebarAssets();
 
       // Обработка URL параметров
       this.#handleURLParams();
@@ -176,6 +180,47 @@ class App {
         }
       }
     });
+  }
+
+  async #loadSidebarAssets() {
+    const sidebarContainer = document.getElementById('sidebar-assets-list');
+    if (!sidebarContainer) return;
+
+    try {
+      const assets = await Utils.apiRequest('/api/assets?limit=100');
+      
+      if (!assets || assets.length === 0) {
+        sidebarContainer.innerHTML = `
+          <div class="list-group-item text-muted small">
+            Активы не найдены
+          </div>
+        `;
+        return;
+      }
+
+      let html = '';
+      assets.forEach(asset => {
+        const statusClass = asset.status === 'active' ? 'text-success' : 'text-secondary';
+        const statusIcon = asset.status === 'active' ? 'bi-circle-fill' : 'bi-circle';
+        html += `
+          <a href="/assets/${asset.id}" class="list-group-item list-group-item-action small py-2">
+            <i class="bi ${statusIcon} me-2 ${statusClass}" style="font-size: 0.6rem;"></i>
+            <strong>${asset.ip_address}</strong>
+            ${asset.hostname ? `<br><span class="text-muted" style="font-size: 0.85rem;">${asset.hostname}</span>` : ''}
+          </a>
+        `;
+      });
+
+      sidebarContainer.innerHTML = html;
+    } catch (error) {
+      console.error('[Sidebar] Ошибка загрузки активов:', error);
+      sidebarContainer.innerHTML = `
+        <div class="list-group-item text-danger small">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          Ошибка загрузки
+        </div>
+      `;
+    }
   }
 
   #initFilterBuilder() {

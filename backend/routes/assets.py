@@ -187,9 +187,13 @@ async def get_asset_page(request: Request, asset_id: int, db: AsyncSession = Dep
     if not asset:
         raise HTTPException(status_code=404, detail="Актив не найден")
     
+    # Получаем историю изменений
+    change_logs = await service.get_change_logs(asset_id, limit=50)
+    
     return templates.TemplateResponse("asset_detail.html", {
         "request": request,
-        "asset": asset
+        "asset": asset,
+        "change_logs": change_logs
     })
 
 
@@ -225,10 +229,10 @@ async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_d
 
 
 @router.put("/{asset_id}", response_model=AssetResponse)
-async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession = Depends(get_db)):
+async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession = Depends(get_db), username: Optional[str] = None):
     """Обновить актив."""
     service = AssetService(db)
-    asset = await service.update(asset_id, asset_data)
+    asset = await service.update(asset_id, asset_data, username=username)
     if not asset:
         raise HTTPException(status_code=404, detail="Актив не найден")
     
@@ -254,10 +258,10 @@ async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession 
 
 
 @router.delete("/{asset_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_asset(asset_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_asset(asset_id: int, db: AsyncSession = Depends(get_db), username: Optional[str] = None):
     """Удалить актив."""
     service = AssetService(db)
-    success = await service.delete(asset_id)
+    success = await service.delete(asset_id, username=username)
     if not success:
         raise HTTPException(status_code=404, detail="Актив не найден")
 
@@ -267,10 +271,10 @@ class BulkDeleteRequest(BaseModel):
 
 
 @router.post("/bulk-delete", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_bulk_assets(request: BulkDeleteRequest, db: AsyncSession = Depends(get_db)):
+async def delete_bulk_assets(request: BulkDeleteRequest, db: AsyncSession = Depends(get_db), username: Optional[str] = None):
     """Удалить несколько активов."""
     service = AssetService(db)
-    deleted_count = await service.delete_batch(request.ids)
+    deleted_count = await service.delete_batch(request.ids, username=username)
     if deleted_count == 0:
         raise HTTPException(status_code=404, detail="Активы не найдены")
 
