@@ -191,14 +191,49 @@ export class Utils {
     const alert = document.createElement('div');
     alert.className = `alert alert-${type} alert-dismissible fade show`;
     alert.role = 'alert';
+    alert.style.cssText = `
+      position: relative;
+      max-width: 600px;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      hyphens: auto;
+    `;
     alert.innerHTML = `
-      ${message}
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      <div style="word-break: break-word;">${message}</div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      ${type === 'danger' ? `
+      <div class="mt-2">
+        <button class="btn btn-sm btn-outline-secondary copy-error-btn">
+          <i class="bi bi-clipboard"></i> Копировать
+        </button>
+      </div>
+      ` : ''}
     `;
     
     container.prepend(alert);
     
-    setTimeout(() => alert.remove(), 5000);
+    // Добавляем обработчик копирования для ошибок
+    if (type === 'danger') {
+      const copyBtn = alert.querySelector('.copy-error-btn');
+      copyBtn?.addEventListener('click', () => {
+        navigator.clipboard.writeText(message);
+        const originalText = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<i class="bi bi-check"></i> Скопировано';
+        setTimeout(() => {
+          copyBtn.innerHTML = originalText;
+        }, 2000);
+      });
+    }
+    
+    // Увеличиваем время показа для ошибок до 15 секунд
+    const timeout = type === 'danger' ? 15000 : 5000;
+    setTimeout(() => {
+      // Плавно скрываем, но не удаляем сразу - пользователь может закрыть сам
+      alert.classList.remove('show');
+      alert.style.opacity = '0';
+      setTimeout(() => alert.remove(), 300);
+    }, timeout);
   }
 
   /**
