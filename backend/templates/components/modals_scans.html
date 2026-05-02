@@ -32,6 +32,11 @@
                                 <div class="form-text">IP адреса, диапазоны или CIDR через запятую</div>
                             </div>
                             <div class="mb-3">
+                                <label class="form-label">Или загрузите из CSV файла</label>
+                                <input type="file" id="simple-scan-csv" class="form-control" accept=".csv,.txt">
+                                <div class="form-text">Файл должен содержать по одному IP/домену в строке</div>
+                            </div>
+                            <div class="mb-3">
                                 <label class="form-label">Тип сканирования</label>
                                 <select name="scan_type" id="simple-scan-type" class="form-select">
                                     <option value="quick">Быстрое (топ-100 портов)</option>

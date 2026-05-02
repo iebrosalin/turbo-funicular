@@ -495,19 +495,52 @@ export class ScanResultsController {
 
   #getDownloadLinks(job) {
     const base = `/api/scan-job/${job.id}/download`;
+    const scanBase = `/api/scan/${job.scan_id}/download`;
     let links = '';
+    
+    // Добавляем CSV и JSON для всех типов сканирований
+    links += `<li><a class="dropdown-item" href="${scanBase}/csv">CSV</a></li>`;
+    links += `<li><a class="dropdown-item" href="${scanBase}/json">JSON</a></li>`;
+    links += `<li><a class="dropdown-item" href="${scanBase}/raw">Raw</a></li>`;
+    
     if (job.scan_type === 'nmap') {
-      links += `<li><a class="dropdown-item" href="${base}/xml">XML</a></li><li><a class="dropdown-item" href="${base}/gnmap">Grepable</a></li><li><a class="dropdown-item" href="${base}/normal">Normal</a></li><li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="${base}/all"><strong>Все (ZIP)</strong></a></li>`;
-    } else if (['rustscan', 'dig'].includes(job.scan_type)) {
-      links += `<li><a class="dropdown-item" href="${base}/raw">Raw</a></li><li><a class="dropdown-item" href="${base}/txt">TXT</a></li><li><a class="dropdown-item" href="${base}/all"><strong>Все (ZIP)</strong></a></li>`;
+      links += `<li><hr class="dropdown-divider"></li>`;
+      links += `<li><a class="dropdown-item" href="${base}/xml">XML</a></li>`;
+      links += `<li><a class="dropdown-item" href="${base}/gnmap">Grepable</a></li>`;
+      links += `<li><a class="dropdown-item" href="${base}/normal">Normal</a></li>`;
     }
+    
     return links;
   }
 
-  #initScanAutocomplete(input, scanType) {
-    // Заглушка для автодополнения
-    // В реальной реализации здесь будет логика подгрузки известных хостов
+  async #initScanAutocomplete(input, scanType) {
+    // Автодополнение на основе известных активов
+    let cachedAssets = [];
     
+    try {
+      const response = await fetch('/api/assets?limit=100');
+      if (response.ok) {
+        cachedAssets = await response.json();
+      }
+    } catch (e) {
+      console.warn('Не удалось загрузить активы для автодополнения:', e);
+    }
+    
+    input.addEventListener('input', async function() {
+      const value = this.value.trim();
+      if (value.length < 1) return;
+      
+      // Фильтруем активы по введённому значению
+      const filtered = cachedAssets.filter(asset => 
+        asset.ip_address?.toLowerCase().includes(value.toLowerCase()) ||
+        asset.hostname?.toLowerCase().includes(value.toLowerCase())
+      ).slice(0, 5);
+      
+      if (filtered.length === 0) return;
+      
+      // Показываем подсказки (можно добавить UI dropdown)
+      console.log('Подсказки:', filtered.map(a => a.ip_address));
+    });
   }
 
   async #loadGroupsForImport() {
@@ -586,15 +619,41 @@ export class ScanResultsController {
     if (!activeTab) return;
 
     const targetInput = activeTab.querySelector('input[id*="target"]');
+    const csvInput = document.getElementById('simple-scan-csv');
     const groupSelect = document.getElementById('simple-scan-group-id');
     const scanTypeSelect = document.getElementById('simple-scan-type');
     
-    if (!targetInput || !targetInput.value.trim()) {
-      alert('Введите цель сканирования');
+    let targets = [];
+    
+    // Проверяем, загружен ли CSV файл
+    if (csvInput && csvInput.files.length > 0) {
+      try {
+        const file = csvInput.files[0];
+        const text = await this.#readFileAsText(file);
+        // Разбиваем по строкам и фильтруем пустые
+        targets = text.split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0 && !line.startsWith('#'));
+        
+        if (targets.length === 0) {
+          alert('CSV файл пуст или не содержит корректных целей');
+          return;
+        }
+      } catch (error) {
+        console.error('Ошибка чтения CSV:', error);
+        alert(`Ошибка чтения файла: ${error.message}`);
+        return;
+      }
+    } else if (targetInput && targetInput.value.trim()) {
+      // Используем текстовый ввод
+      const targetText = targetInput.value.trim();
+      // Разбиваем по запятой если несколько целей
+      targets = targetText.split(',').map(t => t.trim()).filter(t => t.length > 0);
+    } else {
+      alert('Введите цель сканирования или загрузите CSV файл');
       return;
     }
 
-    const target = targetInput.value.trim();
     const groupId = groupSelect?.value || '';
     const scanType = scanTypeSelect?.value || 'standard';
 
@@ -603,7 +662,7 @@ export class ScanResultsController {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          target,
+          target: targets.join(','),
           group_id: groupId ? parseInt(groupId) : null,
           scan_type: scanType
         })

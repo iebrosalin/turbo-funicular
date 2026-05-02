@@ -590,15 +590,63 @@ async def run_dig_scan(
 @router.get("/scan-queue")
 async def get_scan_queue(db: AsyncSession = Depends(get_db)):
     """Получить очередь сканирований."""
-    # Заглушка - возвращаем пустой список
-    return []
+    from backend.models.scan import ScanJob
+    from sqlalchemy.orm import selectinload
+    from sqlalchemy import select
+    
+    # Получаем все активные задачи
+    query = select(ScanJob).options(
+        selectinload(ScanJob.scan)
+    ).where(
+        ScanJob.status.in_(['pending', 'running', 'queued'])
+    ).order_by(ScanJob.created_at.desc())
+    
+    result = await db.execute(query)
+    jobs = result.scalars().all()
+    
+    queue_items = []
+    for job in jobs:
+        queue_items.append({
+            "job_id": job.id,
+            "scan_id": job.scan_id,
+            "job_type": job.job_type,
+            "status": job.status,
+            "target": job.scan.target if job.scan else "Unknown",
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "error_message": job.error_message
+        })
+    
+    return queue_items
 
 
 @router.get("/scan-queue/{job_id}")
 async def get_scan_queue_job(job_id: int, db: AsyncSession = Depends(get_db)):
     """Получить задачу из очереди сканирований."""
-    # Заглушка
-    raise HTTPException(status_code=404, detail="Задача не найдена")
+    from backend.models.scan import ScanJob
+    from sqlalchemy.orm import selectinload
+    from sqlalchemy import select
+    
+    query = select(ScanJob).options(
+        selectinload(ScanJob.scan)
+    ).where(ScanJob.id == job_id)
+    
+    result = await db.execute(query)
+    job = result.scalar_one_or_none()
+    
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Задача сканирования с ID {job_id} не найдена")
+    
+    return {
+        "job_id": job.id,
+        "scan_id": job.scan_id,
+        "job_type": job.job_type,
+        "status": job.status,
+        "target": job.scan.target if job.scan else "Unknown",
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+        "error_message": job.error_message
+    }
 
 
 @router.delete("/scan-queue/{job_id}")
@@ -886,7 +934,138 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
         )
     
     else:
-        raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, json")
+        raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, json, csv")
+
+
+@router.get("/scan/{scan_id}/download/{format}")
+async def download_scan_result(scan_id: int, format: str, db: AsyncSession = Depends(get_db)):
+    """Скачать результаты сканирования по scan_id в указанном формате."""
+    from sqlalchemy import select
+    from backend.models.scan import Scan, ScanResult
+    from sqlalchemy.orm import selectinload
+    
+    # Получаем сканирование
+    scan_query = select(Scan).where(Scan.id == scan_id).options(selectinload(Scan.jobs))
+    scan_result = await db.execute(scan_query)
+    scan = scan_result.scalar_one_or_none()
+    
+    if not scan:
+        raise HTTPException(status_code=404, detail="Сканирование не найдено")
+    
+    # Получаем все результаты для этого сканирования
+    results_query = select(ScanResult).where(ScanResult.scan_id == scan_id)
+    results_result = await db.execute(results_query)
+    results = results_result.scalars().all()
+    
+    if not results:
+        raise HTTPException(status_code=404, detail="Результаты сканирования не найдены")
+    
+    # Форматируем результат в зависимости от запрошенного формата
+    if format == "csv":
+        import csv
+        import io
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Заголовок
+        writer.writerow(['IP Address', 'Hostname', 'Port', 'Protocol', 'State', 'Service', 'OS Info'])
+        
+        for result in results:
+            ports = result.ports or []
+            if isinstance(ports, list):
+                for port_info in ports:
+                    if isinstance(port_info, dict):
+                        writer.writerow([
+                            result.ip_address,
+                            result.hostname or '',
+                            port_info.get('port', ''),
+                            port_info.get('protocol', 'tcp'),
+                            port_info.get('state', 'open'),
+                            port_info.get('service', ''),
+                            result.os_info or ''
+                        ])
+                    elif isinstance(port_info, (int, str)):
+                        writer.writerow([
+                            result.ip_address,
+                            result.hostname or '',
+                            port_info,
+                            'tcp',
+                            'open',
+                            '',
+                            result.os_info or ''
+                        ])
+            else:
+                writer.writerow([
+                    result.ip_address,
+                    result.hostname or '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    result.os_info or ''
+                ])
+        
+        return StreamingResponse(
+            iter([output.getvalue().encode('utf-8')]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{scan_id}.csv"'
+            }
+        )
+    
+    elif format == "json":
+        import json
+        data = [
+            {
+                "ip_address": r.ip_address,
+                "hostname": r.hostname,
+                "ports": r.ports,
+                "services": r.services,
+                "os_info": r.os_info,
+                "status": r.status
+            }
+            for r in results
+        ]
+        return StreamingResponse(
+            iter([json.dumps(data, indent=2).encode('utf-8')]),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{scan_id}.json"'
+            }
+        )
+    
+    elif format == "raw":
+        raw_output = ""
+        for result in results:
+            if result.raw_output:
+                raw_output += f"# Host: {result.ip_address}\n"
+                raw_output += result.raw_output
+                raw_output += "\n\n"
+        
+        if not raw_output:
+            import json
+            raw_output = json.dumps([
+                {
+                    "ip_address": r.ip_address,
+                    "ports": r.ports,
+                    "services": r.services,
+                    "hostname": r.hostname,
+                    "os_info": r.os_info
+                }
+                for r in results
+            ], indent=2)
+        
+        return StreamingResponse(
+            iter([raw_output.encode('utf-8')]),
+            media_type="text/plain",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{scan_id}_raw.txt"'
+            }
+        )
+    
+    else:
+        raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, json, csv")
 
 
 # ==========================================
@@ -931,8 +1110,8 @@ async def create_scan(
     service = ScanService(db)
     scan = await service.create(scan_data)
     
-    # Запуск сканирования в фоне (заглушка для реальной логики)
-    # background_tasks.add_task(run_scan_task, scan.id)
+    # Запуск сканирования в фоне через менеджер очередей
+    # Фоновая задача запускается автоматически при добавлении в очередь
     
     return scan
 

@@ -25,9 +25,11 @@ class RustscanScanner:
         target: str,
         ports: str = '',
         custom_args: str = '',
+        run_nmap_after: bool = False,
+        nmap_args: str = '',
         group_ids: Optional[List[int]] = None
     ) -> Dict[str, Any]:
-        """Запуск сканирования Rustscan."""
+        """Запуск сканирования Rustscan с опциональным запуском Nmap после."""
         output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
         os.makedirs(output_dir, exist_ok=True)
         base_name = os.path.join(output_dir, 'rustscan')
@@ -65,6 +67,24 @@ class RustscanScanner:
             
             # Обновляем активы
             await self._update_assets(db, final_targets.split(), found_ports)
+            
+            # Если указан флаг run_nmap_after, запускаем Nmap с найденными портами
+            if run_nmap_after and found_ports:
+                logger.info(f"[Rustscan] Запуск Nmap после завершения сканирования для {target}")
+                nmap_result = await self._run_nmap_after(
+                    db=db,
+                    job_id=job_id,
+                    target=target,
+                    found_ports=found_ports,
+                    nmap_args=nmap_args,
+                    group_ids=group_ids
+                )
+                return {
+                    "status": "completed",
+                    "job_id": job_id,
+                    "ports_found": found_ports,
+                    "nmap_result": nmap_result
+                }
             
             # Сохраняем результат
             scan_result = ScanResult(
@@ -140,6 +160,57 @@ class RustscanScanner:
                         found_ports[ip_part] = port_list
         
         return found_ports
+    
+    async def _run_nmap_after(
+        self,
+        db: AsyncSession,
+        job_id: int,
+        target: str,
+        found_ports: Dict[str, List[int]],
+        nmap_args: str = '',
+        group_ids: Optional[List[int]] = None
+    ) -> Dict[str, Any]:
+        """Запуск Nmap после Rustscan с найденными портами."""
+        from backend.scanner.nmap.nmap_async import NmapScanner
+        
+        logger = logging.getLogger(__name__)
+        
+        # Получаем порты для целевого хоста
+        target_ports = found_ports.get(target, [])
+        if not target_ports:
+            # Пытаемся найти порты по другим ключам (IP может быть в другом формате)
+            for ip, ports in found_ports.items():
+                if ip in target or target in ip:
+                    target_ports = ports
+                    break
+        
+        if not target_ports:
+            logger.warning(f"[Rustscan->Nmap] Не найдено портов для {target}")
+            return {"status": "skipped", "reason": "no_ports"}
+        
+        # Формируем строку портов для nmap
+        ports_str = ','.join(map(str, target_ports))
+        logger.info(f"[Rustscan->Nmap] Запуск Nmap для {target} с портами: {ports_str}")
+        
+        # Создаем Nmap сканер и запускаем
+        nmap_scanner = NmapScanner()
+        
+        try:
+            result = await nmap_scanner.scan(
+                db=db,
+                job_id=job_id,
+                target=target,
+                ports=ports_str,
+                scripts='',
+                custom_args=nmap_args,
+                known_ports_only=False,
+                group_ids=group_ids
+            )
+            logger.info(f"[Rustscan->Nmap] Nmap завершен для {target}")
+            return result
+        except Exception as e:
+            logger.error(f"[Rustscan->Nmap] Ошибка при запуске Nmap: {e}")
+            return {"status": "failed", "error": str(e)}
     
     async def _update_assets(self, db, targets, found_ports):
         """Обновление активов с найденными портами с использованием унифицированных функций."""
