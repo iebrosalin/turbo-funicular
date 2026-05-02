@@ -28,46 +28,61 @@ class DigScanner:
         import logging
         logger = logging.getLogger(__name__)
         
+        logger.info(f"[Dig DEBUG] scan вызван: job_id={job_id}, target={target}, record_type={record_type}")
+        
         try:
+            logger.info(f"[Dig DEBUG] Попытка получения задачи {job_id} из БД")
             job = await db.get(ScanJob, job_id)
             if not job:
+                logger.error(f"[Dig DEBUG] Задача {job_id} не найдена в БД")
                 raise ValueError(f"Задача сканирования {job_id} не найдена")
             
+            logger.info(f"[Dig DEBUG] Задача найдена, статус: {job.status}")
             job.status = 'running'
             job.started_at = datetime.utcnow()
             await db.commit()
+            logger.info(f"[Dig DEBUG] Статус задачи обновлён на 'running'")
             
             cmd = self._build_command(target, record_type, custom_args)
+            logger.info(f"[Dig DEBUG] Команда dig: {' '.join(cmd)}")
             
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT
             )
+            logger.info(f"[Dig DEBUG] Процесс запущен, PID: {process.pid}")
             
             output_lines = []
-            async for line in process.stdout:
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
                 line_decoded = line.decode().strip()
                 output_lines.append(line_decoded)
+                logger.debug(f"[Dig DEBUG] Вывод dig: {line_decoded}")
             
             await process.wait()
+            logger.info(f"[Dig DEBUG] Процесс завершен с кодом: {process.returncode}")
             
             if process.returncode != 0:
+                logger.error(f"[Dig DEBUG] Dig завершился с ошибкой, код: {process.returncode}")
                 raise Exception(f"Dig завершился с кодом {process.returncode}")
             
             # Парсим вывод
             parsed_result = self._parse_output(output_lines, record_type)
+            logger.info(f"[Dig DEBUG] Результат парсинга: {parsed_result}")
             
             # Извлекаем IP адреса из результатов для создания актива
             ip_addresses = self._extract_ips(parsed_result)
             
             logger.info(f"[Dig] Найдено IP-адресов для создания активов: {len(ip_addresses)}")
-            logger.info(f"[Dig] IP-адреса: {ip_addresses}")
+            logger.info(f"[Dig DEBUG] IP-адреса: {ip_addresses}")
             
             # Создаём активы для найденных IP с использованием унифицированной функции
             created_assets = []
             for ip in ip_addresses:
-                logger.info(f"[Dig] Создание актива для IP: {ip}")
+                logger.info(f"[Dig DEBUG] Создание актива для IP: {ip}")
                 try:
                     asset = await upsert_asset(
                         db=db,
@@ -79,27 +94,28 @@ class DigScanner:
                     logger.info(f"[Dig] Создан/обновлен актив: {ip} (hostname: {target}, asset_id: {asset.id})")
                     created_assets.append(asset)
                 except Exception as e:
-                    logger.error(f"[Dig] Ошибка создания актива для {ip}: {e}")
+                    logger.error(f"[Dig DEBUG] Ошибка создания актива для {ip}: {e}")
                     import traceback
-                    logger.error(f"[Dig] Трассировка: {traceback.format_exc()}")
+                    logger.error(f"[Dig DEBUG] Трассировка: {traceback.format_exc()}")
             
             # Коммитим создание активов
-            logger.info(f"[Dig] Попытка коммита {len(created_assets)} активов в БД")
+            logger.info(f"[Dig DEBUG] Попытка коммита {len(created_assets)} активов в БД")
             try:
                 await db.commit()
-                logger.info(f"[Dig] Активы успешно закоммичены в БД")
+                logger.info(f"[Dig DEBUG] Активы успешно закоммичены в БД")
             except Exception as e:
-                logger.error(f"[Dig] Ошибка коммита: {e}")
+                logger.error(f"[Dig DEBUG] Ошибка коммита: {e}")
                 import traceback
-                logger.error(f"[Dig] Трассировка: {traceback.format_exc()}")
+                logger.error(f"[Dig DEBUG] Трассировка: {traceback.format_exc()}")
                 await db.rollback()
-                logger.info(f"[Dig] Выполнен rollback транзакции")
+                logger.info(f"[Dig DEBUG] Выполнен rollback транзакции")
             
             # Сохраняем результат сканирования
             # Получаем scan_id из job
             job = await db.get(ScanJob, job_id)
             current_scan_id = job.scan_id if job else None
             
+            logger.info(f"[Dig DEBUG] Создание ScanResult: scan_id={current_scan_id}, job_id={job_id}")
             scan_result = ScanResult(
                 scan_id=current_scan_id,
                 scan_job_id=job_id,
@@ -111,6 +127,7 @@ class DigScanner:
                 scanned_at=datetime.now(MOSCOW_TZ)
             )
             db.add(scan_result)
+            logger.info(f"[Dig DEBUG] ScanResult добавлен в сессию БД")
             
             job = await db.get(ScanJob, job_id)
             if job:
@@ -118,22 +135,29 @@ class DigScanner:
                 job.completed_at = datetime.utcnow()
                 job.progress = 100.0
                 await db.commit()
+                logger.info(f"[Dig DEBUG] Задача {job_id} помечена как completed и закоммичена")
             
             logger.info(f"[Dig] Сканирование {job_id} завершено: найдено {len(ip_addresses)} IP")
             return {"status": "completed", "job_id": job_id, "result": parsed_result}
             
         except asyncio.CancelledError:
+            logger.info(f"[Dig DEBUG] Задача {job_id} отменена")
             job = await db.get(ScanJob, job_id)
             if job:
                 job.status = 'stopped'
                 await db.commit()
             raise
         except Exception as e:
+            import traceback
+            error_traceback = traceback.format_exc()
+            logger.error(f"[Dig DEBUG] Ошибка при сканировании {job_id}: {e}")
+            logger.error(f"[Dig DEBUG] Трассировка: {error_traceback}")
             job = await db.get(ScanJob, job_id)
             if job:
                 job.status = 'failed'
                 job.error_message = str(e)
                 await db.commit()
+                logger.info(f"[Dig DEBUG] Задача {job_id} помечена как failed")
             return {"status": "failed", "job_id": job_id, "error": str(e)}
     
     def _build_command(self, target, record_type, custom_args):

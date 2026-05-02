@@ -163,17 +163,23 @@ class ScanQueueManager:
         from backend.models.scan import ScanJob, ScanResult
         from backend.utils import get_moscow_time
         
+        logger.info(f"[DEBUG] _run_scan вызван для job_id={scan_job_id}, scan_type={scan_type}, targets={targets}")
+        
         # Создаём новую сессию БД для фоновой задачи
         async with async_session_maker() as db:
             try:
+                logger.info(f"[DEBUG] Попытка получения задачи {scan_job_id} из БД")
                 job = await db.get(ScanJob, scan_job_id)
                 if not job:
-                    logger.error(f"Задача {scan_job_id} не найдена в БД")
+                    logger.error(f"[DEBUG] Задача {scan_job_id} не найдена в БД")
+                    logger.error(f"[DEBUG] Все задачи в БД: {[j.id async for j in (await db.execute(select(ScanJob))).scalars().all()]}")
                     return
                 
+                logger.info(f"[DEBUG] Задача {scan_job_id} найдена, текущий статус: {job.status}")
                 job.status = "running"
                 job.started_at = datetime.utcnow()
                 await db.commit()
+                logger.info(f"[DEBUG] Статус задачи {scan_job_id} обновлён на 'running'")
                 
                 logger.info(f"Начало сканирования {scan_job_id}: {scan_type} для {len(targets)} целей")
                 
@@ -181,10 +187,13 @@ class ScanQueueManager:
                 scanner = None
                 if scan_type == 'nmap':
                     scanner = NmapScanner()
+                    logger.info(f"[DEBUG] Создан NmapScanner")
                 elif scan_type == 'rustscan':
                     scanner = RustscanScanner()
+                    logger.info(f"[DEBUG] Создан RustscanScanner")
                 elif scan_type == 'dig':
                     scanner = DigScanner()
+                    logger.info(f"[DEBUG] Создан DigScanner")
                 
                 if not scanner:
                     raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
@@ -192,15 +201,17 @@ class ScanQueueManager:
                 # Выполняем сканирование для каждой цели
                 for idx, target in enumerate(targets):
                     if not self._running or scan_job_id not in self._tasks:
-                        logger.warning(f"Сканирование {scan_job_id} прервано")
+                        logger.warning(f"[DEBUG] Сканирование {scan_job_id} прервано на цели {idx+1}/{len(targets)}")
                         break
                     
                     # Обновление прогресса
                     self._progress[scan_job_id]["current"] = idx + 1
+                    logger.info(f"[DEBUG] Обработка цели {idx+1}/{len(targets)}: {target}")
                     
                     try:
                         # Вызов реального сканера
                         if scan_type == 'nmap':
+                            logger.info(f"[DEBUG] Запуск NmapScanner.scan для {target}")
                             result_data = await scanner.scan(
                                 db=db,
                                 job_id=scan_job_id,
@@ -212,6 +223,7 @@ class ScanQueueManager:
                                 group_ids=parameters.get('group_ids')
                             )
                         elif scan_type == 'rustscan':
+                            logger.info(f"[DEBUG] Запуск RustscanScanner.scan для {target}")
                             # Передаем аргументы для nmap если нужно запустить после rustscan
                             result_data = await scanner.scan(
                                 db=db,
@@ -224,6 +236,7 @@ class ScanQueueManager:
                                 group_ids=parameters.get('group_ids')
                             )
                         elif scan_type == 'dig':
+                            logger.info(f"[DEBUG] Запуск DigScanner.scan для {target}, record_type={parameters.get('record_types', 'A')}")
                             result_data = await scanner.scan(
                                 db=db,
                                 job_id=scan_job_id,
@@ -232,11 +245,13 @@ class ScanQueueManager:
                                 custom_args=parameters.get('cli_args', ''),
                                 group_ids=parameters.get('group_ids')
                             )
+                            logger.info(f"[DEBUG] DigScanner.scan вернул: {result_data}")
                         else:
                             raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
                         
                         # Сохранение результата
                         if result_data and result_data.get('status') == 'completed' and 'result' in result_data:
+                            logger.info(f"[DEBUG] Результат сканирования получен: status=completed, result={result_data['result']}")
                             parsed = result_data['result']
                             
                             # Получаем scan_id из job
@@ -274,6 +289,7 @@ class ScanQueueManager:
                     job.progress = 100.0
                     await db.commit()
                 
+                logger.info(f"[DEBUG] Сканирование {scan_job_id} завершено успешно")
                 logger.info(f"Сканирование {scan_job_id} завершено")
                 
                 # Уменьшаем счетчик параллельных задач если это была параллельная задача
@@ -282,6 +298,7 @@ class ScanQueueManager:
                     logger.info(f"Параллельная задача {scan_job_id} завершена, осталось: {self._parallel_task_count}/{self._max_parallel_tasks}")
                 
             except asyncio.CancelledError:
+                logger.info(f"[DEBUG] Сканирование {scan_job_id} отменено пользователем")
                 logger.info(f"Сканирование {scan_job_id} отменено")
                 job = await db.get(ScanJob, scan_job_id)
                 if job:
@@ -290,6 +307,10 @@ class ScanQueueManager:
                     await db.commit()
                 raise
             except Exception as e:
+                import traceback
+                error_traceback = traceback.format_exc()
+                logger.error(f"[DEBUG] Ошибка при выполнении сканирования {scan_job_id}: {e}")
+                logger.error(f"[DEBUG] Трассировка: {error_traceback}")
                 logger.error(f"Ошибка при выполнении сканирования {scan_job_id}: {e}", exc_info=True)
                 job = await db.get(ScanJob, scan_job_id)
                 if job:
@@ -298,6 +319,7 @@ class ScanQueueManager:
                     job.completed_at = datetime.utcnow()
                     await db.commit()
             finally:
+                logger.info(f"[DEBUG] Очистка задач из _tasks и _progress для {scan_job_id}")
                 self._tasks.pop(scan_job_id, None)
                 self._progress.pop(scan_job_id, None)
     
