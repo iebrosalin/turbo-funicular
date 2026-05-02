@@ -19,40 +19,34 @@
 
 <div class="wrapper">
     <!-- TOP NAVBAR -->
-    <nav class="navbar navbar-expand-lg sticky-top border-bottom">
+    <nav class="navbar sticky-top border-bottom">
         <div class="container-fluid">
             <a class="navbar-brand" href="/"><h4 class="mb-0"><i class="bi bi-hdd-network me-2"></i>AssetMgr</h4></a>
             
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNavbar" aria-controls="topNavbar" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            
-            <div class="collapse navbar-collapse" id="topNavbar">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item">
-                        <a href="/" class="nav-link {% if request.scope.get('endpoint') and 'root' in request.scope.get('endpoint').__name__ %}active{% endif %}">
-                            <i class="bi bi-speedometer2 me-1"></i>Дашборд
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/scans" class="nav-link {% if request.scope.get('endpoint') and 'scans_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
-                            <i class="bi bi-radar me-1"></i>Сканирования
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a href="/settings" class="nav-link {% if request.scope.get('endpoint') and 'settings_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
-                            <i class="bi bi-gear-fill me-1"></i>Настройки
-                        </a>
-                    </li>
-                </ul>
-            </div>
+            <ul class="nav mb-0">
+                <li class="nav-item">
+                    <a href="/" class="nav-link {% if request.scope.get('endpoint') and 'root' in request.scope.get('endpoint').__name__ %}active{% endif %}">
+                        <i class="bi bi-speedometer2 me-1"></i>Дашборд
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/scans" class="nav-link {% if request.scope.get('endpoint') and 'scans_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
+                        <i class="bi bi-radar me-1"></i>Сканирования
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/settings" class="nav-link {% if request.scope.get('endpoint') and 'settings_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
+                        <i class="bi bi-gear-fill me-1"></i>Настройки
+                    </a>
+                </li>
+            </ul>
         </div>
     </nav>
 
     <!-- PAGE CONTENT -->
     <div id="content" class="w-100">
         <!-- Основной контент страницы -->
-        <main class="container-fluid py-4">
+        <main class="py-4">
             {% block content %}{% endblock %}
         </main>
         
