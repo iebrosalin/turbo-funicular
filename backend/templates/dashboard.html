@@ -31,8 +31,14 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label for="asset-filter" class="form-label">Поиск и фильтрация</label>
-                    <input type="text" class="form-control" id="asset-filter" placeholder="Начните ввод (например: os=Linux, port:22)...">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="asset-filter" placeholder="Начните ввод (например: os=Linux, port:22)...">
+                        <button class="btn btn-outline-primary" type="button" id="btn-check-filter" title="Проверить синтаксис фильтра">
+                            <i class="bi bi-search"></i> Проверить
+                        </button>
+                    </div>
                     <div class="form-text">Поддерживаются операторы: =, !=, like, contains, >, <, in.</div>
+                    <div id="filter-validation-result" class="mt-1" style="display: none;"></div>
                 </div>
                 <div class="col-md-3">
                     <label for="group-by-select" class="form-label">Группировка</label>

@@ -51,6 +51,9 @@ export class DashboardController {
       this.filterAutocomplete.init(filterInput);
     }
 
+    // Кнопка проверки фильтра
+    document.getElementById('btn-check-filter')?.addEventListener('click', () => this.#validateFilter());
+
     // Поиск
     filterInput?.addEventListener('input', (e) => {
       this.searchQuery = e.target.value.trim();
@@ -98,7 +101,7 @@ export class DashboardController {
       }
       
       // Обработка чекбоксов
-      const checkbox = e.target.closest('input[type="checkbox"].asset-select');
+      const checkbox = e.target.closest('input[type="checkbox"].asset-checkbox');
       if (checkbox) {
         store.toggleAssetSelection(checkbox.value);
       }
@@ -179,8 +182,66 @@ export class DashboardController {
     if (filterInput) filterInput.value = '';
     if (groupSelect) groupSelect.value = 'none';
     
+    // Скрыть результат валидации
+    const validationDiv = document.getElementById('filter-validation-result');
+    if (validationDiv) validationDiv.style.display = 'none';
+    
     this.#updateURL();
     this.applyFilters();
+  }
+
+  /**
+   * Валидация синтаксиса фильтра с выводом результата
+   */
+  #validateFilter() {
+    const filterInput = document.getElementById('asset-filter');
+    const validationDiv = document.getElementById('filter-validation-result');
+    const query = filterInput?.value.trim();
+
+    if (!validationDiv) return;
+
+    if (!query) {
+      validationDiv.innerHTML = '<span class="text-muted">Введите запрос для проверки</span>';
+      validationDiv.style.display = 'block';
+      return;
+    }
+
+    // Простая валидация синтаксиса
+    const errors = [];
+    const parts = query.split(/,\s*/);
+
+    for (const part of parts) {
+      if (!part.trim()) continue;
+      
+      // Проверка наличия оператора
+      const hasOperator = /[=:!<>]|like|contains|in|not_in/.test(part);
+      if (!hasOperator) {
+        errors.push(`"${part}" - отсутствует оператор (=, !=, like, contains, >, <, in)`);
+        continue;
+      }
+
+      // Проверка формата "поле:оператор:значение" или "поле=значение"
+      const match = part.match(/^([a-zA-Z_]+)\s*(=|!=|:|like|contains|>|<|in|not_in)?\s*(.*)$/i);
+      if (!match) {
+        errors.push(`"${part}" - неверный формат`);
+      } else {
+        const fieldName = match[1].toLowerCase();
+        const knownFields = ['ip', 'hostname', 'fqdn', 'os', 'type', 'status', 'group', 'port', 'dns_name', 'dns_record_type', 'owner', 'location'];
+        
+        // Подсказка если поле не найдено
+        if (!knownFields.includes(fieldName) && !knownFields.some(f => f.startsWith(fieldName))) {
+          errors.push(`Поле "${fieldName}" не найдено. Доступные: ${knownFields.join(', ')}`);
+        }
+      }
+    }
+
+    if (errors.length === 0) {
+      validationDiv.innerHTML = '<span class="text-success"><i class="bi bi-check-circle"></i> Синтаксис корректен</span>';
+      validationDiv.style.display = 'block';
+    } else {
+      validationDiv.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> Ошибки:<br>${errors.map(e => `• ${e}`).join('<br>')}</span>`;
+      validationDiv.style.display = 'block';
+    }
   }
 
   async deleteAsset(id) {
