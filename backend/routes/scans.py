@@ -483,7 +483,10 @@ async def run_rustscan(
 
 @router.post("/dig")
 async def run_dig_scan(
-    request: DigScanRequest,
+    target: str = Form(...),
+    args: str = Form(...),
+    scan_type: str = Form("dig"),
+    save_assets: bool = Form(False),
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
@@ -498,18 +501,37 @@ async def run_dig_scan(
     logger.info("=== ПОЛУЧЕН ЗАПРОС НА DIG СКАНИРОВАНИЕ ===")
     logger.info("=" * 60)
     logger.info(f"Входящие данные запроса:")
-    logger.info(f"  - targets_text: {request.targets_text}")
-    logger.info(f"  - dns_server: {request.dns_server}")
-    logger.info(f"  - cli_args: {request.cli_args}")
-    logger.info(f"  - record_types: {request.record_types}")
-    logger.info(f"Raw request data: {request.dict()}")
+    logger.info(f"  - target: {target}")
+    logger.info(f"  - args: {args}")
+    logger.info(f"  - scan_type: {scan_type}")
+    logger.info(f"  - save_assets: {save_assets}")
+    
+    # Парсим аргументы из строки args
+    # Формат: "ANY @8.8.8.8 domain.com" или "ANY domain.com"
+    parts = args.split()
+    record_types = ""
+    dns_server = None
+    cli_args = ""
+    
+    for part in parts:
+        if part.startswith('@'):
+            dns_server = part[1:]  # Убираем '@'
+        elif part.upper() in ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME', 'SOA', 'PTR', 'ANY', 'SRV']:
+            record_types = part.upper()
+        else:
+            # Это может быть домен или дополнительные аргументы
+            if '.' in part and not part.startswith('-'):
+                # Это домен
+                pass
+            elif part.startswith('-'):
+                cli_args += f" {part}"
     
     try:
         # Создаём запись сканирования
         logger.info(f"\n[Шаг 1/4] Создание записи сканирования в БД...")
         new_scan = Scan(
-            name=f"Dig scan: {request.targets_text[:50]}",
-            target=request.targets_text,
+            name=f"Dig scan: {target[:50]}",
+            target=target,
             scan_type="dig",
             status="queued",
             progress=0,
@@ -537,12 +559,12 @@ async def run_dig_scan(
         
         # Добавляем задачу в очередь выполнения
         logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
-        targets_list = [t.strip() for t in request.targets_text.split(',') if t.strip()]
+        targets_list = [t.strip() for t in target.split(',') if t.strip()]
         parameters = {
-            "dns_server": request.dns_server,
-            "cli_args": request.cli_args,
-            "record_types": request.record_types,
-            "group_ids": request.group_ids
+            "dns_server": dns_server,
+            "cli_args": cli_args.strip(),
+            "record_types": record_types,
+            "group_ids": None
         }
         logger.info(f"  - targets_list: {targets_list}")
         logger.info(f"  - parameters: {parameters}")
@@ -563,14 +585,15 @@ async def run_dig_scan(
         logger.info(f"Scan ID: {new_scan.id}")
         logger.info("=" * 60)
         
-        return {"message": f"Dig сканирование запущено для {request.targets_text}", "status": "queued", "job_id": new_job.id, "scan_id": new_scan.id}
+        return {"message": f"Dig сканирование запущено для {target}", "status": "queued", "job_id": new_job.id, "scan_id": new_scan.id, "id": new_job.id}
     
     except Exception as e:
-        logger.error(f"\n❌ КРИТИЧЕСКАЯ ОШИБКА при запуске Dig сканирования: {e}", exc_info=True)
+        logger.error(f"\n❌ КРИТИЧЕСКАЯ ОШИБКА при запуске сканирования: {e}", exc_info=True)
         logger.error(f"Тип ошибки: {type(e).__name__}")
         import traceback
         logger.error(f"Traceback:\n{traceback.format_exc()}")
         
+        # Попытка откатить состояние в БД если возможно
         try:
             if 'new_job' in locals():
                 new_job.status = "failed"

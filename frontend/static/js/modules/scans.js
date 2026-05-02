@@ -163,7 +163,23 @@ export class ScanManager {
       formData.append('scan_type', scanType);
       formData.append('save_assets', saveAssets ? 'true' : 'false');
 
-      const response = await fetch('/api/scans/start', {
+      // Определяем правильный эндпоинт для каждого типа сканирования
+      let endpoint;
+      switch (scanType) {
+        case 'dig':
+          endpoint = '/api/scans/dig';
+          break;
+        case 'nmap':
+          endpoint = '/api/scans/nmap';
+          break;
+        case 'rustscan':
+          endpoint = '/api/scans/rustscan';
+          break;
+        default:
+          throw new Error(`Неизвестный тип сканирования: ${scanType}`);
+      }
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         body: formData
       });
