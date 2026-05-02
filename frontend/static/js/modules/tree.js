@@ -487,9 +487,23 @@ export class TreeManager {
     
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', (e) => {
-      // Игнорируем клики по чекбоксам, кнопкам и ссылкам
-      if (e.target.closest('button') || e.target.closest('input[type="checkbox"]') || e.target.closest('a')) return;
-      window.location.href = `/assets/${asset.id}`;
+      // Если клик был по ссылке (IP или hostname), ничего не делаем - браузер сам перейдет
+      if (e.target.closest('a')) return;
+      
+      // Игнорируем клики по чекбоксам и кнопкам
+      if (e.target.closest('button') || e.target.closest('input[type="checkbox"]')) return;
+      
+      // Переключаем чекбокс
+      const checkbox = tr.querySelector('.asset-checkbox');
+      if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+        // Обновляем тулбар массовых операций
+        treeManager.#updateBulkToolbar();
+      }
+      
+      // Выделяем строку визуально
+      document.querySelectorAll('.asset-row.selected').forEach(row => row.classList.remove('selected'));
+      tr.classList.add('selected');
     });
 
     // Обработчик для кнопки редактирования
