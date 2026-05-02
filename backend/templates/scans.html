@@ -147,6 +147,22 @@
                                 <label class="form-check-label" for="nmapSaveAssets">Сохранять найденные активы в базу</label>
                             </div>
                         </div>
+                        
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="nmapKnownOnly">
+                                <label class="form-check-label" for="nmapKnownOnly">Только известные порты (без указания цели)</label>
+                            </div>
+                            <div class="form-text">Сканировать только активы из выбранных групп.</div>
+                        </div>
+                        
+                        <div class="col-12 d-none" id="nmapGroupsContainer">
+                            <label for="nmapGroups" class="form-label">Группы активов</label>
+                            <select class="form-select" id="nmapGroups" multiple size="3">
+                                <!-- Заполняется через JS -->
+                            </select>
+                            <div class="form-text">Удерживайте Ctrl/Cmd для выбора нескольких групп.</div>
+                        </div>
 
                         <div class="col-12">
                             <button type="submit" class="btn btn-primary" id="nmapSubmitBtn"><i class="bi bi-play-fill"></i> Запустить Nmap</button>
@@ -188,6 +204,22 @@
                                 <input class="form-check-input" type="checkbox" id="rustscanSaveAssets" checked>
                                 <label class="form-check-label" for="rustscanSaveAssets">Сохранять активы</label>
                             </div>
+                        </div>
+                        
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="rustscanKnownOnly">
+                                <label class="form-check-label" for="rustscanKnownOnly">Только известные порты (без указания цели)</label>
+                            </div>
+                            <div class="form-text">Сканировать только активы из выбранных групп.</div>
+                        </div>
+                        
+                        <div class="col-12 d-none" id="rustscanGroupsContainer">
+                            <label for="rustscanGroups" class="form-label">Группы активов</label>
+                            <select class="form-select" id="rustscanGroups" multiple size="3">
+                                <!-- Заполняется через JS -->
+                            </select>
+                            <div class="form-text">Удерживайте Ctrl/Cmd для выбора нескольких групп.</div>
                         </div>
 
                         <div class="col-12">

@@ -18,6 +18,8 @@ export class ScanResultsController {
   }
 
   async #init() {
+    // Загружаем группы для форм Nmap и Rustscan
+    await this.#loadGroupsForForms();
     
     this.#setupEventListeners();
     this.#initUrlFiltering();
@@ -31,6 +33,33 @@ export class ScanResultsController {
     
     // Автообновление каждые 5 секунд
     this.startPolling();
+  }
+
+  async #loadGroupsForForms() {
+    try {
+      const response = await fetch('/api/groups/tree');
+      if (!response.ok) return;
+      const groups = await response.json();
+      
+      const nmapSelect = document.getElementById('nmapGroups');
+      const rustscanSelect = document.getElementById('rustscanGroups');
+      
+      const fillSelect = (select) => {
+        if (!select) return;
+        select.innerHTML = '';
+        groups.forEach(group => {
+          const option = document.createElement('option');
+          option.value = group.id;
+          option.textContent = group.name;
+          select.appendChild(option);
+        });
+      };
+      
+      fillSelect(nmapSelect);
+      fillSelect(rustscanSelect);
+    } catch (error) {
+      console.error('Ошибка загрузки групп:', error);
+    }
   }
 
   #initUrlFiltering() {
@@ -257,27 +286,26 @@ export class ScanResultsController {
     });
 
     // Логика чекбокса "Только известные порты" для Nmap
-    const knownPortsCheckbox = document.getElementById('nmap-known-ports-only');
-    const portsInput = document.getElementById('nmap-ports');
-    const groupsSelect = document.getElementById('nmap-groups');
-    const portsWarning = document.getElementById('nmap-ports-warning');
-    const argsWarning = document.getElementById('nmap-args-warning');
-
+    const knownPortsCheckbox = document.getElementById('nmapKnownOnly');
+    const groupsContainer = document.getElementById('nmapGroupsContainer');
+    
     knownPortsCheckbox?.addEventListener('change', function() {
       if (this.checked) {
-        portsInput.disabled = true; 
-        portsInput.value = ''; 
-        portsInput.placeholder = 'Блокировано';
-        groupsSelect.disabled = false;
-        portsWarning?.classList.remove('d-none'); 
-        argsWarning?.classList.remove('d-none');
+        groupsContainer?.classList.remove('d-none');
       } else {
-        portsInput.disabled = false; 
-        portsInput.placeholder = '22,80,443 или 1-1000';
-        groupsSelect.disabled = true; 
-        groupsSelect.selectedIndex = -1;
-        portsWarning?.classList.add('d-none'); 
-        argsWarning?.classList.add('d-none');
+        groupsContainer?.classList.add('d-none');
+      }
+    });
+    
+    // Логика чекбокса "Только известные порты" для Rustscan
+    const rustscanKnownPortsCheckbox = document.getElementById('rustscanKnownOnly');
+    const rustscanGroupsContainer = document.getElementById('rustscanGroupsContainer');
+    
+    rustscanKnownPortsCheckbox?.addEventListener('change', function() {
+      if (this.checked) {
+        rustscanGroupsContainer?.classList.remove('d-none');
+      } else {
+        rustscanGroupsContainer?.classList.add('d-none');
       }
     });
 
@@ -503,15 +531,15 @@ export class ScanResultsController {
   }
 
   async #submitNmapScan(form) {
+    const targetInput = document.getElementById('nmapTarget');
+    const target = targetInput?.value.trim() || '';
     
-    const targetInput = document.getElementById('nmap-target');
-    const target = targetInput ? targetInput.value.trim() : '';
-    const knownOnlyCheckbox = document.getElementById('nmap-known-ports-only');
-    const knownOnly = knownOnlyCheckbox ? knownOnlyCheckbox.checked : false;
-    const groupSelect = document.getElementById('nmap-groups');
+    // Проверяем, выбран ли режим "Только известные порты"
+    const knownOnlyCheckbox = document.getElementById('nmapKnownOnly');
+    const knownOnly = knownOnlyCheckbox?.checked || false;
+    
+    const groupSelect = document.getElementById('nmapGroups');
     const groupIds = groupSelect ? Array.from(groupSelect.selectedOptions).map(opt => opt.value) : [];
-
-    
 
     if (!target && !knownOnly) { 
       Utils.showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
@@ -528,9 +556,9 @@ export class ScanResultsController {
         method: 'POST',
         body: JSON.stringify({
           target, 
-          ports: document.getElementById('nmap-ports')?.value || '', 
-          scripts: document.getElementById('nmap-scripts')?.value || '',
-          custom_args: document.getElementById('nmap-custom-args')?.value || '', 
+          ports: document.getElementById('nmapPorts')?.value || '', 
+          scripts: document.getElementById('nmapScriptDefault')?.value || '',
+          custom_args: document.getElementById('nmapCustomArgs')?.value || '', 
           known_ports_only: knownOnly, 
           group_ids: groupIds
         })
@@ -550,13 +578,22 @@ export class ScanResultsController {
   }
 
   async #submitRustscanScan(form) {
+    const targetInput = document.getElementById('rustscanTarget');
+    const target = targetInput?.value.trim() || '';
     
-    const targetInput = document.getElementById('rustscan-target');
-    const target = targetInput ? targetInput.value : '';
+    // Проверяем, выбран ли режим "Только известные порты"
+    const knownOnlyCheckbox = document.getElementById('rustscanKnownOnly');
+    const knownOnly = knownOnlyCheckbox?.checked || false;
     
-    
-    if (!target) { 
-      Utils.showNotification('Укажите цель', 'warning'); 
+    const groupSelect = document.getElementById('rustscanGroups');
+    const groupIds = groupSelect ? Array.from(groupSelect.selectedOptions).map(opt => opt.value) : [];
+
+    if (!target && !knownOnly) { 
+      Utils.showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
+      return; 
+    }
+    if (knownOnly && groupIds.length === 0) { 
+      Utils.showNotification('Выберите хотя бы одну группу', 'warning'); 
       return; 
     }
 
@@ -565,11 +602,13 @@ export class ScanResultsController {
       await Utils.apiRequest('/api/scans/rustscan', {
         method: 'POST',
         body: JSON.stringify({
-          target, 
-          ports: document.getElementById('rustscan-ports')?.value || '',
-          custom_args: document.getElementById('rustscan-custom-args')?.value || '',
-          run_nmap_after: document.getElementById('rustscan-run-nmap')?.checked || false,
-          nmap_args: document.getElementById('rustscan-nmap-args')?.value || ''
+          target: target || null, 
+          ports: document.getElementById('rustscanPortsRange')?.value || '',
+          custom_args: document.getElementById('rustscanCustomArgs')?.value || '',
+          run_nmap_after: document.getElementById('rustscanRunNmap')?.checked || false,
+          nmap_args: document.getElementById('rustscanNmapArgs')?.value || '',
+          known_ports_only: knownOnly,
+          group_ids: groupIds
         })
       });
       
@@ -588,8 +627,9 @@ export class ScanResultsController {
 
   async #submitDigScan(form) {
     
-    let targetsText = document.getElementById('dig-targets').value.trim();
-    const fileInput = document.getElementById('dig-file');
+    const targetsInput = document.getElementById('digDomain');
+    let targetsText = targetsInput ? targetsInput.value.trim() : '';
+    const fileInput = document.getElementById('digFile');
 
     
     
@@ -610,24 +650,23 @@ export class ScanResultsController {
     }
 
     if (!targetsText) { 
-      Utils.showNotification('Введите цели или загрузите файл', 'warning'); 
+      Utils.showNotification('Введите домен или загрузите файл', 'warning'); 
       return; 
     }
 
     let recordTypes = null;
-    const typesInput = document.getElementById('dig-types').value.trim();
-    if (typesInput) recordTypes = typesInput.split(',').map(t => t.trim().toUpperCase());
-
+    const typesInput = document.getElementById('digType');
+    if (typesInput) {
+      const typesValue = typesInput.value.trim();
+      if (typesValue && typesValue !== 'ANY') recordTypes = [typesValue];
+    }
     try {
       
       await Utils.apiRequest('/api/scans/dig', {
-        method: 'POST',
-        body: JSON.stringify({
-          targets_text: targetsText, 
-          dns_server: document.getElementById('dig-server').value,
-          cli_args: document.getElementById('dig-cli-args').value, 
+          targets_text: targetsText,
+          dns_server: document.getElementById('digServer')?.value || '',
+          cli_args: document.getElementById('digCustomArgs')?.value || '',
           record_types: recordTypes
-        })
       });
       
       Utils.showNotification('Сканирование Dig запущено', 'success');
