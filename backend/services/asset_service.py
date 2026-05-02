@@ -145,11 +145,11 @@ class AssetService:
                 'product': service.product,
                 'version': service.version,
                 'extra_info': service.extra_info,
-                'ssl_subject': service.ssl_subject,
-                'ssl_issuer': service.ssl_issuer,
-                'ssl_not_before': service.ssl_not_before.isoformat() if service.ssl_not_before else None,
-                'ssl_not_after': service.ssl_not_after.isoformat() if service.ssl_not_after else None,
-                'script_output': service.script_output
+                'ssl_subject': service.ssl_cert_subject,
+                'ssl_issuer': service.ssl_cert_issuer,
+                'ssl_not_before': service.ssl_cert_not_before.isoformat() if service.ssl_cert_not_before else None,
+                'ssl_not_after': service.ssl_cert_not_after.isoformat() if service.ssl_cert_not_after else None,
+                'script_output': service.scripts
             })
         
         # Предзагрузка групп
