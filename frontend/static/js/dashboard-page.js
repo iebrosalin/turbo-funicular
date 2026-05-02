@@ -306,3 +306,24 @@ export class DashboardController {
     URL.revokeObjectURL(url);
   }
 }
+
+// Инициализация контроллера при загрузке модуля
+const dashboardController = new DashboardController();
+
+// Экспорт для кнопок экспорта
+document.getElementById('btn-export-csv-current')?.addEventListener('click', () => {
+  dashboardController.exportData('csv');
+});
+document.getElementById('btn-export-json-current')?.addEventListener('click', () => {
+  dashboardController.exportData('json');
+});
+document.getElementById('btn-export-csv-full')?.addEventListener('click', () => {
+  // Для полного экспорта используем все активы
+  dashboardController.allAssets = dashboardController.filteredAssets;
+  dashboardController.exportData('csv');
+});
+document.getElementById('btn-export-json-full')?.addEventListener('click', () => {
+  // Для полного экспорта используем все активы
+  dashboardController.allAssets = dashboardController.filteredAssets;
+  dashboardController.exportData('json');
+});
