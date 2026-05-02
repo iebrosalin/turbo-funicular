@@ -11,7 +11,6 @@ export class Store {
     currentGroupId: null,
     currentAssets: [],
     groups: [],  // Добавлено ключ groups
-    assets: [],  // Добавлен ключ assets для хранения списка активов
     contextMenu: null,
     editModal: null,
     createModal: null,
@@ -157,7 +156,6 @@ export class Store {
       currentGroupId: null,
       currentAssets: [],
       groups: [],
-      assets: [],
       contextMenu: null,
       editModal: null,
       createModal: null,

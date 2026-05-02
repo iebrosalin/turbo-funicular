@@ -3,181 +3,89 @@
 
 {% block title %}Дашборд активов{% endblock %}
 
-{% block extra_css %}
-<style>
-    /* Стили для сайдбара на дашборде */
-    .dashboard-layout {
-        display: flex;
-        gap: 1rem;
-    }
-    .dashboard-sidebar {
-        width: 250px;
-        min-width: 200px;
-        max-width: 300px;
-        flex-shrink: 0;
-    }
-    .dashboard-main {
-        flex-grow: 1;
-        min-width: 0;
-    }
-    .group-tree {
-        margin-top: 0.5rem;
-    }
-    .tree-node {
-        padding: 0.25rem 0.5rem;
-        cursor: pointer;
-        border-radius: 4px;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-    .tree-node:hover {
-        background-color: var(--bs-tertiary-bg);
-    }
-    .tree-node.active {
-        background-color: var(--bs-primary-bg-subtle);
-        color: var(--bs-primary);
-    }
-    .folder-icon {
-        color: var(--bs-secondary);
-    }
-    .sidebar-section-title {
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="container-fluid py-4">
-    <div class="dashboard-layout">
-        <!-- Левый сайдбар с группами активов и текущими сканированиями -->
-        <div class="dashboard-sidebar">
-            <div class="card shadow-sm">
-                <div class="card-body p-3">
-                    <div id="sidebar-content">
-                        <!-- Сюда tree.js вставит группы активов -->
-                        <div class="text-center text-muted py-3">
-                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                            <p class="small mt-2 mb-0">Загрузка групп...</p>
-                        </div>
-                    </div>
-                    <div id="sidebar-tasks-container" class="mt-3">
-                        <!-- Сюда scanManager вставит активные задачи сканирования -->
-                    </div>
+    <div class="row mb-4">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <h2><i class="bi bi-speedometer2"></i> Дашборд активов</h2>
+            <div class="btn-group">
+                <button class="btn btn-outline-success" id="btn-export-csv-current">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> CSV (Видимое)
+                </button>
+                <button class="btn btn-outline-success" id="btn-export-json-current">
+                    <i class="bi bi-filetype-json"></i> JSON (Видимое)
+                </button>
+                <button class="btn btn-outline-primary" id="btn-export-csv-full">
+                    <i class="bi bi-database"></i> CSV (Все данные)
+                </button>
+                <button class="btn btn-outline-primary" id="btn-export-json-full">
+                    <i class="bi bi-database"></i> JSON (Все данные)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Панель управления -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="asset-filter" class="form-label">Поиск и фильтрация</label>
+                    <input type="text" class="form-control" id="asset-filter" placeholder="Начните ввод (например: os=Linux, port:22)...">
+                    <div class="form-text">Поддерживаются операторы: =, !=, like, contains, >, <, in.</div>
+                </div>
+                <div class="col-md-3">
+                    <label for="group-by-select" class="form-label">Группировка</label>
+                    <select class="form-select" id="group-by-select">
+                        <option value="none">Без группировки</option>
+                        <option value="group">По группам</option>
+                        <option value="os_family">По ОС</option>
+                        <option value="device_type">По типу устройства</option>
+                        <option value="status">По статусу</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="columns-select" class="form-label">Колонки</label>
+                    <select class="form-select" id="columns-select" multiple size="5">
+                        <option value="ip_address" selected>IP Адрес</option>
+                        <option value="hostname" selected>Hostname</option>
+                        <option value="os_family">ОС</option>
+                        <option value="device_type">Тип</option>
+                        <option value="status" selected>Статус</option>
+                        <option value="open_ports">Порты</option>
+                        <option value="groups">Группы</option>
+                        <option value="last_nmap_scan">Last Nmap</option>
+                        <option value="last_rustscan_scan">Last Rustscan</option>
+                        <option value="source">Источник</option>
+                    </select>
+                    <div class="form-text">Ctrl+Click для выбора</div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Основной контент дашборда -->
-        <div class="dashboard-main">
-            <div class="row mb-4">
-                <div class="col-12 d-flex justify-content-between align-items-center">
-                    <h2><i class="bi bi-speedometer2"></i> Дашборд активов</h2>
-                    <div class="btn-group">
-                        <button class="btn btn-outline-success" id="btn-export-csv-current">
-                            <i class="bi bi-file-earmark-spreadsheet"></i> CSV (Видимое)
-                        </button>
-                        <button class="btn btn-outline-success" id="btn-export-json-current">
-                            <i class="bi bi-filetype-json"></i> JSON (Видимое)
-                        </button>
-                        <button class="btn btn-outline-primary" id="btn-export-csv-full">
-                            <i class="bi bi-database"></i> CSV (Все данные)
-                        </button>
-                        <button class="btn btn-outline-primary" id="btn-export-json-full">
-                            <i class="bi bi-database"></i> JSON (Все данные)
-                        </button>
-                    </div>
-                </div>
+    <!-- Таблица активов -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped mb-0" id="assets-table">
+                    <thead class="table-light">
+                        <tr id="table-header-row">
+                            <!-- Заголовки генерируются JS -->
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Данные генерируются JS -->
+                    </tbody>
+                </table>
             </div>
-
-            <!-- Панель управления -->
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label for="asset-filter" class="form-label">Поиск и фильтрация</label>
-                            <input type="text" class="form-control" id="asset-filter" placeholder="Начните ввод (например: os=Linux, port:22)...">
-                            <div class="form-text">Поддерживаются операторы: =, !=, like, contains, >, <, in.</div>
-                        </div>
-                        <div class="col-md-3">
-                            <label for="group-by-select" class="form-label">Группировка</label>
-                            <select class="form-select" id="group-by-select">
-                                <option value="none">Без группировки</option>
-                                <option value="group">По группам</option>
-                                <option value="os_family">По ОС</option>
-                                <option value="device_type">По типу устройства</option>
-                                <option value="status">По статусу</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label for="columns-select" class="form-label">Колонки</label>
-                            <select class="form-select" id="columns-select" multiple size="5">
-                                <option value="ip_address" selected>IP Адрес</option>
-                                <option value="hostname" selected>Hostname</option>
-                                <option value="os_family">ОС</option>
-                                <option value="device_type">Тип</option>
-                                <option value="status" selected>Статус</option>
-                                <option value="open_ports">Порты</option>
-                                <option value="groups">Группы</option>
-                                <option value="last_nmap_scan">Last Nmap</option>
-                                <option value="last_rustscan_scan">Last Rustscan</option>
-                                <option value="source">Источник</option>
-                            </select>
-                            <div class="form-text">Ctrl+Click для выбора</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Таблица активов -->
-            <div class="card shadow-sm">
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover table-striped mb-0" id="assets-table">
-                            <thead class="table-light">
-                                <tr id="table-header-row">
-                                    <!-- Заголовки генерируются JS -->
-                                </tr>
-                            </thead>
-                            <tbody id="table-body">
-                                <!-- Данные генерируются JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-                <div class="card-footer text-muted small">
-                    Всего активов: <span id="total-count">0</span> | Показано: <span id="filtered-count">0</span>
-                </div>
-            </div>
+        </div>
+        <div class="card-footer text-muted small">
+            Всего активов: <span id="total-count">0</span> | Показано: <span id="filtered-count">0</span>
         </div>
     </div>
 </div>
 
 <!-- Подключение скриптов -->
 <script type="module" src="/static/js/dashboard-page.js"></script>
-
-{% block extra_js %}
-<script type="module">
-    import { treeManager } from '/static/js/modules/tree.js';
-    import { scanManager } from '/static/js/modules/scans.js';
-
-    console.log('[DEBUG dashboard.html] Страница дашборда загружена, инициализируем дерево...');
-
-    // Явная инициализация дерева групп для страницы дашборда
-    const container = document.getElementById('sidebar-content');
-    if (container) {
-        console.log('[DEBUG dashboard.html] Контейнер #sidebar-content найден, запускаем refresh...');
-        treeManager.refresh().catch(err => console.error('Ошибка обновления дерева:', err));
-        
-        // Инициализация отображения активных сканирований
-        const tasksContainer = document.getElementById('sidebar-tasks-container');
-        if (tasksContainer && scanManager && typeof scanManager.initSidebarTasks === 'function') {
-            scanManager.initSidebarTasks(tasksContainer);
-        }
-    } else {
-        console.error('[DEBUG dashboard.html] Контейнер #sidebar-content НЕ найден!');
-    }
-</script>
-{% endblock %}
 {% endblock %}
