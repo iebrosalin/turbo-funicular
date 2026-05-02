@@ -95,14 +95,18 @@ class RustscanScanner:
                 return {
                     "status": "completed",
                     "job_id": job_id,
-                    "ports_found": found_ports,
+                    "result": {
+                        "hostname": target,
+                        "ports": list(found_ports.values()) if found_ports else []
+                    },
+                    "raw_output": '\n'.join(output_lines),
                     "nmap_result": nmap_result
                 }
             
             # Сохраняем результат
             scan_result = ScanResult(
                 scan_job_id=job_id,
-                asset_ip=final_targets,
+                ip_address=final_targets,
                 ports=list(found_ports.values()),
                 raw_output='\n'.join(output_lines),
                 scanned_at=datetime.now()
@@ -116,7 +120,15 @@ class RustscanScanner:
                 job.progress = 100.0
                 await db.commit()
             
-            return {"status": "completed", "job_id": job_id, "ports_found": found_ports}
+            return {
+                "status": "completed",
+                "job_id": job_id,
+                "result": {
+                    "hostname": target,
+                    "ports": list(found_ports.values()) if found_ports else []
+                },
+                "raw_output": '\n'.join(output_lines)
+            }
             
         except asyncio.CancelledError:
             job = await db.get(ScanJob, job_id)

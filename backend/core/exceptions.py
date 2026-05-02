@@ -28,9 +28,23 @@ async def global_exception_handler(request: Request, exc: AppException):
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """Обработчик ошибок валидации."""
     logger.error(f"Ошибка валидации: {exc.errors()}")
+    # Преобразуем ошибки в сериализуемый формат
+    errors_serializable = []
+    for error in exc.errors():
+        errors_serializable.append({
+            "loc": error.get("loc", []),
+            "msg": error.get("msg", ""),
+            "type": error.get("type", "")
+        })
+    
+    # Обрабатываем body - преобразуем bytes в строку если необходимо
+    body_value = exc.body
+    if isinstance(body_value, bytes):
+        body_value = body_value.decode('utf-8', errors='ignore')
+    
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": exc.errors(), "body": str(exc.body)},
+        content={"detail": errors_serializable, "body": str(body_value)},
     )
 
 
