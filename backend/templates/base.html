@@ -18,50 +18,41 @@
 <body>
 
 <div class="wrapper">
-    <!-- SIDEBAR -->
-    <nav id="sidebar" class="sidebar">
-        <div class="sidebar-header">
+    <!-- TOP NAVBAR -->
+    <nav class="navbar navbar-expand-lg sticky-top border-bottom">
+        <div class="container-fluid">
             <a class="navbar-brand" href="/"><h4 class="mb-0"><i class="bi bi-hdd-network me-2"></i>AssetMgr</h4></a>
-        </div>
-        
-        <div class="sidebar-components">
-            <!-- Навигация -->
-            <div class="sidebar-section">
-                <div class="sidebar-section-title">Меню</div>
-                <ul class="list-unstyled components mb-0">
-                    <li>
-                        <a href="/" class="tree-node {% if request.scope.get('endpoint') and 'root' in request.scope.get('endpoint').__name__ %}active{% endif %}">
-                            <i class="bi bi-speedometer2 folder-icon"></i>
-                            <span class="group-name">Дашборд</span>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNavbar" aria-controls="topNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="topNavbar">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a href="/" class="nav-link {% if request.scope.get('endpoint') and 'root' in request.scope.get('endpoint').__name__ %}active{% endif %}">
+                            <i class="bi bi-speedometer2 me-1"></i>Дашборд
                         </a>
                     </li>
-                    <li>
-                        <a href="/scans" class="tree-node {% if request.scope.get('endpoint') and 'scans_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
-                            <i class="bi bi-radar folder-icon"></i>
-                            <span class="group-name">Сканирования</span>
+                    <li class="nav-item">
+                        <a href="/scans" class="nav-link {% if request.scope.get('endpoint') and 'scans_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
+                            <i class="bi bi-radar me-1"></i>Сканирования
                         </a>
                     </li>
-                    <li>
-                        <a href="/settings" class="tree-node {% if request.scope.get('endpoint') and 'settings_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
-                            <i class="bi bi-gear-fill folder-icon"></i>
-                            <span class="group-name">Настройки</span>
+                    <li class="nav-item">
+                        <a href="/settings" class="nav-link {% if request.scope.get('endpoint') and 'settings_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
+                            <i class="bi bi-gear-fill me-1"></i>Настройки
                         </a>
                     </li>
                 </ul>
             </div>
-
-            <!-- Дерево групп (включает активные сканирования) -->
-            {% include 'components/group_tree.html' %}
         </div>
-        
-        <!-- Ручка для изменения размера -->
-        <div id="sidebarResizer" class="sidebar-resizer"></div>
     </nav>
 
     <!-- PAGE CONTENT -->
-    <div id="content">
+    <div id="content" class="w-100">
         <!-- Основной контент страницы -->
-        <main>
+        <main class="container-fluid py-4">
             {% block content %}{% endblock %}
         </main>
         
