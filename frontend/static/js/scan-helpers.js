@@ -222,12 +222,35 @@ export class ScanAutocompleteManager {
       suggestions = dnsServers.filter(s => s.value.toLowerCase().includes(query)).slice(0, 5);
     } else if (context.type === 'ip' || context.type === 'domain') {
       // Динамическая подгрузка активов и групп (через API)
-      // Здесь можно добавить fetch запрос к API для получения реальных данных
-      // Для примера возвращаем заглушки
-      suggestions = [
-        { value: '192.168.1.1', label: 'Локальный шлюз', type: 'ip', desc: 'Пример IP' },
-        { value: 'example.com', label: 'Пример домена', type: 'domain', desc: 'Пример домена' }
-      ].filter(s => s.value.toLowerCase().includes(context.value.toLowerCase())).slice(0, 5);
+      suggestions = [];
+      
+      // Примеры популярных IP и доменов для быстрого старта
+      const commonTargets = [
+        { value: '127.0.0.1', label: 'Localhost', type: 'ip', desc: 'Локальный хост' },
+        { value: '192.168.1.1', label: 'Default Gateway', type: 'ip', desc: 'Шлюз по умолчанию' },
+        { value: '10.0.0.1', label: 'Private Network', type: 'ip', desc: 'Частная сеть Class A' },
+        { value: '172.16.0.1', label: 'Private Network', type: 'ip', desc: 'Частная сеть Class B' },
+        { value: 'google.com', label: 'Google', type: 'domain', desc: 'Публичный DNS Google' },
+        { value: 'cloudflare.com', label: 'Cloudflare', type: 'domain', desc: 'Публичный DNS Cloudflare' }
+      ];
+      
+      suggestions = commonTargets.filter(s => 
+        s.value.toLowerCase().includes(context.value.toLowerCase())
+      ).slice(0, 5);
+      
+      // Если есть совпадения с активами из API, добавим их
+      if (window.scanAssets && Array.isArray(window.scanAssets)) {
+        const assetMatches = window.scanAssets
+          .filter(a => a.ip_address && a.ip_address.toLowerCase().includes(context.value.toLowerCase()))
+          .slice(0, 3)
+          .map(a => ({
+            value: a.ip_address,
+            label: a.hostname || a.ip_address,
+            type: 'asset',
+            desc: `Актив в группе ${a.group_name || 'Без группы'}`
+          }));
+        suggestions = [...assetMatches, ...suggestions].slice(0, 5);
+      }
     }
     
     // Добавляем примеры использования
