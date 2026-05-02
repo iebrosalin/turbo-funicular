@@ -11,7 +11,6 @@ export class Store {
     currentGroupId: null,
     currentAssets: [],
     groups: [],  // Добавлено ключ groups
-    assets: [],  // Добавлен ключ assets для хранения списка активов
     contextMenu: null,
     editModal: null,
     createModal: null,
@@ -114,6 +113,26 @@ export class Store {
     this.#notifySelectionChange();
   }
 
+  toggleAssetSelection(id) {
+    if (this.#state.selectedAssetIds.has(id)) {
+      this.removeSelectedAsset(id);
+    } else {
+      this.addSelectedAsset(id);
+    }
+  }
+
+  toggleAllAssets(ids, selectAll) {
+    if (selectAll) {
+      ids.forEach(id => this.addSelectedAsset(id));
+    } else {
+      ids.forEach(id => this.removeSelectedAsset(id));
+    }
+  }
+
+  getSelectedAssets() {
+    return this.getSelectedIds();
+  }
+
   isSelected(id) {
     return this.#state.selectedAssetIds.has(id);
   }
@@ -157,7 +176,6 @@ export class Store {
       currentGroupId: null,
       currentAssets: [],
       groups: [],
-      assets: [],
       contextMenu: null,
       editModal: null,
       createModal: null,
