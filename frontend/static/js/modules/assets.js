@@ -40,14 +40,13 @@ export class AssetManager {
 
   #handleSelectAll(checkbox) {
     const checkboxes = document.querySelectorAll('.asset-checkbox');
+    const ids = Array.from(checkboxes).map(cb => cb.value);
+    
+    store.toggleAllAssets(ids, checkbox.checked);
+    
     checkboxes.forEach(cb => {
       cb.checked = checkbox.checked;
       this.#toggleRowSelection(cb.closest('tr'), checkbox.checked);
-      if (checkbox.checked) {
-        store.addSelectedAsset(cb.value);
-      } else {
-        store.removeSelectedAsset(cb.value);
-      }
     });
 
     const lastIndex = checkbox.checked && checkboxes.length > 0
@@ -133,9 +132,102 @@ export class AssetManager {
     const toolbar = document.getElementById('bulk-toolbar');
     if (toolbar) {
       toolbar.style.display = count > 0 ? 'block' : 'none';
-      const countEl = toolbar.querySelector('.selected-count');
+      const countEl = toolbar.querySelector('#selected-count');
       if (countEl) countEl.textContent = count;
     }
+  }
+
+  /**
+   * Отрисовать таблицу активов
+   * @param {Array} assets - Массив активов
+   * @param {Array} columns - Массив видимых колонок
+   */
+  render(assets, columns) {
+    if (!this.tbody) return;
+    
+    const thead = this.tbody.parentElement?.querySelector('thead');
+    if (thead) {
+      const headerRow = thead.querySelector('#table-header-row');
+      if (headerRow) {
+        headerRow.innerHTML = '<th class="text-center"><input type="checkbox" id="select-all" class="form-check-input"></th>' +
+          columns.map(col => `<th>${this.#getColumnLabel(col)}</th>`).join('') +
+          '<th>Действия</th>';
+        
+        // Перепривязка чекбокса "Выбрать все"
+        const selectAll = headerRow.querySelector('#select-all');
+        if (selectAll) {
+          selectAll.addEventListener('change', () => this.#handleSelectAll(selectAll));
+        }
+      }
+    }
+
+    this.tbody.innerHTML = '';
+    assets.forEach(asset => {
+      this.tbody.appendChild(this.createRow(asset, columns));
+    });
+
+    // Обновление счетчиков
+    const totalCount = document.getElementById('total-count');
+    const filteredCount = document.getElementById('filtered-count');
+    if (totalCount) totalCount.textContent = assets.length;
+    if (filteredCount) filteredCount.textContent = assets.length;
+  }
+
+  /**
+   * Создать строку таблицы для актива
+   * @param {Object} asset - Объект актива
+   * @param {Array} columns - Массив видимых колонок
+   * @returns {HTMLTableRowElement}
+   */
+  createRow(asset, columns) {
+    const tr = document.createElement('tr');
+    tr.className = 'asset-row';
+    tr.dataset.assetId = asset.id;
+
+    const selected = store.isSelected(asset.id);
+    if (selected) tr.classList.add('selected');
+
+    const cells = columns.map(col => {
+      let val = asset[col];
+      if (val === null || val === undefined) val = '-';
+      else if (Array.isArray(val)) val = val.join(', ');
+      else val = String(val);
+      return `<td>${val}</td>`;
+    }).join('');
+
+    tr.innerHTML = `
+      <td class="text-center">
+        <input type="checkbox" class="form-check-input asset-checkbox" value="${asset.id}" ${selected ? 'checked' : ''}>
+      </td>
+      ${cells}
+      <td>
+        <button class="btn btn-sm btn-outline-primary me-1" title="Редактировать">
+          <i class="bi bi-pencil"></i>
+        </button>
+        <button class="btn btn-sm btn-danger btn-delete-asset" data-asset-id="${asset.id}" title="Удалить">
+          <i class="bi bi-trash"></i>
+        </button>
+      </td>
+    `;
+
+    return tr;
+  }
+
+  #getColumnLabel(key) {
+    const labels = {
+      ip_address: 'IP Адрес',
+      hostname: 'Hostname',
+      os_family: 'ОС',
+      os_name: 'ОС',
+      device_type: 'Тип',
+      status: 'Статус',
+      open_ports: 'Порты',
+      groups: 'Группы',
+      last_nmap_scan: 'Last Nmap',
+      last_rustscan_scan: 'Last Rustscan',
+      source: 'Источник'
+    };
+    return labels[key] || key;
   }
 }
 

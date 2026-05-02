@@ -2,6 +2,7 @@
 import { store } from './store.js';
 import { Utils } from './modules/utils.js';
 import { AssetManager } from './modules/assets.js';
+import { FilterAutocompleteManager } from './filter-helpers.js';
 
 /**
  * Контроллер страницы дашборда.
@@ -15,7 +16,8 @@ export class DashboardController {
     this.visibleColumns = ['ip_address', 'hostname', 'os_name', 'status', 'device_type', 'open_ports', 'source'];
     this.searchQuery = '';
     
-    this.assetManager = new AssetManager('assets-table');
+    this.assetManager = new AssetManager('table-body');
+    this.filterAutocomplete = new FilterAutocompleteManager();
     
     this.#init();
   }
@@ -43,8 +45,14 @@ export class DashboardController {
   }
 
   #setupEventListeners() {
+    // Инициализация автодополнения для фильтра
+    const filterInput = document.getElementById('asset-filter');
+    if (filterInput) {
+      this.filterAutocomplete.init(filterInput);
+    }
+
     // Поиск
-    document.getElementById('asset-filter')?.addEventListener('input', (e) => {
+    filterInput?.addEventListener('input', (e) => {
       this.searchQuery = e.target.value.trim();
       this.#updateURL();
       this.applyFilters();
@@ -71,6 +79,12 @@ export class DashboardController {
     document.getElementById('btn-clear-selection')?.addEventListener('click', () => store.clearSelectedAssets());
     document.getElementById('btn-bulk-move')?.addEventListener('click', () => this.#confirmBulkMove());
     document.getElementById('btn-bulk-delete')?.addEventListener('click', () => this.#confirmBulkDelete());
+
+    // Кнопки экспорта
+    document.getElementById('btn-export-csv-current')?.addEventListener('click', () => this.exportData('csv', true));
+    document.getElementById('btn-export-json-current')?.addEventListener('click', () => this.exportData('json', true));
+    document.getElementById('btn-export-csv-full')?.addEventListener('click', () => this.exportData('csv', false));
+    document.getElementById('btn-export-json-full')?.addEventListener('click', () => this.exportData('json', false));
 
     // Тема уже управляется через ThemeController в main.js
     document.getElementById('btn-add-asset')?.addEventListener('click', () => this.#showAssetModal(null));
@@ -258,8 +272,10 @@ export class DashboardController {
     window.history.replaceState({}, '', newUrl);
   }
 
-  exportData(format) {
-    if (!this.filteredAssets?.length) {
+  exportData(format, filteredOnly = true) {
+    const dataToExport = filteredOnly ? this.filteredAssets : this.allAssets;
+    
+    if (!dataToExport?.length) {
       Utils.showNotification('Нет данных для экспорта', 'warning');
       return;
     }
@@ -272,7 +288,7 @@ export class DashboardController {
       const headers = ['ID', ...this.visibleColumns];
       content = headers.join(',') + '\n';
       
-      this.filteredAssets.forEach(asset => {
+      dataToExport.forEach(asset => {
         const row = [asset.id];
         this.visibleColumns.forEach(col => {
           let val = asset[col];
@@ -290,7 +306,7 @@ export class DashboardController {
       mimeType = 'text/csv';
       extension = 'csv';
     } else if (format === 'json') {
-      content = JSON.stringify(this.filteredAssets, null, 2);
+      content = JSON.stringify(dataToExport, null, 2);
       mimeType = 'application/json';
       extension = 'json';
     }

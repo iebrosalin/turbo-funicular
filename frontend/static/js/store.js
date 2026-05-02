@@ -113,6 +113,26 @@ export class Store {
     this.#notifySelectionChange();
   }
 
+  toggleAssetSelection(id) {
+    if (this.#state.selectedAssetIds.has(id)) {
+      this.removeSelectedAsset(id);
+    } else {
+      this.addSelectedAsset(id);
+    }
+  }
+
+  toggleAllAssets(ids, selectAll) {
+    if (selectAll) {
+      ids.forEach(id => this.addSelectedAsset(id));
+    } else {
+      ids.forEach(id => this.removeSelectedAsset(id));
+    }
+  }
+
+  getSelectedAssets() {
+    return this.getSelectedIds();
+  }
+
   isSelected(id) {
     return this.#state.selectedAssetIds.has(id);
   }

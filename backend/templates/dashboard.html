@@ -64,6 +64,21 @@
         </div>
     </div>
 
+    <!-- Toolbar для массовых операций -->
+    <div class="card shadow-sm mb-4" id="bulk-toolbar" style="display: none;">
+        <div class="card-body py-2 d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary" id="selected-count">0</span>
+                <span class="text-muted small">выбрано</span>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-secondary" id="btn-clear-selection"><i class="bi bi-x-lg"></i> Снять</button>
+                <button class="btn btn-sm btn-outline-primary" id="btn-bulk-move"><i class="bi bi-folder2-open"></i> В группу</button>
+                <button class="btn btn-sm btn-danger" id="btn-bulk-delete"><i class="bi bi-trash"></i> Удалить</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Таблица активов -->
     <div class="card shadow-sm">
         <div class="card-body p-0">
