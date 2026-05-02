@@ -19,19 +19,40 @@ class ServiceInventory(Base):
     service_name = Column(String(100), nullable=True)  # http, ssh, etc.
     product = Column(String(255), nullable=True)  # Продукт (nginx, OpenSSH)
     version = Column(String(255), nullable=True)  # Версия продукта
-    extrainfo = Column(Text, nullable=True)  # Дополнительная информация
+    extra_info = Column(Text, nullable=True)  # Дополнительная информация
     ostype = Column(String(100), nullable=True)  # Тип ОС
     devicetype = Column(String(100), nullable=True)  # Тип устройства
     
-    # SSL информация
+    # SSL информация (алиасы для совместимости)
     ssl_cert_subject = Column(Text, nullable=True)
     ssl_cert_issuer = Column(Text, nullable=True)
     ssl_cert_not_before = Column(DateTime(timezone=True), nullable=True)
     ssl_cert_not_after = Column(DateTime(timezone=True), nullable=True)
     ssl_cert_serial = Column(String(255), nullable=True)
     
+    # Алиасы для совместимости с шаблоном
+    @property
+    def ssl_subject(self):
+        return self.ssl_cert_subject
+    
+    @property
+    def ssl_issuer(self):
+        return self.ssl_cert_issuer
+    
+    @property
+    def ssl_not_before(self):
+        return self.ssl_cert_not_before
+    
+    @property
+    def ssl_not_after(self):
+        return self.ssl_cert_not_after
+    
     # Scripts Nmap
     scripts = Column(JSON, nullable=True, default=list)  # Результаты NSE скриптов
+    
+    @property
+    def script_output(self):
+        return self.scripts
     
     # Временные метки
     last_seen = Column(DateTime(timezone=True), nullable=True)

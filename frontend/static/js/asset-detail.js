@@ -44,7 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         inputs.forEach(input => {
             input.disabled = !enabled;
-            input.closest('.form-control')?.classList.toggle('is-invalid', false);
         });
 
         viewElements.forEach(el => {
@@ -53,6 +52,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (editControls) {
             editControls.style.display = enabled ? 'block' : 'none';
+        }
+        
+        // Обновляем текст кнопки
+        if (toggleEditBtn) {
+            toggleEditBtn.innerHTML = enabled 
+                ? '<i class="bi bi-x-lg"></i> Закрыть' 
+                : '<i class="bi bi-pencil"></i> Редактировать';
         }
 
         // Блокируем вкладки Таксономия и История изменений в режиме редактирования
