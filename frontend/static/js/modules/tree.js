@@ -454,9 +454,7 @@ export class TreeManager {
       <td><small>${asset.open_ports ?? '<span class="text-muted">-</span>'}</small></td>
       <td>${asset.group_name ? `<span class="badge bg-light text-dark border">${asset.group_name}</span>` : '<span class="badge bg-secondary">Без группы</span>'}</td>
       <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary edit-asset-btn" data-id="${asset.id}" title="Редактировать">
-          <i class="bi bi-pencil"></i>
-        </button>
+        <span class="text-muted small" title="Ручное редактирование отключено"><i class="bi bi-lock"></i></span>
       </td>
     `;
     
@@ -472,15 +470,6 @@ export class TreeManager {
     if (checkbox) {
       checkbox.addEventListener('click', (e) => {
         e.stopPropagation();
-      });
-    }
-
-    const editBtn = tr.querySelector('.edit-asset-btn');
-    if (editBtn) {
-      editBtn.addEventListener('click', async (e) => {
-        e.stopPropagation();
-        const { showAssetModal } = await import('./index.js');
-        showAssetModal(asset.id);
       });
     }
 

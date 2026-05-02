@@ -103,7 +103,6 @@ export class DashboardController {
     document.getElementById('btn-export-json-full')?.addEventListener('click', () => this.exportData('json', false));
 
     // Тема уже управляется через ThemeController в main.js
-    document.getElementById('btn-add-asset')?.addEventListener('click', () => this.#showAssetModal(null));
 
     // Делегирование событий для таблицы
     document.querySelector('#assets-table tbody')?.addEventListener('click', (e) => {

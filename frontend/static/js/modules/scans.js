@@ -157,11 +157,13 @@ export class ScanManager {
     if (progressDiv) progressDiv.style.display = 'block';
 
     try {
-      const formData = new FormData();
-      formData.append('target', target);
-      formData.append('args', args);
-      formData.append('scan_type', scanType);
-      formData.append('save_assets', saveAssets ? 'true' : 'false');
+      // Формируем JSON объект
+      const requestData = {
+        target: target,
+        args: args,
+        scan_type: scanType,
+        save_assets: saveAssets
+      };
 
       // Определяем правильный эндпоинт для каждого типа сканирования
       let endpoint;
@@ -171,9 +173,18 @@ export class ScanManager {
           break;
         case 'nmap':
           endpoint = '/api/scans/nmap';
+          // Для nmap добавляем дополнительные поля
+          requestData.ports = null;
+          requestData.custom_args = args;
+          requestData.known_ports_only = false;
           break;
         case 'rustscan':
           endpoint = '/api/scans/rustscan';
+          // Для rustscan добавляем дополнительные поля
+          requestData.ports = null;
+          requestData.custom_args = args;
+          requestData.run_nmap_after = false;
+          requestData.nmap_args = null;
           break;
         default:
           throw new Error(`Неизвестный тип сканирования: ${scanType}`);
@@ -181,7 +192,10 @@ export class ScanManager {
 
       const response = await fetch(endpoint, {
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
       });
 
       if (!response.ok) {

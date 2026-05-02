@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File, Body, Request, Form
-from fastapi.responses import StreamingResponse, HTMLResponse
+from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -58,6 +58,12 @@ class DigScanRequest(BaseModel):
     cli_args: Optional[str] = None
     record_types: Optional[str] = None
     group_ids: Optional[List[int]] = None
+
+
+class XmlImportRequest(BaseModel):
+    filename: str
+    content: str  # base64 encoded
+    group_id: Optional[int] = None
 
 
 # ==========================================
@@ -238,28 +244,30 @@ async def import_scan(
 
 @router.post("/import-nmap-xml")
 async def import_xml_scan(
-    file: UploadFile = File(...),
-    group_id: Optional[int] = Form(None),
+    request: XmlImportRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    """Импортировать XML результаты сканирования (nmap)."""
+    """Импортировать XML результаты сканирования (nmap) из JSON."""
     import tempfile
     import os
+    import base64
     from backend.utils.nmap_xml_importer import NmapXmlImporter
     
     try:
+        # Декодируем base64 содержимое
+        xml_content = base64.b64decode(request.content)
+        
         # Сохраняем файл во временное хранилище
         with tempfile.NamedTemporaryFile(delete=False, suffix='.xml') as tmp_file:
-            content = await file.read()
-            tmp_file.write(content)
+            tmp_file.write(xml_content)
             tmp_path = tmp_file.name
         
         try:
             # Импортируем данные из XML
             importer = NmapXmlImporter(db)
-            count = await importer.import_file(tmp_path, group_id=group_id)
+            count = await importer.import_file(tmp_path, group_id=request.group_id)
             
-            return {"message": f"Импорт успешно завершен", "count": count, "filename": file.filename}
+            return {"message": f"Импорт успешно завершен", "count": count, "filename": request.filename}
         finally:
             # Удаляем временный файл
             if os.path.exists(tmp_path):
@@ -272,37 +280,62 @@ async def import_xml_scan(
 
 @router.post("/nmap")
 async def run_nmap_scan(
-    request: NmapScanRequest,
+    request: Request,
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Запустить сканирование Nmap."""
+    """Запустить сканирование Nmap (принимает JSON)."""
     from backend.models.scan import Scan, ScanJob
     from backend.services.scan_queue_manager import scan_queue_manager
     from datetime import datetime, timezone
     import logging
     
     logger = logging.getLogger(__name__)
+    
+    # Парсим JSON из тела запроса
+    try:
+        data = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Ошибка парсинга JSON: {str(e)}")
+    
+    target = data.get('target')
+    ports = data.get('ports')
+    scripts = data.get('scripts')
+    custom_args = data.get('custom_args')
+    known_ports_only = data.get('known_ports_only', False)
+    save_assets = data.get('save_assets', False)
+    group_ids = data.get('group_ids')
+    
+    # Обработка group_ids
+    parsed_group_ids = None
+    if group_ids and isinstance(group_ids, list):
+        parsed_group_ids = [int(x) for x in group_ids if isinstance(x, (int, str)) and str(x).isdigit()]
+    elif group_ids and isinstance(group_ids, str):
+        try:
+            parsed_group_ids = [int(x.strip()) for x in group_ids.split(',') if x.strip()]
+        except ValueError:
+            parsed_group_ids = None
+    
     logger.info("=" * 60)
-    logger.info("=== ПОЛУЧЕН ЗАПРОС НА NMAP СКАНИРОВАНИЕ ===")
+    logger.info("=== ПОЛУЧЕН ЗАПРОС НА NMAP СКАНИРОВАНИЕ (JSON) ===")
     logger.info("=" * 60)
     logger.info(f"Входящие данные запроса:")
-    logger.info(f"  - target: {request.target}")
-    logger.info(f"  - ports: {request.ports}")
-    logger.info(f"  - scripts: {request.scripts}")
-    logger.info(f"  - custom_args: {request.custom_args}")
-    logger.info(f"  - known_ports_only: {request.known_ports_only}")
-    logger.info(f"  - group_ids: {request.group_ids}")
-    logger.info(f"Raw request data: {request.dict()}")
+    logger.info(f"  - target: {target}")
+    logger.info(f"  - ports: {ports}")
+    logger.info(f"  - scripts: {scripts}")
+    logger.info(f"  - custom_args: {custom_args}")
+    logger.info(f"  - known_ports_only: {known_ports_only}")
+    logger.info(f"  - save_assets: {save_assets}")
+    logger.info(f"  - group_ids: {parsed_group_ids}")
     
-    target = request.target or ""
+    target_str = target or ""
     
     try:
         # Создаём запись сканирования
         logger.info(f"\n[Шаг 1/4] Создание записи сканирования в БД...")
         new_scan = Scan(
-            name=f"Nmap scan: {target[:50] if target else 'known ports'}",
-            target=target or "known_ports_only",
+            name=f"Nmap scan: {target_str[:50] if target_str else 'known ports'}",
+            target=target_str or ("known_ports_only" if known_ports_only else ""),
             scan_type="nmap",
             status="queued",
             progress=0,
@@ -332,11 +365,12 @@ async def run_nmap_scan(
         logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
         targets_list = [target] if target else []
         parameters = {
-            "ports": request.ports,
-            "scripts": request.scripts,
-            "custom_args": request.custom_args,
-            "known_ports_only": request.known_ports_only,
-            "group_ids": request.group_ids
+            "ports": ports,
+            "scripts": scripts,
+            "custom_args": custom_args,
+            "known_ports_only": known_ports_only,
+            "save_assets": save_assets,
+            "group_ids": parsed_group_ids
         }
         logger.info(f"  - targets_list: {targets_list}")
         logger.info(f"  - parameters: {parameters}")
@@ -380,34 +414,63 @@ async def run_nmap_scan(
 
 @router.post("/rustscan")
 async def run_rustscan(
-    request: RustscanRequest,
+    request: Request,
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Запустить сканирование Rustscan."""
+    """Запустить сканирование Rustscan (принимает JSON)."""
     from backend.models.scan import Scan, ScanJob
     from backend.services.scan_queue_manager import scan_queue_manager
     from datetime import datetime, timezone
     import logging
     
     logger = logging.getLogger(__name__)
+    
+    # Парсим JSON из тела запроса
+    try:
+        data = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Ошибка парсинга JSON: {str(e)}")
+    
+    target = data.get('target')
+    ports = data.get('ports')
+    custom_args = data.get('custom_args')
+    run_nmap_after = data.get('run_nmap_after', False)
+    nmap_args = data.get('nmap_args')
+    save_assets = data.get('save_assets', False)
+    group_ids = data.get('group_ids')
+    
+    # Обработка group_ids
+    parsed_group_ids = None
+    if group_ids and isinstance(group_ids, list):
+        parsed_group_ids = [int(x) for x in group_ids if isinstance(x, (int, str)) and str(x).isdigit()]
+    elif group_ids and isinstance(group_ids, str):
+        try:
+            parsed_group_ids = [int(x.strip()) for x in group_ids.split(',') if x.strip()]
+        except ValueError:
+            parsed_group_ids = None
+    
     logger.info("=" * 60)
-    logger.info("=== ПОЛУЧЕН ЗАПРОС НА RUSTSCAN ===")
+    logger.info("=== ПОЛУЧЕН ЗАПРОС НА RUSTSCAN (JSON) ===")
     logger.info("=" * 60)
     logger.info(f"Входящие данные запроса:")
-    logger.info(f"  - target: {request.target}")
-    logger.info(f"  - ports: {request.ports}")
-    logger.info(f"  - custom_args: {request.custom_args}")
-    logger.info(f"  - run_nmap_after: {request.run_nmap_after}")
-    logger.info(f"  - nmap_args: {request.nmap_args}")
-    logger.info(f"Raw request data: {request.dict()}")
+    logger.info(f"  - target: {target}")
+    logger.info(f"  - ports: {ports}")
+    logger.info(f"  - custom_args: {custom_args}")
+    logger.info(f"  - run_nmap_after: {run_nmap_after}")
+    logger.info(f"  - nmap_args: {nmap_args}")
+    logger.info(f"  - save_assets: {save_assets}")
+    logger.info(f"  - group_ids: {parsed_group_ids}")
+    
+    if not target:
+        raise HTTPException(status_code=400, detail="Параметр 'target' обязателен")
     
     try:
         # Создаём запись сканирования
         logger.info(f"\n[Шаг 1/4] Создание записи сканирования в БД...")
         new_scan = Scan(
-            name=f"Rustscan: {request.target[:50]}",
-            target=request.target,
+            name=f"Rustscan: {target[:50]}",
+            target=target,
             scan_type="rustscan",
             status="queued",
             progress=0,
@@ -435,12 +498,14 @@ async def run_rustscan(
         
         # Добавляем задачу в очередь выполнения
         logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
-        targets_list = [request.target] if request.target else []
+        targets_list = [target] if target else []
         parameters = {
-            "ports": request.ports,
-            "custom_args": request.custom_args,
-            "run_nmap_after": request.run_nmap_after,
-            "nmap_args": request.nmap_args
+            "ports": ports,
+            "custom_args": custom_args,
+            "run_nmap_after": run_nmap_after,
+            "nmap_args": nmap_args,
+            "save_assets": save_assets,
+            "group_ids": parsed_group_ids
         }
         logger.info(f"  - targets_list: {targets_list}")
         logger.info(f"  - parameters: {parameters}")
@@ -461,7 +526,7 @@ async def run_rustscan(
         logger.info(f"Scan ID: {new_scan.id}")
         logger.info("=" * 60)
         
-        return {"message": f"Rustscan запущен для {request.target}", "status": "queued", "job_id": new_job.id, "scan_id": new_scan.id}
+        return {"message": f"Rustscan запущен для {target}", "status": "queued", "job_id": new_job.id, "scan_id": new_scan.id}
     
     except Exception as e:
         logger.error(f"\n❌ КРИТИЧЕСКАЯ ОШИБКА при запуске Rustscan: {e}", exc_info=True)
@@ -483,28 +548,40 @@ async def run_rustscan(
 
 @router.post("/dig")
 async def run_dig_scan(
-    target: str = Form(...),
-    args: str = Form(...),
-    scan_type: str = Form("dig"),
-    save_assets: bool = Form(False),
+    request: Request,
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Запустить DNS сканирование (dig)."""
+    """Запустить DNS сканирование (dig) (принимает JSON)."""
     from backend.models.scan import Scan, ScanJob
     from backend.services.scan_queue_manager import scan_queue_manager
     from datetime import datetime, timezone
     import logging
     
     logger = logging.getLogger(__name__)
+    
+    # Парсим JSON из тела запроса
+    try:
+        data = await request.json()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Ошибка парсинга JSON: {str(e)}")
+    
+    target = data.get('target')
+    args = data.get('args')
+    scan_type = data.get('scan_type', 'dig')
+    save_assets = data.get('save_assets', False)
+    
     logger.info("=" * 60)
-    logger.info("=== ПОЛУЧЕН ЗАПРОС НА DIG СКАНИРОВАНИЕ ===")
+    logger.info("=== ПОЛУЧЕН ЗАПРОС НА DIG СКАНИРОВАНИЕ (JSON) ===")
     logger.info("=" * 60)
     logger.info(f"Входящие данные запроса:")
     logger.info(f"  - target: {target}")
     logger.info(f"  - args: {args}")
     logger.info(f"  - scan_type: {scan_type}")
     logger.info(f"  - save_assets: {save_assets}")
+    
+    if not target or not args:
+        raise HTTPException(status_code=400, detail="Параметры 'target' и 'args' обязательны")
     
     # Парсим аргументы из строки args
     # Формат: "ANY @8.8.8.8 domain.com" или "ANY domain.com"

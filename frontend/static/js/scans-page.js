@@ -604,28 +604,46 @@ export class ScanResultsController {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('xml_file', fileInput.files[0]);
-    if (groupId) formData.append('group_id', groupId);
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    
+    reader.onload = (event) => {
+      const base64Data = event.target.result.split(',')[1]; // Убираем префикс data:...;base64,
+      
+      const requestData = {
+        filename: file.name,
+        content: base64Data,
+        group_id: groupId ? parseInt(groupId) : null
+      };
 
-    fetch('/api/scans/import-nmap-xml', {
-      method: 'POST',
-      body: formData
-    })
-    .then(response => {
-      if (!response.ok) throw new Error('Ошибка импорта');
-      return response.json();
-    })
-    .then(data => {
-      alert(`Импорт завершен! Создано активов: ${data.imported_count || 0}`);
-      const modal = bootstrap.Modal.getInstance(document.getElementById('importXmlModal'));
-      if (modal) modal.hide();
-      this.loadJobs();
-    })
-    .catch(error => {
-      console.error('Ошибка импорта:', error);
-      alert(`Ошибка: ${error.message}`);
-    });
+      fetch('/api/scans/import-nmap-xml', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestData)
+      })
+      .then(response => {
+        if (!response.ok) throw new Error('Ошибка импорта');
+        return response.json();
+      })
+      .then(data => {
+        alert(`Импорт завершен! Создано активов: ${data.count || 0}`);
+        const modal = bootstrap.Modal.getInstance(document.getElementById('importXmlModal'));
+        if (modal) modal.hide();
+        this.loadJobs();
+      })
+      .catch(error => {
+        console.error('Ошибка импорта:', error);
+        alert(`Ошибка: ${error.message}`);
+      });
+    };
+    
+    reader.onerror = () => {
+      alert('Ошибка чтения файла');
+    };
+    
+    reader.readAsDataURL(file);
   }
 
   async #handleSimpleScan() {

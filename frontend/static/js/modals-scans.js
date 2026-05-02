@@ -37,20 +37,34 @@ export class ScanModalManager {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
-    if (groupSelect?.value) {
-      formData.append('group_id', groupSelect.value);
-    }
-
     // UI обновления
     submitBtn.disabled = true;
     progressDiv.style.display = 'block';
     
     try {
+      // Читаем файл как DataURL (base64)
+      const file = fileInput.files[0];
+      const reader = new FileReader();
+      
+      const jsonData = await new Promise((resolve, reject) => {
+        reader.onload = (event) => {
+          const base64Data = event.target.result.split(',')[1]; // Убираем префикс data:...;base64,
+          resolve({
+            filename: file.name,
+            content: base64Data,
+            group_id: groupSelect?.value || null
+          });
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
       const response = await fetch('/api/scans/import-nmap-xml', { 
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(jsonData)
       });
 
       const result = await response.json();
