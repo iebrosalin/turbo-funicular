@@ -14,83 +14,154 @@ export class ScanManager {
   #init() {
     // Запуск прослушивания событий от сервера (SSE)
     this.startEventListening();
+    // Инициализация обработчиков форм сканирования
+    this.#initScanFormHandlers();
     // Инициализация обработчиков модальных окон
     this.#initModalHandlers();
   }
 
   /**
-   * Инициализация обработчиков модальных окон сканирования
+   * Инициализация обработчиков форм сканирования (Nmap, Rustscan, Dig)
    */
-  #initModalHandlers() {
-    // Обработчик формы запуска сканирования
-    const scanForm = document.getElementById('scanForm');
-    if (scanForm) {
-      scanForm.addEventListener('submit', async (e) => {
+  #initScanFormHandlers() {
+    // Nmap форма
+    const nmapForm = document.getElementById('nmapScanForm');
+    if (nmapForm) {
+      nmapForm.addEventListener('submit', async (e) => {
         e.preventDefault();
-        await this.#submitScan(scanForm);
+        await this.#submitNmapScan(nmapForm);
       });
     }
 
-    // Обработчик изменения типа сканирования
-    const scanTypeSelect = document.getElementById('scan-type');
-    if (scanTypeSelect) {
-      scanTypeSelect.addEventListener('change', (e) => {
-        const portsInput = document.getElementById('scan-ports');
-        const type = e.target.value;
-        
-        if (type === 'quick') {
-          portsInput.value = '';
-          portsInput.placeholder = 'Топ-100 портов (автоматически)';
-          portsInput.disabled = true;
-        } else if (type === 'standard') {
-          portsInput.value = '';
-          portsInput.placeholder = 'Топ-1000 портов (автоматически)';
-          portsInput.disabled = true;
-        } else if (type === 'full') {
-          portsInput.value = '';
-          portsInput.placeholder = 'Все порты 1-65535 (автоматически)';
-          portsInput.disabled = true;
-        } else if (type === 'custom') {
-          portsInput.value = '';
-          portsInput.placeholder = '80,443,22 или 1-1000';
-          portsInput.disabled = false;
-        }
+    // Rustscan форма
+    const rustscanForm = document.getElementById('rustscanScanForm');
+    if (rustscanForm) {
+      rustscanForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.#submitRustscanScan(rustscanForm);
+      });
+    }
+
+    // Dig форма
+    const digForm = document.getElementById('digScanForm');
+    if (digForm) {
+      digForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await this.#submitDigScan(digForm);
       });
     }
   }
 
   /**
-   * Отправка формы сканирования
+   * Отправка формы Nmap сканирования
    */
-  async #submitScan(form) {
-    const target = document.getElementById('scan-target').value.trim();
-    const scanType = document.getElementById('scan-type').value;
-    const groupId = document.getElementById('scan-group-id').value;
-    let ports = document.getElementById('scan-ports').value.trim();
+  async #submitNmapScan(form) {
+    const target = document.getElementById('nmapTarget').value.trim();
+    const profile = document.getElementById('nmapProfile').value;
+    const customArgs = document.getElementById('nmapCustomArgs')?.value.trim() || '';
+    const ports = document.getElementById('nmapPorts')?.value.trim() || '';
+    const scriptDefault = document.getElementById('nmapScriptDefault')?.checked;
+    const scriptSafe = document.getElementById('nmapScriptSafe')?.checked;
+    const scriptVuln = document.getElementById('nmapScriptVuln')?.checked;
+    const saveAssets = document.getElementById('nmapSaveAssets')?.checked;
 
     if (!target) {
       Utils.showNotification('Укажите целевые хосты', 'warning');
       return;
     }
 
-    // Определение портов в зависимости от типа
-    if (scanType === 'quick' && !ports) {
-      ports = '-F'; // nmap флаг для быстрых портов
-    } else if (scanType === 'standard' && !ports) {
-      ports = ''; // стандартные топ-1000
-    } else if (scanType === 'full' && !ports) {
-      ports = '-p-'; // все порты
+    // Построение аргументов на основе профиля
+    let args = '';
+    if (profile === 'quick') args = '-F';
+    else if (profile === 'standard') args = '-sV -sC';
+    else if (profile === 'full') args = '-p-';
+    else if (profile === 'aggressive') args = '-A -T4';
+    else if (profile === 'custom') args = customArgs;
+
+    // Добавление портов
+    if (ports && profile !== 'custom') {
+      args += ` -p ${ports}`;
     }
 
+    // Добавление скриптов NSE
+    const scripts = [];
+    if (scriptDefault) scripts.push('default');
+    if (scriptSafe) scripts.push('safe');
+    if (scriptVuln) scripts.push('vuln');
+    if (scripts.length > 0) {
+      args += ` --script=${scripts.join(',')}`;
+    }
+
+    await this.#sendScanRequest('nmap', target, args, saveAssets);
+  }
+
+  /**
+   * Отправка формы Rustscan сканирования
+   */
+  async #submitRustscanScan(form) {
+    const target = document.getElementById('rustscanTarget').value.trim();
+    const topPorts = document.getElementById('rustscanTopPorts').value;
+    const portsRange = document.getElementById('rustscanPortsRange')?.value.trim() || '';
+    const customArgs = document.getElementById('rustscanCustomArgs')?.value.trim() || '';
+    const saveAssets = document.getElementById('rustscanSaveAssets')?.checked;
+
+    if (!target) {
+      Utils.showNotification('Укажите целевые хосты', 'warning');
+      return;
+    }
+
+    // Построение аргументов
+    let args = '';
+    if (topPorts === 'custom') {
+      if (portsRange) args += `-p ${portsRange}`;
+    } else if (topPorts === 'all') {
+      args += '-p 1-65535';
+    } else {
+      args += `-c ${topPorts}`; // количество топ портов
+    }
+
+    if (customArgs) args += ` ${customArgs}`;
+
+    await this.#sendScanRequest('rustscan', target, args, saveAssets);
+  }
+
+  /**
+   * Отправка формы Dig сканирования
+   */
+  async #submitDigScan(form) {
+    const domain = document.getElementById('digDomain').value.trim();
+    const recordType = document.getElementById('digType').value;
+    const server = document.getElementById('digServer')?.value.trim() || '';
+    const customArgs = document.getElementById('digCustomArgs')?.value.trim() || '';
+    const saveAssets = document.getElementById('digSaveAssets')?.checked;
+
+    if (!domain) {
+      Utils.showNotification('Укажите домен', 'warning');
+      return;
+    }
+
+    // Построение аргументов
+    let args = `${recordType}`;
+    if (server) args += ` @${server}`;
+    if (customArgs) args += ` ${customArgs}`;
+    args += ` ${domain}`;
+
+    await this.#sendScanRequest('dig', domain, args, saveAssets);
+  }
+
+  /**
+   * Универсальная отправка запроса на сканирование
+   */
+  async #sendScanRequest(scanType, target, args, saveAssets) {
     const progressDiv = document.getElementById('scan-progress');
     if (progressDiv) progressDiv.style.display = 'block';
 
     try {
       const formData = new FormData();
       formData.append('target', target);
-      if (ports) formData.append('ports', ports);
-      if (groupId) formData.append('group_id', groupId);
+      formData.append('args', args);
       formData.append('scan_type', scanType);
+      formData.append('save_assets', saveAssets ? 'true' : 'false');
 
       const response = await fetch('/api/scans/start', {
         method: 'POST',
@@ -104,13 +175,6 @@ export class ScanManager {
 
       const result = await response.json();
       
-      // Закрытие модального окна
-      const modalEl = document.getElementById('scanModal');
-      if (modalEl) {
-        const modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) modal.hide();
-      }
-
       Utils.showNotification(`Сканирование #${result.id} запущено`, 'success');
       
       // Очистка формы
@@ -126,6 +190,19 @@ export class ScanManager {
     } finally {
       const progressDiv = document.getElementById('scan-progress');
       if (progressDiv) progressDiv.style.display = 'none';
+    }
+  }
+
+  /**
+   * Инициализация обработчиков модальных окон (для совместимости)
+   */
+  #initModalHandlers() {
+    // Обработчики для модальных окон результатов и логов
+    const logsModal = document.getElementById('scanLogsModal');
+    if (logsModal) {
+      logsModal.addEventListener('hidden.bs.modal', () => {
+        // Очистка при закрытии
+      });
     }
   }
 

@@ -90,7 +90,7 @@
                 </div>
                 <div class="col-md-4">
                     <label for="rustscanTopPorts" class="form-label">Топ портов</label>
-                    <select class="form-select" id="rustscanTopPorts">
+                    <select class="form-select" id="rustscanTopPorts" onchange="toggleRustscanPorts()">
                         <option value="1000">Топ-1000</option>
                         <option value="500">Топ-500</option>
                         <option value="100">Топ-100</option>
@@ -263,6 +263,38 @@
         </div>
     </div>
 </div>
+
+<script>
+// Функция для переключения видимости поля custom args для Nmap
+function toggleNmapCustomArgs() {
+    const profile = document.getElementById('nmapProfile').value;
+    const customArgsContainer = document.getElementById('nmapCustomArgsContainer');
+    if (profile === 'custom') {
+        customArgsContainer.classList.remove('d-none');
+    } else {
+        customArgsContainer.classList.add('d-none');
+    }
+}
+
+// Функция для переключения видимости поля портов для Rustscan
+function toggleRustscanPorts() {
+    const topPorts = document.getElementById('rustscanTopPorts').value;
+    const portsContainer = document.getElementById('rustscanPortsContainer');
+    if (topPorts === 'custom') {
+        portsContainer.classList.remove('d-none');
+    } else {
+        portsContainer.classList.add('d-none');
+    }
+}
+
+// Добавляем обработчик для Rustscan при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    const rustscanTopPorts = document.getElementById('rustscanTopPorts');
+    if (rustscanTopPorts) {
+        rustscanTopPorts.addEventListener('change', toggleRustscanPorts);
+    }
+});
+</script>
 {% endblock %}
 
 {% block scripts %}

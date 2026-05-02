@@ -58,7 +58,10 @@ export class ScanModalManager {
       if (response.ok) {
         this.modalManager.close('scanImportModal');
         Utils.showNotification(`Импорт успешно завершен! Обработано активов: ${result.count || 0}`, 'success');
-        setTimeout(() => location.reload(), 1000);
+        // Обновляем данные без перезагрузки страницы
+        if (typeof window.scanController !== 'undefined' && window.scanController) {
+          window.scanController.loadJobs();
+        }
       } else {
         this.showScanError(result.error || 'Неизвестная ошибка при импорте');
       }
