@@ -194,7 +194,8 @@ export class ScanManager {
       Utils.showNotification(`Сканирование #${result.id} запущено`, 'success');
       
       // Очистка формы
-      form.reset();
+      const form = document.getElementById('dig-scan-form');
+      if (form) form.reset();
       
       // Обновление истории сканирований
       if (typeof window.scanResultsController !== 'undefined') {
