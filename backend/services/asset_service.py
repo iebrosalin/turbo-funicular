@@ -123,6 +123,8 @@ class AssetService:
             _ = asset.open_ports
             _ = asset.rustscan_ports
             _ = asset.nmap_ports
+            # Принудительно загружаем связанные объекты services
+            _ = [s for s in asset.services]
             
         return asset
     
