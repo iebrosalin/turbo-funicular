@@ -124,16 +124,26 @@ class App {
     try {
       // Загружаем данные дерева и сразу рендерим их
       const treeContainer = document.getElementById('sidebar-content');
+      
+      console.log('[DEBUG] #loadInitialData вызван');
+      console.log('[DEBUG] Элемент #sidebar-content найден:', !!treeContainer);
+      
       if (treeContainer) {
+        console.log('[DEBUG] Содержимое контейнера перед refresh:', treeContainer.innerHTML ? treeContainer.innerHTML.substring(0, 150) + '...' : '(пусто)');
+        console.log('[DEBUG] Вызов treeManager.refresh()...');
+        
         // Загружаем данные и рендерим дерево
         await treeManager.refresh();
+        
+        console.log('[DEBUG] treeManager.refresh() завершен');
+        console.log('[DEBUG] Содержимое контейнера после refresh:', treeContainer.innerHTML ? treeContainer.innerHTML.substring(0, 150) + '...' : '(пусто)');
       } else {
-        console.log('Контейнер сайдбара не найден, пропускаем инициализацию дерева');
+        console.log('[DEBUG] Контейнер сайдбара не найден, пропускаем инициализацию дерева');
       }
       
       // SSE подключение уже установлено в конструкторе ScanManager
     } catch (err) {
-      console.error('Ошибка загрузки начальных данных:', err);
+      console.error('[ERROR] Ошибка загрузки начальных данных:', err);
     }
   }
 

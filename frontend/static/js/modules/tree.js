@@ -491,8 +491,20 @@ export class TreeManager {
    * Публичный метод обновления дерева
    */
   async refresh() {
+    console.log('[DEBUG tree.js] refresh() вызван');
+    
+    const container = document.getElementById('sidebar-content');
+    console.log('[DEBUG tree.js] Контейнер #sidebar-content найден:', !!container);
+    
+    if (!container) {
+      console.log('[DEBUG tree.js] Контейнер не найден, выход из refresh()');
+      return;
+    }
+
     try {
+      console.log('[DEBUG tree.js] Запрос к API /api/groups/tree...');
       const data = await Utils.apiRequest('/api/groups/tree');
+      console.log('[DEBUG tree.js] Данные получены:', data);
       
       let groups = [];
       let counts = {};
@@ -510,11 +522,15 @@ export class TreeManager {
         counts = data.counts ?? {};
       }
 
+      console.log('[DEBUG tree.js] groups:', groups.length, 'counts:', counts);
       store.setState('groups', groups);
+      
+      console.log('[DEBUG tree.js] Вызов renderTree()...');
       this.renderTree(groups, counts);
+      console.log('[DEBUG tree.js] renderTree() завершен');
       
     } catch (err) {
-      console.error('Ошибка обновления дерева:', err);
+      console.error('[ERROR tree.js] Ошибка обновления дерева:', err);
     }
   }
   /**
