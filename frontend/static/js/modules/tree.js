@@ -487,7 +487,7 @@ export class TreeManager {
     
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', (e) => {
-           // Если клик был по ссылке (IP или hostname), ничего не делаем - браузер сам перейдет
+      // Если клик был по ссылке (IP или hostname), ничего не делаем - браузер сам перейдет
       if (e.target.closest('a')) return;
 
       // Игнорируем клики по чекбоксам и кнопкам
@@ -504,6 +504,7 @@ export class TreeManager {
       // Выделяем строку визуально
       document.querySelectorAll('.asset-row.selected').forEach(row => row.classList.remove('selected'));
       tr.classList.add('selected');
+    });
 
     // Обработчик для кнопки редактирования
     const editBtn = tr.querySelector('.btn-edit-asset');
@@ -527,9 +528,9 @@ export class TreeManager {
     }
 
     // Обработчик для чекбокса - предотвращаем всплытие
-    const checkbox = tr.querySelector('.asset-checkbox');
-    if (checkbox) {
-      checkbox.addEventListener('click', (e) => {
+    const chkbox = tr.querySelector('.asset-checkbox');
+    if (chkbox) {
+      chkbox.addEventListener('click', (e) => {
         e.stopPropagation();
       });
     }
