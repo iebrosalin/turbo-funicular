@@ -160,10 +160,10 @@ export class ScanManager {
         })
       });
 
-      Utils.showNotification('DNS сканирование запущено', 'success');
+      // Не показываем уведомление об успехе для сканирований
       form.reset();
       // Обновляем историю через глобальный контроллер если доступен
-      if (typeof window.scanResultsController !== 'undefined') {
+      if (typeof window.scanResultsController !== 'undefined' && typeof window.scanResultsController.loadHistory === 'function') {
         window.scanResultsController.loadHistory();
       }
     } catch (error) {
@@ -292,14 +292,14 @@ export class ScanManager {
 
       const result = await response.json();
       
-      Utils.showNotification(`Сканирование #${result.id} запущено`, 'success');
+      // Не показываем уведомление об успехе для сканирований
       
       // Очистка формы
       const form = document.getElementById('dig-scan-form');
       if (form) form.reset();
       
       // Обновление истории сканирований
-      if (typeof window.scanResultsController !== 'undefined') {
+      if (typeof window.scanResultsController !== 'undefined' && typeof window.scanResultsController.loadHistory === 'function') {
         window.scanResultsController.loadHistory();
       }
     } catch (error) {

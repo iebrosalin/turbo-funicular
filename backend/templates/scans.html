@@ -19,6 +19,66 @@
         <div class="col-md-9 col-lg-10">
             <h2 class="mb-4"><i class="bi bi-wifi"></i> Управление сканированиями</h2>
 
+            <!-- Статус очередей сканирований -->
+            <div id="queue-status-container" class="row mb-4">
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100 border-primary">
+                        <div class="card-header bg-primary text-white">
+                            <i class="bi bi-hdd-network"></i> Очередь Nmap/Rustscan
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <h6 class="text-muted">В очереди</h6>
+                                    <h3 id="nmap-queue-count">0</h3>
+                                </div>
+                                <div class="col-4">
+                                    <h6 class="text-muted">Текущая задача</h6>
+                                    <h5 id="nmap-current-job">Нет</h5>
+                                </div>
+                                <div class="col-4">
+                                    <h6 class="text-muted">Статус</h6>
+                                    <span id="nmap-queue-status" class="badge bg-secondary">Ожидание</span>
+                                </div>
+                            </div>
+                            <hr>
+                            <h6>Задачи в очереди:</h6>
+                            <div id="nmap-queue-list" class="small text-muted" style="max-height: 150px; overflow-y: auto;">
+                                <span class="text-muted">Пусто</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100 border-info">
+                        <div class="card-header bg-info text-white">
+                            <i class="bi bi-tools"></i> Очередь утилит (Dig, DNS)
+                        </div>
+                        <div class="card-body">
+                            <div class="row text-center">
+                                <div class="col-4">
+                                    <h6 class="text-muted">В очереди</h6>
+                                    <h3 id="utility-queue-count">0</h3>
+                                </div>
+                                <div class="col-4">
+                                    <h6 class="text-muted">Текущая задача</h6>
+                                    <h5 id="utility-current-job">Нет</h5>
+                                </div>
+                                <div class="col-4">
+                                    <h6 class="text-muted">Статус</h6>
+                                    <span id="utility-queue-status" class="badge bg-secondary">Ожидание</span>
+                                </div>
+                            </div>
+                            <hr>
+                            <h6>Задачи в очереди:</h6>
+                            <div id="utility-queue-list" class="small text-muted" style="max-height: 150px; overflow-y: auto;">
+                                <span class="text-muted">Пусто</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Табы для выбора типа сканирования -->
             <ul class="nav nav-tabs mb-3" id="scanTypeTab" role="tablist">
                 <li class="nav-item" role="presentation">
@@ -308,26 +368,69 @@ async function handleScanSubmit(event, scanType) {
     submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Запуск...';
     
     try {
-        // Эмуляция запроса к API (замените на реальный fetch)
-        /*
-        const response = await fetch('/api/scans/start', {
+        // Реальный запрос к API
+        let endpoint, requestData;
+        
+        if (scanType === 'nmap') {
+            endpoint = '/api/scans/nmap';
+            requestData = {
+                target: target,
+                ports: null,
+                scripts: null,
+                custom_args: null,
+                known_ports_only: false,
+                save_assets: saveAssets,
+                group_ids: null
+            };
+        } else if (scanType === 'rustscan') {
+            endpoint = '/api/scans/rustscan';
+            requestData = {
+                target: target,
+                ports: null,
+                custom_args: null,
+                run_nmap_after: false,
+                nmap_args: null,
+                save_assets: saveAssets,
+                group_ids: null
+            };
+        } else if (scanType === 'dig') {
+            endpoint = '/api/scans/dig';
+            requestData = {
+                target: target,
+                args: null,
+                dns_server: null,
+                cli_args: null,
+                record_types: profile,
+                save_assets: saveAssets,
+                group_ids: null
+            };
+        }
+        
+        const response = await fetch(endpoint, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ type: scanType, target, profile, save_assets: saveAssets })
+            body: JSON.stringify(requestData)
         });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Ошибка запуска сканирования');
+        }
+        
         const data = await response.json();
-        */
-        
-        // Имитация задержки
-        await new Promise(r => setTimeout(r, 800));
-        
-        console.log(`Запущено сканирование: ${scanType}, цель: ${target}`);
+        console.log(`Запущено сканирование: ${scanType}, цель: ${target}, job_id: ${data.job_id}`);
         
         // Обновляем список активных задач в сайдбаре
         updateActiveTasks(scanType, target);
         
         // Очищаем форму
         event.target.reset();
+        
+        // Обновляем историю и очереди через контроллер
+        if (window.scanResultsController) {
+            window.scanResultsController.loadHistory();
+            window.scanResultsController.updateQueueStatus();
+        }
         
     } catch (error) {
         console.error('Ошибка запуска сканирования:', error);
@@ -384,6 +487,7 @@ document.addEventListener('DOMContentLoaded', function() {
 {% block extra_js %}
 <script type="module">
     import { treeManager } from '/static/js/modules/tree.js';
+    import { ScanResultsController } from '/static/js/scans-page.js';
 
     console.log('[DEBUG scans.html] Страница сканирований загружена, инициализируем дерево...');
     
@@ -395,5 +499,8 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.error('[DEBUG scans.html] Контейнер #sidebar-content НЕ найден!');
     }
+    
+    // Инициализация контроллера сканирований
+    window.scanResultsController = new ScanResultsController();
 </script>
 {% endblock %}

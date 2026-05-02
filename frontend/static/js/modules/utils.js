@@ -193,22 +193,30 @@ export class Utils {
     alert.role = 'alert';
     alert.style.cssText = `
       position: relative;
-      max-width: 600px;
+      max-width: 800px;
       word-wrap: break-word;
       white-space: pre-wrap;
       overflow-wrap: break-word;
       hyphens: auto;
+      margin-bottom: 1rem;
     `;
-    alert.innerHTML = `
-      <div style="word-break: break-word;">${message}</div>
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-      ${type === 'danger' ? `
+    
+    // Для ошибок добавляем кнопку копирования
+    let extraButtons = '';
+    if (type === 'danger') {
+      extraButtons = `
       <div class="mt-2">
-        <button class="btn btn-sm btn-outline-secondary copy-error-btn">
+        <button class="btn btn-sm btn-outline-secondary copy-error-btn me-2">
           <i class="bi bi-clipboard"></i> Копировать
         </button>
       </div>
-      ` : ''}
+      `;
+    }
+    
+    alert.innerHTML = `
+      <div style="word-break: break-word; white-space: pre-wrap;">${message}</div>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      ${extraButtons}
     `;
     
     container.prepend(alert);
@@ -226,14 +234,8 @@ export class Utils {
       });
     }
     
-    // Увеличиваем время показа для ошибок до 15 секунд
-    const timeout = type === 'danger' ? 15000 : 5000;
-    setTimeout(() => {
-      // Плавно скрываем, но не удаляем сразу - пользователь может закрыть сам
-      alert.classList.remove('show');
-      alert.style.opacity = '0';
-      setTimeout(() => alert.remove(), 300);
-    }, timeout);
+    // Уведомления НЕ исчезают автоматически - пользователь закрывает их сам
+    // Это позволяет прочитать и скопировать ошибку
   }
 
   /**
