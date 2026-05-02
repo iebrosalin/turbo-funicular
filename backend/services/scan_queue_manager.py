@@ -287,10 +287,17 @@ class ScanQueueManager:
                     job.status = "completed"
                     job.completed_at = datetime.utcnow()
                     # Обновляем прогресс родительского сканирования
-                    if job.scan:
-                        job.scan.progress = 100
-                        job.scan.status = "completed"
-                        job.scan.completed_at = datetime.utcnow()
+                    # Используем явный запрос вместо ленивой загрузки
+                    if job.scan_id:
+                        from sqlalchemy import select
+                        from backend.models import Scan
+                        stmt = select(Scan).where(Scan.id == job.scan_id)
+                        res = await db.execute(stmt)
+                        scan = res.scalar_one_or_none()
+                        if scan:
+                            scan.progress = 100
+                            scan.status = "completed"
+                            scan.completed_at = datetime.utcnow()
                     await db.commit()
                 
                 logger.info(f"[DEBUG] Сканирование {scan_job_id} завершено успешно")
