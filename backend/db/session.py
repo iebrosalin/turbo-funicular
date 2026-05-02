@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase, scoped_session, sessionmaker
 from sqlalchemy import create_engine
 from backend.core.config import settings
+from backend.db.base import Base  # Импортируем Base из base.py
 
 # Определяем параметры для SQLite
 is_sqlite = "sqlite" in settings.DATABASE_URL
@@ -45,7 +45,10 @@ class Base(DeclarativeBase):
     pass
 
 
-# Инициализируем таблицу логов изменений при старте
+# Импортируем все модели чтобы они зарегистрировались в Base.metadata
+from backend.models import asset, group, service, scan, log
+
+# Инициализируем таблицу логов изменений после регистрации всех моделей
 from backend.db.base import init_change_log_table
 init_change_log_table()
 
