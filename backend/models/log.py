@@ -22,21 +22,3 @@ class ActivityLog(Base):
     
     # Связи
     asset = relationship("Asset", back_populates="activity_logs")
-
-
-class AssetChangeLog(Base):
-    """Модель лога изменений активов."""
-    
-    __tablename__ = "asset_change_logs"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
-    asset_id = Column(Integer, ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
-    field_name = Column(String(100), nullable=False)  # Какое поле изменилось
-    old_value = Column(Text, nullable=True)  # Старое значение (JSON строка)
-    new_value = Column(Text, nullable=True)  # Новое значение (JSON строка)
-    change_reason = Column(String(255), nullable=True)  # Причина изменения
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    
-    # Связи
-    asset = relationship("Asset", back_populates="change_logs")

@@ -8,7 +8,6 @@ from backend.models.group import Group
 from backend.models.scan import Scan, ScanJob, ScanResult
 from backend.models.log import ActivityLog
 from backend.models.service import ServiceInventory
-from backend.models.change_log import AssetChangeLog
 
 __all__ = [
     'Asset',
@@ -18,6 +17,5 @@ __all__ = [
     'ScanJob',
     'ScanResult',
     'ActivityLog',
-    'AssetChangeLog',
     'ServiceInventory',
 ]
