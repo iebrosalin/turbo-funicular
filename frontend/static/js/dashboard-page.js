@@ -43,10 +43,17 @@ export class DashboardController {
       try {
         const assets = await Utils.apiRequest('/api/assets');
         store.setState('assets', assets);
+        // Явно вызываем applyFilters после загрузки
+        this.allAssets = assets;
+        this.applyFilters();
       } catch (error) {
         console.error('Failed to load assets:', error);
         Utils.showNotification('Не удалось загрузить активы', 'danger');
       }
+    } else {
+      // Если активы уже есть в store, инициализируем их
+      this.allAssets = store.getState('assets');
+      this.applyFilters();
     }
   }
 
@@ -130,8 +137,11 @@ export class DashboardController {
       });
     }
 
-    this.#renderTable();
-    this.#renderGrouping();
+    if (this.currentGrouping === 'none') {
+      this.#renderTable();
+    } else {
+      this.#renderGrouping();
+    }
   }
 
   #renderTable() {

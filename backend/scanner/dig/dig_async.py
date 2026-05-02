@@ -138,7 +138,12 @@ class DigScanner:
                 logger.info(f"[Dig DEBUG] Задача {job_id} помечена как completed и закоммичена")
             
             logger.info(f"[Dig] Сканирование {job_id} завершено: найдено {len(ip_addresses)} IP")
-            return {"status": "completed", "job_id": job_id, "result": parsed_result}
+            return {
+                "status": "completed",
+                "job_id": job_id,
+                "result": parsed_result,
+                "raw_output": '\n'.join(output_lines)
+            }
             
         except asyncio.CancelledError:
             logger.info(f"[Dig DEBUG] Задача {job_id} отменена")

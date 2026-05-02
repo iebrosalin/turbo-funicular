@@ -6,6 +6,7 @@
 
 export class Store {
   #state = {
+    assets: [],  // Список всех активов
     selectedAssetIds: new Set(),
     lastSelectedIndex: -1,
     currentGroupId: null,
@@ -171,6 +172,7 @@ export class Store {
    */
   reset() {
     this.#state = {
+      assets: [],
       selectedAssetIds: new Set(),
       lastSelectedIndex: -1,
       currentGroupId: null,

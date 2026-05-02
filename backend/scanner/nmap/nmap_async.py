@@ -89,7 +89,15 @@ class NmapScanner:
                 job.progress = 100.0
                 await db.commit()
             
-            return {"status": "completed", "job_id": job_id, "output_file": f'{base_name}.nmap'}
+            return {
+                "status": "completed",
+                "job_id": job_id,
+                "result": {
+                    "hostname": target,
+                    "ports": []
+                },
+                "raw_output": f"Nmap scan completed. Output saved to {xml_file}"
+            }
             
         except asyncio.CancelledError:
             job = await db.get(ScanJob, job_id)
