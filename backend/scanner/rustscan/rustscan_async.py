@@ -3,6 +3,7 @@
 """
 import asyncio
 import os
+import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +14,9 @@ from backend.models.asset import Asset
 from backend.models.group import AssetGroup
 from backend.utils import MOSCOW_TZ
 from backend.services.asset_manager import upsert_asset, update_asset_ports
+
+
+logger = logging.getLogger(__name__)
 
 
 class RustscanScanner:
@@ -52,12 +56,21 @@ class RustscanScanner:
                 stderr=asyncio.subprocess.STDOUT
             )
             
+            logger.info(f"[RustscanScanner] Запущен процесс Rustscan для задачи {job_id}, PID: {process.pid}")
+            
             output_lines = []
-            async for line in process.stdout:
-                line_decoded = line.decode().strip()
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                line_decoded = line.decode('utf-8', errors='ignore').strip()
+                if line_decoded:
+                    logger.debug(f"[Rustscan] {line_decoded}")
                 output_lines.append(line_decoded)
             
             await process.wait()
+            
+            logger.info(f"[RustscanScanner] Процесс Rustscan завершен с кодом {process.returncode}")
             
             if process.returncode != 0:
                 raise Exception(f"Rustscan завершился с кодом {process.returncode}")
@@ -173,8 +186,6 @@ class RustscanScanner:
         """Запуск Nmap после Rustscan с найденными портами."""
         from backend.scanner.nmap.nmap_async import NmapScanner
         
-        logger = logging.getLogger(__name__)
-        
         # Получаем порты для целевого хоста
         target_ports = found_ports.get(target, [])
         if not target_ports:
@@ -214,8 +225,6 @@ class RustscanScanner:
     
     async def _update_assets(self, db, targets, found_ports):
         """Обновление активов с найденными портами с использованием унифицированных функций."""
-        import logging
-        logger = logging.getLogger(__name__)
         
         for ip in targets:
             # Создаем или обновляем актив

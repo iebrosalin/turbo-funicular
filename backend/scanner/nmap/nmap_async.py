@@ -58,10 +58,20 @@ class NmapScanner:
                 stderr=asyncio.subprocess.STDOUT
             )
             
-            async for line in process.stdout:
-                pass
+            logger.info(f"[NmapScanner] Запущен процесс Nmap для задачи {job_id}, PID: {process.pid}")
+            
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
+                line_str = line.decode('utf-8', errors='ignore').strip()
+                if line_str:
+                    logger.debug(f"[Nmap] {line_str}")
+                # Nmap вывод обрабатывается позже через parse_output
             
             await process.wait()
+            
+            logger.info(f"[NmapScanner] Процесс Nmap завершен с кодом {process.returncode}")
             
             if process.returncode > 1:
                 raise Exception(f"Nmap завершился с кодом {process.returncode}")
