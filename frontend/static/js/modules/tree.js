@@ -24,30 +24,62 @@ export class TreeManager {
   }
 
   /**
-   * Отрисовка дерева групп внутри контейнера #group-tree-root
+   * Отрисовка дерева групп внутри контейнера #sidebar-content (SPA подход)
    * @param {Array} groups - Массив объектов групп
    * @param {Object} counts - Объект счетчиков
    */
   renderTree(groups, counts) {
-    const container = document.getElementById('group-tree-root');
+    const container = document.getElementById('sidebar-content');
     if (!container) {
-      console.error('Контейнер #group-tree-root не найден');
+      // Тихо пропускаем, если контейнер не найден (страница без сайдбара)
       return;
     }
 
-    container.innerHTML = '';
+    // Формируем полный HTML для рендеринга
+    let html = `
+      <div class="sidebar-section">
+        <div class="d-flex justify-content-between align-items-center sidebar-section-title">
+          <span>Группы активов</span>
+          <button class="btn btn-sm btn-link p-0" id="btn-create-group" title="Создать группу">
+            <i class="bi bi-plus-circle"></i>
+          </button>
+        </div>
+        
+        <div id="group-tree" class="group-tree">
+          <!-- Статический элемент: Все активы -->
+          <div class="tree-node active" data-id="all">
+            <i class="bi bi-globe folder-icon"></i>
+            <span class="group-name" data-id="all">Все активы</span>
+            <span class="badge bg-primary ms-auto" id="count-all">${counts['all'] || 0}</span>
+          </div>
+          <!-- Статический элемент: Без группы -->
+          <div class="tree-node" data-id="ungrouped" style="margin-top: 5px; border-top: 1px solid var(--bs-border-color); padding-top: 5px;">
+            <i class="bi bi-inbox folder-icon"></i>
+            <span class="group-name" data-id="ungrouped">Без группы</span>
+            <span class="badge bg-secondary ms-auto" id="count-ungrouped">${counts['ungrouped'] || 0}</span>
+          </div>
+
+          <!-- Динамический контейнер для вложенных групп -->
+          <div id="group-tree-root" style="padding-left: 0;">
+    `;
 
     if (Array.isArray(groups)) {
       groups.forEach(group => {
         const el = this.#createNodeElement(group, group.depth || 0, counts);
-        container.appendChild(el);
-        
-        el.addEventListener('click', (e) => {
-          e.stopPropagation();
-          this.handleGroupClick(group.id);
-        });
+        html += el.outerHTML;
       });
     }
+
+    html += `
+          </div>
+        </div>
+      </div>
+    `;
+
+    container.innerHTML = html;
+
+    // Переназначаем обработчики для статических элементов после рендеринга
+    this.#initStaticListeners();
     
     this.#updateCounts(counts);
   }

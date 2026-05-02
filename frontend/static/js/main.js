@@ -122,7 +122,13 @@ class App {
 
   async #loadInitialData() {
     try {
-      await treeManager.refresh();
+      // Проверяем наличие контейнера дерева перед обновлением
+      const treeContainer = document.getElementById('group-tree-root');
+      if (treeContainer) {
+        await treeManager.refresh();
+      } else {
+        console.log('Дерево групп не найдено на странице, пропускаем refresh');
+      }
       
       // SSE подключение уже установлено в конструкторе ScanManager
     } catch (err) {
