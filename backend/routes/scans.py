@@ -36,7 +36,7 @@ scans_router = router  # Алиас для совместимости импор
 
 
 class NmapScanRequest(BaseModel):
-    target: Optional[str] = None
+    target: str
     ports: Optional[str] = None
     scripts: Optional[str] = None
     custom_args: Optional[str] = None
