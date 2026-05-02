@@ -195,6 +195,8 @@ async def asset_detail(request: Request, asset_id: int, db: AsyncSession = Depen
     """Страница детали актива."""
     from backend.services.asset_service import AssetService
     service = AssetService(db)
+    
+    # Явно загружаем актив со всеми связями
     asset = await service.get_by_id(asset_id)
     if not asset:
         raise HTTPException(status_code=404, detail="Актив не найден")
