@@ -403,6 +403,11 @@ export class ScanResultsController {
       });
       
       Utils.showNotification('Сканирование Nmap запущено', 'success');
+      
+      // Закрываем модальное окно без перезагрузки страницы
+      const modal = bootstrap.Modal.getInstance(document.getElementById('nmapModal'));
+      if (modal) modal.hide();
+      
       this.loadJobs();
     } catch (error) {
       console.error('[ScanResultsController] Nmap scan error:', error);
@@ -434,6 +439,11 @@ export class ScanResultsController {
       });
       
       Utils.showNotification('Сканирование Rustscan запущено', 'success');
+      
+      // Закрываем модальное окно без перезагрузки страницы
+      const modal = bootstrap.Modal.getInstance(document.getElementById('rustscanModal'));
+      if (modal) modal.hide();
+      
       this.loadJobs();
     } catch (error) {
       console.error('[ScanResultsController] Rustscan scan error:', error);
@@ -486,6 +496,11 @@ export class ScanResultsController {
       });
       
       Utils.showNotification('Сканирование Dig запущено', 'success');
+      
+      // Закрываем модальное окно без перезагрузки страницы
+      const modal = bootstrap.Modal.getInstance(document.getElementById('digModal'));
+      if (modal) modal.hide();
+      
       this.loadJobs();
     } catch (error) {
       console.error('[ScanResultsController] Dig scan error:', error);
