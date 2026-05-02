@@ -1006,7 +1006,7 @@ async def retry_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
         scan_job_id=new_job.id,
         scan_type=new_job.job_type,
         targets=targets,
-        parameters=new_scan.parameters or {}
+        parameters=job.parameters or {}
     )
     
     return {"message": f"Создана новая задача {new_job.id} для сканирования {new_scan.id}", "job_id": new_job.id, "scan_id": new_scan.id}

@@ -449,8 +449,7 @@ export class ScanResultsController {
     try {
       const res = await Utils.apiRequest(`/api/scans/scan-queue/${id}`, { method: 'DELETE' });
       Utils.showNotification(res.message || 'Задача удалена', 'success');
-      this.loadJobs();
-      this.updateQueueStatus();
+      await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch(e) { 
       Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
     }
@@ -461,7 +460,7 @@ export class ScanResultsController {
     try {
       const res = await Utils.apiRequest(`/api/scans/scan-job/${id}/stop`, { method: 'POST' });
       Utils.showNotification(res.message || 'Задача остановлена', 'success');
-      this.loadJobs();
+      await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch(e) { 
       Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
     }
@@ -472,8 +471,7 @@ export class ScanResultsController {
     try {
       const res = await Utils.apiRequest(`/api/scans/scan-job/${id}/retry`, { method: 'POST' });
       Utils.showNotification(res.message || 'Задача перезапущена', 'success');
-      this.loadJobs();
-      this.updateQueueStatus();
+      await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch(e) { 
       Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
     }
@@ -484,7 +482,7 @@ export class ScanResultsController {
     try {
       const res = await Utils.apiRequest(`/api/scans/scan-job/${id}`, { method: 'DELETE' });
       Utils.showNotification(res.message || 'Задача удалена из истории', 'success');
-      this.loadJobs();
+      await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch(e) { 
       Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
     }
@@ -492,9 +490,8 @@ export class ScanResultsController {
 
   startPolling() {
     if (this.pollingInterval) clearInterval(this.pollingInterval);
-    this.pollingInterval = setInterval(() => {
-      this.updateQueueStatus();
-      this.loadJobs();
+    this.pollingInterval = setInterval(async () => {
+      await Promise.all([this.updateQueueStatus(), this.loadJobs()]);
     }, 5000);
   }
 
@@ -507,9 +504,12 @@ export class ScanResultsController {
 
   async #submitNmapScan(form) {
     
-    const target = document.getElementById('nmap-target').value.trim();
-    const knownOnly = document.getElementById('nmap-known-ports-only').checked;
-    const groupIds = Array.from(document.getElementById('nmap-groups').selectedOptions).map(opt => opt.value);
+    const targetInput = document.getElementById('nmap-target');
+    const target = targetInput ? targetInput.value.trim() : '';
+    const knownOnlyCheckbox = document.getElementById('nmap-known-ports-only');
+    const knownOnly = knownOnlyCheckbox ? knownOnlyCheckbox.checked : false;
+    const groupSelect = document.getElementById('nmap-groups');
+    const groupIds = groupSelect ? Array.from(groupSelect.selectedOptions).map(opt => opt.value) : [];
 
     
 
@@ -528,9 +528,9 @@ export class ScanResultsController {
         method: 'POST',
         body: JSON.stringify({
           target, 
-          ports: document.getElementById('nmap-ports').value, 
-          scripts: document.getElementById('nmap-scripts').value,
-          custom_args: document.getElementById('nmap-custom-args').value, 
+          ports: document.getElementById('nmap-ports')?.value || '', 
+          scripts: document.getElementById('nmap-scripts')?.value || '',
+          custom_args: document.getElementById('nmap-custom-args')?.value || '', 
           known_ports_only: knownOnly, 
           group_ids: groupIds
         })
@@ -542,7 +542,7 @@ export class ScanResultsController {
       const modal = bootstrap.Modal.getInstance(document.getElementById('nmapModal'));
       if (modal) modal.hide();
       
-      this.loadJobs();
+      await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch (error) {
       console.error('[ScanResultsController] Nmap scan error:', error);
       Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
@@ -551,7 +551,8 @@ export class ScanResultsController {
 
   async #submitRustscanScan(form) {
     
-    const target = document.getElementById('rustscan-target').value;
+    const targetInput = document.getElementById('rustscan-target');
+    const target = targetInput ? targetInput.value : '';
     
     
     if (!target) { 
@@ -565,10 +566,10 @@ export class ScanResultsController {
         method: 'POST',
         body: JSON.stringify({
           target, 
-          ports: document.getElementById('rustscan-ports').value,
-          custom_args: document.getElementById('rustscan-custom-args').value,
-          run_nmap_after: document.getElementById('rustscan-run-nmap').checked,
-          nmap_args: document.getElementById('rustscan-nmap-args').value
+          ports: document.getElementById('rustscan-ports')?.value || '',
+          custom_args: document.getElementById('rustscan-custom-args')?.value || '',
+          run_nmap_after: document.getElementById('rustscan-run-nmap')?.checked || false,
+          nmap_args: document.getElementById('rustscan-nmap-args')?.value || ''
         })
       });
       
@@ -578,7 +579,7 @@ export class ScanResultsController {
       const modal = bootstrap.Modal.getInstance(document.getElementById('rustscanModal'));
       if (modal) modal.hide();
       
-      this.loadJobs();
+      await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch (error) {
       console.error('[ScanResultsController] Rustscan scan error:', error);
       Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
@@ -635,7 +636,7 @@ export class ScanResultsController {
       const modal = bootstrap.Modal.getInstance(document.getElementById('digModal'));
       if (modal) modal.hide();
       
-      this.loadJobs();
+      await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch (error) {
       console.error('[ScanResultsController] Dig scan error:', error);
       Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
@@ -761,11 +762,11 @@ export class ScanResultsController {
         if (!response.ok) throw new Error('Ошибка импорта');
         return response.json();
       })
-      .then(data => {
+      .then(async data => {
         alert(`Импорт завершен! Создано активов: ${data.count || 0}`);
         const modal = bootstrap.Modal.getInstance(document.getElementById('importXmlModal'));
         if (modal) modal.hide();
-        this.loadJobs();
+        await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
       })
       .catch(error => {
         console.error('Ошибка импорта:', error);
@@ -848,7 +849,7 @@ export class ScanResultsController {
       if (modal) modal.hide();
       
       // Обновляем список задач
-      this.loadJobs();
+      await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
       
     } catch (error) {
       console.error('Ошибка запуска сканирования:', error);
