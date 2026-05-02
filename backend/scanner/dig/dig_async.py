@@ -240,25 +240,53 @@ class DigScanner:
         """Извлечение IP адресов из результатов Dig."""
         import logging
         logger = logging.getLogger(__name__)
-        
+
         ips = []
         answers = parsed_result.get('answers', [])
-        
+        hostnames_to_resolve = []
+
         for answer in answers:
             data = answer.get('data', '')
             rec_type = answer.get('type', '')
-            
+
             # Для записей A и AAAA - извлекаем IP напрямую
             if rec_type in ['A', 'AAAA']:
                 if ':' in data or (data.count('.') == 3 and all(p.isdigit() for p in data.split('.'))):
                     ips.append(data)
-            # Для записей MX, NS - пытаемся извлечь доменное имя для последующего резолва
+            # Для записей MX, NS, CNAME - сохраняем доменное имя для последующего резолва
             elif rec_type in ['MX', 'NS', 'CNAME']:
                 # Извлекаем доменное имя из данных записи
                 parts = data.split()
                 if parts:
                     hostname = parts[-1].rstrip('.')
                     logger.info(f"[Dig] Найдена запись {rec_type}: {hostname}")
-        
+                    hostnames_to_resolve.append(hostname)
+
+        # Если IP не найдены, но есть хостнеймы - пытаемся их резолвить
+        if not ips and hostnames_to_resolve:
+            logger.info(f"[Dig] IP не найдены, пробуем резолвить хостнеймы: {hostnames_to_resolve}")
+            for hostname in hostnames_to_resolve:
+                try:
+                    resolved_ips = self._resolve_hostname(hostname)
+                    ips.extend(resolved_ips)
+                    logger.info(f"[Dig] Резолв {hostname}: {resolved_ips}")
+                except Exception as e:
+                    logger.warning(f"[Dig] Не удалось резолвить {hostname}: {e}")
+
         logger.info(f"[Dig] Извлечено IP-адресов: {len(ips)}")
+        return ips
+
+    def _resolve_hostname(self, hostname: str) -> List[str]:
+        """Резолв хостнейма в IP адреса."""
+        import socket
+        ips = []
+        try:
+            # Получаем все IP адреса для хостнейма
+            addr_info = socket.getaddrinfo(hostname, None, socket.AF_INET)
+            for info in addr_info:
+                ip = info[4][0]
+                if ip not in ips:
+                    ips.append(ip)
+        except Exception:
+            pass
         return ips

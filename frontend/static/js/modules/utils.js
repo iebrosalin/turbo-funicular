@@ -138,10 +138,10 @@ export class Utils {
     };
 
     const config = {
+      method: options.method || 'GET',
       ...options,
       headers
     };
-
     if (options.body && typeof options.body === 'object') {
       config.body = JSON.stringify(options.body);
     }
