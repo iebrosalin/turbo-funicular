@@ -83,7 +83,7 @@ export class DashboardController {
 
     // Выбор колонок
     document.getElementById('columns-select')?.addEventListener('change', (e) => {
-      this.visibleColumns = Array.from(e.selectedOptions).map(opt => opt.value);
+      this.visibleColumns = Array.from(e.target.selectedOptions).map(opt => opt.value);
       this.applyFilters();
     });
 
@@ -379,6 +379,7 @@ export class DashboardController {
     let extension = '';
 
     if (format === 'csv') {
+      // Для CSV экспортируем только видимые колонки + ID
       const headers = ['ID', ...this.visibleColumns];
       content = headers.join(',') + '\n';
       
@@ -397,11 +398,12 @@ export class DashboardController {
         content += row.join(',') + '\n';
       });
       
-      mimeType = 'text/csv';
+      mimeType = 'text/csv;charset=utf-8;';
       extension = 'csv';
     } else if (format === 'json') {
+      // Для JSON экспортируем все данные актива целиком
       content = JSON.stringify(dataToExport, null, 2);
-      mimeType = 'application/json';
+      mimeType = 'application/json;charset=utf-8;';
       extension = 'json';
     }
 
@@ -409,11 +411,14 @@ export class DashboardController {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `assets_export_${new Date().toISOString().slice(0,10)}.${extension}`;
+    const timestamp = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
+    a.download = `assets_export_${timestamp}.${extension}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    
+    Utils.showNotification(`Экспорт выполнен: ${dataToExport.length} записей`, 'success');
   }
 }
 

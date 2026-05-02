@@ -464,11 +464,11 @@ export class TreeManager {
     
     // Создаем ссылку на детальную страницу для IP или hostname
     const ipLink = asset.ip_address 
-      ? `<a href="/assets/${asset.id}" class="text-decoration-none text-dark"><strong>${asset.ip_address}</strong></a>` 
+      ? `<a href="/assets/${asset.id}" class="text-decoration-none"><strong>${asset.ip_address}</strong></a>` 
       : '<strong>N/A</strong>';
     
     const hostnameDisplay = asset.hostname 
-      ? (asset.ip_address ? `<a href="/assets/${asset.id}" class="text-decoration-none text-dark">${asset.hostname}</a>` : `<strong>${asset.hostname}</strong>`)
+      ? (asset.ip_address ? `<a href="/assets/${asset.id}" class="text-decoration-none">${asset.hostname}</a>` : `<strong>${asset.hostname}</strong>`)
       : '<span class="text-muted">-</span>';
 
     tr.innerHTML = `
@@ -477,7 +477,7 @@ export class TreeManager {
       <td>${hostnameDisplay}</td>
       <td>${asset.os_info ?? '<span class="text-muted">-</span>'}</td>
       <td><small>${asset.open_ports ?? '<span class="text-muted">-</span>'}</small></td>
-      <td>${asset.group_name ? `<span class="badge bg-light text-dark border">${asset.group_name}</span>` : '<span class="badge bg-secondary">Без группы</span>'}</td>
+      <td>${asset.group_name ? `<span class="badge bg-light border">${asset.group_name}</span>` : '<span class="badge bg-secondary">Без группы</span>'}</td>
       <td class="text-end">
         <button class="btn btn-sm btn-outline-primary btn-edit-asset" title="Редактировать актив" data-id="${asset.id}">
           <i class="bi bi-pencil"></i>

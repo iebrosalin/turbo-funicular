@@ -189,11 +189,11 @@ export class AssetManager {
 
     // Создаем ссылку на детальную страницу для IP или hostname (как в tree.js)
     const ipLink = asset.ip_address
-      ? `<a href="/assets/${asset.id}" class="text-decoration-none text-dark"><strong>${asset.ip_address}</strong></a>`
+      ? `<a href="/assets/${asset.id}" class="text-decoration-none"><strong>${asset.ip_address}</strong></a>`
       : '<strong>N/A</strong>';
 
     const hostnameDisplay = asset.hostname
-      ? (asset.ip_address ? `<a href="/assets/${asset.id}" class="text-decoration-none text-dark">${asset.hostname}</a>` : `<strong>${asset.hostname}</strong>`)
+      ? (asset.ip_address ? `<a href="/assets/${asset.id}" class="text-decoration-none">${asset.hostname}</a>` : `<strong>${asset.hostname}</strong>`)
       : '<span class="text-muted">-</span>';
 
     // Формируем ячейки с учётом специальных случаев для IP и hostname

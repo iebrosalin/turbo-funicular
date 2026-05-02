@@ -192,7 +192,7 @@ export class ScanManager {
         const tr = document.createElement('tr');
         let statusClass = 'bg-secondary';
         if (job.status === 'completed') statusClass = 'bg-success';
-        if (job.status === 'running') statusClass = 'bg-warning text-dark';
+        if (job.status === 'running') statusClass = 'bg-warning';
         if (job.status === 'failed') statusClass = 'bg-danger';
         
         const duration = job.completed_at && job.started_at 
