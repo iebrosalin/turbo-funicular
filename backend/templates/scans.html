@@ -383,8 +383,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% block extra_js %}
 <script type="module">
-// Инициализация дерева групп происходит в main.js автоматически
-// Этот блок нужен только для отладки если необходимо
-console.log('[DEBUG scans.html] Страница сканирований загружена');
+    import { treeManager } from '/static/js/modules/tree.js';
+
+    console.log('[DEBUG scans.html] Страница сканирований загружена, инициализируем дерево...');
+    
+    // Явная инициализация дерева групп для страницы сканирований
+    const container = document.getElementById('sidebar-content');
+    if (container) {
+        console.log('[DEBUG scans.html] Контейнер #sidebar-content найден, запускаем refresh...');
+        treeManager.refresh().catch(err => console.error('Ошибка обновления дерева:', err));
+    } else {
+        console.error('[DEBUG scans.html] Контейнер #sidebar-content НЕ найден!');
+    }
 </script>
 {% endblock %}
