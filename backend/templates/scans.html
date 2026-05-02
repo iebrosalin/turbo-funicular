@@ -382,8 +382,25 @@ document.addEventListener('DOMContentLoaded', function() {
 <script type="module">
 import { scanManager } from '/static/js/modules/scans.js';
 import { treeManager } from '/static/js/modules/tree.js';
-// Менеджер сканирований инициализируется автоматически при импорте
-// Дерево групп будет загружено через main.js или можно вызвать явно:
-// await treeManager.refresh();
+
+console.log('[DEBUG scans.html] extra_js выполнен');
+console.log('[DEBUG scans.html] Контейнер #sidebar-content существует:', !!document.getElementById('sidebar-content'));
+
+// Явно вызываем refresh для дерева групп после загрузки страницы
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('[DEBUG scans.html] DOMContentLoaded в extra_js');
+    const container = document.getElementById('sidebar-content');
+    if (container) {
+        console.log('[DEBUG scans.html] Вызов treeManager.refresh()...');
+        try {
+            await treeManager.refresh();
+            console.log('[DEBUG scans.html] treeManager.refresh() завершен успешно');
+        } catch (error) {
+            console.error('[DEBUG scans.html] Ошибка при refresh:', error);
+        }
+    } else {
+        console.warn('[DEBUG scans.html] Контейнер не найден, пропускаем refresh');
+    }
+});
 </script>
 {% endblock %}
