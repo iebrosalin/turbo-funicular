@@ -38,7 +38,7 @@ export class TreeManager {
     // Формируем полный HTML для рендеринга
     let html = `
       <div class="sidebar-section">
-        <div class="d-flex justify-content-between align-items-center sidebar-section-title">
+        <div class="sidebar-section-title">
           <span>Группы активов</span>
         </div>
         
