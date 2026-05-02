@@ -966,19 +966,17 @@ async def retry_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     if job.status not in ['completed', 'failed', 'stopped', 'cancelled']:
         raise HTTPException(status_code=400, detail=f"Невозможно перезапустить задачу со статусом {job.status}")
     
-    # Получаем параметры из старого сканирования
-    old_scan = job.scan
-    if not old_scan:
-        raise HTTPException(status_code=400, detail="Сканирование не найдено для этой задачи")
+    # Получаем параметры из старой задачи
+    parameters = job.parameters or {}
     
     # Создаем новое сканирование с теми же параметрами
     new_scan = Scan(
-        name=old_scan.name,
-        target=old_scan.target,
-        scan_type=old_scan.scan_type,
+        name=parameters.get('name', f"Retry {job.job_type} {job_id}"),
+        target=parameters.get('target'),
+        scan_type=job.job_type,
         status='queued',
         progress=0,
-        group_id=old_scan.group_id,
+        group_id=parameters.get('group_id'),
     )
     db.add(new_scan)
     await db.flush()  # Чтобы получить ID нового сканирования
@@ -993,20 +991,22 @@ async def retry_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
         started_at=None,
         completed_at=None,
         worker_id=None,
-        parameters=job.parameters,
+        parameters=parameters,
     )
     db.add(new_job)
     await db.commit()
     
     # Добавляем новую задачу в очередь
-    targets = [new_scan.target] if new_scan.target else []
+    targets_list = parameters.get('targets_list', [])
+    if not targets_list and parameters.get('target'):
+        targets_list = [parameters['target']]
     
     await scan_queue_manager.add_scan(
         db=db,
         scan_job_id=new_job.id,
         scan_type=new_job.job_type,
-        targets=targets,
-        parameters=job.parameters or {}
+        targets=targets_list,
+        parameters=parameters
     )
     
     return {"message": f"Создана новая задача {new_job.id} для сканирования {new_scan.id}", "job_id": new_job.id, "scan_id": new_scan.id}
