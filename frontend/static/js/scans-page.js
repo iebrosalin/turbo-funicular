@@ -209,16 +209,14 @@ export class ScanResultsController {
 
   #setupEventListeners() {
     
-    
     // Делегирование событий для кнопок управления заданиями
-    const jobsTable = document.getElementById('jobs-table');
+    const jobsTable = document.getElementById('scansHistoryBody');
     
     jobsTable?.addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-job-id]');
       if (!btn) return;
       
       const jobId = btn.dataset.jobId;
-      
       
       if (btn.classList.contains('btn-remove-job')) this.removeJob(jobId);
       else if (btn.classList.contains('btn-stop-job')) this.stopJob(jobId);
@@ -331,7 +329,7 @@ export class ScanResultsController {
       const response = await fetch('/api/scans/status');
       if (!response.ok) return;
       const data = await response.json();
-      const tbody = document.querySelector('#jobs-table tbody');
+      const tbody = document.getElementById('scansHistoryBody');
       if (!tbody) return;
       
       tbody.innerHTML = '';
