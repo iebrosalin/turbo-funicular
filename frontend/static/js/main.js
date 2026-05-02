@@ -42,52 +42,52 @@ class App {
     const sidebar = document.getElementById('sidebar');
     const resizer = document.getElementById('sidebarResizer');
     
-    if (!resizer) return;
-
-    // Восстановление ширины из localStorage
-    const savedWidth = localStorage.getItem('sidebarWidth');
-    if (savedWidth) {
-      document.documentElement.style.setProperty('--sidebar-width', savedWidth);
-    }
-
-    resizer.addEventListener('mousedown', (e) => {
-      this.isResizing = true;
-      resizer.classList.add('resizing');
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-      e.preventDefault();
-    });
-
-    document.addEventListener('mousemove', (e) => {
-      if (!this.isResizing) return;
-
-      let newWidth = e.clientX;
-      const minWidth = 200;
-      const maxWidth = 600;
-      
-      if (newWidth < minWidth) newWidth = minWidth;
-      if (newWidth > maxWidth) newWidth = maxWidth;
-
-      document.documentElement.style.setProperty('--sidebar-width', `${newWidth}px`);
-    });
-
-    document.addEventListener('mouseup', () => {
-      if (this.isResizing) {
-        this.isResizing = false;
-        resizer.classList.remove('resizing');
-        document.body.style.cursor = '';
-        document.body.style.userSelect = '';
-        
-        const currentWidth = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim();
-        localStorage.setItem('sidebarWidth', currentWidth);
+    if (resizer && sidebar) {
+      // Восстановление ширины из localStorage
+      const savedWidth = localStorage.getItem('sidebarWidth');
+      if (savedWidth) {
+        document.documentElement.style.setProperty('--sidebar-width', savedWidth);
       }
-    });
 
-    // Переключение сайдбара на мобильных
-    document.getElementById('sidebarCollapse')?.addEventListener('click', () => {
-      document.getElementById('sidebar')?.classList.toggle('active');
-      document.getElementById('content')?.classList.toggle('active');
-    });
+      resizer.addEventListener('mousedown', (e) => {
+        this.isResizing = true;
+        resizer.classList.add('resizing');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!this.isResizing) return;
+
+        let newWidth = e.clientX;
+        const minWidth = 200;
+        const maxWidth = 600;
+        
+        if (newWidth < minWidth) newWidth = minWidth;
+        if (newWidth > maxWidth) newWidth = maxWidth;
+
+        document.documentElement.style.setProperty('--sidebar-width', `${newWidth}px`);
+      });
+
+      document.addEventListener('mouseup', () => {
+        if (this.isResizing) {
+          this.isResizing = false;
+          resizer.classList.remove('resizing');
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          
+          const currentWidth = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim();
+          localStorage.setItem('sidebarWidth', currentWidth);
+        }
+      });
+
+      // Переключение сайдбара на мобильных
+      document.getElementById('sidebarCollapse')?.addEventListener('click', () => {
+        document.getElementById('sidebar')?.classList.toggle('active');
+        document.getElementById('content')?.classList.toggle('active');
+      });
+    }
 
     // Обработчик формы группы
     const groupEditForm = document.getElementById('groupEditForm');
@@ -138,17 +138,7 @@ class App {
         console.log('[DEBUG] treeManager.refresh() завершен');
         console.log('[DEBUG] Содержимое контейнера после refresh:', treeContainer.innerHTML ? treeContainer.innerHTML.substring(0, 150) + '...' : '(пусто)');
       } else {
-        console.log('[DEBUG] Контейнер сайдбара не найден, пробуем через setTimeout...');
-        // Если контейнер не найден сразу, пробуем еще раз через 200мс
-        setTimeout(async () => {
-          const retryContainer = document.getElementById('sidebar-content');
-          if (retryContainer) {
-            console.log('[DEBUG] Повторная попытка: контейнер найден, вызываем refresh');
-            await treeManager.refresh();
-          } else {
-            console.warn('[DEBUG] Контейнер не найден после повторной попытки');
-          }
-        }, 200);
+        console.log('[INFO] Контейнер #sidebar-content не найден (возможно это не страница со сканированиями)');
       }
       
       // SSE подключение уже установлено в конструкторе ScanManager
