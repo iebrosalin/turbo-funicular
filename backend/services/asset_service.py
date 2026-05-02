@@ -132,8 +132,6 @@ class AssetService:
         open_ports = list(asset.open_ports) if asset.open_ports else []
         rustscan_ports = list(asset.rustscan_ports) if asset.rustscan_ports else []
         nmap_ports = list(asset.nmap_ports) if asset.nmap_ports else []
-        os_info = dict(asset.os_info) if hasattr(asset, 'os_info') and asset.os_info else {}
-        mac_addresses = list(asset.mac_addresses) if hasattr(asset, 'mac_addresses') and asset.mac_addresses else []
         
         # Предзагрузка связанных объектов services
         services_data = []
@@ -162,6 +160,8 @@ class AssetService:
             'uuid': asset.uuid,
             'ip_address': asset.ip_address,
             'hostname': asset.hostname,
+            'mac_address': asset.mac_address,
+            'vendor': asset.vendor,
             'fqdn': asset.fqdn,
             'device_type': asset.device_type,
             'status': asset.status,

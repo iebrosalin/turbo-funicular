@@ -422,6 +422,7 @@
                     <tbody>
                         {% set fields = [
                             ('id', asset.id), ('ip_address', asset.ip_address), ('hostname', asset.hostname),
+                            ('mac_address', asset.mac_address), ('vendor', asset.vendor),
                             ('fqdn', asset.fqdn), ('os_family', asset.os_family), ('os_version', asset.os_version),
                             ('device_type', asset.device_type), ('status', asset.status), ('location', asset.location),
                             ('owner', asset.owner), ('dns_names', asset.dns_names|tojson),

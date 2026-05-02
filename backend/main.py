@@ -167,12 +167,40 @@ BACKEND_DIR = BASE_DIR / "backend"
 STATIC_DIR = BASE_DIR / "frontend" / "static"
 TEMPLATES_DIR = BACKEND_DIR / "templates"
 
+# Custom JSON encoder for Jinja2 templates to handle datetime objects
+import json
+from datetime import datetime, date
+from decimal import Decimal
+
+class CustomJSONEncoder(json.JSONEncoder):
+    """Кастомный JSON энкодер для обработки datetime и других специальных типов."""
+    def default(self, obj):
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        if isinstance(obj, Decimal):
+            return float(obj)
+        if hasattr(obj, '__dict__'):
+            # Для SQLAlchemy моделей и других объектов
+            result = {}
+            for key, value in obj.__dict__.items():
+                if not key.startswith('_'):
+                    try:
+                        # Рекурсивно обрабатываем вложенные объекты
+                        json.dumps(value, cls=CustomJSONEncoder)
+                        result[key] = value
+                    except (TypeError, ValueError):
+                        # Пропускаем поля, которые нельзя сериализовать
+                        pass
+            return result
+        return super().default(obj)
+
 # Монтирование статических файлов (CSS, JS, изображения)
 # Используем check_dir=False чтобы избежать ошибки при старте если директория пуста
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR), check_dir=False), name="static")
 
-# Настройка Jinja2 шаблонов
+# Настройка Jinja2 шаблонов с кастомным фильтром tojson
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+templates.env.policies['json.dumps_function'] = lambda obj, **kw: json.dumps(obj, cls=CustomJSONEncoder, **kw)
 
 # Подключение маршрутов (Roouters)
 app.include_router(assets.router, prefix="/api/assets", tags=["Assets"])
