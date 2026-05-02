@@ -266,12 +266,28 @@ export class DashboardController {
       await Utils.apiRequest(`/api/assets/${id}`, { method: 'DELETE' });
       Utils.showNotification('Актив удален', 'success');
       
-      // Обновляем список в Store
-      const currentAssets = store.getState('assets');
-      store.setState('assets', currentAssets.filter(a => a.id !== id));
+      // Полная перезагрузка данных с сервера для синхронизации
+      await this.#reloadData();
+      
+      // Принудительно обновляем отображение
+      this.applyFilters();
     } catch (err) {
       console.error('Delete failed:', err);
       Utils.showNotification('Ошибка удаления: ' + (err.message), 'danger');
+    }
+  }
+
+  async #reloadData() {
+    try {
+      const assets = await Utils.apiRequest('/api/assets');
+      store.setState('assets', assets);
+      // Обновление дерева групп
+      await refreshGroupTree();
+      // Явно вызываем applyFilters после обновления данных
+      this.allAssets = assets;
+    } catch (error) {
+      console.error('Failed to reload data:', error);
+      Utils.showNotification('Не удалось обновить данные', 'danger');
     }
   }
 
@@ -307,9 +323,11 @@ export class DashboardController {
       Utils.showNotification('Активы удалены', 'success');
       store.clearSelectedAssets();
       
-      // Обновление списка
-      const currentAssets = store.getState('assets');
-      store.setState('assets', currentAssets.filter(a => !ids.includes(a.id)));
+      // Полная перезагрузка данных с сервера для синхронизации
+      await this.#reloadData();
+      
+      // Принудительно обновляем отображение
+      this.applyFilters();
     } catch (err) {
       Utils.showNotification('Ошибка массового удаления: ' + err.message, 'danger');
     }
