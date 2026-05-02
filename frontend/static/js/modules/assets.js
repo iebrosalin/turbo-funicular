@@ -187,13 +187,36 @@ export class AssetManager {
     const selected = store.isSelected(asset.id);
     if (selected) tr.classList.add('selected');
 
-    const cells = columns.map(col => {
+    // Создаем ссылку на детальную страницу для IP или hostname (как в tree.js)
+    const ipLink = asset.ip_address
+      ? `<a href="/assets/${asset.id}" class="text-decoration-none text-dark"><strong>${asset.ip_address}</strong></a>`
+      : '<strong>N/A</strong>';
+
+    const hostnameDisplay = asset.hostname
+      ? (asset.ip_address ? `<a href="/assets/${asset.id}" class="text-decoration-none text-dark">${asset.hostname}</a>` : `<strong>${asset.hostname}</strong>`)
+      : '<span class="text-muted">-</span>';
+
+    // Формируем ячейки с учётом специальных случаев для IP и hostname
+    let cells = '';
+    for (const col of columns) {
       let val = asset[col];
+
+      // Специальная обработка для IP и hostname
+      if (col === 'ip_address') {
+        cells += `<td>${ipLink}</td>`;
+        continue;
+      }
+      if (col === 'hostname') {
+        cells += `<td>${hostnameDisplay}</td>`;
+        continue;
+      }
+
+      // Обработка остальных колонок
       if (val === null || val === undefined) val = '-';
       else if (Array.isArray(val)) val = val.join(', ');
       else val = String(val);
-      return `<td>${val}</td>`;
-    }).join('');
+      cells += `<td>${val}</td>`;
+    }
 
     tr.innerHTML = `
       <td class="text-center">
