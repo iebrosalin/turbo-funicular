@@ -40,6 +40,7 @@ class ScanJob(Base):
     status = Column(String(50), default="pending")  # pending, running, completed, failed
     priority = Column(Integer, default=0)  # Приоритет задачи
     worker_id = Column(String(100), nullable=True)  # ID воркера
+    parameters = Column(JSON, nullable=True, default=dict)  # Параметры задачи
     started_at = Column(DateTime(timezone=True), nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
