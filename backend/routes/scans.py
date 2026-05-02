@@ -41,6 +41,7 @@ class NmapScanRequest(BaseModel):
     scripts: Optional[str] = None
     custom_args: Optional[str] = None
     known_ports_only: bool = False
+    save_assets: bool = False
     group_ids: Optional[List[int]] = None
 
 
@@ -50,6 +51,8 @@ class RustscanRequest(BaseModel):
     custom_args: Optional[str] = None
     run_nmap_after: bool = False
     nmap_args: Optional[str] = None
+    save_assets: bool = False
+    group_ids: Optional[List[int]] = None
 
 
 class DigScanRequest(BaseModel):
@@ -57,6 +60,7 @@ class DigScanRequest(BaseModel):
     dns_server: Optional[str] = None
     cli_args: Optional[str] = None
     record_types: Optional[str] = None
+    save_assets: bool = False
     group_ids: Optional[List[int]] = None
 
 
@@ -280,7 +284,7 @@ async def import_xml_scan(
 
 @router.post("/nmap")
 async def run_nmap_scan(
-    request: Request,
+    request_data: NmapScanRequest,
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
@@ -292,19 +296,13 @@ async def run_nmap_scan(
     
     logger = logging.getLogger(__name__)
     
-    # Парсим JSON из тела запроса
-    try:
-        data = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Ошибка парсинга JSON: {str(e)}")
-    
-    target = data.get('target')
-    ports = data.get('ports')
-    scripts = data.get('scripts')
-    custom_args = data.get('custom_args')
-    known_ports_only = data.get('known_ports_only', False)
-    save_assets = data.get('save_assets', False)
-    group_ids = data.get('group_ids')
+    target = request_data.target
+    ports = request_data.ports
+    scripts = request_data.scripts
+    custom_args = request_data.custom_args
+    known_ports_only = request_data.known_ports_only
+    save_assets = request_data.save_assets
+    group_ids = request_data.group_ids
     
     # Обработка group_ids
     parsed_group_ids = None
@@ -414,7 +412,7 @@ async def run_nmap_scan(
 
 @router.post("/rustscan")
 async def run_rustscan(
-    request: Request,
+    request_data: RustscanRequest,
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
@@ -426,19 +424,13 @@ async def run_rustscan(
     
     logger = logging.getLogger(__name__)
     
-    # Парсим JSON из тела запроса
-    try:
-        data = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Ошибка парсинга JSON: {str(e)}")
-    
-    target = data.get('target')
-    ports = data.get('ports')
-    custom_args = data.get('custom_args')
-    run_nmap_after = data.get('run_nmap_after', False)
-    nmap_args = data.get('nmap_args')
-    save_assets = data.get('save_assets', False)
-    group_ids = data.get('group_ids')
+    target = request_data.target
+    ports = request_data.ports
+    custom_args = request_data.custom_args
+    run_nmap_after = request_data.run_nmap_after
+    nmap_args = request_data.nmap_args
+    save_assets = request_data.save_assets
+    group_ids = request_data.group_ids
     
     # Обработка group_ids
     parsed_group_ids = None
@@ -548,7 +540,7 @@ async def run_rustscan(
 
 @router.post("/dig")
 async def run_dig_scan(
-    request: Request,
+    request_data: DigScanRequest,
     background_tasks: BackgroundTasks = None,
     db: AsyncSession = Depends(get_db)
 ):
@@ -560,48 +552,26 @@ async def run_dig_scan(
     
     logger = logging.getLogger(__name__)
     
-    # Парсим JSON из тела запроса
-    try:
-        data = await request.json()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Ошибка парсинга JSON: {str(e)}")
+    target = request_data.targets_text
+    dns_server = request_data.dns_server
+    cli_args = request_data.cli_args
+    record_types = request_data.record_types
+    save_assets = request_data.save_assets
+    group_ids = request_data.group_ids
     
-    target = data.get('target')
-    args = data.get('args')
-    scan_type = data.get('scan_type', 'dig')
-    save_assets = data.get('save_assets', False)
+    if not target:
+        raise HTTPException(status_code=400, detail="Параметр 'targets_text' обязателен")
     
     logger.info("=" * 60)
     logger.info("=== ПОЛУЧЕН ЗАПРОС НА DIG СКАНИРОВАНИЕ (JSON) ===")
     logger.info("=" * 60)
     logger.info(f"Входящие данные запроса:")
     logger.info(f"  - target: {target}")
-    logger.info(f"  - args: {args}")
-    logger.info(f"  - scan_type: {scan_type}")
+    logger.info(f"  - dns_server: {dns_server}")
+    logger.info(f"  - cli_args: {cli_args}")
+    logger.info(f"  - record_types: {record_types}")
     logger.info(f"  - save_assets: {save_assets}")
-    
-    if not target or not args:
-        raise HTTPException(status_code=400, detail="Параметры 'target' и 'args' обязательны")
-    
-    # Парсим аргументы из строки args
-    # Формат: "ANY @8.8.8.8 domain.com" или "ANY domain.com"
-    parts = args.split()
-    record_types = ""
-    dns_server = None
-    cli_args = ""
-    
-    for part in parts:
-        if part.startswith('@'):
-            dns_server = part[1:]  # Убираем '@'
-        elif part.upper() in ['A', 'AAAA', 'MX', 'NS', 'TXT', 'CNAME', 'SOA', 'PTR', 'ANY', 'SRV']:
-            record_types = part.upper()
-        else:
-            # Это может быть домен или дополнительные аргументы
-            if '.' in part and not part.startswith('-'):
-                # Это домен
-                pass
-            elif part.startswith('-'):
-                cli_args += f" {part}"
+    logger.info(f"  - group_ids: {group_ids}")
     
     try:
         # Создаём запись сканирования
@@ -639,9 +609,10 @@ async def run_dig_scan(
         targets_list = [t.strip() for t in target.split(',') if t.strip()]
         parameters = {
             "dns_server": dns_server,
-            "cli_args": cli_args.strip(),
+            "cli_args": cli_args,
             "record_types": record_types,
-            "group_ids": None
+            "save_assets": save_assets,
+            "group_ids": group_ids
         }
         logger.info(f"  - targets_list: {targets_list}")
         logger.info(f"  - parameters: {parameters}")
