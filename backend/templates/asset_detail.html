@@ -63,12 +63,12 @@
                                 <tr><th>Hostname:</th><td>{{ asset.hostname or '-' }}</td></tr>
                                 <tr><th>FQDN:</th><td>{{ asset.fqdn or '-' }}</td></tr>
                                 <tr><th>Тип устройства:</th><td>{{ asset.device_type }}</td></tr>
-                                <tr><th>ОС:</th><td>{{ asset.os_family }} {{ asset.os_version }}</td></tr>
+                                <tr><th>ОС:</th><td>{{ asset.os_family or '-' }} {{ asset.os_version or '' }}</td></tr>
                                 <tr><th>Владелец:</th><td>{{ asset.owner or '-' }}</td></tr>
                                 <tr><th>Локация:</th><td>{{ asset.location or '-' }}</td></tr>
                                 <tr><th>Группы:</th>
                                     <td>
-                                        {% if asset.groups %}
+                                        {% if asset.groups and asset.groups|length > 0 %}
                                             {% for group in asset.groups %}
                                                 <span class="badge bg-primary">{{ group.name }}</span>
                                             {% endfor %}

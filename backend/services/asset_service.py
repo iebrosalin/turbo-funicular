@@ -47,29 +47,30 @@ class AssetService:
                     operation = rule.get('operation', '')
                     value = str(rule.get('value', '')).lower()
                     
-                    # Получаем значение поля из актива
-                    field_value = getattr(asset, field, None)
+                    # Получаем значение поля из актива (asset теперь dict)
+                    field_value = AssetService.get_nested_value(asset, field)
                     
                     # Маппинг альтернативных имен полей
                     if field_value is None:
                         if field == 'ip_address':
-                            field_value = getattr(asset, 'ip_address', None)
+                            field_value = asset.get('ip_address')
                         elif field == 'hostname':
-                            field_value = getattr(asset, 'hostname', None)
+                            field_value = asset.get('hostname')
                         elif field == 'os_family':
-                            field_value = getattr(asset, 'os_family', None)
+                            field_value = asset.get('os_family')
                         elif field == 'device_role':
-                            field_value = getattr(asset, 'device_type', None)
+                            field_value = asset.get('device_type')
                         elif field == 'open_ports':
-                            field_value = getattr(asset, 'open_ports', None)
+                            field_value = asset.get('open_ports')
                         elif field == 'status':
-                            field_value = getattr(asset, 'status', None)
+                            field_value = asset.get('status')
                         elif field == 'source':
-                            field_value = getattr(asset, 'source', None)
+                            field_value = asset.get('source')
                         elif field == 'group_name':
                             # Для группы берем имя первой группы
-                            if asset.groups and len(asset.groups) > 0:
-                                field_value = asset.groups[0].name
+                            groups = asset.get('groups', [])
+                            if groups and len(groups) > 0:
+                                field_value = groups[0].get('name', '')
                             else:
                                 field_value = ''
                     
@@ -106,8 +107,8 @@ class AssetService:
         
         return assets
     
-    async def get_by_id(self, asset_id: int) -> Optional[Asset]:
-        """Получить актив по ID."""
+    async def get_by_id(self, asset_id: int) -> Optional[dict]:
+        """Получить актив по ID и вернуть как словарь с предзагруженными данными."""
         query = select(Asset).options(
             selectinload(Asset.groups),
             selectinload(Asset.services)
@@ -115,32 +116,72 @@ class AssetService:
         result = await self.db.execute(query)
         asset = result.scalar_one_or_none()
         
-        # Явно загружаем JSON поля и связи пока сессия активна
-        if asset:
-            # Доступ к JSON полям для триггеринга загрузки
-            try:
-                _ = list(asset.dns_names) if asset.dns_names else []
-                _ = list(asset.dns_records) if asset.dns_records else []
-                _ = list(asset.open_ports) if asset.open_ports else []
-                _ = list(asset.rustscan_ports) if asset.rustscan_ports else []
-                _ = list(asset.nmap_ports) if asset.nmap_ports else []
-                _ = dict(asset.os_info) if asset.os_info else {}
-                _ = list(asset.mac_addresses) if asset.mac_addresses else []
-            except Exception:
-                pass
-            
-            # Принудительно загружаем связанные объекты services
-            try:
-                for service in asset.services:
-                    _ = service.port
-                    _ = service.protocol
-                    _ = service.state
-                    _ = service.service_name
-                    _ = service.version
-            except Exception:
-                pass
-            
-        return asset
+        if not asset:
+            return None
+        
+        # Конвертируем в словарь пока сессия активна - это гарантирует загрузку всех данных
+        return self._asset_to_dict(asset)
+    
+    def _asset_to_dict(self, asset: Asset) -> dict:
+        """Конвертировать ORM-объект в словарь с предзагрузкой всех полей и связей."""
+        # Явный доступ ко всем JSON-полям для их загрузки
+        dns_names = list(asset.dns_names) if asset.dns_names else []
+        dns_records = dict(asset.dns_records) if asset.dns_records else {}
+        open_ports = list(asset.open_ports) if asset.open_ports else []
+        rustscan_ports = list(asset.rustscan_ports) if asset.rustscan_ports else []
+        nmap_ports = list(asset.nmap_ports) if asset.nmap_ports else []
+        os_info = dict(asset.os_info) if hasattr(asset, 'os_info') and asset.os_info else {}
+        mac_addresses = list(asset.mac_addresses) if hasattr(asset, 'mac_addresses') and asset.mac_addresses else []
+        
+        # Предзагрузка связанных объектов services
+        services_data = []
+        for service in asset.services:
+            services_data.append({
+                'id': service.id,
+                'port': service.port,
+                'protocol': service.protocol,
+                'state': service.state,
+                'service_name': service.service_name,
+                'product': service.product,
+                'version': service.version,
+                'extra_info': service.extra_info,
+                'ssl_subject': service.ssl_subject,
+                'ssl_issuer': service.ssl_issuer,
+                'ssl_not_before': service.ssl_not_before,
+                'ssl_not_after': service.ssl_not_after,
+                'script_output': service.script_output
+            })
+        
+        # Предзагрузка групп
+        groups_data = [{'id': g.id, 'name': g.name} for g in asset.groups]
+        
+        return {
+            'id': asset.id,
+            'uuid': asset.uuid,
+            'ip_address': asset.ip_address,
+            'hostname': asset.hostname,
+            'fqdn': asset.fqdn,
+            'device_type': asset.device_type,
+            'status': asset.status,
+            'os_family': asset.os_family,
+            'os_version': asset.os_version,
+            'owner': asset.owner,
+            'location': asset.location,
+            'source': asset.source,
+            'last_rustscan': asset.last_rustscan,
+            'last_nmap': asset.last_nmap,
+            'last_dns_scan': asset.last_dns_scan,
+            'last_seen': asset.last_seen,
+            'created_at': asset.created_at,
+            'updated_at': asset.updated_at,
+            'dns_names': dns_names,
+            'dns_records': dns_records,
+            'open_ports': open_ports,
+            'rustscan_ports': rustscan_ports,
+            'nmap_ports': nmap_ports,
+            'services': services_data,
+            'groups': groups_data
+        }
     
     async def create(self, asset_data: AssetCreate) -> Asset:
         """Создать новый актив."""
@@ -166,9 +207,18 @@ class AssetService:
         await self.db.refresh(asset, attribute_names=['groups'])  # Явно обновляем связь groups
         return asset
     
-    async def update(self, asset_id: int, asset_data: AssetUpdate) -> Optional[Asset]:
+    async def update(self, asset_id: int, asset_data: AssetUpdate) -> Optional[dict]:
         """Обновить актив."""
-        asset = await self.get_by_id(asset_id)
+        # Получаем актив как словарь
+        current_asset_dict = await self.get_by_id(asset_id)
+        if not current_asset_dict:
+            return None
+        
+        # Для обновления нам нужно получить ORM-объект
+        query = select(Asset).where(Asset.id == asset_id)
+        result = await self.db.execute(query)
+        asset = result.scalar_one_or_none()
+        
         if not asset:
             return None
         
@@ -193,7 +243,9 @@ class AssetService:
         
         await self.db.flush()
         await self.db.refresh(asset)
-        return asset
+        
+        # Возвращаем обновленные данные как словарь
+        return self._asset_to_dict(asset)
     
     async def delete(self, asset_id: int) -> bool:
         """Удалить актив."""
@@ -240,3 +292,15 @@ class AssetService:
         
         await self.db.flush()
         return len(assets)
+    
+    @staticmethod
+    def get_nested_value(data: dict, key: str):
+        """Получить значение из словаря по ключу (для обработки вложенных ключей через точку)."""
+        keys = key.split('.')
+        value = data
+        for k in keys:
+            if isinstance(value, dict):
+                value = value.get(k)
+            else:
+                return None
+        return value
