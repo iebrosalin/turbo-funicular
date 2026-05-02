@@ -134,6 +134,15 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 
+# Обработчики HTTP ошибок 404 и 500 для рендеринга страниц
+@app.exception_handler(404)
+async def http_404_handler(request: Request, exc):
+    return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
+
+@app.exception_handler(500)
+async def http_500_handler(request: Request, exc):
+    return templates.TemplateResponse("500.html", {"request": request}, status_code=500)
+
 # Middleware для логирования запросов к сканированиям (для отладки)
 @app.middleware("http")
 async def log_scan_requests_middleware(request: Request, call_next):
