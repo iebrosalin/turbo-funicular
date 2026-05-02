@@ -115,16 +115,30 @@ class AssetService:
         result = await self.db.execute(query)
         asset = result.scalar_one_or_none()
         
-        # Явно загружаем JSON поля если они есть (на случай ленивой загрузки)
+        # Явно загружаем JSON поля и связи пока сессия активна
         if asset:
             # Доступ к JSON полям для триггеринга загрузки
-            _ = asset.dns_names
-            _ = asset.dns_records
-            _ = asset.open_ports
-            _ = asset.rustscan_ports
-            _ = asset.nmap_ports
+            try:
+                _ = list(asset.dns_names) if asset.dns_names else []
+                _ = list(asset.dns_records) if asset.dns_records else []
+                _ = list(asset.open_ports) if asset.open_ports else []
+                _ = list(asset.rustscan_ports) if asset.rustscan_ports else []
+                _ = list(asset.nmap_ports) if asset.nmap_ports else []
+                _ = dict(asset.os_info) if asset.os_info else {}
+                _ = list(asset.mac_addresses) if asset.mac_addresses else []
+            except Exception:
+                pass
+            
             # Принудительно загружаем связанные объекты services
-            _ = [s for s in asset.services]
+            try:
+                for service in asset.services:
+                    _ = service.port
+                    _ = service.protocol
+                    _ = service.state
+                    _ = service.service_name
+                    _ = service.version
+            except Exception:
+                pass
             
         return asset
     
