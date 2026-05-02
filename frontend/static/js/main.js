@@ -122,10 +122,11 @@ class App {
 
   async #loadInitialData() {
     try {
-      // Загружаем данные дерева и сразу рендерим их
+      // Проверяем, находимся ли мы на странице сканирований (или другой странице с сайдбаром)
       const treeContainer = document.getElementById('sidebar-content');
       
       console.log('[DEBUG] #loadInitialData вызван');
+      console.log('[DEBUG] Текущий путь:', window.location.pathname);
       console.log('[DEBUG] Элемент #sidebar-content найден:', !!treeContainer);
       
       if (treeContainer) {
@@ -138,7 +139,8 @@ class App {
         console.log('[DEBUG] treeManager.refresh() завершен');
         console.log('[DEBUG] Содержимое контейнера после refresh:', treeContainer.innerHTML ? treeContainer.innerHTML.substring(0, 150) + '...' : '(пусто)');
       } else {
-        console.log('[INFO] Контейнер #sidebar-content не найден (возможно это не страница со сканированиями)');
+        console.log('[INFO] Контейнер #sidebar-content не найден. Проверьте HTML шаблон.');
+        console.log('[DEBUG] Доступные элементы в DOM:', Array.from(document.querySelectorAll('[id]')).map(el => el.id).join(', '));
       }
       
       // SSE подключение уже установлено в конструкторе ScanManager
