@@ -178,7 +178,7 @@ async def health_check():
 @app.get("/")
 async def root(request: Request):
     """Корневой эндпоинт - рендеринг главной страницы."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse("dashboard.html", {"request": request})
 
 @app.get("/dashboard")
 async def dashboard(request: Request):
