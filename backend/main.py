@@ -190,6 +190,11 @@ async def scans_page(request: Request):
     """Страница сканирований."""
     return templates.TemplateResponse("scans.html", {"request": request})
 
+@app.get("/scan-history")
+async def scan_history_page(request: Request):
+    """Страница истории сканирований."""
+    return templates.TemplateResponse("scan_history.html", {"request": request})
+
 @app.get("/assets/{asset_id}")
 async def asset_detail(request: Request, asset_id: int, db: AsyncSession = Depends(get_db)):
     """Страница детали актива."""
@@ -201,9 +206,13 @@ async def asset_detail(request: Request, asset_id: int, db: AsyncSession = Depen
     if not asset:
         raise HTTPException(status_code=404, detail="Актив не найден")
     
+    # Загружаем историю изменений
+    change_logs = await service.get_change_logs(asset_id, limit=50)
+    
     return templates.TemplateResponse("asset_detail.html", {
         "request": request, 
-        "asset": asset
+        "asset": asset,
+        "change_logs": change_logs
     })
 
 

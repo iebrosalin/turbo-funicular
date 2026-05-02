@@ -1,10 +1,12 @@
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from backend.models.asset import Asset
 from backend.models.group import Group
+from backend.db.base import asset_change_logs_table
 from backend.schemas.asset import AssetCreate, AssetUpdate
+from datetime import datetime
 
 
 class AssetService:
@@ -207,9 +209,9 @@ class AssetService:
         await self.db.refresh(asset, attribute_names=['groups'])  # Явно обновляем связь groups
         return asset
     
-    async def update(self, asset_id: int, asset_data: AssetUpdate) -> Optional[dict]:
-        """Обновить актив."""
-        # Получаем актив как словарь
+    async def update(self, asset_id: int, asset_data: AssetUpdate, username: Optional[str] = None) -> Optional[dict]:
+        """Обновить актив с записью в лог изменений."""
+        # Получаем актив как словарь (текущее состояние)
         current_asset_dict = await self.get_by_id(asset_id)
         if not current_asset_dict:
             return None
@@ -225,11 +227,20 @@ class AssetService:
         update_data = asset_data.model_dump(exclude_unset=True)
         group_id = update_data.pop('group_id', None)
         
+        # Собираем изменения для логирования
+        changed_fields = {}
         for field, value in update_data.items():
+            old_value = getattr(asset, field, None)
+            if old_value != value:
+                changed_fields[field] = {'old': old_value, 'new': value}
             setattr(asset, field, value)
         
         # Обновляем связи с группами
         if group_id is not None:
+            # Получаем текущие группы для логирования
+            old_group_ids = [g.id for g in asset.groups]
+            old_group_names = [g.name for g in asset.groups]
+            
             # Очищаем текущие группы
             asset.groups.clear()
             
@@ -240,25 +251,83 @@ class AssetService:
                 group = group_result.scalar_one_or_none()
                 if group:
                     asset.groups.append(group)
+                    new_group_names = [group.name]
+                else:
+                    new_group_names = []
+            else:
+                new_group_names = []
+            
+            # Логируем изменение группы
+            if old_group_names != new_group_names:
+                changed_fields['groups'] = {'old': old_group_names, 'new': new_group_names}
         
         await self.db.flush()
         await self.db.refresh(asset)
         
+        # Записываем в лог изменений если были изменения
+        if changed_fields:
+            # Используем прямую вставку через Core API
+            stmt = insert(asset_change_logs_table).values(
+                asset_id=asset_id,
+                username=username,
+                action='update',
+                changed_fields=changed_fields,
+                created_at=datetime.now()
+            )
+            await self.db.execute(stmt)
+            await self.db.flush()
+        
         # Возвращаем обновленные данные как словарь
         return self._asset_to_dict(asset)
     
-    async def delete(self, asset_id: int) -> bool:
-        """Удалить актив."""
+    async def delete(self, asset_id: int, username: Optional[str] = None) -> bool:
+        """Удалить актив с записью в лог."""
+        # Сначала получаем данные для лога
+        asset_dict = await self.get_by_id(asset_id)
+        
         query = delete(Asset).where(Asset.id == asset_id)
         result = await self.db.execute(query)
         await self.db.flush()
+        
+        # Записываем в лог если актив был удален
+        if result.rowcount > 0 and asset_dict:
+            stmt = insert(asset_change_logs_table).values(
+                asset_id=asset_id,
+                username=username,
+                action='delete',
+                changed_fields={'asset': asset_dict},
+                created_at=datetime.now()
+            )
+            await self.db.execute(stmt)
+            await self.db.flush()
+        
         return result.rowcount > 0
     
-    async def delete_batch(self, asset_ids: List[int]) -> int:
-        """Удалить несколько активов."""
+    async def delete_batch(self, asset_ids: List[int], username: Optional[str] = None) -> int:
+        """Удалить несколько активов с записью в лог."""
+        # Получаем данные для лога перед удалением
+        assets_data = []
+        for aid in asset_ids:
+            asset_dict = await self.get_by_id(aid)
+            if asset_dict:
+                assets_data.append(asset_dict)
+        
         query = delete(Asset).where(Asset.id.in_(asset_ids))
         result = await self.db.execute(query)
         await self.db.flush()
+        
+        # Записываем в лог каждый удаленный актив
+        for asset_dict in assets_data:
+            stmt = insert(asset_change_logs_table).values(
+                asset_id=asset_dict['id'],
+                username=username,
+                action='delete',
+                changed_fields={'asset': asset_dict},
+                created_at=datetime.now()
+            )
+            await self.db.execute(stmt)
+        await self.db.flush()
+        
         return result.rowcount
     
     async def move_to_group_batch(self, asset_ids: List[int], group_id: Optional[int]) -> int:
@@ -304,3 +373,24 @@ class AssetService:
             else:
                 return None
         return value
+    
+    async def get_change_logs(self, asset_id: int, limit: int = 100) -> List[dict]:
+        """Получить историю изменений актива."""
+        query = select(asset_change_logs_table).where(
+            asset_change_logs_table.c.asset_id == asset_id
+        ).order_by(asset_change_logs_table.c.created_at.desc()).limit(limit)
+        
+        result = await self.db.execute(query)
+        rows = result.fetchall()
+        
+        return [
+            {
+                'id': row.id,
+                'asset_id': row.asset_id,
+                'username': row.username,
+                'action': row.action,
+                'changed_fields': row.changed_fields,
+                'created_at': row.created_at.isoformat() if row.created_at else None
+            }
+            for row in rows
+        ]

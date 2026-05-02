@@ -23,12 +23,20 @@
                 <span class="badge bg-secondary">{{ asset.os_family }} {{ asset.os_version }}</span>
             {% endif %}
         </div>
-        <div>
+        <div class="d-flex gap-2 align-items-center">
+            <div id="editControls" style="display: none;">
+                <button id="saveAssetBtn" class="btn btn-success me-2">
+                    <i class="bi bi-check-lg"></i> Сохранить
+                </button>
+                <button id="cancelEditBtn" class="btn btn-outline-secondary me-2">
+                    <i class="bi bi-x-lg"></i> Отмена
+                </button>
+            </div>
+            <button id="toggleEditBtn" class="btn btn-outline-primary">
+                <i class="bi bi-pencil"></i> Редактировать
+            </button>
             <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#taxonomyModal">
                 <i class="bi bi-diagram-3"></i> Таксономия
-            </button>
-            <button id="scanCurrentAssetBtn" class="btn btn-primary">
-                <i class="bi bi-plus-circle"></i> Сканировать
             </button>
         </div>
     </div>
@@ -47,6 +55,9 @@
         <li class="nav-item" role="presentation">
             <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" type="button">История изменений</button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="taxonomy-tab" data-bs-toggle="tab" data-bs-target="#taxonomy" type="button">Таксономия</button>
+        </li>
     </ul>
 
     <div class="tab-content" id="assetTabsContent">
@@ -59,22 +70,41 @@
                         <div class="card-header bg-light">Основная информация</div>
                         <div class="card-body">
                             <table class="table table-sm table-borderless">
-                                <tr><th width="40%">IP Адрес:</th><td>{{ asset.ip_address }}</td></tr>
-                                <tr><th>Hostname:</th><td>{{ asset.hostname or '-' }}</td></tr>
-                                <tr><th>FQDN:</th><td>{{ asset.fqdn or '-' }}</td></tr>
-                                <tr><th>Тип устройства:</th><td>{{ asset.device_type }}</td></tr>
-                                <tr><th>ОС:</th><td>{{ asset.os_family or '-' }} {{ asset.os_version or '' }}</td></tr>
-                                <tr><th>Владелец:</th><td>{{ asset.owner or '-' }}</td></tr>
-                                <tr><th>Локация:</th><td>{{ asset.location or '-' }}</td></tr>
+                                <tr><th width="40%">IP Адрес:</th><td><span class="asset-view-value">{{ asset.ip_address }}</span><input type="text" class="form-control form-control-sm asset-edit-input" name="ip_address" value="{{ asset.ip_address }}" disabled></td></tr>
+                                <tr><th>Hostname:</th><td><span class="asset-view-value">{{ asset.hostname or '-' }}</span><input type="text" class="form-control form-control-sm asset-edit-input" name="hostname" value="{{ asset.hostname or '' }}" disabled></td></tr>
+                                <tr><th>FQDN:</th><td><span class="asset-view-value">{{ asset.fqdn or '-' }}</span><input type="text" class="form-control form-control-sm asset-edit-input" name="fqdn" value="{{ asset.fqdn or '' }}" disabled></td></tr>
+                                <tr><th>Тип устройства:</th><td><span class="asset-view-value">{{ asset.device_type }}</span>
+                                    <select class="form-select form-select-sm asset-edit-input" name="device_type" disabled>
+                                        <option value="unknown" {% if asset.device_type == 'unknown' %}selected{% endif %}>unknown</option>
+                                        <option value="server" {% if asset.device_type == 'server' %}selected{% endif %}>server</option>
+                                        <option value="workstation" {% if asset.device_type == 'workstation' %}selected{% endif %}>workstation</option>
+                                        <option value="network_device" {% if asset.device_type == 'network_device' %}selected{% endif %}>network_device</option>
+                                    </select>
+                                </td></tr>
+                                <tr><th>ОС:</th><td>
+                                    <span class="asset-view-value">{{ asset.os_family or '-' }} {{ asset.os_version or '' }}</span>
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" class="form-control asset-edit-input" name="os_family" value="{{ asset.os_family or '' }}" placeholder="OS Family" disabled>
+                                        <input type="text" class="form-control asset-edit-input" name="os_version" value="{{ asset.os_version or '' }}" placeholder="Version" disabled>
+                                    </div>
+                                </td></tr>
+                                <tr><th>Владелец:</th><td><span class="asset-view-value">{{ asset.owner or '-' }}</span><input type="text" class="form-control form-control-sm asset-edit-input" name="owner" value="{{ asset.owner or '' }}" disabled></td></tr>
+                                <tr><th>Локация:</th><td><span class="asset-view-value">{{ asset.location or '-' }}</span><input type="text" class="form-control form-control-sm asset-edit-input" name="location" value="{{ asset.location or '' }}" disabled></td></tr>
                                 <tr><th>Группы:</th>
                                     <td>
-                                        {% if asset.groups and asset.groups|length > 0 %}
-                                            {% for group in asset.groups %}
-                                                <span class="badge bg-primary">{{ group.name }}</span>
-                                            {% endfor %}
-                                        {% else %}
-                                            <span class="text-muted">Нет групп</span>
-                                        {% endif %}
+                                        <span class="asset-view-value">
+                                            {% if asset.groups and asset.groups|length > 0 %}
+                                                {% for group in asset.groups %}
+                                                    <span class="badge bg-primary">{{ group.name }}</span>
+                                                {% endfor %}
+                                            {% else %}
+                                                <span class="text-muted">Нет групп</span>
+                                            {% endif %}
+                                        </span>
+                                        <select class="form-select form-select-sm asset-edit-input" name="group_id" disabled>
+                                            <option value="">-- Без группы --</option>
+                                            <!-- Группы будут загружены динамически или можно добавить статически -->
+                                        </select>
                                     </td>
                                 </tr>
                             </table>
@@ -258,43 +288,118 @@
         <!-- Вкладка История изменений -->
         <div class="tab-pane fade" id="logs" role="tabpanel">
             <div class="card shadow-sm">
-                <div class="card-header bg-light">Лог активности</div>
+                <div class="card-header bg-light">История изменений актива</div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-sm table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th width="20%">Дата</th>
-                                    <th width="20%">Тип события</th>
-                                    <th>Описание</th>
-                                    <th width="15%">Детали</th>
+                                    <th width="18%">Дата и время</th>
+                                    <th width="15%">Действие</th>
+                                    <th width="15%">Пользователь</th>
+                                    <th>Изменённые поля</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% if asset.activity_logs %}
-                                    {% for log in asset.activity_logs|sort(attribute='created_at', reverse=true) %}
+                                {% if change_logs %}
+                                    {% for log in change_logs %}
                                     <tr>
-                                        <td>{{ log.created_at.strftime('%d.%m.%Y %H:%M') }}</td>
-                                        <td><span class="badge bg-secondary">{{ log.event_type }}</span></td>
-                                        <td>{{ log.description }}</td>
+                                        <td>{{ log.created_at[:16].replace('T', ' ') if log.created_at else '-' }}</td>
                                         <td>
-                                            {% if log.details %}
+                                            {% if log.action == 'update' %}
+                                                <span class="badge bg-warning text-dark">Обновление</span>
+                                            {% elif log.action == 'create' %}
+                                                <span class="badge bg-success">Создание</span>
+                                            {% elif log.action == 'delete' %}
+                                                <span class="badge bg-danger">Удаление</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ log.action }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>{{ log.username or 'Система' }}</td>
+                                        <td>
+                                            {% if log.changed_fields %}
                                                 <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#log-details-{{ log.id }}">
-                                                    <i class="bi bi-chevron-down"></i>
+                                                    <i class="bi bi-chevron-down"></i> Показать изменения
                                                 </button>
-                                                <div class="collapse" id="log-details-{{ log.id }}">
-                                                    <pre class="small bg-light p-2 mt-1 rounded">{{ log.details|tojson(indent=2) }}</pre>
+                                                <div class="collapse mt-2" id="log-details-{{ log.id }}">
+                                                    <pre class="small bg-light p-2 rounded">{{ log.changed_fields|tojson(indent=2) }}</pre>
                                                 </div>
+                                            {% else %}
+                                                <span class="text-muted">Нет данных</span>
                                             {% endif %}
                                         </td>
                                     </tr>
                                     {% endfor %}
                                 {% else %}
-                                    <tr><td colspan="4" class="text-center text-muted">История пуста</td></tr>
+                                    <tr><td colspan="4" class="text-center text-muted py-4">История изменений пуста</td></tr>
                                 {% endif %}
                             </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Вкладка Таксономия -->
+        <div class="tab-pane fade" id="taxonomy" role="tabpanel">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    Таксономия актива
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Основная информация</h6>
+                            <table class="table table-sm">
+                                <tr><th>IP Адрес:</th><td>{{ asset.ip_address }}</td></tr>
+                                <tr><th>Hostname:</th><td>{{ asset.hostname or '-' }}</td></tr>
+                                <tr><th>FQDN:</th><td>{{ asset.fqdn or '-' }}</td></tr>
+                                <tr><th>Тип устройства:</th><td>{{ asset.device_type }}</td></tr>
+                                <tr><th>ОС:</th><td>{{ asset.os_family or '-' }} {{ asset.os_version or '' }}</td></tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Дополнительно</h6>
+                            <table class="table table-sm">
+                                <tr><th>Владелец:</th><td>{{ asset.owner or '-' }}</td></tr>
+                                <tr><th>Локация:</th><td>{{ asset.location or '-' }}</td></tr>
+                                <tr><th>Статус:</th><td><span class="badge bg-{{ 'success' if asset.status == 'active' else 'secondary' }}">{{ asset.status }}</span></td></tr>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    {% if asset.dns_names and (asset.dns_names|length) > 0 %}
+                    <hr>
+                    <h6>Ассоциированные доменные имена</h6>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for name in (asset.dns_names or []) %}
+                            <span class="badge bg-info">{{ name }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    
+                    {% if asset.services and (asset.services|length) > 0 %}
+                    <hr>
+                    <h6>Сервисы ({{ asset.services|length }})</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr><th>Порт</th><th>Протокол</th><th>Сервис</th><th>Версия</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for service in asset.services %}
+                                <tr>
+                                    <td>{{ service.port }}</td>
+                                    <td>{{ service.protocol }}</td>
+                                    <td>{{ service.service_name }}</td>
+                                    <td>{{ service.product }} {{ service.version }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -349,25 +454,16 @@
 </div>
 
 <!-- Подключаем скрипт для страницы детали актива -->
+<script>
+    // Передаем данные актива в JS
+    window.assetData = {{ asset | tojson }};
+</script>
+<script type="module" src="/static/js/asset-detail.js"></script>
 <script type="module">
 import { store } from '/static/js/modules/index.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const assetId = {{ asset.id }};
-    
-    // Кнопка сканирования текущего актива
-    document.getElementById('scanCurrentAssetBtn')?.addEventListener('click', async () => {
-        const target = '{{ asset.ip_address }}';
-        if (!target) {
-            alert('IP адрес актива не указан');
-            return;
-        }
-        
-        // Открываем модальное окно сканирования с предустановленным таргетом
-        const scanModal = new bootstrap.Modal(document.getElementById('scanModal'));
-        document.getElementById('scanTarget').value = target;
-        scanModal.show();
-    });
     
     // Подписка на обновления актива через Store
     store.subscribe((state) => {

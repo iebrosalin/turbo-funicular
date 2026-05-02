@@ -129,6 +129,42 @@ class DigScanner:
             db.add(scan_result)
             logger.info(f"[Dig DEBUG] ScanResult добавлен в сессию БД")
             
+            # Обновляем dns_records для целевого хоста
+            try:
+                # Находим актив по hostname (target)
+                from sqlalchemy import select
+                stmt = select(Asset).where(Asset.hostname == target)
+                result = await db.execute(stmt)
+                asset = result.scalar_one_or_none()
+                
+                if asset:
+                    # Формируем структуру dns_records из parsed_result
+                    rec_type = parsed_result.get('record_type', 'A')
+                    answers = parsed_result.get('answers', [])
+                    
+                    # Получаем текущие dns_records или создаём новый dict
+                    current_dns_records = asset.dns_records or {}
+                    
+                    # Добавляем новые записи по типу
+                    if rec_type not in current_dns_records:
+                        current_dns_records[rec_type] = []
+                    
+                    for answer in answers:
+                        # Проверяем, нет ли уже такой записи
+                        existing_data = [r.get('data') for r in current_dns_records[rec_type]]
+                        if answer.get('data') not in existing_data:
+                            current_dns_records[rec_type].append(answer)
+                    
+                    # Обновляем поле dns_records
+                    asset.dns_records = current_dns_records
+                    asset.last_dns_scan = datetime.now(MOSCOW_TZ)
+                    logger.info(f"[Dig] Обновлено dns_records для актива {asset.id}: {len(answers)} записей типа {rec_type}")
+                    
+            except Exception as e:
+                logger.error(f"[Dig] Ошибка обновления dns_records: {e}")
+                import traceback
+                logger.error(f"[Dig] Трассировка: {traceback.format_exc()}")
+            
             job = await db.get(ScanJob, job_id)
             if job:
                 job.status = 'completed'

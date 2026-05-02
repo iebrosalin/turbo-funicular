@@ -29,10 +29,14 @@
                         <i class="bi bi-speedometer2 me-1"></i>Дашборд
                     </a>
                 </li>
-                <li class="nav-item">
-                    <a href="/scans" class="nav-link {% if request.scope.get('endpoint') and 'scans_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
                         <i class="bi bi-radar me-1"></i>Сканирования
                     </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="/scans"><i class="bi bi-play-circle me-2"></i>Новое сканирование</a></li>
+                        <li><a class="dropdown-item" href="/scan-history"><i class="bi bi-clock-history me-2"></i>История сканирований</a></li>
+                    </ul>
                 </li>
                 <li class="nav-item">
                     <a href="/settings" class="nav-link {% if request.scope.get('endpoint') and 'settings_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
@@ -43,8 +47,23 @@
         </div>
     </nav>
 
-    <!-- PAGE CONTENT -->
-    <div id="content" class="w-100">
+    <!-- SIDEBAR -->
+    <div class="d-flex" id="wrapper">
+        <div class="border-end bg-white" id="sidebar-wrapper" style="min-width: 250px; max-width: 250px; overflow-y: auto;">
+            <div class="sidebar-heading border-bottom bg-light p-3">
+                <i class="bi bi-hdd-network me-2"></i>Активы
+            </div>
+            <div class="list-group list-group-flush" id="sidebar-assets-list">
+                <!-- Список активов будет загружен через JS -->
+                <div class="list-group-item text-muted small">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                    Загрузка...
+                </div>
+            </div>
+        </div>
+
+        <!-- PAGE CONTENT -->
+        <div id="content" class="w-100">
         <!-- Контейнер для уведомлений -->
         <div id="notifications-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1100;"></div>
         
@@ -56,6 +75,7 @@
         <footer class="mt-5 pt-3 border-top text-center text-muted small">
             &copy; 2026 Asset Management System. Version 2.0
         </footer>
+        </div>
     </div>
 </div>
 

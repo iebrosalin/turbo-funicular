@@ -45,6 +45,11 @@ class Base(DeclarativeBase):
     pass
 
 
+# Инициализируем таблицу логов изменений при старте
+from backend.db.base import init_change_log_table
+init_change_log_table()
+
+
 async def get_db():
     """Dependency для получения сессии БД."""
     async with async_session_maker() as session:
