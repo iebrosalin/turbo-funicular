@@ -113,7 +113,18 @@ class AssetService:
             selectinload(Asset.services)
         ).where(Asset.id == asset_id)
         result = await self.db.execute(query)
-        return result.scalar_one_or_none()
+        asset = result.scalar_one_or_none()
+        
+        # Явно загружаем JSON поля если они есть (на случай ленивой загрузки)
+        if asset:
+            # Доступ к JSON полям для триггеринга загрузки
+            _ = asset.dns_names
+            _ = asset.dns_records
+            _ = asset.open_ports
+            _ = asset.rustscan_ports
+            _ = asset.nmap_ports
+            
+        return asset
     
     async def create(self, asset_data: AssetCreate) -> Asset:
         """Создать новый актив."""
