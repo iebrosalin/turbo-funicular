@@ -162,7 +162,10 @@ export class ScanManager {
 
       Utils.showNotification('DNS сканирование запущено', 'success');
       form.reset();
-      this.loadJobs();
+      // Обновляем историю через глобальный контроллер если доступен
+      if (typeof window.scanResultsController !== 'undefined') {
+        window.scanResultsController.loadHistory();
+      }
     } catch (error) {
       console.error('[ScanResultsController] Dig scan error:', error);
       Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
