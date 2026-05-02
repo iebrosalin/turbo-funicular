@@ -14,6 +14,27 @@ router = APIRouter(tags=["groups"])
 groups_router = router  # Алиас для совместимости импортов
 
 
+@router.get("/list", response_model=List[GroupResponse])
+async def get_groups_list(db: AsyncSession = Depends(get_db)):
+    """Получить плоский список всех групп (для форм)."""
+    from sqlalchemy.orm import selectinload
+    
+    # Загружаем группы с предзагрузкой parent связи
+    query = select(AssetGroup).options(selectinload(AssetGroup.parent))
+    result = await db.execute(query)
+    groups = list(result.scalars().all())
+    
+    # Подсчёт активов для каждой группы через many-to-many связь
+    for group in groups:
+        count_query = select(func.count(asset_groups.c.asset_id)).where(
+            asset_groups.c.group_id == group.id
+        )
+        count_result = await db.execute(count_query)
+        group.assets_count = count_result.scalar() or 0
+    
+    return groups
+
+
 @router.get("", response_model=List[GroupResponse])
 async def get_groups(
     db: AsyncSession = Depends(get_db),
