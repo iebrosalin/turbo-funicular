@@ -429,9 +429,34 @@ export class ScanManager {
     if (bar) bar.style.width = `${jobData.progress}%`;
     if (txt) txt.textContent = `${jobData.progress}%`;
 
-    // Логгируем только важные изменения статуса
-    if (jobData.status === 'completed' || jobData.status === 'failed') {
+    // Если сканирование завершено успешно и активы сохранены - обновляем данные
+    if (jobData.status === 'completed' && jobData.assets_saved) {
+      this.#refreshAllData();
+    }
+  }
+
+  /**
+   * Принудительное обновление всех данных на странице
+   */
+  async #refreshAllData() {
+    try {
+      // Обновляем активы в Store
+      const assets = await Utils.apiRequest('/api/assets');
+      store.setState('assets', assets);
       
+      // Обновляем дерево групп
+      if (typeof window.treeManager !== 'undefined') {
+        await window.treeManager.refresh();
+      }
+      
+      // Обновляем дашборд если он есть
+      if (typeof window.dashboardController !== 'undefined') {
+        window.dashboardController.applyFilters();
+      }
+      
+      console.log('Данные обновлены после сканирования');
+    } catch (error) {
+      console.error('Ошибка обновления данных после сканирования:', error);
     }
   }
 

@@ -389,6 +389,13 @@ export class TreeManager {
       return;
     }
 
+    // Обновляем данные в Store для синхронизации с dashboard-page.js
+    try {
+      const assets = await Utils.apiRequest('/api/assets');
+      store.setState('assets', assets);
+    } catch (error) {
+      console.error('[TreeManager] Failed to update store:', error);
+    }
     
     tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Загрузка...</p></td></tr>';
 
@@ -417,6 +424,9 @@ export class TreeManager {
       const data = response;
       const assets = Array.isArray(data) ? data : (data.assets || []);
 
+      // Обновляем Store для синхронизации с dashboard-page.js
+      store.setState('assets', assets);
+
       tbody.innerHTML = '';
 
       if (assets.length === 0) {
@@ -432,6 +442,12 @@ export class TreeManager {
 
       store.setCurrentAssets(assets);
       
+      // Если есть dashboardController, обновляем и его данные
+      if (typeof window.dashboardController !== 'undefined') {
+        window.dashboardController.allAssets = assets;
+        window.dashboardController.applyFilters();
+      }
+
 
     } catch (error) {
       console.error('[TreeManager] Ошибка загрузки активов:', error);
