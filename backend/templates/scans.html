@@ -96,7 +96,7 @@
             <div class="tab-content bg-light p-4 border rounded-bottom mb-5" id="scanTypeTabContent">
                 <!-- Nmap Form -->
                 <div class="tab-pane fade show active" id="nmap-pane" role="tabpanel">
-                    <form id="nmapScanForm" class="row g-3" onsubmit="return handleScanSubmit(event, 'nmap')">
+                    <form id="nmap-form" class="row g-3">
                         <div class="col-md-8">
                             <label for="nmapTarget" class="form-label">Цель (IP, диапазон, хост)</label>
                             <input type="text" class="form-control" id="nmapTarget" required placeholder="192.168.1.0/24 или example.com">
@@ -156,7 +156,7 @@
 
                 <!-- Rustscan Form -->
                 <div class="tab-pane fade" id="rustscan-pane" role="tabpanel">
-                    <form id="rustscanScanForm" class="row g-3" onsubmit="return handleScanSubmit(event, 'rustscan')">
+                    <form id="rustscan-form" class="row g-3">
                         <div class="col-md-8">
                             <label for="rustscanTarget" class="form-label">Цель (IP или диапазон)</label>
                             <input type="text" class="form-control" id="rustscanTarget" required placeholder="192.168.1.1">
@@ -198,7 +198,7 @@
 
                 <!-- Dig Form -->
                 <div class="tab-pane fade" id="dig-pane" role="tabpanel">
-                    <form id="digScanForm" class="row g-3" onsubmit="return handleScanSubmit(event, 'dig')">
+                    <form id="dig-form" class="row g-3">
                         <div class="col-md-6">
                             <label for="digDomain" class="form-label">Домен</label>
                             <input type="text" class="form-control" id="digDomain" required placeholder="example.com">
@@ -314,193 +314,8 @@
     </div>
 </div>
 
-<script>
-// Функция для переключения видимости поля custom args для Nmap
-function toggleNmapCustomArgs() {
-    const profile = document.getElementById('nmapProfile').value;
-    const customArgsContainer = document.getElementById('nmapCustomArgsContainer');
-    if (profile === 'custom') {
-        customArgsContainer.classList.remove('d-none');
-    } else {
-        customArgsContainer.classList.add('d-none');
-    }
-}
-
-// Функция для переключения видимости поля портов для Rustscan
-function toggleRustscanPorts() {
-    const topPorts = document.getElementById('rustscanTopPorts').value;
-    const portsContainer = document.getElementById('rustscanPortsContainer');
-    if (topPorts === 'custom') {
-        portsContainer.classList.remove('d-none');
-    } else {
-        portsContainer.classList.add('d-none');
-    }
-}
-
-// SPA обработчик отправки форм сканирования
-async function handleScanSubmit(event, scanType) {
-    event.preventDefault();
-    
-    let target, profile, saveAssets, submitBtnId;
-    
-    if (scanType === 'nmap') {
-        target = document.getElementById('nmapTarget').value;
-        profile = document.getElementById('nmapProfile').value;
-        saveAssets = document.getElementById('nmapSaveAssets').checked;
-        submitBtnId = 'nmapSubmitBtn';
-    } else if (scanType === 'rustscan') {
-        target = document.getElementById('rustscanTarget').value;
-        profile = document.getElementById('rustscanTopPorts').value;
-        saveAssets = document.getElementById('rustscanSaveAssets').checked;
-        submitBtnId = 'rustscanSubmitBtn';
-    } else if (scanType === 'dig') {
-        target = document.getElementById('digDomain').value;
-        profile = document.getElementById('digType').value;
-        saveAssets = document.getElementById('digSaveAssets').checked;
-        submitBtnId = 'digSubmitBtn';
-    }
-    
-    const submitBtn = document.getElementById(submitBtnId);
-    const originalBtnText = submitBtn.innerHTML;
-    
-    // Блокируем кнопку
-    submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Запуск...';
-    
-    try {
-        // Реальный запрос к API
-        let endpoint, requestData;
-        
-        if (scanType === 'nmap') {
-            endpoint = '/api/scans/nmap';
-            requestData = {
-                target: target,
-                ports: null,
-                scripts: null,
-                custom_args: null,
-                known_ports_only: false,
-                save_assets: saveAssets,
-                group_ids: null
-            };
-        } else if (scanType === 'rustscan') {
-            endpoint = '/api/scans/rustscan';
-            requestData = {
-                target: target,
-                ports: null,
-                custom_args: null,
-                run_nmap_after: false,
-                nmap_args: null,
-                save_assets: saveAssets,
-                group_ids: null
-            };
-        } else if (scanType === 'dig') {
-            endpoint = '/api/scans/dig';
-            requestData = {
-                target: target,
-                args: null,
-                dns_server: null,
-                cli_args: null,
-                record_types: profile,
-                save_assets: saveAssets,
-                group_ids: null
-            };
-        }
-        
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(requestData)
-        });
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || 'Ошибка запуска сканирования');
-        }
-        
-        const data = await response.json();
-        console.log(`Запущено сканирование: ${scanType}, цель: ${target}, job_id: ${data.job_id}`);
-        
-        // Обновляем список активных задач в сайдбаре
-        updateActiveTasks(scanType, target);
-        
-        // Очищаем форму
-        event.target.reset();
-        
-        // Обновляем историю и очереди через контроллер
-        if (window.scanResultsController) {
-            window.scanResultsController.loadHistory();
-            window.scanResultsController.updateQueueStatus();
-        }
-        
-    } catch (error) {
-        console.error('Ошибка запуска сканирования:', error);
-        alert('Ошибка запуска сканирования: ' + error.message);
-    } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalBtnText;
-    }
-    
-    return false;
-}
-
-// Обновление списка активных задач в сайдбаре
-function updateActiveTasks(type, target) {
-    const list = document.getElementById('sidebar-tasks-container');
-    if (!list) return;
-    
-    const statusLabels = {
-        'nmap': 'Nmap',
-        'rustscan': 'Rustscan',
-        'dig': 'Dig'
-    };
-    
-    const newItem = document.createElement('div');
-    newItem.className = 'scan-list-item d-flex justify-content-between align-items-center p-2 border-bottom';
-    newItem.innerHTML = `
-        <div class="text-truncate" style="max-width: 140px;">
-            <span class="badge bg-warning me-2">Running</span>
-            ${statusLabels[type]}: ${target}
-        </div>
-    `;
-    
-    // Добавляем заголовок секции если его нет
-    if (!list.querySelector('.sidebar-section-title')) {
-        const title = document.createElement('div');
-        title.className = 'sidebar-section-title mt-3 mb-2';
-        title.textContent = 'Активные сканирования';
-        list.insertBefore(title, list.firstChild);
-    }
-    
-    list.appendChild(newItem);
-}
-
-// Добавляем обработчик для Rustscan при загрузке страницы
-document.addEventListener('DOMContentLoaded', function() {
-    const rustscanTopPorts = document.getElementById('rustscanTopPorts');
-    if (rustscanTopPorts) {
-        rustscanTopPorts.addEventListener('change', toggleRustscanPorts);
-    }
-});
-</script>
 {% endblock %}
 
 {% block extra_js %}
-<script type="module">
-    import { treeManager } from '/static/js/modules/tree.js';
-    import { ScanResultsController } from '/static/js/scans-page.js';
-
-    console.log('[DEBUG scans.html] Страница сканирований загружена, инициализируем дерево...');
-    
-    // Явная инициализация дерева групп для страницы сканирований
-    const container = document.getElementById('sidebar-content');
-    if (container) {
-        console.log('[DEBUG scans.html] Контейнер #sidebar-content найден, запускаем refresh...');
-        treeManager.refresh().catch(err => console.error('Ошибка обновления дерева:', err));
-    } else {
-        console.error('[DEBUG scans.html] Контейнер #sidebar-content НЕ найден!');
-    }
-    
-    // Инициализация контроллера сканирований
-    window.scanResultsController = new ScanResultsController();
-</script>
+<script type="module" src="/static/js/scans-page.js"></script>
 {% endblock %}
