@@ -37,10 +37,25 @@ export class ScanResultsController {
 
   async #loadGroupsForForms() {
     try {
-      const response = await fetch('/api/groups/tree');
+      const response = await fetch('/api/groups/list');
       if (!response.ok) return;
-      const groups = await response.json();
+      const data = await response.json();
       
+      // Обработка ответа: может быть массив или объект с полем flat/tree
+      let groups = [];
+      if (Array.isArray(data)) {
+        groups = data;
+      } else if (data && Array.isArray(data.flat)) {
+        groups = data.flat;
+      } else if (data && Array.isArray(data.tree)) {
+        groups = data.tree;
+      }
+      
+      if (!Array.isArray(groups)) {
+        console.warn('Группы не являются массивом:', data);
+        return;
+      }
+
       const nmapSelect = document.getElementById('nmapGroups');
       const rustscanSelect = document.getElementById('rustscanGroups');
       
