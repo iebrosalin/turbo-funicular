@@ -102,6 +102,111 @@ export class ScanResultsController {
     }
   }
 
+  /**
+   * Загрузка истории сканирований
+   */
+  async loadHistory() {
+    try {
+      const response = await fetch('/api/scans/history');
+      if (!response.ok) return;
+      const jobs = await response.json();
+      
+      const tbody = document.getElementById('scansHistoryBody');
+      if (!tbody) return;
+      
+      tbody.innerHTML = '';
+      
+      if (!jobs || jobs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">История пуста</td></tr>';
+        return;
+      }
+      
+      jobs.forEach(job => {
+        const tr = document.createElement('tr');
+        let statusClass = 'bg-secondary';
+        if (job.status === 'completed') statusClass = 'bg-success';
+        if (job.status === 'running') statusClass = 'bg-warning';
+        if (job.status === 'failed') statusClass = 'bg-danger';
+        
+        const duration = job.completed_at && job.started_at 
+          ? Math.round((new Date(job.completed_at) - new Date(job.started_at)) / 1000) + ' сек'
+          : '-';
+        
+        tr.innerHTML = `
+          <td>${job.id}</td>
+          <td><span class="badge bg-info">${job.scan_type}</span></td>
+          <td>${job.target || '-'}</td>
+          <td><span class="badge ${statusClass}">${job.status}</span></td>
+          <td>${duration}</td>
+          <td>${job.completed_at ? new Date(job.completed_at).toLocaleString('ru-RU') : '-'}</td>
+          <td>
+            <button class="btn btn-sm btn-outline-primary" onclick="window.scanResultsController.viewScanResults(${job.id})">
+              <i class="bi bi-eye"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } catch (e) {
+      console.error('Load history error:', e);
+    }
+  }
+
+  /**
+   * Обновление статуса очередей сканирований
+   */
+  async updateQueueStatus() {
+    try {
+      const response = await fetch('/api/scans/status');
+      if (!response.ok) return;
+      const data = await response.json();
+      
+      // Очередь Nmap/Rustscan
+      const nmapQ = data?.queues?.nmap_rustscan;
+      if (nmapQ) {
+        const elCount = document.getElementById('nmap-queue-count');
+        const elCurrent = document.getElementById('nmap-current-job');
+        const elStatus = document.getElementById('nmap-queue-status');
+        const elList = document.getElementById('nmap-queue-list');
+        
+        if (elCount) elCount.textContent = nmapQ.queue_length;
+        if (elCurrent) elCurrent.textContent = nmapQ.current_job_id ? `#${nmapQ.current_job_id}` : 'Нет';
+        if (elStatus) elStatus.textContent = nmapQ.is_running ? 'Выполняется' : 'Ожидание';
+        
+        let html = '';
+        if (Array.isArray(nmapQ.queued_jobs)) {
+          nmapQ.queued_jobs.forEach(job => { 
+            html += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`; 
+          });
+        }
+        if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
+      }
+
+      // Очередь Utilities (Dig и другие)
+      const utilQ = data?.queues?.utilities;
+      if (utilQ) {
+        const elCount = document.getElementById('utility-queue-count');
+        const elCurrent = document.getElementById('utility-current-job');
+        const elStatus = document.getElementById('utility-queue-status');
+        const elList = document.getElementById('utility-queue-list');
+
+        if (elCount) elCount.textContent = utilQ.queue_length;
+        if (elCurrent) elCurrent.textContent = utilQ.current_job_id ? `#${utilQ.current_job_id}` : 'Нет';
+        if (elStatus) elStatus.textContent = utilQ.is_running ? 'Выполняется' : 'Ожидание';
+        
+        let html = '';
+        if (Array.isArray(utilQ.queued_jobs)) {
+          utilQ.queued_jobs.forEach(job => { 
+            html += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`; 
+          });
+        }
+        if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
+      }
+    } catch (e) {
+      console.error('Update queue status error:', e);
+    }
+  }
+
   #setupEventListeners() {
     
     
