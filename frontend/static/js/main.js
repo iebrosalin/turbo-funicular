@@ -122,12 +122,13 @@ class App {
 
   async #loadInitialData() {
     try {
-      // Проверяем наличие контейнера дерева перед обновлением
-      const treeContainer = document.getElementById('group-tree-root');
+      // Загружаем данные дерева и сразу рендерим их
+      const treeContainer = document.getElementById('sidebar-content');
       if (treeContainer) {
+        // Загружаем данные и рендерим дерево
         await treeManager.refresh();
       } else {
-        console.log('Дерево групп не найдено на странице, пропускаем refresh');
+        console.log('Контейнер сайдбара не найден, пропускаем инициализацию дерева');
       }
       
       // SSE подключение уже установлено в конструкторе ScanManager
