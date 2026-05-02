@@ -381,6 +381,9 @@ document.addEventListener('DOMContentLoaded', function() {
 {% block extra_js %}
 <script type="module">
 import { scanManager } from '/static/js/modules/scans.js';
+import { treeManager } from '/static/js/modules/tree.js';
 // Менеджер сканирований инициализируется автоматически при импорте
+// Дерево групп будет загружено через main.js или можно вызвать явно:
+// await treeManager.refresh();
 </script>
 {% endblock %}
