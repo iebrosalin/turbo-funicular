@@ -383,27 +383,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
 {% block extra_js %}
 <script type="module">
-import { treeManager } from '/static/js/modules/tree.js';
-
-console.log('[DEBUG scans.html] extra_js выполнен');
-console.log('[DEBUG scans.html] Контейнер #sidebar-content существует:', !!document.getElementById('sidebar-content'));
-
-// Явно вызываем refresh для дерева групп после загрузки страницы
-// Используем setTimeout чтобы убедиться что DOM полностью загружен
-setTimeout(async () => {
-    console.log('[DEBUG scans.html] Вызов treeManager.refresh()...');
-    const container = document.getElementById('sidebar-content');
-    if (container) {
-        console.log('[DEBUG scans.html] Контейнер найден, вызываем refresh');
-        try {
-            await treeManager.refresh();
-            console.log('[DEBUG scans.html] treeManager.refresh() завершен успешно');
-        } catch (error) {
-            console.error('[DEBUG scans.html] Ошибка при refresh:', error);
-        }
-    } else {
-        console.warn('[DEBUG scans.html] Контейнер не найден, пропускаем refresh');
-    }
-}, 100);
+// Инициализация дерева групп происходит в main.js автоматически
+// Этот блок нужен только для отладки если необходимо
+console.log('[DEBUG scans.html] Страница сканирований загружена');
 </script>
 {% endblock %}
