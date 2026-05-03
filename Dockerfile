@@ -39,23 +39,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Установка rustscan
-# Используем бинарный файл из zip архива (официальный формат релиза)
 RUN ARCH=$(uname -m) && \
     echo "Detected architecture: $ARCH" && \
     if [ "$ARCH" = "x86_64" ]; then \
         echo "Downloading RustScan for x86_64..." && \
-        wget -q -O rustscan.zip https://github.com/RustScan/RustScan/releases/download/2.4.1/x86_64-linux-rustscan.tar.gz.zip && \
-        unzip -j rustscan.zip '*/rustscan' && \
+        wget -q -O rustscan.tar.gz https://github.com/RustScan/RustScan/releases/download/2.4.1/x86_64-linux-rustscan.tar.gz && \
+        tar -xzf rustscan.tar.gz && \
         chmod +x rustscan && \
         mv rustscan /usr/local/bin/ && \
-        rm -f rustscan.zip; \
+        rm -f rustscan.tar.gz; \
     elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
         echo "Downloading RustScan for aarch64..." && \
-        wget -q -O rustscan.zip https://github.com/RustScan/RustScan/releases/download/2.4.1/aarch64-linux-rustscan.zip && \
-        unzip -j rustscan.zip '*/rustscan' && \
+        wget -q -O rustscan.tar.gz https://github.com/RustScan/RustScan/releases/download/2.4.1/aarch64-linux-rustscan.tar.gz && \
+        tar -xzf rustscan.tar.gz && \
         chmod +x rustscan && \
         mv rustscan /usr/local/bin/ && \
-        rm -f rustscan.zip; \
+        rm -f rustscan.tar.gz; \
     else \
         echo "Unsupported architecture: $ARCH" && exit 1; \
     fi && \
