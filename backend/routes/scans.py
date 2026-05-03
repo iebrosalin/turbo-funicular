@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks, UploadFile, File, Body, Request, Form
-from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
+from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse, FileResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -7,14 +8,17 @@ from typing import List, Optional, Dict, AsyncGenerator
 import asyncio
 import json
 import logging
+import os
 from backend.db.session import get_db, async_session_maker
 from backend.services.scan_service import ScanService
-from backend.schemas.scan import ScanCreate, ScanUpdate, ScanResponse
-from backend.models.scan import ScanJob
+from backend.schemas.scan import ScanCreate, ScanUpdate, ScanResponse, ScanResultItem
+from backend.models.scan import ScanJob, Scan, ScanResult
 from datetime import datetime, timezone
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
+
+templates = Jinja2Templates(directory="backend/templates")
 
 # Middleware для логирования всех входящих запросов к сканированиям
 async def log_scan_request(request: Request, call_next):
@@ -38,7 +42,7 @@ scans_router = router  # Алиас для совместимости импор
 class NmapScanRequest(BaseModel):
     target: str
     ports: Optional[str] = None
-    scripts: Optional[str] = None
+    scripts: Optional[str] = ""  # По умолчанию пустая строка, а не None
     custom_args: Optional[str] = None
     known_ports_only: bool = False
     save_assets: bool = True
@@ -74,6 +78,55 @@ class XmlImportRequest(BaseModel):
 # ==========================================
 # Специфичные маршруты (должны быть перед параметризированными!)
 # ==========================================
+
+@router.get("/utilities-check")
+async def utilities_check_page(request: Request):
+    """Страница проверки установки утилит."""
+    return templates.TemplateResponse("utilities_check.html", {"request": request})
+
+
+@router.get("/check-utilities")
+async def check_utilities():
+    """Проверить установку утилит и вернуть статус."""
+    import shutil
+    import subprocess
+    
+    utilities = {
+        "nmap": {"installed": False, "version": None, "path": None},
+        "rustscan": {"installed": False, "version": None, "path": None},
+        "dig": {"installed": False, "version": None, "path": None},
+        "masscan": {"installed": False, "version": None, "path": None},
+    }
+    
+    for util in utilities.keys():
+        path = shutil.which(util)
+        if path:
+            utilities[util]["installed"] = True
+            utilities[util]["path"] = path
+            try:
+                # Получаем версию утилиты
+                if util == "rustscan":
+                    result = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=5)
+                else:
+                    result = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=5)
+                
+                if result.returncode == 0:
+                    # Извлекаем первую строку с версией
+                    version_line = result.stdout.strip().split('\n')[0]
+                    utilities[util]["version"] = version_line
+                else:
+                    utilities[util]["version"] = "Не удалось получить версию"
+            except subprocess.TimeoutExpired:
+                utilities[util]["version"] = "Таймаут при получении версии"
+            except Exception as e:
+                utilities[util]["version"] = f"Ошибка: {str(e)}"
+        else:
+            utilities[util]["installed"] = False
+            utilities[util]["path"] = None
+            utilities[util]["version"] = "Не установлено"
+    
+    return utilities
+
 
 @router.get("/status")
 async def get_scans_status(db: AsyncSession = Depends(get_db)):
@@ -213,20 +266,74 @@ async def scan_events(request: Request):
     )
 
 
-@router.get("/active", response_model=List[ScanResponse])
+@router.get("/active")
 async def get_active_scans(db: AsyncSession = Depends(get_db)):
-    """Получить активные сканирования."""
+    """Получить активные сканирования с выводом утилит."""
     service = ScanService(db)
     scans = await service.get_active()
-    return scans
+    
+    result = []
+    for scan in scans:
+        # Собираем raw_output из всех результатов сканирования
+        raw_output_parts = []
+        if scan.results:
+            for res in scan.results:
+                if res.raw_output:
+                    raw_output_parts.append(f"# Host: {res.ip_address}\n{res.raw_output}")
+        
+        scan_data = {
+            "id": scan.id,
+            "uuid": scan.uuid,
+            "name": scan.name,
+            "target": scan.target,
+            "scan_type": scan.scan_type,
+            "status": scan.status,
+            "progress": scan.progress,
+            "result": scan.result,
+            "raw_output": "\n\n".join(raw_output_parts) if raw_output_parts else None,
+            "started_at": scan.started_at.isoformat() if scan.started_at else None,
+            "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
+            "created_at": scan.created_at.isoformat() if scan.created_at else None,
+            "error_message": scan.error_message,
+        }
+        result.append(scan_data)
+    
+    return result
 
 
-@router.get("/history", response_model=List[ScanResponse])
+@router.get("/history")
 async def get_scan_history(db: AsyncSession = Depends(get_db)):
-    """Получить историю сканирований (алиас для корня)."""
+    """Получить историю сканирований с выводом утилит (алиас для корня)."""
     service = ScanService(db)
     scans = await service.get_all()
-    return scans
+    
+    result = []
+    for scan in scans:
+        # Собираем raw_output из всех результатов сканирования
+        raw_output_parts = []
+        if scan.results:
+            for res in scan.results:
+                if res.raw_output:
+                    raw_output_parts.append(f"# Host: {res.ip_address}\n{res.raw_output}")
+        
+        scan_data = {
+            "id": scan.id,
+            "uuid": scan.uuid,
+            "name": scan.name,
+            "target": scan.target,
+            "scan_type": scan.scan_type,
+            "status": scan.status,
+            "progress": scan.progress,
+            "result": scan.result,
+            "raw_output": "\n\n".join(raw_output_parts) if raw_output_parts else None,
+            "started_at": scan.started_at.isoformat() if scan.started_at else None,
+            "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
+            "created_at": scan.created_at.isoformat() if scan.created_at else None,
+            "error_message": scan.error_message,
+        }
+        result.append(scan_data)
+    
+    return result
 
 
 # ==========================================
@@ -298,9 +405,9 @@ async def run_nmap_scan(
     logger = logging.getLogger(__name__)
     
     target = request_data.target
-    ports = request_data.ports
-    scripts = request_data.scripts
-    custom_args = request_data.custom_args
+    ports = request_data.ports or ""
+    scripts = request_data.scripts or ""
+    custom_args = request_data.custom_args or ""
     known_ports_only = request_data.known_ports_only
     save_assets = request_data.save_assets
     group_ids = request_data.group_ids

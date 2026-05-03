@@ -37,6 +37,7 @@ class RustscanScanner:
         output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
         os.makedirs(output_dir, exist_ok=True)
         base_name = os.path.join(output_dir, 'rustscan')
+        raw_output_file = os.path.join(output_dir, 'rustscan.txt')
         
         try:
             job = await db.get(ScanJob, job_id)
@@ -58,15 +59,19 @@ class RustscanScanner:
             
             logger.info(f"[RustscanScanner] Запущен процесс Rustscan для задачи {job_id}, PID: {process.pid}")
             
+            # Собираем вывод и одновременно записываем в файл
             output_lines = []
-            while True:
-                line = await process.stdout.readline()
-                if not line:
-                    break
-                line_decoded = line.decode('utf-8', errors='ignore').strip()
-                if line_decoded:
-                    logger.debug(f"[Rustscan] {line_decoded}")
-                output_lines.append(line_decoded)
+            with open(raw_output_file, 'w', encoding='utf-8') as f:
+                while True:
+                    line = await process.stdout.readline()
+                    if not line:
+                        break
+                    line_decoded = line.decode('utf-8', errors='ignore').strip()
+                    if line_decoded:
+                        logger.debug(f"[Rustscan] {line_decoded}")
+                        f.write(line_decoded + '\n')
+                        f.flush()  # Гарантируем запись на диск
+                    output_lines.append(line_decoded)
             
             await process.wait()
             
@@ -115,6 +120,7 @@ class RustscanScanner:
                         "ports": {ip: ports for ip, ports in found_ports.items()}
                     },
                     "raw_output": '\n'.join(output_lines),
+                    "output_file": raw_output_file,
                     "nmap_result": nmap_results
                 }
             
@@ -122,7 +128,7 @@ class RustscanScanner:
             for ip, ports in found_ports.items():
                 scan_result = ScanResult(
                     scan_job_id=job_id,
-                    asset_ip=ip,
+                    ip_address=ip,
                     ports=ports,
                     raw_output='\n'.join(output_lines),
                     scanned_at=datetime.now(MOSCOW_TZ)
@@ -145,7 +151,8 @@ class RustscanScanner:
                     "hostname": target,
                     "ports": found_ports if found_ports else {}
                 },
-                "raw_output": '\n'.join(output_lines)
+                "raw_output": '\n'.join(output_lines),
+                "output_file": raw_output_file
             }
             
         except asyncio.CancelledError:

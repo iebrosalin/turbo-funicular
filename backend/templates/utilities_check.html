@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}Проверка утилит{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i class="bi bi-tools me-2"></i>Проверка установки утилит</h2>
+            <p class="text-muted">Страница проверки наличия и версии установленных утилит сканирования</p>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-12">
+            <button id="checkBtn" class="btn btn-primary">
+                <i class="bi bi-arrow-repeat me-2"></i>Проверить утилиты
+            </button>
+        </div>
+    </div>
+
+    <div class="row" id="loading" style="display: none;">
+        <div class="col-12 text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+            <p class="mt-2">Проверка утилит...</p>
+        </div>
+    </div>
+
+    <div class="row" id="utilitiesGrid">
+        <!-- Карточки утилит будут загружены здесь -->
+    </div>
+
+    <div class="row mt-4" id="recommendations" style="display: none;">
+        <div class="col-12">
+            <div class="card border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Рекомендации
+                </div>
+                <div class="card-body" id="recommendationsBody">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    async function checkUtilities() {
+        document.getElementById('loading').style.display = 'flex';
+        document.getElementById('utilitiesGrid').innerHTML = '';
+        document.getElementById('recommendations').style.display = 'none';
+        
+        try {
+            const response = await fetch('/api/scans/check-utilities');
+            const data = await response.json();
+            
+            renderUtilities(data);
+            showRecommendations(data);
+        } catch (error) {
+            document.getElementById('utilitiesGrid').innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Ошибка при проверке утилит: ${error.message}
+                    </div>
+                </div>
+            `;
+        } finally {
+            document.getElementById('loading').style.display = 'none';
+        }
+    }
+
+    function renderUtilities(utilities) {
+        const grid = document.getElementById('utilitiesGrid');
+        let html = '';
+        
+        for (const [name, info] of Object.entries(utilities)) {
+            const isInstalled = info.installed;
+            const cardClass = isInstalled ? 'border-success' : 'border-danger';
+            const iconClass = isInstalled ? 'text-success' : 'text-danger';
+            const iconName = isInstalled ? 'check-circle-fill' : 'x-circle-fill';
+            const statusText = isInstalled ? 'Установлено' : 'Не установлено';
+            
+            html += `
+                <div class="col-md-6 col-lg-3 mb-4">
+                    <div class="card h-100 ${cardClass}">
+                        <div class="card-body text-center">
+                            <i class="bi bi-${getUtilityIcon(name)} display-4 ${iconClass} mb-3"></i>
+                            <h5 class="card-title text-capitalize">${name}</h5>
+                            <p class="card-text">
+                                <span class="badge ${isInstalled ? 'bg-success' : 'bg-danger'}">
+                                    <i class="bi bi-${iconName} me-1"></i>${statusText}
+                                </span>
+                            </p>
+                            ${info.path ? `
+                                <p class="small text-muted mb-1">
+                                    <i class="bi bi-folder me-1"></i>${info.path}
+                                </p>
+                            ` : ''}
+                            ${info.version ? `
+                                <p class="small text-muted mb-0">
+                                    <i class="bi bi-tag me-1"></i>${escapeHtml(info.version)}
+                                </p>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        grid.innerHTML = html;
+    }
+
+    function getUtilityIcon(name) {
+        const icons = {
+            'nmap': 'radar',
+            'rustscan': 'lightning-charge',
+            'dig': 'globe',
+            'masscan': 'broadcast'
+        };
+        return icons[name] || 'tools';
+    }
+
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    function showRecommendations(utilities) {
+        const missing = Object.entries(utilities)
+            .filter(([_, info]) => !info.installed)
+            .map(([name, _]) => name);
+        
+        if (missing.length === 0) {
+            return;
+        }
+        
+        const recommendationsBody = document.getElementById('recommendationsBody');
+        let html = '<ul class="mb-0">';
+        
+        for (const util of missing) {
+            let installCommand = '';
+            let docsUrl = '';
+            
+            switch(util) {
+                case 'nmap':
+                    installCommand = 'apt-get install nmap или yum install nmap';
+                    docsUrl = 'https://nmap.org/download.html';
+                    break;
+                case 'rustscan':
+                    installCommand = 'cargo install rustscan или скачать с GitHub';
+                    docsUrl = 'https://github.com/RustScan/RustScan';
+                    break;
+                case 'dig':
+                    installCommand = 'apt-get install dnsutils или yum install bind-utils';
+                    docsUrl = 'https://www.isc.org/bind/';
+                    break;
+                case 'masscan':
+                    installCommand = 'apt-get install masscan или yum install masscan';
+                    docsUrl = 'https://github.com/robertdavidgraham/masscan';
+                    break;
+            }
+            
+            html += `
+                <li class="mb-2">
+                    <strong>${util}:</strong> 
+                    <code>${installCommand}</code>
+                    <br>
+                    <a href="${docsUrl}" target="_blank" class="small">
+                        <i class="bi bi-box-arrow-up-right me-1"></i>Документация
+                    </a>
+                </li>
+            `;
+        }
+        
+        html += '</ul>';
+        recommendationsBody.innerHTML = html;
+        document.getElementById('recommendations').style.display = 'block';
+    }
+
+    // Инициализация
+    document.addEventListener('DOMContentLoaded', () => {
+        document.getElementById('checkBtn').addEventListener('click', checkUtilities);
+        checkUtilities();
+    });
+</script>
+{% endblock %}

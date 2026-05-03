@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -10,6 +10,21 @@ class ScanStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+
+
+class ScanResultItem(BaseModel):
+    """Схема результата сканирования по хосту."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    ip_address: str
+    status: str
+    ports: Optional[List[Any]] = None
+    services: Optional[Dict[str, Any]] = None
+    hostname: Optional[str] = None
+    os_info: Optional[str] = None
+    raw_output: Optional[str] = None
+    scanned_at: Optional[datetime] = None
 
 
 class ScanBase(BaseModel):
@@ -43,6 +58,7 @@ class ScanResponse(ScanBase):
     status: str
     progress: int
     result: Optional[str] = None
+    raw_output: Optional[str] = None  # Вывод утилиты
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     created_at: datetime
