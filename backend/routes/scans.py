@@ -1065,6 +1065,25 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
         raise HTTPException(status_code=404, detail="Результаты сканирования не найдены")
     
     # Форматируем результат в зависимости от запрошенного формата
+    if format in ["raw", "json", "csv", "xml", "gnmap", "normal"]:
+        # Проверяем наличие файла результата на диске
+        output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
+        file_mapping = {
+            "xml": f"{output_dir}/nmap.xml",
+            "gnmap": f"{output_dir}/nmap.gnmap",
+            "normal": f"{output_dir}/nmap.nmap",
+            "raw": None,  # Обработано отдельно
+            "json": None,  # Обработано отдельно
+            "csv": None   # Обработано отдельно
+        }
+        
+        if format in ["xml", "gnmap", "normal"] and os.path.exists(file_mapping[format]):
+            return FileResponse(
+                path=file_mapping[format],
+                media_type="application/octet-stream",
+                filename=f"scan_{job_id}.{format}"
+            )
+    
     if format == "raw":
         # Сырой вывод всех результатов
         raw_output = ""

@@ -288,8 +288,10 @@ class DigScanner:
 
             # Для записей A и AAAA - извлекаем IP напрямую
             if rec_type in ['A', 'AAAA']:
+                # Проверяем, что данные выглядят как IP адрес
                 if ':' in data or (data.count('.') == 3 and all(p.isdigit() for p in data.split('.'))):
                     ips.append(data)
+                    logger.info(f"[Dig] Найдена запись {rec_type}: {data}")
             # Для записей MX, NS, CNAME - сохраняем доменное имя для последующего резолва
             elif rec_type in ['MX', 'NS', 'CNAME']:
                 # Извлекаем доменное имя из данных записи
@@ -314,12 +316,12 @@ class DigScanner:
         return ips
 
     def _resolve_hostname(self, hostname: str) -> List[str]:
-        """Резолв хостнейма в IP адреса."""
+        """Резолв хостнейма в IP адреса (IPv4 и IPv6)."""
         import socket
         ips = []
         try:
-            # Получаем все IP адреса для хостнейма
-            addr_info = socket.getaddrinfo(hostname, None, socket.AF_INET)
+            # Получаем все IP адреса для хостнейма (IPv4 и IPv6)
+            addr_info = socket.getaddrinfo(hostname, None, socket.AF_UNSPEC)
             for info in addr_info:
                 ip = info[4][0]
                 if ip not in ips:

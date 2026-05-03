@@ -175,17 +175,23 @@ async def get_asset(asset_id: int, db: AsyncSession = Depends(get_db)):
     service = AssetService(db)
     asset = await service.get_by_id(asset_id)
     if not asset:
-        raise HTTPException(status_code=404, detail="Актив не найден")
+        raise HTTPException(status_code=404, detail={"error": "Актив не найден", "code": "ASSET_NOT_FOUND"})
     return asset
 
 
 @router.get("/view/{asset_id}", response_class=HTMLResponse)
 async def get_asset_page(request: Request, asset_id: int, db: AsyncSession = Depends(get_db)):
     """Отобразить страницу детали актива."""
+    from fastapi.responses import JSONResponse
+    
     service = AssetService(db)
     asset = await service.get_by_id(asset_id)
     if not asset:
-        raise HTTPException(status_code=404, detail="Актив не найден")
+        # Возвращаем JSON ошибку вместо HTML 404 страницы
+        return JSONResponse(
+            status_code=404,
+            content={"detail": "Актив не найден", "code": "ASSET_NOT_FOUND"}
+        )
     
     # Получаем историю изменений
     change_logs = await service.get_change_logs(asset_id, limit=50)

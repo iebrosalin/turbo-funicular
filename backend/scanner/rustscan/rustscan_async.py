@@ -79,6 +79,11 @@ class RustscanScanner:
             # Парсим вывод для получения портов
             found_ports = self._parse_output(output_lines)
             
+            # Сохраняем raw output в файл
+            raw_output_file = f'{base_name}.txt'
+            with open(raw_output_file, 'w') as f:
+                f.write('\n'.join(output_lines))
+            
             # Обновляем активы только если save_assets=True
             if save_assets:
                 await self._update_assets(db, final_targets.split(), found_ports)
