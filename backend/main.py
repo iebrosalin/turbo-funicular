@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=sync_engine)
         logger.info("✅ База данных проверена и инициализирована.")
         
-        # Создаем таблицу asset_change_logs если её нет
+        # Создаем таблицу asset_change_logs если её нет (используем определение из session.py)
         from backend.db.session import asset_change_logs_table
         asset_change_logs_table.create(bind=sync_engine, checkfirst=True)
         logger.info("✅ Таблица asset_change_logs создана/проверена.")
@@ -78,30 +78,21 @@ async def lifespan(app: FastAPI):
             if 'username' not in log_columns:
                 logger.info("🔧 Добавление колонки username в таблицу asset_change_logs...")
                 with sync_engine.begin() as conn:
-                    if "sqlite" in db_url:
-                        conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN username VARCHAR(100)"))
-                    else:
-                        conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN username VARCHAR(100)"))
+                    conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN username VARCHAR(255)"))
                 logger.info("✅ Колонка username успешно добавлена.")
             
             # Добавляем колонку action если её нет
             if 'action' not in log_columns:
                 logger.info("🔧 Добавление колонки action в таблицу asset_change_logs...")
                 with sync_engine.begin() as conn:
-                    if "sqlite" in db_url:
-                        conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN action VARCHAR(50) NOT NULL DEFAULT 'update'"))
-                    else:
-                        conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN action VARCHAR(50) NOT NULL DEFAULT 'update'"))
+                    conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN action VARCHAR(50) NOT NULL DEFAULT 'update'"))
                 logger.info("✅ Колонка action успешно добавлена.")
             
             # Добавляем колонку changed_fields если её нет
             if 'changed_fields' not in log_columns:
                 logger.info("🔧 Добавление колонки changed_fields в таблицу asset_change_logs...")
                 with sync_engine.begin() as conn:
-                    if "sqlite" in db_url:
-                        conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN changed_fields JSON"))
-                    else:
-                        conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN changed_fields JSON"))
+                    conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN changed_fields JSON"))
                 logger.info("✅ Колонка changed_fields успешно добавлена.")
         
         # Проверяем наличие колонки last_seen в таблице assets

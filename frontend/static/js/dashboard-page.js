@@ -105,6 +105,13 @@ export class DashboardController {
       this.#executeBulkMove(ids, targetGroupId);
     });
 
+    // Кнопка выполнения массового удаления в модальном окне
+    document.getElementById('btn-execute-bulk-delete')?.addEventListener('click', () => {
+      const deleteBtn = document.getElementById('btn-execute-bulk-delete');
+      const ids = JSON.parse(deleteBtn.dataset.assetIds || '[]');
+      this.#executeBulkDelete(ids);
+    });
+
     // Кнопки экспорта
     document.getElementById('btn-export-csv-current')?.addEventListener('click', () => this.exportData('csv', true));
     document.getElementById('btn-export-json-current')?.addEventListener('click', () => this.exportData('json', true));
@@ -381,9 +388,16 @@ export class DashboardController {
       return;
     }
     
-    if (!confirm(`Удалить выбранные активы (${ids.length})?`)) return;
+    // Обновляем счетчик в модальном окне
+    document.getElementById('bulk-delete-count').textContent = ids.length;
     
-    this.#executeBulkDelete(ids);
+    // Сохраняем IDs в data-атрибут кнопки
+    const deleteBtn = document.getElementById('btn-execute-bulk-delete');
+    deleteBtn.dataset.assetIds = JSON.stringify(ids);
+    
+    // Открываем модальное окно
+    const modal = new bootstrap.Modal(document.getElementById('bulkDeleteModal'));
+    modal.show();
   }
 
   async #executeBulkDelete(ids) {
@@ -394,6 +408,11 @@ export class DashboardController {
       });
       Utils.showNotification('Активы удалены', 'success');
       store.clearSelectedAssets();
+      
+      // Закрываем модальное окно
+      const modalEl = document.getElementById('bulkDeleteModal');
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
       
       // Полная перезагрузка данных с сервера для синхронизации
       await this.#reloadData();
