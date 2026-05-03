@@ -22,13 +22,14 @@ class DigScanner:
         target: str,
         record_type: str = 'A',
         custom_args: str = '',
-        group_ids: Optional[List[int]] = None
+        group_ids: Optional[List[int]] = None,
+        save_assets: bool = True
     ) -> Dict[str, Any]:
         """Запуск запроса Dig."""
         import logging
         logger = logging.getLogger(__name__)
         
-        logger.info(f"[Dig DEBUG] scan вызван: job_id={job_id}, target={target}, record_type={record_type}")
+        logger.info(f"[Dig DEBUG] scan вызван: job_id={job_id}, target={target}, record_type={record_type}, save_assets={save_assets}")
         
         try:
             logger.info(f"[Dig DEBUG] Попытка получения задачи {job_id} из БД")
@@ -81,34 +82,38 @@ class DigScanner:
             
             # Создаём активы для найденных IP с использованием унифицированной функции
             created_assets = []
-            for ip in ip_addresses:
-                logger.info(f"[Dig DEBUG] Создание актива для IP: {ip}")
+            if save_assets:
+                logger.info(f"[Dig] save_assets=True, создаем активы для {len(ip_addresses)} IP")
+                for ip in ip_addresses:
+                    logger.info(f"[Dig DEBUG] Создание актива для IP: {ip}")
+                    try:
+                        asset = await upsert_asset(
+                            db=db,
+                            ip_address=ip,
+                            hostname=target,
+                            scanner_name="Dig",
+                            group_ids=group_ids
+                        )
+                        logger.info(f"[Dig] Создан/обновлен актив: {ip} (hostname: {target}, asset_id: {asset.id})")
+                        created_assets.append(asset)
+                    except Exception as e:
+                        logger.error(f"[Dig DEBUG] Ошибка создания актива для {ip}: {e}")
+                        import traceback
+                        logger.error(f"[Dig DEBUG] Трассировка: {traceback.format_exc()}")
+                
+                # Коммитим создание активов
+                logger.info(f"[Dig DEBUG] Попытка коммита {len(created_assets)} активов в БД")
                 try:
-                    asset = await upsert_asset(
-                        db=db,
-                        ip_address=ip,
-                        hostname=target,
-                        scanner_name="Dig",
-                        group_ids=group_ids
-                    )
-                    logger.info(f"[Dig] Создан/обновлен актив: {ip} (hostname: {target}, asset_id: {asset.id})")
-                    created_assets.append(asset)
+                    await db.commit()
+                    logger.info(f"[Dig DEBUG] Активы успешно закоммичены в БД")
                 except Exception as e:
-                    logger.error(f"[Dig DEBUG] Ошибка создания актива для {ip}: {e}")
+                    logger.error(f"[Dig DEBUG] Ошибка коммита: {e}")
                     import traceback
                     logger.error(f"[Dig DEBUG] Трассировка: {traceback.format_exc()}")
-            
-            # Коммитим создание активов
-            logger.info(f"[Dig DEBUG] Попытка коммита {len(created_assets)} активов в БД")
-            try:
-                await db.commit()
-                logger.info(f"[Dig DEBUG] Активы успешно закоммичены в БД")
-            except Exception as e:
-                logger.error(f"[Dig DEBUG] Ошибка коммита: {e}")
-                import traceback
-                logger.error(f"[Dig DEBUG] Трассировка: {traceback.format_exc()}")
-                await db.rollback()
-                logger.info(f"[Dig DEBUG] Выполнен rollback транзакции")
+                    await db.rollback()
+                    logger.info(f"[Dig DEBUG] Выполнен rollback транзакции")
+            else:
+                logger.info(f"[Dig] save_assets=False, активы не создаются")
             
             # Сохраняем результат сканирования
             # Получаем scan_id из job

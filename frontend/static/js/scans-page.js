@@ -575,7 +575,8 @@ export class ScanResultsController {
           scripts: document.getElementById('nmapScriptDefault')?.value || '',
           custom_args: document.getElementById('nmapCustomArgs')?.value || '', 
           known_ports_only: knownOnly, 
-          group_ids: groupIds
+          group_ids: groupIds,
+          save_assets: document.getElementById('nmapSaveAssets')?.checked ?? true
         })
       });
       
@@ -623,7 +624,8 @@ export class ScanResultsController {
           run_nmap_after: document.getElementById('rustscanRunNmap')?.checked || false,
           nmap_args: document.getElementById('rustscanNmapArgs')?.value || '',
           known_ports_only: knownOnly,
-          group_ids: groupIds
+          group_ids: groupIds,
+          save_assets: document.getElementById('rustscanSaveAssets')?.checked ?? true
         })
       });
       
@@ -673,15 +675,19 @@ export class ScanResultsController {
     const typesInput = document.getElementById('digType');
     if (typesInput) {
       const typesValue = typesInput.value.trim();
-      if (typesValue && typesValue !== 'ANY') recordTypes = [typesValue];
+      if (typesValue && typesValue !== 'ANY') recordTypes = typesValue;
     }
     try {
       
       await Utils.apiRequest('/api/scans/dig', {
-          targets_text: targetsText,
+        method: 'POST',
+        body: JSON.stringify({
+          target: targetsText,
           dns_server: document.getElementById('digServer')?.value || '',
           cli_args: document.getElementById('digCustomArgs')?.value || '',
-          record_types: recordTypes
+          record_types: recordTypes,
+          save_assets: document.getElementById('digSaveAssets')?.checked ?? true
+        })
       });
       
       Utils.showNotification('Сканирование Dig запущено', 'success');
