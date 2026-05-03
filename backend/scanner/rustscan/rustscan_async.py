@@ -32,7 +32,7 @@ class RustscanScanner:
         run_nmap_after: bool = False,
         nmap_args: str = '',
         group_ids: Optional[List[int]] = None,
-        save_assets: bool = False
+        save_assets: bool = True
     ) -> Dict[str, Any]:
         """Запуск сканирования Rustscan с опциональным запуском Nmap после."""
         output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))

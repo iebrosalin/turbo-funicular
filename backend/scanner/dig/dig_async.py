@@ -20,7 +20,7 @@ class DigScanner:
         db: AsyncSession,
         job_id: int,
         target: str,
-        record_type: str = 'A',
+        record_type: str = 'ALL',
         custom_args: str = '',
         group_ids: Optional[List[int]] = None,
         save_assets: bool = True
@@ -29,7 +29,13 @@ class DigScanner:
         import logging
         logger = logging.getLogger(__name__)
         
-        logger.info(f"[Dig DEBUG] scan вызван: job_id={job_id}, target={target}, record_type={record_type}, save_assets={save_assets}")
+        # Список типов записей для сканирования
+        if record_type is None or record_type == 'ALL':
+            record_types_list = ['A', 'AAAA', 'MX', 'NS', 'CNAME', 'TXT', 'SOA', 'PTR']
+        else:
+            record_types_list = [record_type]
+        
+        logger.info(f"[Dig DEBUG] scan вызван: job_id={job_id}, target={target}, record_types={record_types_list}, save_assets={save_assets}")
         
         try:
             logger.info(f"[Dig DEBUG] Попытка получения задачи {job_id} из БД")
@@ -44,35 +50,53 @@ class DigScanner:
             await db.commit()
             logger.info(f"[Dig DEBUG] Статус задачи обновлён на 'running'")
             
-            cmd = self._build_command(target, record_type, custom_args)
-            logger.info(f"[Dig DEBUG] Команда dig: {' '.join(cmd)}")
+            # Выполняем сканирование для каждого типа записи
+            all_output_lines = []
+            all_parsed_results = []
             
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT
-            )
-            logger.info(f"[Dig DEBUG] Процесс запущен, PID: {process.pid}")
+            for rec_type in record_types_list:
+                cmd = self._build_command(target, rec_type, custom_args)
+                logger.info(f"[Dig DEBUG] Команда dig: {' '.join(cmd)}")
+                
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT
+                )
+                logger.info(f"[Dig DEBUG] Процесс запущен, PID: {process.pid}")
+                
+                output_lines = []
+                while True:
+                    line = await process.stdout.readline()
+                    if not line:
+                        break
+                    line_decoded = line.decode().strip()
+                    output_lines.append(line_decoded)
+                    logger.debug(f"[Dig DEBUG] Вывод dig: {line_decoded}")
+                
+                await process.wait()
+                logger.info(f"[Dig DEBUG] Процесс завершен с кодом: {process.returncode}")
+                
+                if process.returncode != 0:
+                    logger.error(f"[Dig DEBUG] Dig завершился с ошибкой, код: {process.returncode}")
+                    raise Exception(f"Dig завершился с кодом {process.returncode}")
+                
+                # Парсим вывод для этого типа записи
+                parsed_result = self._parse_output(output_lines, rec_type)
+                logger.info(f"[Dig DEBUG] Результат парсинга для {rec_type}: {parsed_result}")
+                
+                all_output_lines.extend(output_lines)
+                all_parsed_results.append(parsed_result)
             
-            output_lines = []
-            while True:
-                line = await process.stdout.readline()
-                if not line:
-                    break
-                line_decoded = line.decode().strip()
-                output_lines.append(line_decoded)
-                logger.debug(f"[Dig DEBUG] Вывод dig: {line_decoded}")
+            # Объединяем все результаты
+            combined_answers = []
+            for pr in all_parsed_results:
+                combined_answers.extend(pr.get('answers', []))
             
-            await process.wait()
-            logger.info(f"[Dig DEBUG] Процесс завершен с кодом: {process.returncode}")
+            parsed_result = {'record_type': 'ALL', 'answers': combined_answers}
+            output_lines = all_output_lines
             
-            if process.returncode != 0:
-                logger.error(f"[Dig DEBUG] Dig завершился с ошибкой, код: {process.returncode}")
-                raise Exception(f"Dig завершился с кодом {process.returncode}")
-            
-            # Парсим вывод
-            parsed_result = self._parse_output(output_lines, record_type)
-            logger.info(f"[Dig DEBUG] Результат парсинга: {parsed_result}")
+            logger.info(f"[Dig DEBUG] Итоговый результат парсинга: {parsed_result}")
             
             # Извлекаем IP адреса из результатов для создания актива
             ip_addresses = self._extract_ips(parsed_result)
@@ -144,26 +168,34 @@ class DigScanner:
                 
                 if asset:
                     # Формируем структуру dns_records из parsed_result
-                    rec_type = parsed_result.get('record_type', 'A')
                     answers = parsed_result.get('answers', [])
                     
                     # Получаем текущие dns_records или создаём новый dict
                     current_dns_records = asset.dns_records or {}
                     
-                    # Добавляем новые записи по типу
-                    if rec_type not in current_dns_records:
-                        current_dns_records[rec_type] = []
-                    
+                    # Группируем ответы по типу записи
+                    answers_by_type = {}
                     for answer in answers:
-                        # Проверяем, нет ли уже такой записи
-                        existing_data = [r.get('data') for r in current_dns_records[rec_type]]
-                        if answer.get('data') not in existing_data:
-                            current_dns_records[rec_type].append(answer)
+                        rec_type = answer.get('type', 'A')
+                        if rec_type not in answers_by_type:
+                            answers_by_type[rec_type] = []
+                        answers_by_type[rec_type].append(answer)
+                    
+                    # Добавляем новые записи по каждому типу
+                    for rec_type, type_answers in answers_by_type.items():
+                        if rec_type not in current_dns_records:
+                            current_dns_records[rec_type] = []
+                        
+                        for answer in type_answers:
+                            # Проверяем, нет ли уже такой записи
+                            existing_data = [r.get('data') for r in current_dns_records[rec_type]]
+                            if answer.get('data') not in existing_data:
+                                current_dns_records[rec_type].append(answer)
                     
                     # Обновляем поле dns_records
                     asset.dns_records = current_dns_records
                     asset.last_dns_scan = datetime.now(MOSCOW_TZ)
-                    logger.info(f"[Dig] Обновлено dns_records для актива {asset.id}: {len(answers)} записей типа {rec_type}")
+                    logger.info(f"[Dig] Обновлено dns_records для актива {asset.id}: {len(answers)} записей")
                     
             except Exception as e:
                 logger.error(f"[Dig] Ошибка обновления dns_records: {e}")
