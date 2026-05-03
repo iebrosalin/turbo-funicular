@@ -216,6 +216,24 @@ class NmapScanner:
             
             found_ports = []
             ports_elem = host.find('ports')
+            
+            # СОЗДАЕМ АКТИВ ПЕРЕД ОБРАБОТКОЙ ПОРТОВ
+            asset = None
+            if save_assets:
+                logger.info(f"[Nmap DEBUG] Создаю актив для {ip}...")
+                asset = await upsert_asset(
+                    db=db,
+                    ip_address=ip,
+                    hostname=hostname,
+                    os_family=os_family,
+                    os_version=os_version,
+                    scanner_name="Nmap"
+                )
+                if asset:
+                    logger.info(f"[Nmap DEBUG] Актив создан/обновлен: ID={asset.id}")
+                else:
+                    logger.error(f"[Nmap DEBUG] Не удалось создать актив для {ip}")
+            
             if ports_elem is not None:
                 for port in ports_elem.findall('port'):
                     state_elem = port.find('state')
@@ -249,17 +267,8 @@ class NmapScanner:
                                 if iss:
                                     service_data['ssl_issuer'] = iss.group(1).strip()
                     
-                    # Создаем или обновляем актив только если save_assets=True
-                    if save_assets:
-                        asset = await upsert_asset(
-                            db=db,
-                            ip_address=ip,
-                            hostname=hostname,
-                            os_family=os_family,
-                            os_version=os_version,
-                            scanner_name="Nmap"
-                        )
-                        
+                    # Обновляем порты и создаем сервис ТОЛЬКО если актив был создан
+                    if asset:
                         # Обновляем порты
                         update_asset_ports(asset, 'nmap', [port_num], scanner_name="Nmap")
                         

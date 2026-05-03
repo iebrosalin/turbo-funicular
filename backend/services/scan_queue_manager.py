@@ -240,12 +240,12 @@ class ScanQueueManager:
                                 save_assets=parameters.get('save_assets', True)
                             )
                         elif scan_type == 'dig':
-                            logger.info(f"[DEBUG] Запуск DigScanner.scan для {target}, record_type={parameters.get('record_types', 'A')}")
+                            logger.info(f"[DEBUG] Запуск DigScanner.scan для {target}, record_type={parameters.get('record_types', 'ALL')}")
                             result_data = await scanner.scan(
                                 db=db,
                                 job_id=scan_job_id,
                                 target=target,
-                                record_type=parameters.get('record_types', 'A'),
+                                record_type=parameters.get('record_types', 'ALL'),
                                 custom_args=parameters.get('cli_args', ''),
                                 group_ids=parameters.get('group_ids'),
                                 save_assets=parameters.get('save_assets', True)

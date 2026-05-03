@@ -61,6 +61,11 @@ async def lifespan(app: FastAPI):
         Base.metadata.create_all(bind=sync_engine)
         logger.info("✅ База данных проверена и инициализирована.")
         
+        # Создаем таблицу asset_change_logs если её нет
+        from backend.db.session import asset_change_logs_table
+        asset_change_logs_table.create(bind=sync_engine, checkfirst=True)
+        logger.info("✅ Таблица asset_change_logs создана/проверена.")
+        
         # Добавляем отсутствующие колонки в существующие таблицы (миграция)
         from sqlalchemy import text, inspect
         inspector = inspect(sync_engine)

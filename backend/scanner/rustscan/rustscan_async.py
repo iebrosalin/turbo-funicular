@@ -246,6 +246,7 @@ class RustscanScanner:
         """Обновление активов с найденными портами с использованием унифицированных функций."""
         
         for ip in targets:
+            logger.info(f"[Rustscan DEBUG] Создаю актив для {ip}...")
             # Создаем или обновляем актив
             asset = await upsert_asset(
                 db=db,
@@ -253,10 +254,16 @@ class RustscanScanner:
                 scanner_name="Rustscan"
             )
             
-            if ip in found_ports:
-                # Обновляем порты
-                update_asset_ports(asset, 'rustscan', found_ports[ip], scanner_name="Rustscan")
+            if asset:
+                logger.info(f"[Rustscan DEBUG] Актив создан/обновлен: ID={asset.id}")
+                
+                if ip in found_ports:
+                    # Обновляем порты
+                    update_asset_ports(asset, 'rustscan', found_ports[ip], scanner_name="Rustscan")
+                    logger.info(f"[Rustscan DEBUG] Порты обновлены для {ip}: {found_ports[ip]}")
+                else:
+                    logger.info(f"[Rustscan] Актив {ip} проверен, новые порты не найдены")
             else:
-                logger.info(f"[Rustscan] Актив {ip} проверен, новые порты не найдены")
+                logger.error(f"[Rustscan DEBUG] Не удалось создать актив для {ip}")
         
         await db.commit()
