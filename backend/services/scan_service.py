@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
-from backend.models.scan import Scan
+from backend.models.scan import Scan, ScanResult
 from backend.schemas.scan import ScanCreate, ScanUpdate, ScanStatus
 
 
@@ -14,8 +14,11 @@ class ScanService:
         self.db = db
     
     async def get_all(self) -> List[Scan]:
-        """Получить все сканирования."""
-        query = select(Scan).options(selectinload(Scan.group)).order_by(Scan.created_at.desc())
+        """Получить все сканирования с результатами."""
+        query = select(Scan).options(
+            selectinload(Scan.group),
+            selectinload(Scan.results)
+        ).order_by(Scan.created_at.desc())
         result = await self.db.execute(query)
         return list(result.scalars().all())
     
@@ -26,8 +29,10 @@ class ScanService:
         return list(result.scalars().all())
     
     async def get_by_id(self, scan_id: int) -> Optional[Scan]:
-        """Получить сканирование по ID."""
-        query = select(Scan).where(Scan.id == scan_id)
+        """Получить сканирование по ID с результатами."""
+        query = select(Scan).where(Scan.id == scan_id).options(
+            selectinload(Scan.results)
+        )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
     

@@ -39,6 +39,7 @@ class NmapScanner:
         output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
         os.makedirs(output_dir, exist_ok=True)
         base_name = os.path.join(output_dir, 'nmap')
+        raw_output_file = os.path.join(output_dir, 'nmap.txt')
         
         try:
             job = await db.get(ScanJob, job_id)
@@ -63,16 +64,19 @@ class NmapScanner:
             
             logger.info(f"[NmapScanner] Запущен процесс Nmap для задачи {job_id}, PID: {process.pid}")
             
+            # Собираем вывод и одновременно записываем в файл
             output_lines = []
-            while True:
-                line = await process.stdout.readline()
-                if not line:
-                    break
-                line_str = line.decode('utf-8', errors='ignore').strip()
-                if line_str:
-                    logger.debug(f"[Nmap] {line_str}")
-                    output_lines.append(line_str)
-                # Nmap вывод обрабатывается позже через parse_output
+            with open(raw_output_file, 'w', encoding='utf-8') as f:
+                while True:
+                    line = await process.stdout.readline()
+                    if not line:
+                        break
+                    line_str = line.decode('utf-8', errors='ignore').strip()
+                    if line_str:
+                        logger.debug(f"[Nmap] {line_str}")
+                        output_lines.append(line_str)
+                        f.write(line_str + '\n')
+                        f.flush()  # Гарантируем запись на диск
             
             await process.wait()
             
@@ -101,7 +105,8 @@ class NmapScanner:
                     "hostname": target,
                     "ports": []
                 },
-                "raw_output": f"Nmap scan completed. Output saved to {xml_file}"
+                "raw_output": f"Nmap scan completed. Output saved to {raw_output_file}",
+                "output_file": raw_output_file
             }
             
         except asyncio.CancelledError:
@@ -170,6 +175,13 @@ class NmapScanner:
     async def _parse_results(self, db: AsyncSession, job_id: int, xml_file: str):
         """Парсинг XML и обновление БД с использованием унифицированных функций."""
         
+        # Читаем raw output из файла
+        raw_output_file = os.path.join(os.path.dirname(xml_file), 'nmap.txt')
+        raw_output = ""
+        if os.path.exists(raw_output_file):
+            with open(raw_output_file, 'r', encoding='utf-8') as f:
+                raw_output = f.read()
+        
         tree = ET.parse(xml_file)
         root = tree.getroot()
         
@@ -206,6 +218,7 @@ class NmapScanner:
                 os_version = ' '.join(parts[1:]) if len(parts) > 1 else None
             
             found_ports = []
+            services_dict = {}
             ports_elem = host.find('ports')
             if ports_elem is not None:
                 for port in ports_elem.findall('port'):
@@ -240,6 +253,8 @@ class NmapScanner:
                                 if iss:
                                     service_data['ssl_issuer'] = iss.group(1).strip()
                     
+                    services_dict[str(port_num)] = service_data
+                    
                     # Создаем или обновляем актив
                     asset = await upsert_asset(
                         db=db,
@@ -269,6 +284,20 @@ class NmapScanner:
                         ssl_issuer=service_data.get('ssl_issuer'),
                         scanner_name="Nmap"
                     )
+            
+            # Создаем ScanResult с raw_output
+            scan_result = ScanResult(
+                scan_job_id=job_id,
+                ip_address=ip,
+                status='success',
+                ports=found_ports,
+                services=services_dict,
+                hostname=hostname,
+                os_info=os_match,
+                raw_output=raw_output,
+                scanned_at=datetime.utcnow()
+            )
+            db.add(scan_result)
         
         # Commit после обработки всех хостов
         await db.commit()
