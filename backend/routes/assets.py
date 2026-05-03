@@ -285,13 +285,17 @@ async def delete_bulk_assets(request: BulkDeleteRequest, db: AsyncSession = Depe
         raise HTTPException(status_code=404, detail="Активы не найдены")
 
 
+class BulkMoveRequest(BaseModel):
+    ids: List[int]
+
+
 @router.post("/bulk-move", status_code=status.HTTP_200_OK)
 async def bulk_move_assets(
-    asset_ids: List[int],
-    group_id: Optional[int],
+    request: BulkMoveRequest,
+    group_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
     """Переместить несколько активов в другую группу."""
     service = AssetService(db)
-    moved_count = await service.move_to_group_batch(asset_ids, group_id)
+    moved_count = await service.move_to_group_batch(request.ids, group_id)
     return {"message": f"Перемещено активов: {moved_count}", "count": moved_count}

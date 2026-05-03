@@ -255,8 +255,52 @@ export class TreeManager {
         const selectedIds = this.#getSelectedAssetIds();
         if (selectedIds.length === 0) return;
         
-        // TODO: Открыть модалку выбора группы
-        alert(`Переместить ${selectedIds.length} активов в группу (функционал в разработке)`);
+        // Запрашиваем ID группы у пользователя
+        const groupIdStr = prompt(`Переместить ${selectedIds.length} активов в группу.\nВведите ID группы (или оставьте пустым для удаления из всех групп):`);
+        if (groupIdStr === null) return; // Отменено
+        
+        let groupId = null;
+        if (groupIdStr.trim() !== '') {
+          groupId = parseInt(groupIdStr, 10);
+          if (isNaN(groupId)) {
+            Utils.showFlashMessage('Некорректный ID группы', 'danger');
+            return;
+          }
+        }
+        
+        try {
+          const response = await fetch(`/api/assets/bulk-move?group_id=${groupId === null ? '' : groupId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(selectedIds),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || errorData.message || 'Ошибка при перемещении активов');
+          }
+          
+          const result = await response.json();
+          
+          // Перезагрузить список
+          await this.loadAssets(this.currentGroupId, this.currentGroupId === null);
+          
+          // Сбросить выделение
+          const checkboxes = document.querySelectorAll('.asset-checkbox');
+          checkboxes.forEach(cb => {
+            cb.checked = false;
+          });
+          if (selectAllCheckbox) selectAllCheckbox.checked = false;
+          this.#updateBulkToolbar();
+          
+          // Показать уведомление
+          Utils.showFlashMessage(`Перемещено активов: ${result.count || selectedIds.length}`, 'success');
+        } catch (error) {
+          console.error('[Bulk Move] Ошибка:', error);
+          Utils.showFlashMessage(`Ошибка: ${error.message}`, 'danger');
+        }
       });
     }
 

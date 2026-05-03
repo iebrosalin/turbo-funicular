@@ -3,6 +3,7 @@
 """
 import asyncio
 import os
+import logging
 import xml.etree.ElementTree as ET
 import re
 from datetime import datetime
@@ -16,6 +17,8 @@ from backend.models.scan import ScanJob, ScanResult
 from backend.models.group import AssetGroup
 from backend.utils import MOSCOW_TZ
 from backend.services.asset_manager import upsert_asset, upsert_service, update_asset_ports
+
+logger = logging.getLogger(__name__)
 
 
 class NmapScanner:
@@ -175,8 +178,6 @@ class NmapScanner:
     
     async def _parse_results(self, db: AsyncSession, job_id: int, xml_file: str, save_assets: bool = True):
         """Парсинг XML и обновление БД с использованием унифицированных функций."""
-        import logging
-        logger = logging.getLogger(__name__)
         
         tree = ET.parse(xml_file)
         root = tree.getroot()

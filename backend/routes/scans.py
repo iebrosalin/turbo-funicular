@@ -1066,23 +1066,55 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
     
     # Форматируем результат в зависимости от запрошенного формата
     if format in ["raw", "json", "csv", "xml", "gnmap", "normal"]:
+        # Определяем тип сканирования для правильного поиска файлов
+        scan_type = job.job_type or (job.scan.scan_type if job.scan else None)
+        
         # Проверяем наличие файла результата на диске
         output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
-        file_mapping = {
-            "xml": f"{output_dir}/nmap.xml",
-            "gnmap": f"{output_dir}/nmap.gnmap",
-            "normal": f"{output_dir}/nmap.nmap",
-            "raw": None,  # Обработано отдельно
-            "json": None,  # Обработано отдельно
-            "csv": None   # Обработано отдельно
-        }
         
-        if format in ["xml", "gnmap", "normal"] and os.path.exists(file_mapping[format]):
-            return FileResponse(
-                path=file_mapping[format],
-                media_type="application/octet-stream",
-                filename=f"scan_{job_id}.{format}"
-            )
+        # Маппинг файлов для разных типов сканирований
+        file_mapping = {}
+        if scan_type == "nmap":
+            file_mapping = {
+                "xml": f"{output_dir}/nmap.xml",
+                "gnmap": f"{output_dir}/nmap.gnmap",
+                "normal": f"{output_dir}/nmap.nmap",
+                "raw": f"{output_dir}/nmap.txt",  # Текстовый вывод nmap
+            }
+        elif scan_type == "rustscan":
+            file_mapping = {
+                "raw": f"{output_dir}/rustscan.txt",  # Текстовый вывод rustscan
+            }
+        elif scan_type == "dig":
+            file_mapping = {
+                "raw": f"{output_dir}/dig.txt",  # Текстовый вывод dig
+                "json": None,  # Обработано отдельно
+            }
+        
+        # Для форматов xml, gnmap, normal проверяем существование файла
+        if format in ["xml", "gnmap", "normal"] and format in file_mapping:
+            if os.path.exists(file_mapping[format]):
+                return FileResponse(
+                    path=file_mapping[format],
+                    media_type="application/octet-stream",
+                    filename=f"scan_{job_id}.{format}"
+                )
+            else:
+                # Файл не найден, продолжаем обработку для возврата данных из БД
+                pass
+        
+        # Для raw формата пробуем прочитать файл с диска
+        if format == "raw" and format in file_mapping and file_mapping[format]:
+            if os.path.exists(file_mapping[format]):
+                with open(file_mapping[format], 'r', encoding='utf-8') as f:
+                    raw_content = f.read()
+                return StreamingResponse(
+                    iter([raw_content.encode('utf-8')]),
+                    media_type="text/plain",
+                    headers={
+                        "Content-Disposition": f'attachment; filename="scan_{job_id}_raw.txt"'
+                    }
+                )
     
     if format == "raw":
         # Сырой вывод всех результатов
