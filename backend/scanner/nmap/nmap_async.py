@@ -5,6 +5,7 @@ import asyncio
 import os
 import xml.etree.ElementTree as ET
 import re
+import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +17,8 @@ from backend.models.scan import ScanJob, ScanResult
 from backend.models.group import AssetGroup
 from backend.utils import MOSCOW_TZ
 from backend.services.asset_manager import upsert_asset, upsert_service, update_asset_ports
+
+logger = logging.getLogger(__name__)
 
 
 class NmapScanner:
@@ -60,6 +63,7 @@ class NmapScanner:
             
             logger.info(f"[NmapScanner] Запущен процесс Nmap для задачи {job_id}, PID: {process.pid}")
             
+            output_lines = []
             while True:
                 line = await process.stdout.readline()
                 if not line:
@@ -67,6 +71,7 @@ class NmapScanner:
                 line_str = line.decode('utf-8', errors='ignore').strip()
                 if line_str:
                     logger.debug(f"[Nmap] {line_str}")
+                    output_lines.append(line_str)
                 # Nmap вывод обрабатывается позже через parse_output
             
             await process.wait()
@@ -164,8 +169,6 @@ class NmapScanner:
     
     async def _parse_results(self, db: AsyncSession, job_id: int, xml_file: str):
         """Парсинг XML и обновление БД с использованием унифицированных функций."""
-        import logging
-        logger = logging.getLogger(__name__)
         
         tree = ET.parse(xml_file)
         root = tree.getroot()
@@ -266,15 +269,6 @@ class NmapScanner:
                         ssl_issuer=service_data.get('ssl_issuer'),
                         scanner_name="Nmap"
                     )
-            
-            scan_result = ScanResult(
-                scan_job_id=job_id,
-                asset_ip=ip,
-                hostname=hostname,
-                ports=found_ports,
-                raw_output=f"Nmap scan completed for {ip}",
-                scanned_at=datetime.now(MOSCOW_TZ)
-            )
-            db.add(scan_result)
         
+        # Commit после обработки всех хостов
         await db.commit()
