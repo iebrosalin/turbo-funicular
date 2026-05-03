@@ -369,7 +369,8 @@ async def run_nmap_scan(
             "custom_args": custom_args,
             "known_ports_only": known_ports_only,
             "save_assets": save_assets,
-            "group_ids": parsed_group_ids
+            "group_ids": parsed_group_ids,
+            "target": target
         }
         logger.info(f"  - targets_list: {targets_list}")
         logger.info(f"  - parameters: {parameters}")
@@ -498,7 +499,8 @@ async def run_rustscan(
             "run_nmap_after": run_nmap_after,
             "nmap_args": nmap_args,
             "save_assets": save_assets,
-            "group_ids": parsed_group_ids
+            "group_ids": parsed_group_ids,
+            "target": target
         }
         logger.info(f"  - targets_list: {targets_list}")
         logger.info(f"  - parameters: {parameters}")
@@ -616,7 +618,8 @@ async def run_dig_scan(
             "cli_args": cli_args,
             "record_types": record_types,
             "save_assets": save_assets,
-            "group_ids": group_ids
+            "group_ids": group_ids,
+            "target": target
         }
         logger.info(f"  - targets_list: {targets_list}")
         logger.info(f"  - parameters: {parameters}")

@@ -31,7 +31,8 @@ class RustscanScanner:
         custom_args: str = '',
         run_nmap_after: bool = False,
         nmap_args: str = '',
-        group_ids: Optional[List[int]] = None
+        group_ids: Optional[List[int]] = None,
+        save_assets: bool = False
     ) -> Dict[str, Any]:
         """Запуск сканирования Rustscan с опциональным запуском Nmap после."""
         output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
@@ -78,8 +79,9 @@ class RustscanScanner:
             # Парсим вывод для получения портов
             found_ports = self._parse_output(output_lines)
             
-            # Обновляем активы
-            await self._update_assets(db, final_targets.split(), found_ports)
+            # Обновляем активы только если save_assets=True
+            if save_assets:
+                await self._update_assets(db, final_targets.split(), found_ports)
             
             # Если указан флаг run_nmap_after, запускаем Nmap с найденными портами
             if run_nmap_after and found_ports:

@@ -222,7 +222,8 @@ class ScanQueueManager:
                                 scripts=parameters.get('scripts', ''),
                                 custom_args=parameters.get('custom_args', ''),
                                 known_ports_only=parameters.get('known_ports_only', False),
-                                group_ids=parameters.get('group_ids')
+                                group_ids=parameters.get('group_ids'),
+                                save_assets=parameters.get('save_assets', False)
                             )
                         elif scan_type == 'rustscan':
                             logger.info(f"[DEBUG] Запуск RustscanScanner.scan для {target}")
@@ -235,7 +236,8 @@ class ScanQueueManager:
                                 custom_args=parameters.get('custom_args', ''),
                                 run_nmap_after=parameters.get('run_nmap_after', False),
                                 nmap_args=parameters.get('nmap_args', ''),
-                                group_ids=parameters.get('group_ids')
+                                group_ids=parameters.get('group_ids'),
+                                save_assets=parameters.get('save_assets', False)
                             )
                         elif scan_type == 'dig':
                             logger.info(f"[DEBUG] Запуск DigScanner.scan для {target}, record_type={parameters.get('record_types', 'A')}")
@@ -245,7 +247,8 @@ class ScanQueueManager:
                                 target=target,
                                 record_type=parameters.get('record_types', 'A'),
                                 custom_args=parameters.get('cli_args', ''),
-                                group_ids=parameters.get('group_ids')
+                                group_ids=parameters.get('group_ids'),
+                                save_assets=parameters.get('save_assets', False)
                             )
                             logger.info(f"[DEBUG] DigScanner.scan вернул: {result_data}")
                         else:

@@ -162,7 +162,7 @@ class NmapScanner:
         cmd.extend(targets.split())
         return cmd
     
-    async def _parse_results(self, db: AsyncSession, job_id: int, xml_file: str):
+    async def _parse_results(self, db: AsyncSession, job_id: int, xml_file: str, save_assets: bool = True):
         """Парсинг XML и обновление БД с использованием унифицированных функций."""
         import logging
         logger = logging.getLogger(__name__)
@@ -237,35 +237,36 @@ class NmapScanner:
                                 if iss:
                                     service_data['ssl_issuer'] = iss.group(1).strip()
                     
-                    # Создаем или обновляем актив
-                    asset = await upsert_asset(
-                        db=db,
-                        ip_address=ip,
-                        hostname=hostname,
-                        os_family=os_family,
-                        os_version=os_version,
-                        scanner_name="Nmap"
-                    )
-                    
-                    # Обновляем порты
-                    update_asset_ports(asset, 'nmap', [port_num], scanner_name="Nmap")
-                    
-                    # Создаем или обновляем сервис
-                    await upsert_service(
-                        db=db,
-                        asset=asset,
-                        port=port_num,
-                        protocol=protocol,
-                        state='open',
-                        service_name=service_data.get('name', 'unknown'),
-                        product=service_data.get('product', ''),
-                        version=service_data.get('version', ''),
-                        extra_info=service_data.get('extra_info', ''),
-                        script_output=service_data.get('script_output', ''),
-                        ssl_subject=service_data.get('ssl_subject'),
-                        ssl_issuer=service_data.get('ssl_issuer'),
-                        scanner_name="Nmap"
-                    )
+                    # Создаем или обновляем актив только если save_assets=True
+                    if save_assets:
+                        asset = await upsert_asset(
+                            db=db,
+                            ip_address=ip,
+                            hostname=hostname,
+                            os_family=os_family,
+                            os_version=os_version,
+                            scanner_name="Nmap"
+                        )
+                        
+                        # Обновляем порты
+                        update_asset_ports(asset, 'nmap', [port_num], scanner_name="Nmap")
+                        
+                        # Создаем или обновляем сервис
+                        await upsert_service(
+                            db=db,
+                            asset=asset,
+                            port=port_num,
+                            protocol=protocol,
+                            state='open',
+                            service_name=service_data.get('name', 'unknown'),
+                            product=service_data.get('product', ''),
+                            version=service_data.get('version', ''),
+                            extra_info=service_data.get('extra_info', ''),
+                            script_output=service_data.get('script_output', ''),
+                            ssl_subject=service_data.get('ssl_subject'),
+                            ssl_issuer=service_data.get('ssl_issuer'),
+                            scanner_name="Nmap"
+                        )
             
             scan_result = ScanResult(
                 scan_job_id=job_id,
