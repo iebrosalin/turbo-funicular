@@ -78,8 +78,9 @@ class NmapScanner:
                 raise Exception(f"Nmap завершился с кодом {process.returncode}")
             
             xml_file = f'{base_name}.xml'
+            text_file = f'{base_name}.nmap'
             if os.path.exists(xml_file):
-                await self._parse_results(db, job_id, xml_file)
+                await self._parse_results(db, job_id, xml_file, save_assets)
             else:
                 raise Exception("Файл XML результатов не создан")
             
@@ -90,6 +91,15 @@ class NmapScanner:
                 job.progress = 100.0
                 await db.commit()
             
+            # Читаем текстовый вывод для raw_output
+            raw_output = ""
+            if os.path.exists(text_file):
+                with open(text_file, 'r') as f:
+                    raw_output = f.read()
+            elif os.path.exists(xml_file):
+                with open(xml_file, 'r') as f:
+                    raw_output = f.read()
+            
             return {
                 "status": "completed",
                 "job_id": job_id,
@@ -97,7 +107,7 @@ class NmapScanner:
                     "hostname": target,
                     "ports": []
                 },
-                "raw_output": f"Nmap scan completed. Output saved to {xml_file}"
+                "raw_output": raw_output if raw_output else f"Nmap scan completed. Output saved to {xml_file}"
             }
             
         except asyncio.CancelledError:
@@ -271,7 +281,7 @@ class NmapScanner:
             
             scan_result = ScanResult(
                 scan_job_id=job_id,
-                asset_ip=ip,
+                ip_address=ip,
                 hostname=hostname,
                 ports=found_ports,
                 raw_output=f"Nmap scan completed for {ip}",
