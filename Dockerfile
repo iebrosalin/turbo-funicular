@@ -67,11 +67,11 @@ RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Установка браузеров для Playwright
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN playwright install chromium && \
-    playwright install firefox && \
-    playwright install webkit
+# Установка браузеров для Playwright (закомментировано для ускорения сборки)
+# ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+# RUN playwright install chromium && \
+#     playwright install firefox && \
+#     playwright install webkit
 
 # Создание директории для базы данных (если используется SQLite)
 RUN mkdir -p /app/instance
