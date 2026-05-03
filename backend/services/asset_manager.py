@@ -249,6 +249,10 @@ def update_asset_ports(
         # Для неизвестного типа используем open_ports как fallback
         asset.open_ports = list(all_ports)
     
+    # Обновляем объединенный список open_ports
+    all_source_ports = set(asset.nmap_ports or []) | set(asset.rustscan_ports or []) | set(asset.masscan_ports or [])
+    asset.open_ports = sorted(list(all_source_ports))
+    
     return all_ports
 
 

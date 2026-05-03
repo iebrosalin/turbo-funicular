@@ -78,40 +78,58 @@ class RustscanScanner:
             # Парсим вывод для получения портов
             found_ports = self._parse_output(output_lines)
             
-            # Обновляем активы
-            await self._update_assets(db, final_targets.split(), found_ports)
+            # Обновляем активы с найденными портами
+            await self._update_assets(db, found_ports)
             
-            # Если указан флаг run_nmap_after, запускаем Nmap с найденными портами
+            # Если указан флаг run_nmap_after, запускаем Nmap после завершения сканирования
             if run_nmap_after and found_ports:
-                logger.info(f"[Rustscan] Запуск Nmap после завершения сканирования для {target}")
-                nmap_result = await self._run_nmap_after(
-                    db=db,
-                    job_id=job_id,
-                    target=target,
-                    found_ports=found_ports,
-                    nmap_args=nmap_args,
-                    group_ids=group_ids
-                )
+                logger.info(f"[Rustscan] Запуск Nmap после завершения сканирования")
+                # Запускаем nmap для каждого найденного IP
+                nmap_results = {}
+                for ip, ports in found_ports.items():
+                    ports_str = ','.join(map(str, ports))
+                    logger.info(f"[Rustscan->Nmap] Запуск Nmap для {ip} с портами: {ports_str}")
+                    from backend.scanner.nmap.nmap_async import NmapScanner
+                    nmap_scanner = NmapScanner()
+                    try:
+                        result = await nmap_scanner.scan(
+                            db=db,
+                            job_id=job_id,
+                            target=ip,
+                            ports=ports_str,
+                            scripts='',
+                            custom_args=nmap_args,
+                            known_ports_only=False,
+                            group_ids=group_ids
+                        )
+                        nmap_results[ip] = result
+                    except Exception as e:
+                        logger.error(f"[Rustscan->Nmap] Ошибка при запуске Nmap для {ip}: {e}")
+                        nmap_results[ip] = {"status": "failed", "error": str(e)}
+                
                 return {
                     "status": "completed",
                     "job_id": job_id,
                     "result": {
                         "hostname": target,
-                        "ports": list(found_ports.values()) if found_ports else []
+                        "ports": {ip: ports for ip, ports in found_ports.items()}
                     },
                     "raw_output": '\n'.join(output_lines),
-                    "nmap_result": nmap_result
+                    "nmap_result": nmap_results
                 }
             
-            # Сохраняем результат
-            scan_result = ScanResult(
-                scan_job_id=job_id,
-                ip_address=final_targets,
-                ports=list(found_ports.values()),
-                raw_output='\n'.join(output_lines),
-                scanned_at=datetime.now()
-            )
-            db.add(scan_result)
+            # Сохраняем результат сканирования для каждого найденного IP
+            for ip, ports in found_ports.items():
+                scan_result = ScanResult(
+                    scan_job_id=job_id,
+                    asset_ip=ip,
+                    ports=ports,
+                    raw_output='\n'.join(output_lines),
+                    scanned_at=datetime.now(MOSCOW_TZ)
+                )
+                db.add(scan_result)
+            
+            await db.commit()
             
             job = await db.get(ScanJob, job_id)
             if job:
@@ -125,7 +143,7 @@ class RustscanScanner:
                 "job_id": job_id,
                 "result": {
                     "hostname": target,
-                    "ports": list(found_ports.values()) if found_ports else []
+                    "ports": found_ports if found_ports else {}
                 },
                 "raw_output": '\n'.join(output_lines)
             }
@@ -172,17 +190,18 @@ class RustscanScanner:
     def _parse_output(self, output_lines):
         """Парсинг вывода rustscan для получения портов."""
         found_ports = {}
-        current_ip = None
         
         for line in output_lines:
-            if '->' in line and ':' in line:
+            if '->' in line:
                 parts = line.split('->')
                 if len(parts) == 2:
                     ip_part = parts[0].strip()
                     ports_part = parts[1].strip()
-                    if ',' in ports_part:
+                    # Проверяем, что ports_part содержит цифры и запятые (список портов)
+                    if ',' in ports_part or ports_part.isdigit():
                         port_list = [int(p.strip()) for p in ports_part.split(',') if p.strip().isdigit()]
-                        found_ports[ip_part] = port_list
+                        if port_list and ip_part:
+                            found_ports[ip_part] = port_list
         
         return found_ports
     
@@ -195,50 +214,14 @@ class RustscanScanner:
         nmap_args: str = '',
         group_ids: Optional[List[int]] = None
     ) -> Dict[str, Any]:
-        """Запуск Nmap после Rustscan с найденными портами."""
-        from backend.scanner.nmap.nmap_async import NmapScanner
-        
-        # Получаем порты для целевого хоста
-        target_ports = found_ports.get(target, [])
-        if not target_ports:
-            # Пытаемся найти порты по другим ключам (IP может быть в другом формате)
-            for ip, ports in found_ports.items():
-                if ip in target or target in ip:
-                    target_ports = ports
-                    break
-        
-        if not target_ports:
-            logger.warning(f"[Rustscan->Nmap] Не найдено портов для {target}")
-            return {"status": "skipped", "reason": "no_ports"}
-        
-        # Формируем строку портов для nmap
-        ports_str = ','.join(map(str, target_ports))
-        logger.info(f"[Rustscan->Nmap] Запуск Nmap для {target} с портами: {ports_str}")
-        
-        # Создаем Nmap сканер и запускаем
-        nmap_scanner = NmapScanner()
-        
-        try:
-            result = await nmap_scanner.scan(
-                db=db,
-                job_id=job_id,
-                target=target,
-                ports=ports_str,
-                scripts='',
-                custom_args=nmap_args,
-                known_ports_only=False,
-                group_ids=group_ids
-            )
-            logger.info(f"[Rustscan->Nmap] Nmap завершен для {target}")
-            return result
-        except Exception as e:
-            logger.error(f"[Rustscan->Nmap] Ошибка при запуске Nmap: {e}")
-            return {"status": "failed", "error": str(e)}
+        """Запуск Nmap после Rustscan с найденными портами. Устаревший метод."""
+        logger.warning("_run_nmap_after устарел и больше не используется")
+        return {"status": "deprecated"}
     
-    async def _update_assets(self, db, targets, found_ports):
+    async def _update_assets(self, db, found_ports):
         """Обновление активов с найденными портами с использованием унифицированных функций."""
         
-        for ip in targets:
+        for ip, ports in found_ports.items():
             # Создаем или обновляем актив
             asset = await upsert_asset(
                 db=db,
@@ -246,10 +229,7 @@ class RustscanScanner:
                 scanner_name="Rustscan"
             )
             
-            if ip in found_ports:
-                # Обновляем порты
-                update_asset_ports(asset, 'rustscan', found_ports[ip], scanner_name="Rustscan")
-            else:
-                logger.info(f"[Rustscan] Актив {ip} проверен, новые порты не найдены")
+            # Обновляем порты
+            update_asset_ports(asset, 'rustscan', ports, scanner_name="Rustscan")
         
         await db.commit()
