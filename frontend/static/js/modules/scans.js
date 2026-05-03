@@ -63,7 +63,6 @@ export class ScanManager {
     const scriptDefault = document.getElementById('nmapScriptDefault')?.checked;
     const scriptSafe = document.getElementById('nmapScriptSafe')?.checked;
     const scriptVuln = document.getElementById('nmapScriptVuln')?.checked;
-    const saveAssets = document.getElementById('nmapSaveAssets')?.checked;
 
     if (!target) {
       Utils.showNotification('Укажите целевые хосты', 'warning');
@@ -92,7 +91,7 @@ export class ScanManager {
       args += ` --script=${scripts.join(',')}`;
     }
 
-    await this.#sendScanRequest('nmap', target, args, saveAssets);
+    await this.#sendScanRequest('nmap', target, args, true);
   }
 
   /**
@@ -103,7 +102,6 @@ export class ScanManager {
     const topPorts = document.getElementById('rustscanTopPorts').value;
     const portsRange = document.getElementById('rustscanPortsRange')?.value.trim() || '';
     const customArgs = document.getElementById('rustscanCustomArgs')?.value.trim() || '';
-    const saveAssets = document.getElementById('rustscanSaveAssets')?.checked;
 
     if (!target) {
       Utils.showNotification('Укажите целевые хосты', 'warning');
@@ -122,7 +120,7 @@ export class ScanManager {
 
     if (customArgs) args += ` ${customArgs}`;
 
-    await this.#sendScanRequest('rustscan', target, args, saveAssets);
+    await this.#sendScanRequest('rustscan', target, args, true);
   }
 
   /**
@@ -133,7 +131,6 @@ export class ScanManager {
     const recordType = document.getElementById('digType').value;
     const server = document.getElementById('digServer')?.value.trim() || '';
     const customArgs = document.getElementById('digCustomArgs')?.value.trim() || '';
-    const saveAssets = document.getElementById('digSaveAssets')?.checked;
 
     if (!domain) {
       Utils.showNotification('Укажите домен', 'warning');
@@ -153,7 +150,7 @@ export class ScanManager {
           target: domain,
           args: args,
           scan_type: 'dig',
-          save_assets: saveAssets,
+          save_assets: true,
           record_types: recordType,
           dns_server: server,
           cli_args: customArgs
@@ -242,7 +239,7 @@ export class ScanManager {
         target: target,
         args: args,
         scan_type: scanType,
-        save_assets: saveAssets
+        save_assets: true  // Всегда сохраняем активы
       };
 
       // Добавляем специфичные поля для dig

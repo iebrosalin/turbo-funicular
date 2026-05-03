@@ -316,7 +316,7 @@ export class DashboardController {
     
     try {
       // Загружаем список групп
-      const groups = await Utils.apiRequest('/api/assets/groups/tree');
+      const groups = await Utils.apiRequest('/api/groups/tree');
       
       // Заполняем селект группами
       const select = document.getElementById('target-group-select');

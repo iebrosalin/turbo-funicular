@@ -222,8 +222,7 @@ class ScanQueueManager:
                                 scripts=parameters.get('scripts', ''),
                                 custom_args=parameters.get('custom_args', ''),
                                 known_ports_only=parameters.get('known_ports_only', False),
-                                group_ids=parameters.get('group_ids'),
-                                save_assets=parameters.get('save_assets', True)
+                                group_ids=parameters.get('group_ids')
                             )
                         elif scan_type == 'rustscan':
                             logger.info(f"[DEBUG] Запуск RustscanScanner.scan для {target}")
@@ -236,8 +235,7 @@ class ScanQueueManager:
                                 custom_args=parameters.get('custom_args', ''),
                                 run_nmap_after=parameters.get('run_nmap_after', False),
                                 nmap_args=parameters.get('nmap_args', ''),
-                                group_ids=parameters.get('group_ids'),
-                                save_assets=parameters.get('save_assets', True)
+                                group_ids=parameters.get('group_ids')
                             )
                         elif scan_type == 'dig':
                             logger.info(f"[DEBUG] Запуск DigScanner.scan для {target}, record_type={parameters.get('record_types', 'ALL')}")
@@ -248,7 +246,7 @@ class ScanQueueManager:
                                 record_type=parameters.get('record_types', 'ALL'),
                                 custom_args=parameters.get('cli_args', ''),
                                 group_ids=parameters.get('group_ids'),
-                                save_assets=parameters.get('save_assets', True)
+                                save_assets=True
                             )
                             logger.info(f"[DEBUG] DigScanner.scan вернул: {result_data}")
                         else:
