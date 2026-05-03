@@ -2,6 +2,7 @@
 Асинхронный модуль сканирования Dig для интеграции с ScanQueueManager.
 """
 import asyncio
+import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,9 @@ from backend.models.scan import ScanJob, ScanResult
 from backend.models.asset import Asset
 from backend.utils import MOSCOW_TZ
 from backend.services.asset_manager import upsert_asset
+
+
+logger = logging.getLogger(__name__)
 
 
 class DigScanner:
@@ -26,8 +30,6 @@ class DigScanner:
         save_assets: bool = True
     ) -> Dict[str, Any]:
         """Запуск запроса Dig."""
-        import logging
-        logger = logging.getLogger(__name__)
         
         # Список типов записей для сканирования
         if record_type is None or record_type == 'ALL':
@@ -275,9 +277,6 @@ class DigScanner:
     
     def _extract_ips(self, parsed_result: Dict[str, Any]) -> List[str]:
         """Извлечение IP адресов из результатов Dig."""
-        import logging
-        logger = logging.getLogger(__name__)
-
         ips = []
         answers = parsed_result.get('answers', [])
         hostnames_to_resolve = []
