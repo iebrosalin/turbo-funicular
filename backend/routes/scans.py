@@ -41,7 +41,7 @@ class NmapScanRequest(BaseModel):
     scripts: Optional[str] = None
     custom_args: Optional[str] = None
     known_ports_only: bool = False
-    save_assets: bool = False
+    save_assets: bool = True
     group_ids: Optional[List[int]] = None
 
 
@@ -51,7 +51,7 @@ class RustscanRequest(BaseModel):
     custom_args: Optional[str] = None
     run_nmap_after: bool = False
     nmap_args: Optional[str] = None
-    save_assets: bool = False
+    save_assets: bool = True
     group_ids: Optional[List[int]] = None
 
 
@@ -60,8 +60,8 @@ class DigScanRequest(BaseModel):
     args: Optional[str] = None
     dns_server: Optional[str] = None
     cli_args: Optional[str] = None
-    record_types: Optional[str] = None
-    save_assets: bool = False
+    record_types: Optional[str] = 'ALL'
+    save_assets: bool = True
     group_ids: Optional[List[int]] = None
 
 

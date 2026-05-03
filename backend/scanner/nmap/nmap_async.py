@@ -30,7 +30,8 @@ class NmapScanner:
         scripts: str = '',
         custom_args: str = '',
         known_ports_only: bool = False,
-        group_ids: Optional[List[int]] = None
+        group_ids: Optional[List[int]] = None,
+        save_assets: bool = True
     ) -> Dict[str, Any]:
         """Запуск сканирования Nmap."""
         output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
