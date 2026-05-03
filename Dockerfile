@@ -9,11 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Установка системных зависимостей для nmap, playwright и других утилит
+# Установка системных зависимостей для nmap, playwright, компиляции Rust и других утилит
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nmap \
     dnsutils \
-    gcc \
+    build-essential \
     libpq-dev \
     curl \
     wget \
@@ -38,19 +38,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Установка Rust и cargo для установки rustscan
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
-    && rm -rf /var/lib/apt/lists/*
-
+# Установка Rust и Cargo
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Установка rustscan через cargo
+# Установка RustScan через cargo install
 RUN cargo install rustscan
-
-# Проверка установки
-RUN rustscan --version
 
 # Копирование файлов зависимостей
 COPY requirements.txt .
