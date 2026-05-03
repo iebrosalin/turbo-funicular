@@ -38,30 +38,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcairo2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Установка rustscan
-RUN ARCH=$(uname -m) && \
-    echo "Detected architecture: $ARCH" && \
-    if [ "$ARCH" = "x86_64" ]; then \
-        echo "Downloading RustScan for x86_64..." && \
-        wget -q -O rustscan.tar.gz https://github.com/RustScan/RustScan/releases/download/2.4.1/x86_64-linux-rustscan.tar.gz && \
-        tar -xzf rustscan.tar.gz && \
-        chmod +x rustscan && \
-        mv rustscan /usr/local/bin/ && \
-        rm -f rustscan.tar.gz; \
-    elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
-        echo "Downloading RustScan for aarch64..." && \
-        wget -q -O rustscan.tar.gz https://github.com/RustScan/RustScan/releases/download/2.4.1/aarch64-linux-rustscan.tar.gz && \
-        tar -xzf rustscan.tar.gz && \
-        chmod +x rustscan && \
-        mv rustscan /usr/local/bin/ && \
-        rm -f rustscan.tar.gz; \
-    else \
-        echo "Unsupported architecture: $ARCH" && exit 1; \
-    fi && \
-    # Проверка установки
-    echo "Checking RustScan installation..." && \
-    rustscan --version && \
-    echo "RustScan installed successfully"
+# Установка Rust и cargo для установки rustscan
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Установка rustscan через cargo
+RUN cargo install rustscan
+
+# Проверка установки
+RUN rustscan --version
 
 # Копирование файлов зависимостей
 COPY requirements.txt .
