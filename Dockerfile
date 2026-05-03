@@ -41,25 +41,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Установка rustscan
 # Используем бинарный файл из tar.gz архива для лучшей совместимости
 RUN ARCH=$(uname -m) && \
+    echo "Detected architecture: $ARCH" && \
     if [ "$ARCH" = "x86_64" ]; then \
-        wget -q -O rustscan.zip https://github.com/bee-san/RustScan/releases/download/2.4.1/x86_64-linux-rustscan.tar.gz.zip && \
-        unzip -o rustscan.zip && \
-        ls -la && \
-        mv x86_64-linux-rustscan.tar.gz rustscan-inner.tar.gz; \
-    elif [ "$ARCH" = "aarch64" ]; then \
-        wget -q -O rustscan.zip https://github.com/bee-san/RustScan/releases/download/2.4.1/aarch64-linux-rustscan.tar.gz.zip && \
-        unzip -o rustscan.zip && \
-        ls -la && \
-        mv aarch64-linux-rustscan.tar.gz rustscan-inner.tar.gz; \
+        echo "Downloading RustScan for x86_64..." && \
+        wget -q -O rustscan.tar.gz https://github.com/RustScan/RustScan/releases/download/2.4.1/x86_64-unknown-linux-gnu-rustscan.tar.gz && \
+        tar -xzf rustscan.tar.gz && \
+        chmod +x rustscan && \
+        mv rustscan /usr/local/bin/ && \
+        rm -f rustscan.tar.gz; \
+    elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
+        echo "Downloading RustScan for aarch64..." && \
+        wget -q -O rustscan.tar.gz https://github.com/RustScan/RustScan/releases/download/2.4.1/aarch64-unknown-linux-gnu-rustscan.tar.gz && \
+        tar -xzf rustscan.tar.gz && \
+        chmod +x rustscan && \
+        mv rustscan /usr/local/bin/ && \
+        rm -f rustscan.tar.gz; \
     else \
         echo "Unsupported architecture: $ARCH" && exit 1; \
     fi && \
-    tar -xzf rustscan-inner.tar.gz && \
-    chmod +x rustscan && \
-    mv rustscan /usr/local/bin/ && \
-    rm -f rustscan.zip rustscan-inner.tar.gz && \
     # Проверка установки
-    rustscan --version || echo "RustScan installed successfully"
+    echo "Checking RustScan installation..." && \
+    rustscan --version && \
+    echo "RustScan installed successfully"
 
 # Копирование файлов зависимостей
 COPY requirements.txt .
