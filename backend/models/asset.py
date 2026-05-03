@@ -65,7 +65,7 @@ class Asset(Base):
     services = relationship('ServiceInventory', back_populates='asset', cascade='all, delete-orphan')
     scan_results = relationship('ScanResult', back_populates='asset', cascade='all, delete-orphan')
     activity_logs = relationship('ActivityLog', back_populates='asset', cascade='all, delete-orphan')
-    # change_logs удалено - используется прямая таблица через Core API без ORM модели
+    change_logs = relationship('AssetChangeLog', back_populates='asset', cascade='all, delete-orphan')
 
     def update_ports(self, source, ports_data):
         """Обновление портов из указанного источника"""
