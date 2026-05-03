@@ -141,29 +141,6 @@
                             </div>
                         </div>
 
-                        <div class="col-12 mt-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="nmapSaveAssets" checked>
-                                <label class="form-check-label" for="nmapSaveAssets">Сохранять найденные активы в базу</label>
-                            </div>
-                        </div>
-                        
-                        <div class="col-12">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="nmapKnownOnly">
-                                <label class="form-check-label" for="nmapKnownOnly">Только известные порты (без указания цели)</label>
-                            </div>
-                            <div class="form-text">Сканировать только активы из выбранных групп.</div>
-                        </div>
-                        
-                        <div class="col-12 d-none" id="nmapGroupsContainer">
-                            <label for="nmapGroups" class="form-label">Группы активов</label>
-                            <select class="form-select" id="nmapGroups" multiple size="3">
-                                <!-- Заполняется через JS -->
-                            </select>
-                            <div class="form-text">Удерживайте Ctrl/Cmd для выбора нескольких групп.</div>
-                        </div>
-
                         <div class="col-12">
                             <button type="submit" class="btn btn-primary" id="nmapSubmitBtn"><i class="bi bi-play-fill"></i> Запустить Nmap</button>
                         </div>
@@ -197,29 +174,6 @@
                             <label for="rustscanCustomArgs" class="form-label">Доп. аргументы</label>
                             <input type="text" class="form-control" id="rustscanCustomArgs" placeholder="-u 5000 -t 2500">
                             <div class="form-text">Например: -u (ултра) или -t (таймаут).</div>
-                        </div>
-
-                        <div class="col-12 mt-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="rustscanSaveAssets" checked>
-                                <label class="form-check-label" for="rustscanSaveAssets">Сохранять активы</label>
-                            </div>
-                        </div>
-                        
-                        <div class="col-12">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="rustscanKnownOnly">
-                                <label class="form-check-label" for="rustscanKnownOnly">Только известные порты (без указания цели)</label>
-                            </div>
-                            <div class="form-text">Сканировать только активы из выбранных групп.</div>
-                        </div>
-                        
-                        <div class="col-12 d-none" id="rustscanGroupsContainer">
-                            <label for="rustscanGroups" class="form-label">Группы активов</label>
-                            <select class="form-select" id="rustscanGroups" multiple size="3">
-                                <!-- Заполняется через JS -->
-                            </select>
-                            <div class="form-text">Удерживайте Ctrl/Cmd для выбора нескольких групп.</div>
                         </div>
 
                         <div class="col-12">
@@ -258,13 +212,6 @@
                         <div class="col-md-6">
                             <label for="digCustomArgs" class="form-label">Доп. аргументы</label>
                             <input type="text" class="form-control" id="digCustomArgs" placeholder="+short +trace">
-                        </div>
-
-                        <div class="col-12 mt-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="digSaveAssets" checked>
-                                <label class="form-check-label" for="digSaveAssets">Создавать активы из DNS записей</label>
-                            </div>
                         </div>
 
                         <div class="col-12">

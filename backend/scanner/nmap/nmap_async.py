@@ -3,7 +3,6 @@
 """
 import asyncio
 import os
-import logging
 import xml.etree.ElementTree as ET
 import re
 from datetime import datetime
@@ -18,8 +17,6 @@ from backend.models.group import AssetGroup
 from backend.utils import MOSCOW_TZ
 from backend.services.asset_manager import upsert_asset, upsert_service, update_asset_ports
 
-logger = logging.getLogger(__name__)
-
 
 class NmapScanner:
     """Асинхронный класс для выполнения сканирования через Nmap"""
@@ -33,8 +30,7 @@ class NmapScanner:
         scripts: str = '',
         custom_args: str = '',
         known_ports_only: bool = False,
-        group_ids: Optional[List[int]] = None,
-        save_assets: bool = True
+        group_ids: Optional[List[int]] = None
     ) -> Dict[str, Any]:
         """Запуск сканирования Nmap."""
         output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
@@ -81,9 +77,8 @@ class NmapScanner:
                 raise Exception(f"Nmap завершился с кодом {process.returncode}")
             
             xml_file = f'{base_name}.xml'
-            text_file = f'{base_name}.nmap'
             if os.path.exists(xml_file):
-                await self._parse_results(db, job_id, xml_file, save_assets)
+                await self._parse_results(db, job_id, xml_file)
             else:
                 raise Exception("Файл XML результатов не создан")
             
@@ -94,15 +89,6 @@ class NmapScanner:
                 job.progress = 100.0
                 await db.commit()
             
-            # Читаем текстовый вывод для raw_output
-            raw_output = ""
-            if os.path.exists(text_file):
-                with open(text_file, 'r') as f:
-                    raw_output = f.read()
-            elif os.path.exists(xml_file):
-                with open(xml_file, 'r') as f:
-                    raw_output = f.read()
-            
             return {
                 "status": "completed",
                 "job_id": job_id,
@@ -110,7 +96,7 @@ class NmapScanner:
                     "hostname": target,
                     "ports": []
                 },
-                "raw_output": raw_output if raw_output else f"Nmap scan completed. Output saved to {xml_file}"
+                "raw_output": f"Nmap scan completed. Output saved to {xml_file}"
             }
             
         except asyncio.CancelledError:
@@ -176,8 +162,10 @@ class NmapScanner:
         cmd.extend(targets.split())
         return cmd
     
-    async def _parse_results(self, db: AsyncSession, job_id: int, xml_file: str, save_assets: bool = True):
+    async def _parse_results(self, db: AsyncSession, job_id: int, xml_file: str):
         """Парсинг XML и обновление БД с использованием унифицированных функций."""
+        import logging
+        logger = logging.getLogger(__name__)
         
         tree = ET.parse(xml_file)
         root = tree.getroot()
@@ -216,24 +204,6 @@ class NmapScanner:
             
             found_ports = []
             ports_elem = host.find('ports')
-            
-            # СОЗДАЕМ АКТИВ ПЕРЕД ОБРАБОТКОЙ ПОРТОВ
-            asset = None
-            if save_assets:
-                logger.info(f"[Nmap DEBUG] Создаю актив для {ip}...")
-                asset = await upsert_asset(
-                    db=db,
-                    ip_address=ip,
-                    hostname=hostname,
-                    os_family=os_family,
-                    os_version=os_version,
-                    scanner_name="Nmap"
-                )
-                if asset:
-                    logger.info(f"[Nmap DEBUG] Актив создан/обновлен: ID={asset.id}")
-                else:
-                    logger.error(f"[Nmap DEBUG] Не удалось создать актив для {ip}")
-            
             if ports_elem is not None:
                 for port in ports_elem.findall('port'):
                     state_elem = port.find('state')
@@ -267,31 +237,39 @@ class NmapScanner:
                                 if iss:
                                     service_data['ssl_issuer'] = iss.group(1).strip()
                     
-                    # Обновляем порты и создаем сервис ТОЛЬКО если актив был создан
-                    if asset:
-                        # Обновляем порты
-                        update_asset_ports(asset, 'nmap', [port_num], scanner_name="Nmap")
-                        
-                        # Создаем или обновляем сервис
-                        await upsert_service(
-                            db=db,
-                            asset=asset,
-                            port=port_num,
-                            protocol=protocol,
-                            state='open',
-                            service_name=service_data.get('name', 'unknown'),
-                            product=service_data.get('product', ''),
-                            version=service_data.get('version', ''),
-                            extra_info=service_data.get('extra_info', ''),
-                            script_output=service_data.get('script_output', ''),
-                            ssl_subject=service_data.get('ssl_subject'),
-                            ssl_issuer=service_data.get('ssl_issuer'),
-                            scanner_name="Nmap"
-                        )
+                    # Создаем или обновляем актив
+                    asset = await upsert_asset(
+                        db=db,
+                        ip_address=ip,
+                        hostname=hostname,
+                        os_family=os_family,
+                        os_version=os_version,
+                        scanner_name="Nmap"
+                    )
+                    
+                    # Обновляем порты
+                    update_asset_ports(asset, 'nmap', [port_num], scanner_name="Nmap")
+                    
+                    # Создаем или обновляем сервис
+                    await upsert_service(
+                        db=db,
+                        asset=asset,
+                        port=port_num,
+                        protocol=protocol,
+                        state='open',
+                        service_name=service_data.get('name', 'unknown'),
+                        product=service_data.get('product', ''),
+                        version=service_data.get('version', ''),
+                        extra_info=service_data.get('extra_info', ''),
+                        script_output=service_data.get('script_output', ''),
+                        ssl_subject=service_data.get('ssl_subject'),
+                        ssl_issuer=service_data.get('ssl_issuer'),
+                        scanner_name="Nmap"
+                    )
             
             scan_result = ScanResult(
                 scan_job_id=job_id,
-                ip_address=ip,
+                asset_ip=ip,
                 hostname=hostname,
                 ports=found_ports,
                 raw_output=f"Nmap scan completed for {ip}",
