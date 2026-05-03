@@ -308,8 +308,15 @@ class AssetService:
         # Получаем данные для лога перед удалением
         assets_data = []
         for aid in asset_ids:
-            asset_dict = await self.get_by_id(aid)
-            if asset_dict:
+            asset_obj = await self.get_by_id(aid)
+            if asset_obj:
+                # Преобразуем модель в словарь
+                from sqlalchemy.orm import class_mapper
+                mapper = class_mapper(type(asset_obj))
+                asset_dict = {key: getattr(asset_obj, key, None) for key in [column.key for column in mapper.columns]}
+                # Добавляем связи
+                if hasattr(asset_obj, 'groups'):
+                    asset_dict['groups'] = [{'id': g.id, 'name': g.name} for g in asset_obj.groups] if asset_obj.groups else []
                 assets_data.append(asset_dict)
         
         query = delete(Asset).where(Asset.id.in_(asset_ids))
