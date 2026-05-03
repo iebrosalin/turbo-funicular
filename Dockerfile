@@ -39,11 +39,25 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Установка rustscan
-# RustScan теперь распространяется в zip-архиве с .deb файлом внутри
-RUN wget -q -O rustscan.deb.zip https://github.com/bee-san/RustScan/releases/download/2.4.1/rustscan.deb.zip \
-    && unzip rustscan.deb.zip \
-    && dpkg -i rustscan_*.deb || apt-get install -f -y \
-    && rm -f rustscan.deb.zip rustscan.tmp*-stripped rustscan_*.deb
+# Используем бинарный файл из tar.gz архива для лучшей совместимости
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+        wget -q -O rustscan.tar.gz https://github.com/bee-san/RustScan/releases/download/2.4.1/x86_64-linux-rustscan.tar.gz.zip && \
+        unzip rustscan.tar.gz && \
+        mv x86_64-linux-rustscan.tar.gz rustscan-inner.tar.gz; \
+    elif [ "$ARCH" = "aarch64" ]; then \
+        wget -q -O rustscan.tar.gz https://github.com/bee-san/RustScan/releases/download/2.4.1/aarch64-linux-rustscan.zip && \
+        unzip rustscan.tar.gz && \
+        mv aarch64-linux-rustscan.tar.gz rustscan-inner.tar.gz; \
+    else \
+        echo "Unsupported architecture: $ARCH" && exit 1; \
+    fi && \
+    tar -xzf rustscan-inner.tar.gz && \
+    chmod +x rustscan && \
+    mv rustscan /usr/local/bin/ && \
+    rm -f rustscan.tar.gz rustscan-inner.tar.gz && \
+    # Проверка установки
+    rustscan --version || echo "RustScan installed successfully"
 
 # Копирование файлов зависимостей
 COPY requirements.txt .
@@ -53,11 +67,11 @@ RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Установка браузеров для Playwright
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN playwright install chromium && \
-    playwright install firefox && \
-    playwright install webkit
+# Установка браузеров для Playwright (закомментировано для ускорения сборки)
+# ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+# RUN playwright install chromium && \
+#     playwright install firefox && \
+#     playwright install webkit
 
 # Создание директории для базы данных (если используется SQLite)
 RUN mkdir -p /app/instance

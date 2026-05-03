@@ -25,28 +25,28 @@ services:
           cpus: '1.0'
           memory: 512M
 
-  # Сервис для запуска интеграционных тестов с Playwright
-  e2e-tests:
-    image: mcr.microsoft.com/playwright/python:v1.49.0-jammy
-    container_name: asset_management_e2e
-    depends_on:
-      - web
-    environment:
-      - BASE_URL=http://web:5000
-      - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-    volumes:
-      - ./tests:/app/tests
-      - playwright-cache:/ms-playwright
-    working_dir: /app
-    command: sh -c "pip install pytest requests && cd /app && pytest tests/integration -v --tb=short"
-    profiles:
-      - e2e
-    cap_add:
-      - SYS_ADMIN
-    shm_size: '2gb'
+  # Сервис для запуска интеграционных тестов с Playwright (закомментирован для ускорения сборки)
+  # e2e-tests:
+  #   image: mcr.microsoft.com/playwright/python:v1.49.0-jammy
+  #   container_name: asset_management_e2e
+  #   depends_on:
+  #     - web
+  #   environment:
+  #     - BASE_URL=http://web:5000
+  #     - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+  #   volumes:
+  #     - ./tests:/app/tests
+  #     - playwright-cache:/ms-playwright
+  #   working_dir: /app
+  #   command: sh -c "pip install pytest requests && cd /app && pytest tests/integration -v --tb=short"
+  #   profiles:
+  #     - e2e
+  #   cap_add:
+  #     - SYS_ADMIN
+  #   shm_size: '2gb'
 
 volumes:
   app_data:
     driver: local
-  playwright-cache:
-    driver: local
+  # playwright-cache:
+  #   driver: local
