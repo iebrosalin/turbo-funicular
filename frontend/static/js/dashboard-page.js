@@ -96,6 +96,14 @@ export class DashboardController {
     document.getElementById('btn-clear-selection')?.addEventListener('click', () => store.clearSelectedAssets());
     document.getElementById('btn-bulk-move')?.addEventListener('click', () => this.#confirmBulkMove());
     document.getElementById('btn-bulk-delete')?.addEventListener('click', () => this.#confirmBulkDelete());
+    
+    // Кнопка выполнения массового перемещения в модальном окне
+    document.getElementById('btn-execute-bulk-move')?.addEventListener('click', () => {
+      const moveBtn = document.getElementById('btn-execute-bulk-move');
+      const ids = JSON.parse(moveBtn.dataset.assetIds || '[]');
+      const targetGroupId = document.getElementById('target-group-select').value;
+      this.#executeBulkMove(ids, targetGroupId);
+    });
 
     // Кнопки экспорта
     document.getElementById('btn-export-csv-current')?.addEventListener('click', () => this.exportData('csv', true));
@@ -292,15 +300,78 @@ export class DashboardController {
     }
   }
 
-  #confirmBulkMove() {
+  async #confirmBulkMove() {
     const ids = store.getSelectedAssets();
     if (!ids.length) {
       Utils.showNotification('Выберите активы для перемещения', 'warning');
       return;
     }
-    // Открытие модального окна перемещения
-    // Реализация зависит от структуры модальных окон
-    alert(`Переместить ${ids.length} активов (функционал в разработке)`);
+    
+    try {
+      // Загружаем список групп
+      const groups = await Utils.apiRequest('/api/assets/groups/tree');
+      
+      // Заполняем селект группами
+      const select = document.getElementById('target-group-select');
+      select.innerHTML = '<option value="">-- Без группы --</option>';
+      
+      function buildGroupOptions(groupList, level = 0) {
+        groupList.forEach(group => {
+          const indent = ' '.repeat(level * 2);
+          const option = document.createElement('option');
+          option.value = group.id;
+          option.textContent = indent + (group.name || group.group_name);
+          select.appendChild(option);
+          
+          if (group.children && group.children.length > 0) {
+            buildGroupOptions(group.children, level + 1);
+          }
+        });
+      }
+      
+      buildGroupOptions(groups);
+      
+      // Обновляем счетчик
+      document.getElementById('bulk-move-count').textContent = ids.length;
+      
+      // Открываем модальное окно
+      const modal = new bootstrap.Modal(document.getElementById('bulkMoveModal'));
+      modal.show();
+      
+      // Сохраняем IDs в data-атрибут кнопки
+      const moveBtn = document.getElementById('btn-execute-bulk-move');
+      moveBtn.dataset.assetIds = JSON.stringify(ids);
+      
+    } catch (err) {
+      Utils.showNotification('Ошибка загрузки групп: ' + err.message, 'danger');
+    }
+  }
+  
+  async #executeBulkMove(ids, targetGroupId) {
+    try {
+      await Utils.apiRequest('/api/assets/bulk-move', {
+        method: 'POST',
+        body: JSON.stringify({ 
+          ids,
+          group_id: targetGroupId === '' ? null : parseInt(targetGroupId)
+        })
+      });
+      Utils.showNotification('Активы перемещены', 'success');
+      store.clearSelectedAssets();
+      
+      // Закрываем модальное окно
+      const modalEl = document.getElementById('bulkMoveModal');
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
+      
+      // Полная перезагрузка данных с сервера для синхронизации
+      await this.#reloadData();
+      
+      // Принудительно обновляем отображение
+      this.applyFilters();
+    } catch (err) {
+      Utils.showNotification('Ошибка массового перемещения: ' + err.message, 'danger');
+    }
   }
 
   #confirmBulkDelete() {
