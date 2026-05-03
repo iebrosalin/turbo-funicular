@@ -70,6 +70,40 @@ async def lifespan(app: FastAPI):
         from sqlalchemy import text, inspect
         inspector = inspect(sync_engine)
         
+        # Проверяем наличие колонки username в таблице asset_change_logs
+        if "asset_change_logs" in inspector.get_table_names():
+            log_columns = [col['name'] for col in inspector.get_columns('asset_change_logs')]
+            
+            # Добавляем колонку username если её нет
+            if 'username' not in log_columns:
+                logger.info("🔧 Добавление колонки username в таблицу asset_change_logs...")
+                with sync_engine.begin() as conn:
+                    if "sqlite" in db_url:
+                        conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN username VARCHAR(100)"))
+                    else:
+                        conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN username VARCHAR(100)"))
+                logger.info("✅ Колонка username успешно добавлена.")
+            
+            # Добавляем колонку action если её нет
+            if 'action' not in log_columns:
+                logger.info("🔧 Добавление колонки action в таблицу asset_change_logs...")
+                with sync_engine.begin() as conn:
+                    if "sqlite" in db_url:
+                        conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN action VARCHAR(50) NOT NULL DEFAULT 'update'"))
+                    else:
+                        conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN action VARCHAR(50) NOT NULL DEFAULT 'update'"))
+                logger.info("✅ Колонка action успешно добавлена.")
+            
+            # Добавляем колонку changed_fields если её нет
+            if 'changed_fields' not in log_columns:
+                logger.info("🔧 Добавление колонки changed_fields в таблицу asset_change_logs...")
+                with sync_engine.begin() as conn:
+                    if "sqlite" in db_url:
+                        conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN changed_fields JSON"))
+                    else:
+                        conn.execute(text("ALTER TABLE asset_change_logs ADD COLUMN changed_fields JSON"))
+                logger.info("✅ Колонка changed_fields успешно добавлена.")
+        
         # Проверяем наличие колонки last_seen в таблице assets
         if "assets" in inspector.get_table_names():
             columns = [col['name'] for col in inspector.get_columns('assets')]

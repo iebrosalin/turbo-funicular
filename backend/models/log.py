@@ -31,9 +31,9 @@ class AssetChangeLog(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     asset_id = Column(Integer, ForeignKey("assets.id", ondelete="CASCADE"), nullable=False, index=True)
-    field_name = Column(String(100), nullable=False)  # Имя изменённого поля
-    old_value = Column(Text, nullable=True)  # Старое значение (JSON строка)
-    new_value = Column(Text, nullable=True)  # Новое значение (JSON строка)
+    username = Column(String(100), nullable=True)  # Имя пользователя, выполнившего изменение
+    action = Column(String(50), nullable=False)  # Действие: create, update, delete, move
+    changed_fields = Column(JSON, nullable=True)  # JSON с данными об изменении
     changed_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Связь с активом
