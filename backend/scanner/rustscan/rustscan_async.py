@@ -24,9 +24,6 @@ class RustscanScanner(BaseScanner):
         
         if self.ports:
             cmd.extend(["-p", self.ports])
-        
-        # Add grepable output flag
-        cmd.extend(["-g", self.grepable_file])
             
         # Add Nmap arguments if scripts are specified
         if self.nmap_scripts and self.nmap_scripts.strip() and self.nmap_scripts.lower() != "none":
@@ -59,12 +56,16 @@ class RustscanScanner(BaseScanner):
                 
         logger.info(f"[RustscanScanner] Процесс Rustscan завершен с кодом {process.returncode}")
         
-        # Save raw output
+        # Save raw output to txt file
         with open(self.raw_file, 'w') as f:
             f.write(stdout_str)
             if stderr_str:
                 f.write("\nSTDERR:\n")
                 f.write(stderr_str)
+        
+        # Save stdout to grepable file for parsing
+        with open(self.grepable_file, 'w') as f:
+            f.write(stdout_str)
         
         result = self._parse_output(stdout_str, stderr_str)
         
