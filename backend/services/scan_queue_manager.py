@@ -185,21 +185,6 @@ class ScanQueueManager:
                 
                 logger.info(f"Начало сканирования {scan_job_id}: {scan_type} для {len(targets)} целей")
                 
-                # Выбираем сканер
-                scanner = None
-                if scan_type == 'nmap':
-                    scanner = NmapScanner(job_id=job_id, target=target)
-                    logger.info(f"[DEBUG] Создан NmapScanner")
-                elif scan_type == 'rustscan':
-                    scanner = RustscanScanner(job_id=job_id, target=target)
-                    logger.info(f"[DEBUG] Создан RustscanScanner")
-                elif scan_type == 'dig':
-                    scanner = DigScanner(job_id=job_id, target=target)
-                    logger.info(f"[DEBUG] Создан DigScanner")
-                
-                if not scanner:
-                    raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
-                
                 # Выполняем сканирование для каждой цели
                 for idx, target in enumerate(targets):
                     if not self._running or scan_job_id not in self._tasks:
@@ -209,6 +194,21 @@ class ScanQueueManager:
                     # Обновление прогресса
                     self._progress[scan_job_id]["current"] = idx + 1
                     logger.info(f"[DEBUG] Обработка цели {idx+1}/{len(targets)}: {target}")
+                    
+                    # Выбираем сканер для каждой цели
+                    scanner = None
+                    if scan_type == 'nmap':
+                        scanner = NmapScanner(job_id=scan_job_id, target=target)
+                        logger.info(f"[DEBUG] Создан NmapScanner")
+                    elif scan_type == 'rustscan':
+                        scanner = RustscanScanner(job_id=scan_job_id, target=target)
+                        logger.info(f"[DEBUG] Создан RustscanScanner")
+                    elif scan_type == 'dig':
+                        scanner = DigScanner(job_id=scan_job_id, target=target)
+                        logger.info(f"[DEBUG] Создан DigScanner")
+                    
+                    if not scanner:
+                        raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
                     
                     try:
                         # Вызов реального сканера
