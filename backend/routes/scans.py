@@ -302,10 +302,14 @@ async def get_active_scans(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/history")
-async def get_scan_history(db: AsyncSession = Depends(get_db)):
+async def get_scan_history(
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db)
+):
     """Получить историю сканирований с выводом утилит (алиас для корня)."""
     service = ScanService(db)
-    scans = await service.get_all()
+    scans = await service.get_all(limit=limit, offset=offset)
     
     result = []
     for scan in scans:
@@ -1298,61 +1302,8 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
             }
         )
     
-    elif format == "csv":
-        import csv
-        import io
-        
-        output = io.StringIO()
-        writer = csv.writer(output)
-        
-        # Заголовок
-        writer.writerow(['IP Address', 'Hostname', 'Port', 'Protocol', 'State', 'Service', 'OS Info'])
-        
-        for result in results:
-            ports = result.ports or []
-            if isinstance(ports, list):
-                for port_info in ports:
-                    if isinstance(port_info, dict):
-                        writer.writerow([
-                            result.ip_address,
-                            result.hostname or '',
-                            port_info.get('port', ''),
-                            port_info.get('protocol', 'tcp'),
-                            port_info.get('state', 'open'),
-                            port_info.get('service', ''),
-                            result.os_info or ''
-                        ])
-                    elif isinstance(port_info, (int, str)):
-                        writer.writerow([
-                            result.ip_address,
-                            result.hostname or '',
-                            port_info,
-                            'tcp',
-                            'open',
-                            '',
-                            result.os_info or ''
-                        ])
-            else:
-                writer.writerow([
-                    result.ip_address,
-                    result.hostname or '',
-                    '',
-                    '',
-                    '',
-                    '',
-                    result.os_info or ''
-                ])
-        
-        return StreamingResponse(
-            iter([output.getvalue().encode('utf-8')]),
-            media_type="text/csv",
-            headers={
-                "Content-Disposition": f'attachment; filename="scan_{job_id}.csv"'
-            }
-        )
-    
     else:
-        raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, json, json-dig, csv, xml, gnmap, normal, grepable")
+        raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, json, json-dig, xml, gnmap, normal, grepable")
 
 
 
@@ -1380,58 +1331,6 @@ async def download_scan_result(scan_id: int, format: str, db: AsyncSession = Dep
         raise HTTPException(status_code=404, detail="Результаты сканирования не найдены")
     
     # Форматируем результат в зависимости от запрошенного формата
-    if format == "csv":
-        import csv
-        import io
-        
-        output = io.StringIO()
-        writer = csv.writer(output)
-        
-        # Заголовок
-        writer.writerow(['IP Address', 'Hostname', 'Port', 'Protocol', 'State', 'Service', 'OS Info'])
-        
-        for result in results:
-            ports = result.ports or []
-            if isinstance(ports, list):
-                for port_info in ports:
-                    if isinstance(port_info, dict):
-                        writer.writerow([
-                            result.ip_address,
-                            result.hostname or '',
-                            port_info.get('port', ''),
-                            port_info.get('protocol', 'tcp'),
-                            port_info.get('state', 'open'),
-                            port_info.get('service', ''),
-                            result.os_info or ''
-                        ])
-                    elif isinstance(port_info, (int, str)):
-                        writer.writerow([
-                            result.ip_address,
-                            result.hostname or '',
-                            port_info,
-                            'tcp',
-                            'open',
-                            '',
-                            result.os_info or ''
-                        ])
-            else:
-                writer.writerow([
-                    result.ip_address,
-                    result.hostname or '',
-                    '',
-                    '',
-                    '',
-                    '',
-                    result.os_info or ''
-                ])
-        
-        return StreamingResponse(
-            iter([output.getvalue().encode('utf-8')]),
-            media_type="text/csv",
-            headers={
-                "Content-Disposition": f'attachment; filename="scan_{scan_id}.csv"'
-            }
-        )
     
     elif format == "json":
         import json
@@ -1484,7 +1383,7 @@ async def download_scan_result(scan_id: int, format: str, db: AsyncSession = Dep
         )
     
     else:
-        raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, json, csv")
+        raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, json")
 
 
 # ==========================================

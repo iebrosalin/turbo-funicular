@@ -13,12 +13,12 @@ class ScanService:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self) -> List[Scan]:
-        """Получить все сканирования с результатами."""
+    async def get_all(self, limit: int = 100, offset: int = 0) -> List[Scan]:
+        """Получить все сканирования с результатами (с пагинацией)."""
         query = select(Scan).options(
             selectinload(Scan.group),
             selectinload(Scan.results)
-        ).order_by(Scan.created_at.desc())
+        ).order_by(Scan.created_at.desc()).offset(offset).limit(limit)
         result = await self.db.execute(query)
         return list(result.scalars().all())
     

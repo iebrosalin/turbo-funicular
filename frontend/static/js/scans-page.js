@@ -14,6 +14,12 @@ export class ScanResultsController {
     this.queueStatus = document.getElementById('queue-status-container');
     this.scanTabs = document.getElementById('scanTabs');
     
+    // Пагинация истории сканирований
+    this.historyPage = 0;
+    this.historyPageSize = 20;
+    this.historyLoading = false;
+    this.historyEndReached = false;
+    
     this.#init();
   }
 
@@ -147,21 +153,46 @@ export class ScanResultsController {
   }
 
   /**
-   * Загрузка истории сканирований
+   * Загрузка истории сканирований (с пагинацией)
+   * @param {boolean} append - если true, добавлять к существующим записям, иначе очистить таблицу
    */
-  async loadHistory() {
+  async loadHistory(append = false) {
+    if (this.historyLoading || this.historyEndReached) return;
+    
+    this.historyLoading = true;
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    if (loadingIndicator && !append) {
+      loadingIndicator.classList.remove('d-none');
+    }
+    
     try {
-      const response = await fetch('/api/scans/history');
-      if (!response.ok) return;
+      const offset = this.historyPage * this.historyPageSize;
+      const response = await fetch(`/api/scans/history?limit=${this.historyPageSize}&offset=${offset}`);
+      if (!response.ok) {
+        this.historyLoading = false;
+        return;
+      }
       const jobs = await response.json();
       
       const tbody = document.getElementById('scansHistoryBody');
-      if (!tbody) return;
+      if (!tbody) {
+        this.historyLoading = false;
+        return;
+      }
       
-      tbody.innerHTML = '';
+      // Очищаем таблицу только при первой загрузке
+      if (!append) {
+        tbody.innerHTML = '';
+      }
       
       if (!jobs || jobs.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">История пуста</td></tr>';
+        if (!append) {
+          tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">История пуста</td></tr>';
+        }
+        this.historyEndReached = true;
+        const endMsg = document.getElementById('endOfListMessage');
+        if (endMsg) endMsg.classList.remove('d-none');
+        this.historyLoading = false;
         return;
       }
       
@@ -191,8 +222,24 @@ export class ScanResultsController {
         `;
         tbody.appendChild(tr);
       });
+      
+      // Если загружено меньше чем pageSize, значит достигли конца
+      if (jobs.length < this.historyPageSize) {
+        this.historyEndReached = true;
+        const endMsg = document.getElementById('endOfListMessage');
+        if (endMsg) endMsg.classList.remove('d-none');
+      }
+      
+      this.historyPage++;
+      
     } catch (e) {
       console.error('Load history error:', e);
+    } finally {
+      this.historyLoading = false;
+      const loadingIndicator = document.getElementById('loadingIndicator');
+      if (loadingIndicator) {
+        loadingIndicator.classList.add('d-none');
+      }
     }
   }
 
@@ -369,6 +416,21 @@ export class ScanResultsController {
 
     // Кнопка обновления списка задач
     document.getElementById('btn-refresh-jobs')?.addEventListener('click', () => this.loadJobs());
+
+    // Бесконечный скролл для истории сканирований
+    const historyContainer = document.querySelector('.table-responsive');
+    if (historyContainer) {
+      historyContainer.addEventListener('scroll', () => {
+        const scrollTop = historyContainer.scrollTop;
+        const scrollHeight = historyContainer.scrollHeight;
+        const clientHeight = historyContainer.clientHeight;
+        
+        // Если прокрутили до конца (с запасом 50px)
+        if (scrollTop + clientHeight >= scrollHeight - 50) {
+          this.loadHistory(true); // append = true
+        }
+      });
+    }
 
     // Загрузка групп при открытии модального окна импорта XML
     document.getElementById('importXmlModal')?.addEventListener('show.bs.modal', () => this.#loadGroupsForImport());
@@ -708,8 +770,7 @@ export class ScanResultsController {
     // Используем job_id как основной идентификатор, scan_id может быть undefined
     let links = '';
     
-    // Добавляем CSV и JSON для всех типов сканирований
-    links += `<li><a class="dropdown-item" href="${base}/csv">CSV</a></li>`;
+    // Добавляем JSON для всех типов сканирований
     links += `<li><a class="dropdown-item" href="${base}/json">JSON (из БД)</a></li>`;
     links += `<li><a class="dropdown-item" href="${base}/raw">Raw (stdout)</a></li>`;
     
@@ -858,38 +919,18 @@ export class ScanResultsController {
     if (!activeTab) return;
 
     const targetInput = activeTab.querySelector('input[id*="target"]');
-    const csvInput = document.getElementById('simple-scan-csv');
     const groupSelect = document.getElementById('simple-scan-group-id');
     const scanTypeSelect = document.getElementById('simple-scan-type');
     
     let targets = [];
     
-    // Проверяем, загружен ли CSV файл
-    if (csvInput && csvInput.files.length > 0) {
-      try {
-        const file = csvInput.files[0];
-        const text = await this.#readFileAsText(file);
-        // Разбиваем по строкам и фильтруем пустые
-        targets = text.split('\n')
-          .map(line => line.trim())
-          .filter(line => line.length > 0 && !line.startsWith('#'));
-        
-        if (targets.length === 0) {
-          alert('CSV файл пуст или не содержит корректных целей');
-          return;
-        }
-      } catch (error) {
-        console.error('Ошибка чтения CSV:', error);
-        alert(`Ошибка чтения файла: ${error.message}`);
-        return;
-      }
-    } else if (targetInput && targetInput.value.trim()) {
-      // Используем текстовый ввод
+    // Используем текстовый ввод
+    if (targetInput && targetInput.value.trim()) {
       const targetText = targetInput.value.trim();
       // Разбиваем по запятой если несколько целей
       targets = targetText.split(',').map(t => t.trim()).filter(t => t.length > 0);
     } else {
-      alert('Введите цель сканирования или загрузите CSV файл');
+      alert('Введите цель сканирования');
       return;
     }
 
