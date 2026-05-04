@@ -692,6 +692,7 @@ export class ScanResultsController {
           custom_args: document.getElementById('rustscanCustomArgs')?.value || '',
           run_nmap_after: document.getElementById('rustscanRunNmap')?.checked || false,
           nmap_args: document.getElementById('rustscanNmapArgs')?.value || '',
+          nmap_scripts: document.getElementById('rustscanNmapScripts')?.value || '',
           known_ports_only: knownOnly,
           group_ids: groupIds,
           save_assets: document.getElementById('rustscanSaveAssets')?.checked ?? true

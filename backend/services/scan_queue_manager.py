@@ -235,6 +235,7 @@ class ScanQueueManager:
                                 custom_args=parameters.get('custom_args', ''),
                                 run_nmap_after=parameters.get('run_nmap_after', False),
                                 nmap_args=parameters.get('nmap_args', ''),
+                                nmap_scripts=parameters.get('nmap_scripts', ''),
                                 group_ids=parameters.get('group_ids')
                             )
                         elif scan_type == 'dig':
