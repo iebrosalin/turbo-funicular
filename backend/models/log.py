@@ -34,7 +34,7 @@ class AssetChangeLog(Base):
     username = Column(String(100), nullable=True)  # Имя пользователя, выполнившего изменение
     action = Column(String(50), nullable=False)  # Действие: create, update, delete, move
     changed_fields = Column(JSON, nullable=True)  # JSON с данными об изменении
-    changed_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Связь с активом
     asset = relationship("Asset", back_populates="change_logs")
