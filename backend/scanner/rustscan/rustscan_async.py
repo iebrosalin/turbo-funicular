@@ -64,6 +64,9 @@ class RustscanScanner:
             
             # Собираем вывод и одновременно записываем в файл
             output_lines = []
+            json_lines = []
+            grepable_lines = []
+            
             with open(raw_output_file, 'w', encoding='utf-8') as f:
                 while True:
                     line = await process.stdout.readline()
@@ -74,7 +77,15 @@ class RustscanScanner:
                         logger.debug(f"[Rustscan] {line_decoded}")
                         f.write(line_decoded + '\n')
                         f.flush()  # Гарантируем запись на диск
-                    output_lines.append(line_decoded)
+                        output_lines.append(line_decoded)
+                        
+                        # Пытаемся определить тип строки для разделения по форматам
+                        # JSON вывод обычно начинается с { или [
+                        if line_decoded.startswith('{') or line_decoded.startswith('['):
+                            json_lines.append(line_decoded)
+                        # Grepable формат обычно содержит IP и порты в формате IP -> Port
+                        elif '->' in line_decoded:
+                            grepable_lines.append(line_decoded)
             
             await process.wait()
             
@@ -85,6 +96,27 @@ class RustscanScanner:
             
             # Парсим вывод для получения портов
             found_ports = self._parse_output(output_lines)
+            
+            # Создаём файлы для разных форматов из stdout
+            # JSON файл
+            json_output_file = os.path.join(output_dir, 'rustscan.json')
+            with open(json_output_file, 'w', encoding='utf-8') as f:
+                if json_lines:
+                    f.write('\n'.join(json_lines))
+                else:
+                    # Если JSON не найден в выводе, создаём его из распарсенных данных
+                    import json as json_module
+                    f.write(json_module.dumps(found_ports if found_ports else {}))
+            
+            # Grepable файл
+            grepable_output_file = os.path.join(output_dir, 'rustscan_grepable.txt')
+            with open(grepable_output_file, 'w', encoding='utf-8') as f:
+                if grepable_lines:
+                    f.write('\n'.join(grepable_lines))
+                else:
+                    # Если grepable не найден, создаём из распарсенных данных
+                    for ip, ports in (found_ports if found_ports else {}).items():
+                        f.write(f"{ip} -> {','.join(map(str, ports))}\n")
             
             # Обновляем активы с найденными портами
             await self._update_assets(db, found_ports)
@@ -193,12 +225,12 @@ class RustscanScanner:
         cmd = ['rustscan', '-a', targets]
         if ports:
             cmd.extend(['-p', ports])
-        # RustScan поддерживает следующие опции вывода:
-        # --greppable <file> - сохраняет результаты в grepable формате (обратите внимание на две 'p')
-        # --json <file> - сохраняет результаты в JSON формате (ip: [ports])
-        # Стандартный вывод (stdout) сохраняется как raw
-        cmd.extend(['--greppable', f'{base_name}_grepable.txt'])
-        cmd.extend(['--json', f'{base_name}.json'])
+        # RustScan поддерживает следующие опции вывода через stdout:
+        # --greppable - выводит результаты в grepable формате в stdout
+        # --json - выводит результаты в JSON формате в stdout
+        # Мы сохраняем stdout в raw файл, а затем парсим его для создания других форматов
+        # Добавляем флаги для получения структурированного вывода
+        cmd.append('--json')
         if custom_args:
             cmd.extend(custom_args.split())
         return cmd
