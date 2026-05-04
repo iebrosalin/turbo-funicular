@@ -379,7 +379,7 @@ class AssetService:
         """Получить историю изменений актива."""
         query = select(asset_change_logs_table).where(
             asset_change_logs_table.c.asset_id == asset_id
-        ).order_by(asset_change_logs_table.c.created_at.desc()).limit(limit)
+        ).order_by(asset_change_logs_table.c.changed_at.desc()).limit(limit)
         
         result = await self.db.execute(query)
         rows = result.fetchall()
@@ -391,7 +391,7 @@ class AssetService:
                 'username': row.username,
                 'action': row.action,
                 'changed_fields': row.changed_fields,
-                'created_at': row.created_at.isoformat() if row.created_at else None
+                'changed_at': row.changed_at.isoformat() if row.changed_at else None
             }
             for row in rows
         ]

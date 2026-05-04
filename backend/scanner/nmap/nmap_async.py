@@ -172,7 +172,7 @@ class NmapScanner:
         if ports:
             cmd.extend(['-p', ports])
         # Добавляем скрипты только если они не пустые и не содержат только пробелы
-        if scripts and scripts.strip() and scripts.strip().lower() != 'none':
+        if scripts and scripts.strip() and scripts.strip().lower() not in ['none', 'on']:
             logger.debug(f"[Nmap] Добавляем скрипты: {scripts}")
             cmd.extend(['--script', scripts])
         else:
