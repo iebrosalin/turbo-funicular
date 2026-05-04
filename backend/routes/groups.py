@@ -241,3 +241,71 @@ async def create_cidr_groups(
     )
     
     return groups
+
+
+@router.post("/root/rename")
+async def rename_root_group(
+    name: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Переименовать корневую группу "Организация".
+    """
+    from sqlalchemy import select
+    
+    # Находим корневую группу по специальному маркеру в описании
+    query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
+    result = await db.execute(query)
+    root_group = result.scalar_one_or_none()
+    
+    if not root_group:
+        # Создаем корневую группу если не существует
+        from backend.schemas.group import GroupCreate
+        root_group = AssetGroup(
+            name=name,
+            description="__root_organization__",
+            parent_id=None,
+            group_type="manual"
+        )
+        db.add(root_group)
+        await db.flush()
+    else:
+        # Проверка на дубликат имени
+        existing_query = select(AssetGroup).where(
+            AssetGroup.name == name,
+            AssetGroup.id != root_group.id
+        )
+        existing_result = await db.execute(existing_query)
+        if existing_result.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
+        
+        root_group.name = name
+        await db.flush()
+    
+    return root_group
+
+
+@router.get("/root")
+async def get_root_group(db: AsyncSession = Depends(get_db)):
+    """
+    Получить корневую группу "Организация".
+    """
+    from sqlalchemy import select
+    
+    query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
+    result = await db.execute(query)
+    root_group = result.scalar_one_or_none()
+    
+    if not root_group:
+        # Создаем корневую группу если не существует
+        root_group = AssetGroup(
+            name="Организация",
+            description="__root_organization__",
+            parent_id=None,
+            group_type="manual"
+        )
+        db.add(root_group)
+        await db.commit()
+        await db.refresh(root_group)
+    
+    return root_group

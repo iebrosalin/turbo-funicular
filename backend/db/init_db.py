@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Скрипт инициализации базы данных.
-Создает все таблицы если они не существуют.
+Создает все таблицы если они не существуют и создает корневую группу "Организация".
 """
 import asyncio
 import sys
@@ -40,6 +40,36 @@ async def init_db():
         print(f"✓ База данных инициализирована")
         print(f"✓ Создано таблиц: {len(tables)}")
         print(f"Таблицы: {', '.join(tables)}")
+        
+        # Создаем корневую группу "Организация" если она не существует
+        from sqlalchemy import select
+        from backend.models.group import Group as AssetGroup
+        
+        query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
+        root_result = await conn.execute(query)
+        root_group = root_result.scalar_one_or_none()
+        
+        if not root_group:
+            # Вставляем корневую группу
+            insert_query = text("""
+                INSERT INTO groups (uuid, name, description, parent_id, group_type, is_dynamic, created_at)
+                VALUES (:uuid, :name, :description, :parent_id, :group_type, :is_dynamic, datetime('now'))
+            """)
+            import uuid
+            await conn.execute(
+                insert_query,
+                {
+                    "uuid": str(uuid.uuid4()),
+                    "name": "Организация",
+                    "description": "__root_organization__",
+                    "parent_id": None,
+                    "group_type": "manual",
+                    "is_dynamic": False
+                }
+            )
+            print(f"✓ Создана корневая группа 'Организация'")
+        else:
+            print(f"✓ Корневая группа 'Организация' уже существует")
 
 
 if __name__ == "__main__":
