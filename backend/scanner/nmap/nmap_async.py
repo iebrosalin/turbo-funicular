@@ -1,321 +1,142 @@
-"""
-Асинхронный модуль сканирования Nmap для интеграции с ScanQueueManager.
-"""
 import asyncio
 import os
-import xml.etree.ElementTree as ET
 import re
-import logging
-from datetime import datetime
-from typing import Dict, List, Any, Optional
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+import xml.etree.ElementTree as ET
+from typing import Dict, Any, List, Optional
+from backend.scanner.base import BaseScanner
+from backend.core.logging_config import get_logger
 
-from backend.models.asset import Asset
-from backend.models.service import ServiceInventory
-from backend.models.scan import ScanJob, ScanResult
-from backend.models.group import AssetGroup
-from backend.utils import MOSCOW_TZ
-from backend.services.asset_manager import upsert_asset, upsert_service, update_asset_ports
+logger = get_logger(__name__)
 
-logger = logging.getLogger(__name__)
+class NmapScanner(BaseScanner):
+    def __init__(self, job_id: int, target: str, ports: Optional[str] = None, 
+                 scripts: Optional[str] = None, version_detect: bool = True, 
+                 os_detect: bool = True, output_dir: str = "/app/scanner_output"):
+        super().__init__(job_id, output_dir)
+        self.target = target
+        self.ports = ports
+        self.scripts = scripts
+        self.version_detect = version_detect
+        self.os_detect = os_detect
+        self.xml_file = os.path.join(self.job_output_dir, "nmap.xml")
 
-
-class NmapScanner:
-    """Асинхронный класс для выполнения сканирования через Nmap"""
-    
-    async def scan(
-        self,
-        db: AsyncSession,
-        job_id: int,
-        target: str,
-        ports: str = '',
-        scripts: str = '',
-        custom_args: str = '',
-        known_ports_only: bool = False,
-        group_ids: Optional[List[int]] = None
-    ) -> Dict[str, Any]:
-        """Запуск сканирования Nmap."""
-        # Используем абсолютный путь для директории вывода
-        output_dir = os.path.join('/app', 'scanner_output', str(job_id))
-        os.makedirs(output_dir, exist_ok=True)
-        base_name = os.path.join(output_dir, 'nmap')
-        raw_output_file = os.path.join(output_dir, 'nmap.txt')
+    async def scan(self) -> Dict[str, Any]:
+        cmd = ["nmap"]
         
-        try:
-            job = await db.get(ScanJob, job_id)
-            if not job:
-                raise ValueError(f"Задача сканирования {job_id} не найдена")
-            
-            job.status = 'running'
-            job.started_at = datetime.utcnow()
-            await db.commit()
-            
-            final_targets, final_ports, targets_map = await self._prepare_targets(
-                db, target, ports, known_ports_only, group_ids
-            )
-            
-            cmd = self._build_command(final_targets, final_ports, scripts, custom_args, base_name)
-            
-            logger.info(f"[NmapScanner] Запуск команды: {' '.join(cmd)}")
-            
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT
-            )
-            
-            logger.info(f"[NmapScanner] Запущен процесс Nmap для задачи {job_id}, PID: {process.pid}")
-            
-            # Собираем вывод и одновременно записываем в файл
-            output_lines = []
-            with open(raw_output_file, 'w', encoding='utf-8') as f:
-                while True:
-                    line = await process.stdout.readline()
-                    if not line:
-                        break
-                    line_str = line.decode('utf-8', errors='ignore').strip()
-                    if line_str:
-                        logger.debug(f"[Nmap] {line_str}")
-                        output_lines.append(line_str)
-                        f.write(line_str + '\n')
-                        f.flush()  # Гарантируем запись на диск
-            
-            await process.wait()
-            
-            logger.info(f"[NmapScanner] Процесс Nmap завершен с кодом {process.returncode}")
-            
-            if process.returncode > 1:
-                raise Exception(f"Nmap завершился с кодом {process.returncode}")
-            
-            xml_file = f'{base_name}.xml'
-            if os.path.exists(xml_file):
-                await self._parse_results(db, job_id, xml_file)
-            else:
-                raise Exception("Файл XML результатов не создан")
-            
-            job = await db.get(ScanJob, job_id)
-            if job:
-                job.status = 'completed'
-                job.completed_at = datetime.utcnow()
-                job.progress = 100.0
-                await db.commit()
-            
-            return {
-                "status": "completed",
-                "job_id": job_id,
-                "result": {
-                    "hostname": target,
-                    "ports": []
-                },
-                "raw_output": f"Nmap scan completed. Output saved to {raw_output_file}",
-                "output_file": raw_output_file
-            }
-            
-        except asyncio.CancelledError:
-            job = await db.get(ScanJob, job_id)
-            if job:
-                job.status = 'stopped'
-                await db.commit()
-            raise
-        except Exception as e:
-            job = await db.get(ScanJob, job_id)
-            if job:
-                job.status = 'failed'
-                job.error_message = str(e)
-                await db.commit()
-            return {"status": "failed", "job_id": job_id, "error": str(e)}
-    
-    async def _prepare_targets(self, db, target, ports, known_ports_only, group_ids):
-        """Подготовка целей сканирования."""
-        if not (known_ports_only and group_ids):
-            return target, ports, {}
-        
-        stmt = select(AssetGroup).where(AssetGroup.id.in_(group_ids))
-        result = await db.execute(stmt)
-        groups = result.scalars().all()
-        
-        asset_ids = set()
-        for g in groups:
-            for a in g.assets:
-                asset_ids.add(a.id)
-        
-        stmt = select(Asset).where(Asset.id.in_(asset_ids))
-        result = await db.execute(stmt)
-        assets = result.scalars().all()
-        
-        targets_map = {}
-        all_ips, all_known_ports = set(), set()
-        
-        for asset in assets:
-            if asset.open_ports:
-                targets_map[asset.ip_address] = asset.open_ports
-                all_ips.add(asset.ip_address)
-                all_known_ports.update(asset.open_ports)
-        
-        if not all_ips:
-            raise Exception("Не найдено активов с открытыми портами в выбранных группах")
-        
-        return ' '.join(all_ips), ','.join(map(str, sorted(all_known_ports))), targets_map
-    
-    def _build_command(self, targets, ports, scripts, custom_args, base_name):
-        """Построение команды nmap.
-        
-        Nmap поддерживает следующие форматы вывода:
-        -oX <file> - XML формат (машиночитаемый)
-        -oN <file> - Normal format (человекочитаемый)
-        -oG <file> - Grepable format (для grep/awk)
-        -oS <file> - Script Kiddie format
-        Также stdout сохраняется как raw output
-        """
-        cmd = ['nmap']
-        if ports:
-            cmd.extend(['-p', ports])
-        # Добавляем скрипты только если они не пустые и не содержат только пробелы
-        if scripts and scripts.strip() and scripts.strip().lower() not in ['none', 'on']:
-            logger.debug(f"[Nmap] Добавляем скрипты: {scripts}")
-            cmd.extend(['--script', scripts])
+        if self.ports:
+            cmd.extend(["-p", self.ports])
         else:
-            logger.debug("[Nmap] Скрипты не указаны или пустые, пропускаем --script")
-        if '-sV' not in custom_args:
-            cmd.append('-sV')
-        if '-O' not in custom_args:
-            cmd.append('-O')
-        # Сохраняем во всех основных форматах
-        cmd.extend(['-oX', f'{base_name}.xml'])      # XML
-        cmd.extend(['-oN', f'{base_name}.nmap'])     # Normal
-        cmd.extend(['-oG', f'{base_name}.gnmap'])    # Grepable
-        if custom_args:
-            cmd.extend(custom_args.split())
-        cmd.extend(targets.split())
-        return cmd
-    
-    async def _parse_results(self, db: AsyncSession, job_id: int, xml_file: str):
-        """Парсинг XML и обновление БД с использованием унифицированных функций."""
+            cmd.extend(["-p-", "--top-ports", "1000"]) # Default top 1000 if not specified
+            
+        # Scripts logic
+        if self.scripts and self.scripts.strip() and self.scripts.lower() != "none":
+            cmd.extend(["--script", self.scripts])
+            
+        if self.version_detect:
+            cmd.append("-sV")
+        if self.os_detect:
+            cmd.append("-O")
+            
+        # Output formats
+        cmd.extend(["-oX", self.xml_file])
+        cmd.extend(["-oN", os.path.join(self.job_output_dir, "nmap.nmap")])
+        cmd.extend(["-oG", os.path.join(self.job_output_dir, "nmap.gnmap")])
         
-        # Читаем raw output из файла
-        raw_output_file = os.path.join(os.path.dirname(xml_file), 'nmap.txt')
-        raw_output = ""
-        if os.path.exists(raw_output_file):
-            with open(raw_output_file, 'r', encoding='utf-8') as f:
-                raw_output = f.read()
+        cmd.append(self.target)
         
-        tree = ET.parse(xml_file)
-        root = tree.getroot()
+        logger.info(f"[NmapScanner] Запуск команды: {' '.join(cmd)}")
         
-        for host in root.findall('host'):
-            status_elem = host.find('status')
-            if status_elem is None or status_elem.get('state') != 'up':
-                continue
-            
-            addr = host.find('address')
-            if addr is None:
-                continue
-            ip = addr.get('addr')
-            
-            hostname = None
-            hostnames = host.find('hostnames')
-            if hostnames is not None:
-                h_elem = hostnames.find('hostname')
-                if h_elem is not None:
-                    hostname = h_elem.get('name')
-            
-            os_match = None
-            os_elem = host.find('os')
-            if os_elem is not None:
-                os_match_elem = os_elem.find('osmatch')
-                if os_match_elem is not None:
-                    os_match = os_match_elem.get('name')
-            
-            # Парсим OS детали
-            os_family = None
-            os_version = None
-            if os_match:
-                parts = os_match.split()
-                os_family = parts[0] if parts else None
-                os_version = ' '.join(parts[1:]) if len(parts) > 1 else None
-            
-            found_ports = []
-            services_dict = {}
-            ports_elem = host.find('ports')
-            if ports_elem is not None:
-                for port in ports_elem.findall('port'):
-                    state_elem = port.find('state')
-                    if state_elem is None or state_elem.get('state') != 'open':
-                        continue
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        logger.info(f"[NmapScanner] Запущен процесс Nmap для задачи {self.job_id}, PID: {process.pid}")
+        
+        stdout, stderr = await process.communicate()
+        
+        stdout_str = stdout.decode('utf-8', errors='ignore')
+        stderr_str = stderr.decode('utf-8', errors='ignore')
+        
+        if stdout_str:
+            for line in stdout_str.splitlines():
+                logger.debug(f"[Nmap] {line}")
+        if stderr_str:
+            for line in stderr_str.splitlines():
+                logger.debug(f"[Nmap] {line}")
+                
+        logger.info(f"[NmapScanner] Процесс Nmap завершен с кодом {process.returncode}")
+        
+        # Save raw output
+        raw_file = os.path.join(self.job_output_dir, "nmap.txt")
+        with open(raw_file, 'w') as f:
+            f.write(stdout_str)
+            if stderr_str:
+                f.write("\nSTDERR:\n")
+                f.write(stderr_str)
+                
+        result = self._parse_output()
+        return {
+            "hostname": result.get("hostname", self.target),
+            "ip": result.get("ip", self.target),
+            "ports": result.get("ports", []),
+            "os": result.get("os", ""),
+            "raw_output": stdout_str + "\n" + stderr_str
+        }
+
+    def _parse_output(self) -> Dict[str, Any]:
+        result = {
+            "hostname": "",
+            "ip": "",
+            "ports": [],
+            "os": ""
+        }
+        
+        # Parse XML for reliable data
+        if os.path.exists(self.xml_file):
+            try:
+                tree = ET.parse(self.xml_file)
+                root = tree.getroot()
+                
+                host = root.find('host')
+                if host is not None:
+                    # Get IP and Hostname
+                    addr = host.find('address')
+                    if addr is not None:
+                        result["ip"] = addr.get('addr', '')
                     
-                    port_num = int(port.get('portid'))
-                    protocol = port.get('protocol')
-                    found_ports.append(port_num)
+                    hostname_elem = host.find('hostnames/host')
+                    if hostname_elem is not None:
+                        result["hostname"] = hostname_elem.get('name', '')
                     
-                    service_elem = port.find('service')
-                    service_data = {}
-                    if service_elem is not None:
-                        service_data = {
-                            'name': service_elem.get('name', 'unknown'),
-                            'product': service_elem.get('product', ''),
-                            'version': service_elem.get('version', ''),
-                            'extra_info': service_elem.get('extrainfo', ''),
-                        }
+                    # Get Ports
+                    ports_elem = host.find('ports')
+                    if ports_elem is not None:
+                        for port in ports_elem.findall('port'):
+                            state = port.find('state')
+                            if state is not None and state.get('state') == 'open':
+                                port_id = port.get('portid')
+                                protocol = port.get('protocol')
+                                service = port.find('service')
+                                service_name = service.get('name', '') if service is not None else ''
+                                product = service.get('product', '') if service is not None else ''
+                                version = service.get('version', '') if service is not None else ''
+                                
+                                result["ports"].append({
+                                    "port": int(port_id),
+                                    "protocol": protocol,
+                                    "service": service_name,
+                                    "product": product,
+                                    "version": version
+                                })
+                    
+                    # Get OS
+                    osmatch = host.find('os/osmatch')
+                    if osmatch is not None:
+                        result["os"] = osmatch.get('name', '')
                         
-                        for script in service_elem.findall('script'):
-                            if script.get('id') == 'ssl-cert':
-                                output = script.get('output', '')
-                                service_data['script_output'] = output
-                                
-                                subj = re.search(r'Subject: (.+?)(?:\n|Issuer:|$)', output)
-                                if subj:
-                                    service_data['ssl_subject'] = subj.group(1).strip()
-                                
-                                iss = re.search(r'Issuer: (.+?)(?:\n|Validity|$)', output)
-                                if iss:
-                                    service_data['ssl_issuer'] = iss.group(1).strip()
-                    
-                    services_dict[str(port_num)] = service_data
-                    
-                    # Создаем или обновляем актив
-                    asset = await upsert_asset(
-                        db=db,
-                        ip_address=ip,
-                        hostname=hostname,
-                        os_family=os_family,
-                        os_version=os_version,
-                        scanner_name="Nmap"
-                    )
-                    
-                    # Обновляем порты
-                    update_asset_ports(asset, 'nmap', [port_num], scanner_name="Nmap")
-                    
-                    # Создаем или обновляем сервис
-                    await upsert_service(
-                        db=db,
-                        asset=asset,
-                        port=port_num,
-                        protocol=protocol,
-                        state='open',
-                        service_name=service_data.get('name', 'unknown'),
-                        product=service_data.get('product', ''),
-                        version=service_data.get('version', ''),
-                        extra_info=service_data.get('extra_info', ''),
-                        script_output=service_data.get('script_output', ''),
-                        ssl_subject=service_data.get('ssl_subject'),
-                        ssl_issuer=service_data.get('ssl_issuer'),
-                        scanner_name="Nmap"
-                    )
-            
-            # Создаем ScanResult с raw_output
-            scan_result = ScanResult(
-                scan_job_id=job_id,
-                ip_address=ip,
-                status='success',
-                ports=found_ports,
-                services=services_dict,
-                hostname=hostname,
-                os_info=os_match,
-                raw_output=raw_output,
-                scanned_at=datetime.utcnow()
-            )
-            db.add(scan_result)
+            except Exception as e:
+                logger.error(f"[NmapScanner] Ошибка парсинга XML: {e}")
         
-        # Commit после обработки всех хостов
-        await db.commit()
+        return result

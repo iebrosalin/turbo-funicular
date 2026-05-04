@@ -55,6 +55,7 @@ class RustscanRequest(BaseModel):
     custom_args: Optional[str] = None
     run_nmap_after: bool = False
     nmap_args: Optional[str] = None
+    nmap_scripts: Optional[str] = None
     save_assets: bool = True
     group_ids: Optional[List[int]] = None
 
@@ -542,6 +543,7 @@ async def run_rustscan(
     custom_args = request_data.custom_args
     run_nmap_after = request_data.run_nmap_after
     nmap_args = request_data.nmap_args
+    nmap_scripts = request_data.nmap_scripts
     save_assets = request_data.save_assets
     group_ids = request_data.group_ids
     
@@ -564,6 +566,7 @@ async def run_rustscan(
     logger.info(f"  - custom_args: {custom_args}")
     logger.info(f"  - run_nmap_after: {run_nmap_after}")
     logger.info(f"  - nmap_args: {nmap_args}")
+    logger.info(f"  - nmap_scripts: {nmap_scripts}")
     logger.info(f"  - save_assets: {save_assets}")
     logger.info(f"  - group_ids: {parsed_group_ids}")
     
@@ -609,6 +612,7 @@ async def run_rustscan(
             "custom_args": custom_args,
             "run_nmap_after": run_nmap_after,
             "nmap_args": nmap_args,
+            "nmap_scripts": nmap_scripts,
             "save_assets": save_assets,
             "group_ids": parsed_group_ids,
             "target": target
