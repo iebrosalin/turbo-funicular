@@ -168,7 +168,8 @@ class NmapScanner:
         cmd = ['nmap']
         if ports:
             cmd.extend(['-p', ports])
-        if scripts:
+        # Добавляем скрипты только если они не пустые
+        if scripts and scripts.strip():
             cmd.extend(['--script', scripts])
         if '-sV' not in custom_args:
             cmd.append('-sV')
