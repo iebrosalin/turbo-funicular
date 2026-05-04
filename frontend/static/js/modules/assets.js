@@ -224,8 +224,8 @@ export class AssetManager {
       </td>
       ${cells}
       <td>
-        <button class="btn btn-sm btn-outline-primary me-1" title="Редактировать">
-          <i class="bi bi-pencil"></i>
+        <button class="btn btn-sm btn-outline-secondary me-1 btn-move-asset" title="Переместить в другую группу" data-asset-id="${asset.id}">
+          <i class="bi bi-folder-symlink"></i>
         </button>
         <button class="btn btn-sm btn-danger btn-delete-asset" data-asset-id="${asset.id}" title="Удалить">
           <i class="bi bi-trash"></i>

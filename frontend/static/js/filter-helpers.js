@@ -103,9 +103,12 @@ export class FilterAutocompleteManager {
    * Инициализация автодополнения для поля фильтра
    * @param {HTMLInputElement} inputElement - Поле ввода
    */
-  init(inputElement) {
+  async init(inputElement) {
     if (!inputElement) return;
     this.activeInput = inputElement;
+
+    // Загрузка динамических полей из схемы активов
+    await this.#loadDynamicFields();
 
     // Создание контейнера подсказок
     if (!this.suggestionBox) {
@@ -147,6 +150,34 @@ export class FilterAutocompleteManager {
         this.#showFieldSuggestions(inputElement);
       }
     });
+  }
+  
+  /**
+   * Загрузка динамических полей из схемы активов
+   */
+  async #loadDynamicFields() {
+    try {
+      const response = await fetch('/api/assets/schema');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.schema) {
+          data.schema.forEach(field => {
+            const key = field.field.toLowerCase();
+            if (!this.filterFields[key]) {
+              this.filterFields[key] = {
+                label: field.label,
+                type: field.type.includes('int') ? 'number' : 'text',
+                operators: field.operators || ['=', 'like'],
+                example: field.type.includes('int') ? '123' : 'значение',
+                dynamic: false
+              };
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load asset schema for autocomplete:', error);
+    }
   }
 
   /**
