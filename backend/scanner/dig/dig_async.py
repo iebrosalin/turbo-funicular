@@ -65,7 +65,7 @@ class DigScanner:
             
             for rec_type in record_types_list:
                 cmd = self._build_command(target, rec_type, custom_args)
-                logger.info(f"[Dig DEBUG] Команда dig: {' '.join(cmd)}")
+                logger.info(f"[DigScanner] Запуск команды: {' '.join(cmd)}")
                 
                 process = await asyncio.create_subprocess_exec(
                     *cmd,
