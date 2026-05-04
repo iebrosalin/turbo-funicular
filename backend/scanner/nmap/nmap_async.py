@@ -56,6 +56,8 @@ class NmapScanner:
             
             cmd = self._build_command(final_targets, final_ports, scripts, custom_args, base_name)
             
+            logger.info(f"[NmapScanner] Запуск команды: {' '.join(cmd)}")
+            
             process = await asyncio.create_subprocess_exec(
                 *cmd,
                 stdout=asyncio.subprocess.PIPE,
@@ -168,9 +170,12 @@ class NmapScanner:
         cmd = ['nmap']
         if ports:
             cmd.extend(['-p', ports])
-        # Добавляем скрипты только если они не пустые
-        if scripts and scripts.strip():
+        # Добавляем скрипты только если они не пустые и не содержат только пробелы
+        if scripts and scripts.strip() and scripts.strip().lower() != 'none':
+            logger.debug(f"[Nmap] Добавляем скрипты: {scripts}")
             cmd.extend(['--script', scripts])
+        else:
+            logger.debug("[Nmap] Скрипты не указаны или пустые, пропускаем --script")
         if '-sV' not in custom_args:
             cmd.append('-sV')
         if '-O' not in custom_args:
