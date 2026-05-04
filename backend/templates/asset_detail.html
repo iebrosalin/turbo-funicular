@@ -35,9 +35,6 @@
             <button id="toggleEditBtn" class="btn btn-outline-primary">
                 <i class="bi bi-pencil"></i> Редактировать
             </button>
-            <button class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#taxonomyModal">
-                <i class="bi bi-diagram-3"></i> Таксономия
-            </button>
         </div>
     </div>
 
@@ -383,54 +380,6 @@
                         </tbody>
                     </table>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Модальное окно Таксономии (Все поля) -->
-<div class="modal fade" id="taxonomyModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Таксономия актива: {{ asset.ip_address }}</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <table class="table table-bordered table-sm">
-                    <thead class="table-light">
-                        <tr><th width="30%">Поле</th><th>Значение</th></tr>
-                    </thead>
-                    <tbody>
-                        {% set fields = [
-                            ('id', asset.id), ('ip_address', asset.ip_address), ('hostname', asset.hostname),
-                            ('mac_address', asset.mac_address), ('vendor', asset.vendor),
-                            ('fqdn', asset.fqdn), ('os_family', asset.os_family), ('os_version', asset.os_version),
-                            ('device_type', asset.device_type), ('status', asset.status), ('location', asset.location),
-                            ('owner', asset.owner), ('dns_names', asset.dns_names|tojson),
-                            ('dns_records', asset.dns_records|tojson),
-                            ('open_ports', asset.open_ports), ('rustscan_ports', asset.rustscan_ports),
-                            ('nmap_ports', asset.nmap_ports),
-                            ('last_rustscan', asset.last_rustscan), ('last_nmap', asset.last_nmap),
-                            ('last_dns_scan', asset.last_dns_scan),
-                            ('created_at', asset.created_at), ('updated_at', asset.updated_at)
-                        ] %}
-                        {% for key, value in fields %}
-                            {% if value is not none and value != [] and value != {} %}
-                            <tr>
-                                <td><code>{{ key }}</code></td>
-                                <td>
-                                    {% if value is mapping or value is sequence and value is not string %}
-                                        <pre class="mb-0 small">{{ value|tojson(indent=2) }}</pre>
-                                    {% else %}
-                                        {{ value }}
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endif %}
-                        {% endfor %}
-                    </tbody>
-                </table>
             </div>
         </div>
     </div>
