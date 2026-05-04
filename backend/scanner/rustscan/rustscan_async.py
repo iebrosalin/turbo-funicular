@@ -34,7 +34,8 @@ class RustscanScanner:
         group_ids: Optional[List[int]] = None
     ) -> Dict[str, Any]:
         """Запуск сканирования Rustscan с опциональным запуском Nmap после."""
-        output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
+        # Используем абсолютный путь для директории вывода
+        output_dir = os.path.join('/app', 'scanner_output', str(job_id))
         os.makedirs(output_dir, exist_ok=True)
         base_name = os.path.join(output_dir, 'rustscan')
         raw_output_file = os.path.join(output_dir, 'rustscan.txt')
@@ -193,10 +194,10 @@ class RustscanScanner:
         if ports:
             cmd.extend(['-p', ports])
         # RustScan поддерживает следующие опции вывода:
-        # --grepable <file> - сохраняет результаты в grepable формате
+        # --greppable <file> - сохраняет результаты в grepable формате (обратите внимание на две 'p')
         # --json <file> - сохраняет результаты в JSON формате (ip: [ports])
         # Стандартный вывод (stdout) сохраняется как raw
-        cmd.extend(['--grepable', f'{base_name}_grepable.txt'])
+        cmd.extend(['--greppable', f'{base_name}_grepable.txt'])
         cmd.extend(['--json', f'{base_name}.json'])
         if custom_args:
             cmd.extend(custom_args.split())

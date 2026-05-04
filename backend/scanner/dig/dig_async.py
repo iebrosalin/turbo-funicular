@@ -59,7 +59,8 @@ class DigScanner:
             all_parsed_results = []
             
             # Путь для сохранения raw output (stdout)
-            output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
+            # Используем абсолютный путь для директории вывода
+            output_dir = os.path.join('/app', 'scanner_output', str(job_id))
             os.makedirs(output_dir, exist_ok=True)
             raw_output_file = os.path.join(output_dir, 'dig.txt')
             

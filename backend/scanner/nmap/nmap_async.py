@@ -36,7 +36,8 @@ class NmapScanner:
         group_ids: Optional[List[int]] = None
     ) -> Dict[str, Any]:
         """Запуск сканирования Nmap."""
-        output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
+        # Используем абсолютный путь для директории вывода
+        output_dir = os.path.join('/app', 'scanner_output', str(job_id))
         os.makedirs(output_dir, exist_ok=True)
         base_name = os.path.join(output_dir, 'nmap')
         raw_output_file = os.path.join(output_dir, 'nmap.txt')
