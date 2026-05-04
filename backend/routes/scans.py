@@ -1180,7 +1180,8 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
     scan_type = job.job_type or (job.scan.scan_type if job.scan else None)
     
     # Проверяем наличие файла результата на диске
-    output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
+    # Используем абсолютный путь для директории вывода
+    output_dir = os.path.join('/app', 'scanner_output', str(job_id))
     
     # Маппинг файлов для разных типов сканирований
     file_mapping = {}
