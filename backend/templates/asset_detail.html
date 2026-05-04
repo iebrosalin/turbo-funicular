@@ -345,61 +345,43 @@
         <div class="tab-pane fade" id="taxonomy" role="tabpanel">
             <div class="card shadow-sm">
                 <div class="card-header bg-light">
-                    Таксономия актива
+                    Таксономия актива: {{ asset.ip_address }}
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>Основная информация</h6>
-                            <table class="table table-sm">
-                                <tr><th>IP Адрес:</th><td>{{ asset.ip_address }}</td></tr>
-                                <tr><th>Hostname:</th><td>{{ asset.hostname or '-' }}</td></tr>
-                                <tr><th>FQDN:</th><td>{{ asset.fqdn or '-' }}</td></tr>
-                                <tr><th>Тип устройства:</th><td>{{ asset.device_type }}</td></tr>
-                                <tr><th>ОС:</th><td>{{ asset.os_family or '-' }} {{ asset.os_version or '' }}</td></tr>
-                            </table>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>Дополнительно</h6>
-                            <table class="table table-sm">
-                                <tr><th>Владелец:</th><td>{{ asset.owner or '-' }}</td></tr>
-                                <tr><th>Локация:</th><td>{{ asset.location or '-' }}</td></tr>
-                                <tr><th>Статус:</th><td><span class="badge bg-{{ 'success' if asset.status == 'active' else 'secondary' }}">{{ asset.status }}</span></td></tr>
-                            </table>
-                        </div>
-                    </div>
-                    
-                    {% if asset.dns_names and (asset.dns_names|length) > 0 %}
-                    <hr>
-                    <h6>Ассоциированные доменные имена</h6>
-                    <div class="d-flex flex-wrap gap-2">
-                        {% for name in (asset.dns_names or []) %}
-                            <span class="badge bg-info">{{ name }}</span>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                    
-                    {% if asset.services and (asset.services|length) > 0 %}
-                    <hr>
-                    <h6>Сервисы ({{ asset.services|length }})</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm table-striped">
-                            <thead>
-                                <tr><th>Порт</th><th>Протокол</th><th>Сервис</th><th>Версия</th></tr>
-                            </thead>
-                            <tbody>
-                                {% for service in asset.services %}
-                                <tr>
-                                    <td>{{ service.port }}</td>
-                                    <td>{{ service.protocol }}</td>
-                                    <td>{{ service.service_name }}</td>
-                                    <td>{{ service.product }} {{ service.version }}</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% endif %}
+                <div class="card-body p-0">
+                    <table class="table table-bordered table-sm mb-0">
+                        <thead class="table-light">
+                            <tr><th width="30%">Поле</th><th>Значение</th></tr>
+                        </thead>
+                        <tbody>
+                            {% set fields = [
+                                ('id', asset.id), ('ip_address', asset.ip_address), ('hostname', asset.hostname),
+                                ('mac_address', asset.mac_address), ('vendor', asset.vendor),
+                                ('fqdn', asset.fqdn), ('os_family', asset.os_family), ('os_version', asset.os_version),
+                                ('device_type', asset.device_type), ('status', asset.status), ('location', asset.location),
+                                ('owner', asset.owner), ('dns_names', asset.dns_names|tojson),
+                                ('dns_records', asset.dns_records|tojson),
+                                ('open_ports', asset.open_ports), ('rustscan_ports', asset.rustscan_ports),
+                                ('nmap_ports', asset.nmap_ports),
+                                ('last_rustscan', asset.last_rustscan), ('last_nmap', asset.last_nmap),
+                                ('last_dns_scan', asset.last_dns_scan),
+                                ('created_at', asset.created_at), ('updated_at', asset.updated_at)
+                            ] %}
+                            {% for key, value in fields %}
+                            <tr>
+                                <td><code>{{ key }}</code></td>
+                                <td>
+                                    {% if value is none or value == [] or value == {} %}
+                                        <span class="text-muted">-</span>
+                                    {% elif value is mapping or value is sequence and value is not string %}
+                                        <pre class="mb-0 small">{{ value|tojson(indent=2) }}</pre>
+                                    {% else %}
+                                        {{ value }}
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
