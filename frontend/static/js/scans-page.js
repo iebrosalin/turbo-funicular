@@ -627,6 +627,13 @@ export class ScanResultsController {
       return; 
     }
 
+    // Собираем выбранные скрипты NSE
+    let scripts = [];
+    if (document.getElementById('nmapScriptDefault')?.checked) scripts.push('default');
+    if (document.getElementById('nmapScriptSafe')?.checked) scripts.push('safe');
+    if (document.getElementById('nmapScriptVuln')?.checked) scripts.push('vuln');
+    const scriptsStr = scripts.join(',') || '';
+
     try {
       
       await Utils.apiRequest('/api/scans/nmap', {
@@ -634,7 +641,7 @@ export class ScanResultsController {
         body: JSON.stringify({
           target, 
           ports: document.getElementById('nmapPorts')?.value || '', 
-          scripts: document.getElementById('nmapScriptDefault')?.value || '',
+          scripts: scriptsStr,
           custom_args: document.getElementById('nmapCustomArgs')?.value || '', 
           known_ports_only: knownOnly, 
           group_ids: groupIds,
