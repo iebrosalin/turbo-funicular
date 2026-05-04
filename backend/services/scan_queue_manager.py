@@ -246,9 +246,15 @@ class ScanQueueManager:
                             raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
                         
                         # Сохранение результата
-                        if result_data and result_data.get('status') == 'completed' and 'result' in result_data:
-                            logger.info(f"[DEBUG] Результат сканирования получен: status=completed, result={result_data['result']}")
-                            parsed = result_data['result']
+                        # Сканеры возвращают данные напрямую, оборачиваем их в единый формат
+                        if result_data:
+                            logger.info(f"[DEBUG] Результат сканирования получен: {result_data}")
+                            
+                            # Нормализуем формат результата
+                            if 'status' not in result_data:
+                                parsed = result_data
+                            else:
+                                parsed = result_data.get('result', result_data)
                             
                             # Получаем scan_id из job
                             current_scan_id = job.scan_id
@@ -271,17 +277,27 @@ class ScanQueueManager:
                             # Обновляем информацию об активе на основе результатов сканирования
                             ports = parsed.get('ports', [])
                             if ports:
-                                asset.open_ports = ports
+                                # Нормализуем порты: если это список словарей (Nmap), извлекаем номера портов
+                                if ports and isinstance(ports[0], dict):
+                                    port_numbers = [p.get('port') for p in ports if isinstance(p, dict) and p.get('port')]
+                                else:
+                                    port_numbers = ports
+                                
+                                logger.info(f"[AssetManager] Найдены открытые порты для {target}: {port_numbers}")
+                                asset.open_ports = port_numbers
                                 # Определяем роль и теги
                                 from backend.utils import detect_device_role_and_tags
                                 role_info = detect_device_role_and_tags(asset)
+                                logger.info(f"[AssetManager] Определена роль устройства: {role_info['role']}, теги: {role_info['tags']}")
                                 if role_info['role'] != 'unknown':
                                     asset.device_type = role_info['role']
                                 if role_info['tags']:
                                     current_tags = asset.tags or []
                                     new_tags = list(set(current_tags + role_info['tags']))
                                     asset.tags = new_tags
+                                    logger.info(f"[AssetManager] Обновлены теги актива {asset.id}: {new_tags}")
                             
+                            logger.info(f"[AssetManager] Сохранение результата сканирования для {target} в базу данных")
                             result = ScanResult(
                                 scan_id=current_scan_id,
                                 ip_address=target,
@@ -292,6 +308,7 @@ class ScanQueueManager:
                             )
                             db.add(result)
                             await db.commit()
+                            logger.info(f"[AssetManager] Результат сканирования успешно сохранён для {target}")
                             
                     except Exception as scan_error:
                         logger.error(f"Ошибка сканирования {target}: {scan_error}", exc_info=True)
