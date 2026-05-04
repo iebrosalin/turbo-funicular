@@ -190,6 +190,12 @@ class RustscanScanner:
         cmd = ['rustscan', '-a', targets]
         if ports:
             cmd.extend(['-p', ports])
+        # RustScan поддерживает следующие опции вывода:
+        # --grepable <file> - сохраняет результаты в grepable формате
+        # --json <file> - сохраняет результаты в JSON формате (ip: [ports])
+        # Стандартный вывод (stdout) сохраняется как raw
+        cmd.extend(['--grepable', f'{base_name}_grepable.txt'])
+        cmd.extend(['--json', f'{base_name}.json'])
         if custom_args:
             cmd.extend(custom_args.split())
         return cmd

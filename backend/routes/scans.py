@@ -876,6 +876,7 @@ async def get_scan_jobs(db: AsyncSession = Depends(get_db)):
         "id": job.id,
         "scan_id": job.scan_id,
         "job_type": job.job_type,
+        "scan_type": job.job_type,  # Алиас для совместимости с фронтендом
         "status": job.status,
         "target": job.scan.target if job.scan else "Unknown",
         "progress": getattr(job.scan, 'progress', 0) if job.scan else 0,
@@ -1171,57 +1172,55 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
     if not results:
         raise HTTPException(status_code=404, detail="Результаты сканирования не найдены")
     
-    # Форматируем результат в зависимости от запрошенного формата
-    if format in ["raw", "json", "csv", "xml", "gnmap", "normal"]:
-        # Определяем тип сканирования для правильного поиска файлов
-        scan_type = job.job_type or (job.scan.scan_type if job.scan else None)
-        
-        # Проверяем наличие файла результата на диске
-        output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
-        
-        # Маппинг файлов для разных типов сканирований
-        file_mapping = {}
-        if scan_type == "nmap":
-            file_mapping = {
-                "xml": f"{output_dir}/nmap.xml",
-                "gnmap": f"{output_dir}/nmap.gnmap",
-                "normal": f"{output_dir}/nmap.nmap",
-                "raw": f"{output_dir}/nmap.txt",  # Текстовый вывод nmap
-            }
-        elif scan_type == "rustscan":
-            file_mapping = {
-                "raw": f"{output_dir}/rustscan.txt",  # Текстовый вывод rustscan
-            }
-        elif scan_type == "dig":
-            file_mapping = {
-                "raw": f"{output_dir}/dig.txt",  # Текстовый вывод dig
-                "json": None,  # Обработано отдельно
-            }
-        
-        # Для форматов xml, gnmap, normal проверяем существование файла
-        if format in ["xml", "gnmap", "normal"] and format in file_mapping:
-            if os.path.exists(file_mapping[format]):
-                return FileResponse(
-                    path=file_mapping[format],
-                    media_type="application/octet-stream",
-                    filename=f"scan_{job_id}.{format}"
-                )
-            else:
-                # Файл не найден, продолжаем обработку для возврата данных из БД
-                pass
-        
-        # Для raw формата пробуем прочитать файл с диска
-        if format == "raw" and format in file_mapping and file_mapping[format]:
-            if os.path.exists(file_mapping[format]):
-                with open(file_mapping[format], 'r', encoding='utf-8') as f:
-                    raw_content = f.read()
-                return StreamingResponse(
-                    iter([raw_content.encode('utf-8')]),
-                    media_type="text/plain",
-                    headers={
-                        "Content-Disposition": f'attachment; filename="scan_{job_id}_raw.txt"'
-                    }
-                )
+    # Определяем тип сканирования для правильного поиска файлов
+    scan_type = job.job_type or (job.scan.scan_type if job.scan else None)
+    
+    # Проверяем наличие файла результата на диске
+    output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
+    
+    # Маппинг файлов для разных типов сканирований
+    file_mapping = {}
+    if scan_type == "nmap":
+        file_mapping = {
+            "xml": f"{output_dir}/nmap.xml",
+            "gnmap": f"{output_dir}/nmap.gnmap",
+            "normal": f"{output_dir}/nmap.nmap",
+            "raw": f"{output_dir}/nmap.txt",  # Текстовый вывод nmap
+        }
+    elif scan_type == "rustscan":
+        file_mapping = {
+            "raw": f"{output_dir}/rustscan.txt",  # Текстовый вывод rustscan (stdout)
+            "json": f"{output_dir}/rustscan.json",  # JSON формат от rustscan (ip: [ports])
+            "grepable": f"{output_dir}/rustscan_grepable.txt",  # Grepable формат
+        }
+    elif scan_type == "dig":
+        file_mapping = {
+            "raw": f"{output_dir}/dig.txt",  # Текстовый вывод dig (stdout)
+            "json-dig": f"{output_dir}/dig.json",  # JSON формат для dig
+        }
+    
+    # Для форматов xml, gnmap, normal, grepable, json (для rustscan) проверяем существование файла
+    if format in ["xml", "gnmap", "normal", "grepable", "json"] and format in file_mapping:
+        if os.path.exists(file_mapping[format]):
+            media_type = "application/json" if format == "json" else "application/octet-stream"
+            return FileResponse(
+                path=file_mapping[format],
+                media_type=media_type,
+                filename=f"scan_{job_id}.{format}"
+            )
+    
+    # Для raw формата пробуем прочитать файл с диска
+    if format == "raw" and format in file_mapping and file_mapping[format]:
+        if os.path.exists(file_mapping[format]):
+            with open(file_mapping[format], 'r', encoding='utf-8') as f:
+                raw_content = f.read()
+            return StreamingResponse(
+                iter([raw_content.encode('utf-8')]),
+                media_type="text/plain",
+                headers={
+                    "Content-Disposition": f'attachment; filename="scan_{job_id}_raw.txt"'
+                }
+            )
     
     if format == "raw":
         # Сырой вывод всех результатов
@@ -1254,7 +1253,7 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
         )
     
     elif format == "json":
-        # JSON формат
+        # JSON формат - поддержка множества IP/DNS
         data = [
             {
                 "ip_address": r.ip_address,
@@ -1274,8 +1273,87 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
             }
         )
     
+    elif format == "json-dig":
+        # JSON формат для Dig - поддержка множества DNS записей
+        data = []
+        for result in results:
+            record_data = {
+                "target": result.ip_address,
+                "hostname": result.hostname,
+                "dns_records": {},
+                "raw_output": result.raw_output
+            }
+            # Если есть services или ports, добавляем их
+            if result.services:
+                record_data["services"] = result.services
+            if result.ports:
+                record_data["ports"] = result.ports
+            data.append(record_data)
+        
+        return StreamingResponse(
+            iter([json.dumps(data, indent=2, ensure_ascii=False).encode('utf-8')]),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{job_id}_dig.json"'
+            }
+        )
+    
+    elif format == "csv":
+        import csv
+        import io
+        
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Заголовок
+        writer.writerow(['IP Address', 'Hostname', 'Port', 'Protocol', 'State', 'Service', 'OS Info'])
+        
+        for result in results:
+            ports = result.ports or []
+            if isinstance(ports, list):
+                for port_info in ports:
+                    if isinstance(port_info, dict):
+                        writer.writerow([
+                            result.ip_address,
+                            result.hostname or '',
+                            port_info.get('port', ''),
+                            port_info.get('protocol', 'tcp'),
+                            port_info.get('state', 'open'),
+                            port_info.get('service', ''),
+                            result.os_info or ''
+                        ])
+                    elif isinstance(port_info, (int, str)):
+                        writer.writerow([
+                            result.ip_address,
+                            result.hostname or '',
+                            port_info,
+                            'tcp',
+                            'open',
+                            '',
+                            result.os_info or ''
+                        ])
+            else:
+                writer.writerow([
+                    result.ip_address,
+                    result.hostname or '',
+                    '',
+                    '',
+                    '',
+                    '',
+                    result.os_info or ''
+                ])
+        
+        return StreamingResponse(
+            iter([output.getvalue().encode('utf-8')]),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{job_id}.csv"'
+            }
+        )
+    
     else:
-        raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, json, csv")
+        raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, json, json-dig, csv, xml, gnmap, normal, grepable")
+
 
 
 @router.get("/scan/{scan_id}/download/{format}")
