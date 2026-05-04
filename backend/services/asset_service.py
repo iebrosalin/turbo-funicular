@@ -379,7 +379,7 @@ class AssetService:
         """Получить историю изменений актива."""
         query = select(asset_change_logs_table).where(
             asset_change_logs_table.c.asset_id == asset_id
-        ).order_by(asset_change_logs_table.c.changed_at.desc()).limit(limit)
+        ).order_by(asset_change_logs_table.c.id.desc()).limit(limit)
         
         result = await self.db.execute(query)
         rows = result.fetchall()
