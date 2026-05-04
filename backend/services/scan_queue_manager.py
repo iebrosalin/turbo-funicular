@@ -195,16 +195,35 @@ class ScanQueueManager:
                     self._progress[scan_job_id]["current"] = idx + 1
                     logger.info(f"[DEBUG] Обработка цели {idx+1}/{len(targets)}: {target}")
                     
-                    # Выбираем сканер для каждой цели
+                    # Выбираем сканер для каждой цели и передаем параметры
                     scanner = None
                     if scan_type == 'nmap':
-                        scanner = NmapScanner(job_id=scan_job_id, target=target)
+                        scanner = NmapScanner(
+                            job_id=scan_job_id, 
+                            target=target,
+                            ports=parameters.get('ports', ''),
+                            scripts=parameters.get('scripts', '')
+                        )
                         logger.info(f"[DEBUG] Создан NmapScanner")
                     elif scan_type == 'rustscan':
-                        scanner = RustscanScanner(job_id=scan_job_id, target=target)
+                        scanner = RustscanScanner(
+                            job_id=scan_job_id, 
+                            target=target,
+                            ports=parameters.get('ports', ''),
+                            nmap_scripts=parameters.get('nmap_scripts', '')
+                        )
                         logger.info(f"[DEBUG] Создан RustscanScanner")
                     elif scan_type == 'dig':
-                        scanner = DigScanner(job_id=scan_job_id, target=target)
+                        record_types = parameters.get('record_types', 'ALL')
+                        if isinstance(record_types, str) and record_types != 'ALL':
+                            record_types = [record_types]
+                        elif record_types == 'ALL':
+                            record_types = ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA"]
+                        scanner = DigScanner(
+                            job_id=scan_job_id, 
+                            target=target,
+                            record_types=record_types
+                        )
                         logger.info(f"[DEBUG] Создан DigScanner")
                     
                     if not scanner:
@@ -214,41 +233,14 @@ class ScanQueueManager:
                         # Вызов реального сканера
                         if scan_type == 'nmap':
                             logger.info(f"[DEBUG] Запуск NmapScanner.scan для {target}")
-                            result_data = await scanner.scan(
-                                db=db,
-                                job_id=scan_job_id,
-                                target=target,
-                                ports=parameters.get('ports', ''),
-                                scripts=parameters.get('scripts', ''),
-                                custom_args=parameters.get('custom_args', ''),
-                                known_ports_only=parameters.get('known_ports_only', False),
-                                group_ids=parameters.get('group_ids')
-                            )
+                            result_data = await scanner.scan()
                         elif scan_type == 'rustscan':
                             logger.info(f"[DEBUG] Запуск RustscanScanner.scan для {target}")
                             # Передаем аргументы для nmap если нужно запустить после rustscan
-                            result_data = await scanner.scan(
-                                db=db,
-                                job_id=scan_job_id,
-                                target=target,
-                                ports=parameters.get('ports', ''),
-                                custom_args=parameters.get('custom_args', ''),
-                                run_nmap_after=parameters.get('run_nmap_after', False),
-                                nmap_args=parameters.get('nmap_args', ''),
-                                nmap_scripts=parameters.get('nmap_scripts', ''),
-                                group_ids=parameters.get('group_ids')
-                            )
+                            result_data = await scanner.scan()
                         elif scan_type == 'dig':
                             logger.info(f"[DEBUG] Запуск DigScanner.scan для {target}, record_type={parameters.get('record_types', 'ALL')}")
-                            result_data = await scanner.scan(
-                                db=db,
-                                job_id=scan_job_id,
-                                target=target,
-                                record_type=parameters.get('record_types', 'ALL'),
-                                custom_args=parameters.get('cli_args', ''),
-                                group_ids=parameters.get('group_ids'),
-                                save_assets=True
-                            )
+                            result_data = await scanner.scan()
                             logger.info(f"[DEBUG] DigScanner.scan вернул: {result_data}")
                         else:
                             raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
