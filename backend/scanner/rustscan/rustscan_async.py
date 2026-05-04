@@ -24,13 +24,16 @@ class RustscanScanner(BaseScanner):
         
         if self.ports:
             cmd.extend(["-p", self.ports])
+        
+        # Add greppable flag without path (output is captured from stdout anyway)
+        cmd.append("-g")
             
         # Add Nmap arguments if scripts are specified
         if self.nmap_scripts and self.nmap_scripts.strip() and self.nmap_scripts.lower() != "none":
             cmd.extend(["--", "nmap", "-sV", "-O", f"--script={self.nmap_scripts}"])
         else:
             # Run without nmap if no scripts specified to avoid auto-triggering
-            cmd.append("--no-nmap")
+            cmd.extend(["--", "--no-nmap"])
             
         logger.info(f"[RustscanScanner] Запуск команды: {' '.join(cmd)}")
         
