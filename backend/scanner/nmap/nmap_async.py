@@ -156,7 +156,15 @@ class NmapScanner:
         return ' '.join(all_ips), ','.join(map(str, sorted(all_known_ports))), targets_map
     
     def _build_command(self, targets, ports, scripts, custom_args, base_name):
-        """Построение команды nmap."""
+        """Построение команды nmap.
+        
+        Nmap поддерживает следующие форматы вывода:
+        -oX <file> - XML формат (машиночитаемый)
+        -oN <file> - Normal format (человекочитаемый)
+        -oG <file> - Grepable format (для grep/awk)
+        -oS <file> - Script Kiddie format
+        Также stdout сохраняется как raw output
+        """
         cmd = ['nmap']
         if ports:
             cmd.extend(['-p', ports])
@@ -166,7 +174,10 @@ class NmapScanner:
             cmd.append('-sV')
         if '-O' not in custom_args:
             cmd.append('-O')
-        cmd.extend(['-oX', f'{base_name}.xml', '-oN', f'{base_name}.nmap'])
+        # Сохраняем во всех основных форматах
+        cmd.extend(['-oX', f'{base_name}.xml'])      # XML
+        cmd.extend(['-oN', f'{base_name}.nmap'])     # Normal
+        cmd.extend(['-oG', f'{base_name}.gnmap'])    # Grepable
         if custom_args:
             cmd.extend(custom_args.split())
         cmd.extend(targets.split())

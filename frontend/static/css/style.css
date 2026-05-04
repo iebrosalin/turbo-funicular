@@ -181,3 +181,15 @@ select.hierarchy-select option {
 select.hierarchy-select {
     letter-spacing: 0;
 }
+/* Asset Taxonomy Styles */
+.taxon-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.taxon-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md) !important; }
+.taxon-icon { width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; }
+.taxon-icon.bg-primary-soft { background: rgba(13, 110, 253, 0.1); color: var(--bs-primary); }
+.taxon-icon.bg-info-soft { background: rgba(13, 202, 240, 0.1); color: var(--bs-info); }
+.taxon-icon.bg-success-soft { background: rgba(25, 135, 84, 0.1); color: var(--bs-success); }
+.taxon-icon.bg-warning-soft { background: rgba(255, 193, 7, 0.1); color: var(--bs-warning); }
+.taxon-children { border-left: 2px dashed var(--bs-border-color); padding-left: 1rem; margin-top: 0.5rem; }
+.taxon-child { display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: 0.875rem; }
+.taxon-child-label { color: var(--text-secondary); }
+.taxon-child-value { font-weight: 500; }

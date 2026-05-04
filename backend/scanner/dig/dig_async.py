@@ -2,6 +2,8 @@
 Асинхронный модуль сканирования Dig для интеграции с ScanQueueManager.
 """
 import asyncio
+import os
+import json
 import logging
 from datetime import datetime
 from typing import Dict, List, Any, Optional
@@ -56,6 +58,11 @@ class DigScanner:
             all_output_lines = []
             all_parsed_results = []
             
+            # Путь для сохранения raw output (stdout)
+            output_dir = os.path.join(os.getcwd(), 'scanner_output', str(job_id))
+            os.makedirs(output_dir, exist_ok=True)
+            raw_output_file = os.path.join(output_dir, 'dig.txt')
+            
             for rec_type in record_types_list:
                 cmd = self._build_command(target, rec_type, custom_args)
                 logger.info(f"[Dig DEBUG] Команда dig: {' '.join(cmd)}")
@@ -68,13 +75,17 @@ class DigScanner:
                 logger.info(f"[Dig DEBUG] Процесс запущен, PID: {process.pid}")
                 
                 output_lines = []
-                while True:
-                    line = await process.stdout.readline()
-                    if not line:
-                        break
-                    line_decoded = line.decode().strip()
-                    output_lines.append(line_decoded)
-                    logger.debug(f"[Dig DEBUG] Вывод dig: {line_decoded}")
+                # Записываем stdout в файл и собираем в память
+                with open(raw_output_file, 'a', encoding='utf-8') as f:
+                    while True:
+                        line = await process.stdout.readline()
+                        if not line:
+                            break
+                        line_decoded = line.decode().strip()
+                        output_lines.append(line_decoded)
+                        f.write(line_decoded + '\n')
+                        f.flush()  # Гарантируем запись на диск
+                        logger.debug(f"[Dig DEBUG] Вывод dig: {line_decoded}")
                 
                 await process.wait()
                 logger.info(f"[Dig DEBUG] Процесс завершен с кодом: {process.returncode}")
@@ -99,6 +110,12 @@ class DigScanner:
             output_lines = all_output_lines
             
             logger.info(f"[Dig DEBUG] Итоговый результат парсинга: {parsed_result}")
+            
+            # Сохраняем JSON файл для dig
+            json_output_file = os.path.join(output_dir, 'dig.json')
+            with open(json_output_file, 'w', encoding='utf-8') as f:
+                json.dump(parsed_result, f, indent=2, ensure_ascii=False)
+            logger.info(f"[Dig] JSON результат сохранён в {json_output_file}")
             
             # Извлекаем IP адреса из результатов для создания актива
             ip_addresses = self._extract_ips(parsed_result)

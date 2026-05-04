@@ -705,19 +705,30 @@ export class ScanResultsController {
 
   #getDownloadLinks(job) {
     const base = `/api/scan-job/${job.id}/download`;
-    const scanBase = `/api/scan/${job.scan_id}/download`;
+    // Используем job_id как основной идентификатор, scan_id может быть undefined
     let links = '';
     
     // Добавляем CSV и JSON для всех типов сканирований
-    links += `<li><a class="dropdown-item" href="${scanBase}/csv">CSV</a></li>`;
-    links += `<li><a class="dropdown-item" href="${scanBase}/json">JSON</a></li>`;
-    links += `<li><a class="dropdown-item" href="${scanBase}/raw">Raw</a></li>`;
+    links += `<li><a class="dropdown-item" href="${base}/csv">CSV</a></li>`;
+    links += `<li><a class="dropdown-item" href="${base}/json">JSON (из БД)</a></li>`;
+    links += `<li><a class="dropdown-item" href="${base}/raw">Raw (stdout)</a></li>`;
     
     if (job.scan_type === 'nmap') {
       links += `<li><hr class="dropdown-divider"></li>`;
       links += `<li><a class="dropdown-item" href="${base}/xml">XML</a></li>`;
-      links += `<li><a class="dropdown-item" href="${base}/gnmap">Grepable</a></li>`;
-      links += `<li><a class="dropdown-item" href="${base}/normal">Normal</a></li>`;
+      links += `<li><a class="dropdown-item" href="${base}/gnmap">Grepable (nmap)</a></li>`;
+      links += `<li><a class="dropdown-item" href="${base}/normal">Normal (nmap)</a></li>`;
+    }
+    
+    if (job.scan_type === 'rustscan') {
+      links += `<li><hr class="dropdown-divider"></li>`;
+      links += `<li><a class="dropdown-item" href="${base}/json">JSON (rustscan)</a></li>`;
+      links += `<li><a class="dropdown-item" href="${base}/grepable">Grepable (rustscan)</a></li>`;
+    }
+    
+    if (job.scan_type === 'dig') {
+      links += `<li><hr class="dropdown-divider"></li>`;
+      links += `<li><a class="dropdown-item" href="${base}/json-dig">JSON (dig)</a></li>`;
     }
     
     return links;
@@ -957,6 +968,13 @@ export class ScanResultsController {
       h += `<p><strong>Прогресс:</strong> ${d.job.progress}%</p>`;
       if (d.job.started_at) h += `<p><strong>Начало:</strong> ${d.job.started_at}</p>`;
       if (d.job.completed_at) h += `<p><strong>Завершение:</strong> ${d.job.completed_at}</p>`;
+      
+      // Добавляем вывод stdout утилиты
+      if (d.raw_output) {
+        h += `<hr><h6>Вывод утилиты (stdout):</h6>`;
+        h += `<pre class="bg-dark text-light p-3 rounded" style="max-height: 400px; overflow-y: auto;"><code>${this.escapeHtml(d.raw_output)}</code></pre>`;
+      }
+      
       h += `<hr>`;
       
       if (d.job.status === 'failed') {
@@ -976,6 +994,16 @@ export class ScanResultsController {
     } catch (err) { 
       if (c) c.innerHTML = `<div class="alert alert-danger">Ошибка загрузки результатов: ${err.message}</div>`;
     }
+  }
+  
+  /**
+   * Экранирование HTML для безопасного вывода
+   */
+  escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 }
 
