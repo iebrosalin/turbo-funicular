@@ -1,11 +1,11 @@
 import asyncio
+import logging
 import os
 import re
 from typing import Dict, Any, List, Optional
 from ..base import BaseScanner
-from backend.core.logging_config import get_logger
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 class DigScanner(BaseScanner):
     def __init__(self, job_id: int, target: str, record_types: Optional[List[str]] = None, 

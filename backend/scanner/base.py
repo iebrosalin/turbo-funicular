@@ -1,9 +1,9 @@
 import asyncio
+import logging
 import os
 from typing import Dict, Any, Optional
-from backend.core.logging_config import get_logger
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 class BaseScanner:
     """Базовый класс для всех сканеров"""
