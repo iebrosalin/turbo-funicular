@@ -1,12 +1,12 @@
 import asyncio
+import logging
 import os
 import re
 import json
 from typing import Dict, Any, List, Optional
 from ..base import BaseScanner
-from backend.core.logging_config import get_logger
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 class RustscanScanner(BaseScanner):
     def __init__(self, job_id: int, target: str, ports: Optional[str] = None, 
