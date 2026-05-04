@@ -259,6 +259,29 @@ class ScanQueueManager:
                                 res = await db.execute(stmt)
                                 current_scan_id = res.scalar_one_or_none()
                             
+                            # Создаем или получаем актив
+                            from backend.utils import create_asset_if_not_exists
+                            hostname = parsed.get('hostname', target)
+                            asset = await create_asset_if_not_exists(
+                                db=db,
+                                ip_address=target,
+                                hostname=hostname if hostname != target else None
+                            )
+                            
+                            # Обновляем информацию об активе на основе результатов сканирования
+                            ports = parsed.get('ports', [])
+                            if ports:
+                                asset.open_ports = ports
+                                # Определяем роль и теги
+                                from backend.utils import detect_device_role_and_tags
+                                role_info = detect_device_role_and_tags(asset)
+                                if role_info['role'] != 'unknown':
+                                    asset.device_type = role_info['role']
+                                if role_info['tags']:
+                                    current_tags = asset.tags or []
+                                    new_tags = list(set(current_tags + role_info['tags']))
+                                    asset.tags = new_tags
+                            
                             result = ScanResult(
                                 scan_id=current_scan_id,
                                 ip_address=target,
