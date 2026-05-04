@@ -188,13 +188,13 @@ class ScanQueueManager:
                 # Выбираем сканер
                 scanner = None
                 if scan_type == 'nmap':
-                    scanner = NmapScanner()
+                    scanner = NmapScanner(job_id=job_id, target=target)
                     logger.info(f"[DEBUG] Создан NmapScanner")
                 elif scan_type == 'rustscan':
-                    scanner = RustscanScanner()
+                    scanner = RustscanScanner(job_id=job_id, target=target)
                     logger.info(f"[DEBUG] Создан RustscanScanner")
                 elif scan_type == 'dig':
-                    scanner = DigScanner()
+                    scanner = DigScanner(job_id=job_id, target=target)
                     logger.info(f"[DEBUG] Создан DigScanner")
                 
                 if not scanner:
