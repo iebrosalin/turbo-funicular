@@ -56,8 +56,15 @@ export class TreeManager {
             <span class="badge bg-secondary ms-auto" id="count-ungrouped">${counts['ungrouped'] || 0}</span>
           </div>
 
+          <!-- Корневая группа "Организация" -->
+          <div class="tree-node" data-id="${counts['root_id'] || 'root'}" style="font-weight: bold;">
+            <i class="bi bi-building folder-icon"></i>
+            <span class="group-name" data-id="${counts['root_id'] || 'root'}">${counts['root_name'] || 'Организация'}</span>
+            <span class="badge bg-secondary ms-auto" id="count-root">${counts['root'] || 0}</span>
+          </div>
+
           <!-- Динамический контейнер для вложенных групп -->
-          <div id="group-tree-root" style="padding-left: 0;">
+          <div id="group-tree-root" style="padding-left: 20px;">
     `;
 
     if (Array.isArray(groups)) {
@@ -126,6 +133,10 @@ export class TreeManager {
 
     const ungroupedBadge = document.getElementById('count-ungrouped');
     if (ungroupedBadge) ungroupedBadge.textContent = counts?.ungrouped ?? 0;
+    
+    // Обновляем счетчик корневой группы
+    const rootBadge = document.getElementById('count-root');
+    if (rootBadge) rootBadge.textContent = counts?.root ?? 0;
   }
 
   /**
@@ -198,6 +209,7 @@ export class TreeManager {
 
     initListener('.tree-node[data-id="all"]', 'all');
     initListener('.tree-node[data-id="ungrouped"]', 'ungrouped');
+    initListener('.tree-node[data-id="root"]', 'root');
 
     // Инициализация массовых операций
     this.#initBulkActions();

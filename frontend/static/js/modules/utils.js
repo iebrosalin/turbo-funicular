@@ -263,7 +263,7 @@ export class Utils {
           const errorText = this.getAttribute('data-error-text') || message;
           
           // Проверяем поддержку Clipboard API
-          if (!navigator.clipboard || !navigator.clipboard.writeText) {
+          if (typeof navigator === 'undefined' || !navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
             // Fallback для старых браузеров или небезопасного контекста
             const textarea = document.createElement('textarea');
             textarea.value = errorText;
@@ -280,6 +280,7 @@ export class Utils {
               }, 2000);
             } catch (err) {
               console.error('Ошибка копирования (fallback):', err);
+              Utils.showFlashMessage('Не удалось скопировать текст', 'warning');
             }
             document.body.removeChild(textarea);
             return;
@@ -293,6 +294,7 @@ export class Utils {
             }, 2000);
           }).catch(err => {
             console.error('Ошибка копирования:', err);
+            Utils.showFlashMessage('Не удалось скопировать текст: ' + err.message, 'warning');
           });
         });
       }

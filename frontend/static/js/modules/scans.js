@@ -1,6 +1,7 @@
 // static/js/modules/scans.js
 import { store } from '../store.js';
 import { Utils } from './utils.js';
+import { treeManager } from './tree.js';
 
 /**
  * Класс управления сканированиями и отображением результатов
@@ -528,13 +529,21 @@ export class ScanManager {
       const assets = await Utils.apiRequest('/api/assets');
       store.setState('assets', assets);
       
-      // Обновляем дерево групп
-      if (typeof window.treeManager !== 'undefined') {
-        await window.treeManager.refresh();
+      // Обновляем дерево групп с новыми счетчиками
+      if (typeof treeManager !== 'undefined') {
+        await treeManager.refresh();
+        
+        // Дополнительно обновляем список активов, если мы на дашборде
+        const assetsBody = document.getElementById('assets-body');
+        if (assetsBody) {
+          const currentGroupId = store.getState('currentGroupId');
+          await treeManager.loadAssets(currentGroupId, currentGroupId === null);
+        }
       }
       
       // Обновляем дашборд если он есть
       if (typeof window.dashboardController !== 'undefined') {
+        window.dashboardController.allAssets = assets;
         window.dashboardController.applyFilters();
       }
       

@@ -161,6 +161,28 @@ export class GroupManager {
     if (idInput) idInput.value = id;
     document.getElementById('groupEditTitle').textContent = 'Редактировать группу';
 
+    // Обработка для корневой группы "Все активы"
+    if (id === 'all') {
+      const nameInput = document.getElementById('edit-group-name');
+      const parentSelect = document.getElementById('edit-group-parent');
+      const modeRadios = document.querySelectorAll('input[name="groupMode"]');
+      const secCommon = document.getElementById('sectionCommon');
+      
+      if (nameInput) nameInput.value = 'Все активы';
+      if (parentSelect) parentSelect.disabled = true;
+      if (parentSelect) parentSelect.value = '';
+      
+      // Отключаем выбор режима группы
+      modeRadios.forEach(radio => {
+        radio.disabled = true;
+      });
+      if (secCommon) secCommon.style.display = 'none';
+      
+      const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
+      modal.show();
+      return;
+    }
+
     let groupData;
     try {
       const r = await fetch(`/api/groups/${id}`);
@@ -225,6 +247,36 @@ export class GroupManager {
     const mode = document.querySelector('input[name="groupMode"]:checked')?.value;
 
     console.log('[saveGroup] Сохранение группы:', { id, name, parentId, mode });
+
+    // Обработка сохранения для корневой группы "Все активы"
+    if (id === 'all') {
+      // Для корневой группы сохраняем только имя через специальный API эндпоинт
+      try {
+        const res = await fetch(`/api/groups/all/rename`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ name: name })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || err.detail || 'Ошибка переименования');
+        }
+
+        Utils.closeModalById('groupEditModal');
+        
+        // Обновляем дерево и список активов
+        await refreshGroupTree();
+        await loadAssets();
+        
+        console.log('[saveGroup] Корневая группа успешно переименована');
+        return;
+      } catch (e) {
+        console.error('[saveGroup] Ошибка переименования корневой группы:', e);
+        alert(e.message);
+        return;
+      }
+    }
 
     let payload = {
       name: name,
@@ -399,9 +451,11 @@ export class GroupManager {
       const treeNode = e.target.closest('.tree-node');
       if (!treeNode) return;
 
-      // Блокируем контекстное меню для системных узлов "Все активы" и "Без группы"
       const groupId = treeNode.dataset.id;
-      if (groupId === 'all' || groupId === 'ungrouped') {
+      
+      // Блокируем контекстное меню только для системного узла "Без группы"
+      // Узел "Все активы" должен быть доступен для переименования
+      if (groupId === 'ungrouped') {
         return;
       }
 
@@ -423,11 +477,19 @@ export class GroupManager {
       const moveItem = ctx.querySelector('[data-action="move"]');
       const deleteItem = ctx.querySelector('[data-action="delete"]');
 
-      // Для обычных групп показываем все пункты меню
-      if (createItem) createItem.style.display = 'block';
-      if (renameItem) renameItem.style.display = 'block';
-      if (moveItem) moveItem.style.display = 'block';
-      if (deleteItem) deleteItem.style.display = 'block';
+      // Для корневой группы "Все активы" показываем только переименование
+      if (groupId === 'all') {
+        if (createItem) createItem.style.display = 'none';
+        if (renameItem) renameItem.style.display = 'block';
+        if (moveItem) moveItem.style.display = 'none';
+        if (deleteItem) deleteItem.style.display = 'none';
+      } else {
+        // Для обычных групп показываем все пункты меню
+        if (createItem) createItem.style.display = 'block';
+        if (renameItem) renameItem.style.display = 'block';
+        if (moveItem) moveItem.style.display = 'block';
+        if (deleteItem) deleteItem.style.display = 'block';
+      }
 
       ctx.dataset.groupId = groupId;
     });
