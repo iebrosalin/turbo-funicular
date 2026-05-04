@@ -391,7 +391,7 @@ class AssetService:
                 'username': row.username,
                 'action': row.action,
                 'changed_fields': row.changed_fields,
-                'changed_at': row.changed_at.isoformat() if row.changed_at else None
+                'created_at': row.created_at.isoformat() if row.created_at else None
             }
             for row in rows
         ]
