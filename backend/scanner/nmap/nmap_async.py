@@ -3,7 +3,7 @@ import os
 import re
 import xml.etree.ElementTree as ET
 from typing import Dict, Any, List, Optional
-from backend.scanner.base import BaseScanner
+from ..base import BaseScanner
 from backend.core.logging_config import get_logger
 
 logger = get_logger(__name__)
