@@ -6,8 +6,9 @@ export class Utils {
    * @param {Array} excludeIds - Массив ID для исключения
    * @param {number|null} selectedId - Выбранный ID
    * @param {boolean} forDeleteModal - Флаг для модального окна удаления (добавляет опцию удаления активов)
+   * @param {boolean} forMoveModal - Флаг для модального окна перемещения (показывает только корень, если нет других групп)
    */
-  static async populateParentSelect(excludeIds = [], selectedId = null, forDeleteModal = false) {
+  static async populateParentSelect(excludeIds = [], selectedId = null, forDeleteModal = false, forMoveModal = false) {
     try {
       const res = await fetch('/api/groups/tree');
       if (!res.ok) throw new Error('Failed to fetch tree');
@@ -15,9 +16,42 @@ export class Utils {
       
       if (!data.flat) return;
 
+      // Фильтрация групп для модального окна перемещения
+      let groups = data.flat;
+      if (forMoveModal) {
+        // Исключаем саму перемещаемую группу из списка
+        groups = groups.filter(g => !excludeIds.includes(String(g.id)));
+        
+        // Если нет других групп кроме корневых, показываем только опцию корня
+        const hasNonRootGroups = groups.some(g => g.parent_id !== null);
+        if (!hasNonRootGroups) {
+          // Показываем только опцию корня
+          const selectors = [
+            '#edit-group-parent',   
+            '#move-group-parent'
+          ];
+          
+          if (forDeleteModal) {
+            selectors.push('#delete-move-assets');
+          }
+          
+          selectors.forEach(sel => {
+            const el = document.querySelector(sel);
+            if (el) {
+              el.innerHTML = '<option value="">-- Корень --</option>';
+              el.classList.add('hierarchy-select');
+              el.style.fontFamily = "'Consolas', 'Monaco', 'Courier New', monospace";
+              el.value = "";
+              el.setAttribute('data-last-value', "");
+            }
+          });
+          return;
+        }
+      }
+
       // Построение дерева
       const buildTree = (parentId) => {
-        return data.flat
+        return groups
           .filter(g => g.parent_id == parentId)
           .map(g => ({
             ...g,
@@ -206,7 +240,7 @@ export class Utils {
     if (type === 'danger') {
       extraButtons = `
       <div class="mt-2">
-        <button class="btn btn-sm btn-outline-secondary copy-error-btn me-2">
+        <button class="btn btn-sm btn-outline-secondary copy-error-btn me-2" data-error-text="${message.replace(/"/g, '&quot;').replace(/\n/g, '&#10;')}">
           <i class="bi bi-clipboard"></i> Копировать
         </button>
       </div>
@@ -224,14 +258,44 @@ export class Utils {
     // Добавляем обработчик копирования для ошибок
     if (type === 'danger') {
       const copyBtn = alert.querySelector('.copy-error-btn');
-      copyBtn?.addEventListener('click', () => {
-        navigator.clipboard.writeText(message);
-        const originalText = copyBtn.innerHTML;
-        copyBtn.innerHTML = '<i class="bi bi-check"></i> Скопировано';
-        setTimeout(() => {
-          copyBtn.innerHTML = originalText;
-        }, 2000);
-      });
+      if (copyBtn) {
+        copyBtn.addEventListener('click', function() {
+          const errorText = this.getAttribute('data-error-text') || message;
+          
+          // Проверяем поддержку Clipboard API
+          if (!navigator.clipboard || !navigator.clipboard.writeText) {
+            // Fallback для старых браузеров или небезопасного контекста
+            const textarea = document.createElement('textarea');
+            textarea.value = errorText;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+              document.execCommand('copy');
+              const originalHTML = copyBtn.innerHTML;
+              copyBtn.innerHTML = '<i class="bi bi-check"></i> Скопировано';
+              setTimeout(() => {
+                copyBtn.innerHTML = originalHTML;
+              }, 2000);
+            } catch (err) {
+              console.error('Ошибка копирования (fallback):', err);
+            }
+            document.body.removeChild(textarea);
+            return;
+          }
+          
+          navigator.clipboard.writeText(errorText).then(() => {
+            const originalHTML = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i class="bi bi-check"></i> Скопировано';
+            setTimeout(() => {
+              copyBtn.innerHTML = originalHTML;
+            }, 2000);
+          }).catch(err => {
+            console.error('Ошибка копирования:', err);
+          });
+        });
+      }
     }
     
     // Уведомления НЕ исчезают автоматически - пользователь закрывает их сам
