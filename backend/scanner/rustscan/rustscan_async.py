@@ -226,10 +226,9 @@ class RustscanScanner:
         if ports:
             cmd.extend(['-p', ports])
         # RustScan поддерживает следующие опции вывода через stdout:
-        # --greppable - выводит результаты в grepable формате в stdout
         # --json - выводит результаты в JSON формате в stdout
         # Мы сохраняем stdout в raw файл, а затем парсим его для создания других форматов
-        # Добавляем флаги для получения структурированного вывода
+        # Добавляем флаг --json для получения структурированного вывода
         cmd.append('--json')
         if custom_args:
             cmd.extend(custom_args.split())
