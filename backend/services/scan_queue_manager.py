@@ -284,7 +284,33 @@ class ScanQueueManager:
                                     port_numbers = ports
                                 
                                 logger.info(f"[AssetManager] Найдены открытые порты для {target}: {port_numbers}")
-                                asset.open_ports = port_numbers
+                                
+                                # Используем update_asset_ports для корректного обновления портов по источнику
+                                from backend.services.asset_manager import update_asset_ports
+                                update_asset_ports(asset, scan_type, port_numbers, scanner_name=scan_type)
+                                
+                                # Для nmap также создаем сервисы с детальной информацией
+                                if scan_type == 'nmap' and isinstance(ports, list) and ports and isinstance(ports[0], dict):
+                                    from backend.services.asset_manager import upsert_service
+                                    for port_data in ports:
+                                        port_num = port_data.get('port')
+                                        if port_num:
+                                            await upsert_service(
+                                                db=db,
+                                                asset=asset,
+                                                port=port_num,
+                                                protocol=port_data.get('protocol', 'tcp'),
+                                                state=port_data.get('state', 'open'),
+                                                service_name=port_data.get('service', 'unknown'),
+                                                product=port_data.get('product', ''),
+                                                version=port_data.get('version', ''),
+                                                extra_info=port_data.get('extra_info', ''),
+                                                script_output=port_data.get('script_output', ''),
+                                                ssl_subject=port_data.get('ssl_subject'),
+                                                ssl_issuer=port_data.get('ssl_issuer'),
+                                                scanner_name='nmap'
+                                            )
+                                
                                 # Определяем роль и теги
                                 from backend.utils import detect_device_role_and_tags
                                 role_info = detect_device_role_and_tags(asset)

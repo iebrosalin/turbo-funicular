@@ -346,7 +346,8 @@ export class GroupManager {
 
     document.getElementById('move-group-id').value = id;
     
-    await Utils.populateParentSelect([String(id)]);
+    // Загружаем дерево групп и заполняем селектор
+    await Utils.populateParentSelect([String(id)], null, false, true);
     
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
     modal.show();
