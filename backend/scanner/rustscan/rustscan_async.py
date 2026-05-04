@@ -24,10 +24,10 @@ class RustscanScanner(BaseScanner):
         
         if self.ports:
             cmd.extend(["-p", self.ports])
-            
-        # Add greppable output to file
-        cmd.extend(["--greppable", self.grepable_file])
         
+        # Add grepable output flag
+        cmd.extend(["-g", self.grepable_file])
+            
         # Add Nmap arguments if scripts are specified
         if self.nmap_scripts and self.nmap_scripts.strip() and self.nmap_scripts.lower() != "none":
             cmd.extend(["--", "nmap", "-sV", "-O", f"--script={self.nmap_scripts}"])
