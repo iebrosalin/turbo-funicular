@@ -53,6 +53,7 @@ async def create_asset_if_not_exists(
         Экземпляр модели Asset
     """
     from backend.models.asset import Asset
+    from backend.models.group import AssetGroup
     
     # Проверяем существование
     query = select(Asset).where(Asset.ip_address == ip_address)
@@ -68,11 +69,22 @@ async def create_asset_if_not_exists(
     asset = Asset(
         ip_address=ip_address,
         hostname=hostname,
-        mac_address=mac_address,
-        group_id=group_id
+        mac_address=mac_address
     )
     db.add(asset)
     await db.flush()
+    
+    # Если указан group_id, добавляем актив в группу
+    if group_id is not None:
+        group_query = select(AssetGroup).where(AssetGroup.id == group_id)
+        group_result = await db.execute(group_query)
+        group = group_result.scalar_one_or_none()
+        if group:
+            asset.groups.append(group)
+            logger.info(f"[AssetManager] Добавлен актив {asset.id} в группу {group.name} (ID: {group_id})")
+        else:
+            logger.warning(f"[AssetManager] Группа с ID {group_id} не найдена, актив создан без группы")
+    
     await db.refresh(asset)
     logger.info(f"[AssetManager] Успешно создан актив {asset.id} для IP: {ip_address} (hostname: {hostname})")
     return asset
