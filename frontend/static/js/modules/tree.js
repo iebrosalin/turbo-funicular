@@ -602,10 +602,10 @@ export class TreeManager {
       const data = await Utils.apiRequest('/api/groups/tree');
       console.log('[DEBUG tree.js] Данные получены:', data);
       
-      // Загружаем корневую группу
+      // Загружаем корневую группу (используем ID 0 вместо /root)
       let rootGroup = null;
       try {
-        rootGroup = await Utils.apiRequest('/api/groups/root');
+        rootGroup = await Utils.apiRequest('/api/groups/0');
         console.log('[DEBUG tree.js] Корневая группа:', rootGroup);
       } catch (err) {
         console.warn('[WARN tree.js] Не удалось загрузить корневую группу:', err);

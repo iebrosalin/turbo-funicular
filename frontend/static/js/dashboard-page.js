@@ -436,7 +436,7 @@ export class DashboardController {
       
       // Добавляем опцию для корневой группы
       const rootOption = document.createElement('option');
-      rootOption.value = groupsData.root_id || 'root';
+      rootOption.value = groupsData.root_id || 0;
       rootOption.textContent = '📁 Корневая группа (Организация)';
       select.appendChild(rootOption);
       
@@ -487,7 +487,7 @@ export class DashboardController {
       
       // Добавляем опцию для корневой группы
       const rootOption = document.createElement('option');
-      rootOption.value = groupsData.root_id || 'root';
+      rootOption.value = groupsData.root_id || 0;
       rootOption.textContent = '📁 Корневая группа (Организация)';
       select.appendChild(rootOption);
       

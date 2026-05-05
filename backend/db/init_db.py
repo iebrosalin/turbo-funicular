@@ -68,8 +68,13 @@ async def init_db():
                 }
             )
             print(f"✓ Создана корневая группа 'Организация'")
+            
+            # Получаем ID созданной группы для подтверждения
+            result = await conn.execute(select(AssetGroup.id).where(AssetGroup.description == "__root_organization__"))
+            created_id = result.scalar_one()
+            print(f"✓ ID корневой группы: {created_id}")
         else:
-            print(f"✓ Корневая группа 'Организация' уже существует")
+            print(f"✓ Корневая группа 'Организация' уже существует (ID: {root_group.id})")
 
 
 if __name__ == "__main__":

@@ -129,16 +129,66 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.get("/root")
+async def get_root_group(db: AsyncSession = Depends(get_db)):
+    """
+    Получить корневую группу "Организация".
+    """
+    from sqlalchemy import select
+    
+    query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
+    result = await db.execute(query)
+    root_group = result.scalar_one_or_none()
+    
+    if not root_group:
+        # Создаем корневую группу если не существует
+        root_group = AssetGroup(
+            name="Организация",
+            description="__root_organization__",
+            parent_id=None,
+            group_type="manual"
+        )
+        db.add(root_group)
+        await db.commit()
+        await db.refresh(root_group)
+    
+    return root_group
+
+
 @router.get("/{group_id}", response_model=GroupResponse)
-async def get_group(group_id: int, db: AsyncSession = Depends(get_db)):
+async def get_group(group_id: str, db: AsyncSession = Depends(get_db)):
     """Получить группу по ID."""
     from sqlalchemy.orm import selectinload
     from backend.models.asset import asset_groups
     
-    service = GroupService(db)
-    group = await service.get_by_id(group_id)
-    if not group:
-        raise HTTPException(status_code=404, detail="Группа не найдена")
+    # Обработка специального случая 'root' или '0'
+    if group_id == 'root' or group_id == '0':
+        query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
+        result = await db.execute(query)
+        group = result.scalar_one_or_none()
+        
+        if not group:
+            # Создаем корневую группу если не существует
+            group = AssetGroup(
+                name="Организация",
+                description="__root_organization__",
+                parent_id=None,
+                group_type="manual"
+            )
+            db.add(group)
+            await db.commit()
+            await db.refresh(group)
+    else:
+        # Преобразуем в int для обычных групп
+        try:
+            group_id_int = int(group_id)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Неверный формат ID группы")
+        
+        service = GroupService(db)
+        group = await service.get_by_id(group_id_int)
+        if not group:
+            raise HTTPException(status_code=404, detail="Группа не найдена")
     
     # Подсчёт активов для группы через many-to-many связь
     count_query = select(func.count(asset_groups.c.asset_id)).where(
