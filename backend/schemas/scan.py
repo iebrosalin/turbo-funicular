@@ -63,3 +63,80 @@ class ScanResponse(ScanBase):
     completed_at: Optional[datetime] = None
     created_at: datetime
     error_message: Optional[str] = None
+
+
+# ==========================================
+# Схемы для RedCheck сканирований
+# ==========================================
+
+class RedCheckScanStatus(str, Enum):
+    """Статусы сканирования RedCheck."""
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class RedCheckScanBase(BaseModel):
+    """Базовая схема сканирования RedCheck."""
+    name: Optional[str] = Field(None, max_length=255, description="Название сканирования")
+    scan_type: Optional[str] = Field(None, description="Тип сканирования")
+    profile_id: Optional[int] = Field(None, description="ID профиля")
+    profile_name: Optional[str] = Field(None, description="Название профиля")
+    target_id: Optional[int] = Field(None, description="ID цели")
+    target_name: Optional[str] = Field(None, description="Название цели")
+    host_group_id: Optional[int] = Field(None, description="ID группы хостов")
+    description: Optional[str] = Field(None, description="Описание")
+
+
+class RedCheckScanCreate(RedCheckScanBase):
+    """Схема для создания записи сканирования RedCheck."""
+    redcheck_job_id: Optional[int] = None
+    redcheck_report_id: Optional[int] = None
+    report_format: Optional[str] = None
+
+
+class RedCheckScanUpdate(BaseModel):
+    """Схема для обновления сканирования RedCheck."""
+    status: Optional[str] = None
+    progress: Optional[int] = None
+    redcheck_job_id: Optional[int] = None
+    redcheck_report_id: Optional[int] = None
+    report_format: Optional[str] = None
+    report_status: Optional[str] = None
+    vulnerabilities_count: Optional[int] = None
+    critical_count: Optional[int] = None
+    high_count: Optional[int] = None
+    medium_count: Optional[int] = None
+    low_count: Optional[int] = None
+    hosts_scanned: Optional[int] = None
+    hosts_failed: Optional[int] = None
+    error_message: Optional[str] = None
+    raw_data: Optional[Dict[str, Any]] = None
+
+
+class RedCheckScanResponse(RedCheckScanBase):
+    """Схема ответа сканирования RedCheck."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    uuid: str
+    redcheck_job_id: Optional[int] = None
+    status: str
+    progress: int
+    redcheck_report_id: Optional[int] = None
+    report_format: Optional[str] = None
+    report_status: Optional[str] = None
+    vulnerabilities_count: int
+    critical_count: int
+    high_count: int
+    medium_count: int
+    low_count: int
+    hosts_scanned: int
+    hosts_failed: int
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    error_message: Optional[str] = None

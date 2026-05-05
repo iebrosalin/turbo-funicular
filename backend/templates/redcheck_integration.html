@@ -1,0 +1,453 @@
+{% extends "base.html" %}
+
+{% block title %}Интеграция с RedCheck{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/settings" class="text-decoration-none">Настройки</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Интеграция с RedCheck</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Основная карточка настроек -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="bi bi-shield-lock-fill me-2"></i>Настройка интеграции с RedCheck</h5>
+                </div>
+                <div class="card-body">
+                    
+                    <!-- Статус подключения -->
+                    <div class="alert alert-info d-flex align-items-center" id="connectionStatusAlert" role="alert" style="display: none;">
+                        <i class="bi bi-info-circle-fill me-2 fs-5"></i>
+                        <div id="connectionStatusText">Статус подключения будет отображен здесь</div>
+                    </div>
+
+                    <form id="redcheckSettingsForm">
+                        <!-- Основные параметры подключения -->
+                        <h6 class="border-bottom pb-2 mb-3">
+                            <i class="bi bi-globe me-2"></i>Параметры подключения
+                        </h6>
+                        
+                        <div class="mb-3">
+                            <label for="redcheckUrl" class="form-label fw-bold">URL RedCheck API <span class="text-danger">*</span></label>
+                            <input type="url" class="form-control" id="redcheckUrl" 
+                                   placeholder="https://redcheck.example.com" required>
+                            <div class="form-text">Полный URL до сервера RedCheck (например, https://redcheck.company.local)</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="redcheckApiVersion" class="form-label fw-bold">Версия API</label>
+                            <select class="form-select" id="redcheckApiVersion">
+                                <option value="v1.0" selected>v1.0 (рекомендуется)</option>
+                                <option value="v1.1">v1.1</option>
+                            </select>
+                            <div class="form-text">Версия API RedCheck для взаимодействия</div>
+                        </div>
+
+                        <!-- Параметры аутентификации -->
+                        <h6 class="border-bottom pb-2 mb-3 mt-4">
+                            <i class="bi bi-key-fill me-2"></i>Аутентификация
+                        </h6>
+
+                        <div class="mb-3">
+                            <label for="redcheckUsername" class="form-label fw-bold">Имя пользователя / Account ID</label>
+                            <input type="text" class="form-control" id="redcheckUsername" 
+                                   placeholder="Введите имя пользователя или ID аккаунта">
+                            <div class="form-text">Учётные данные для доступа к API RedCheck</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="redcheckPassword" class="form-label fw-bold">Пароль / Токен</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" id="redcheckPassword" 
+                                       placeholder="Введите пароль или токен доступа">
+                                <button class="btn btn-outline-secondary" type="button" id="togglePassword">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">Пароль или токен доступа к API</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="redcheckTokenType" class="form-label fw-bold">Тип аутентификации</label>
+                            <select class="form-select" id="redcheckTokenType">
+                                <option value="basic" selected>Basic Auth (логин/пароль)</option>
+                                <option value="token">Bearer Token</option>
+                                <option value="account">Account Token (через /accounts/token)</option>
+                            </select>
+                            <div class="form-text">Выберите метод аутентификации для подключения к API</div>
+                        </div>
+
+                        <!-- Дополнительные настройки -->
+                        <h6 class="border-bottom pb-2 mb-3 mt-4">
+                            <i class="bi bi-sliders me-2"></i>Дополнительные настройки
+                        </h6>
+
+                        <div class="mb-3">
+                            <label for="redcheckTimeout" class="form-label fw-bold">Таймаут подключения (сек)</label>
+                            <input type="number" class="form-control" id="redcheckTimeout" 
+                                   value="30" min="5" max="300">
+                            <div class="form-text">Время ожидания ответа от сервера RedCheck</div>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="redcheckVerifySsl" checked>
+                            <label class="form-check-label" for="redcheckVerifySsl">
+                                Проверять SSL сертификат
+                            </label>
+                            <div class="form-text">Отключайте только для тестовых окружений с самоподписанными сертификатами</div>
+                        </div>
+
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="redcheckEnabled">
+                            <label class="form-check-label" for="redcheckEnabled">
+                                Включить интеграцию с RedCheck
+                            </label>
+                            <div class="form-text">Активируйте для использования функций интеграции</div>
+                        </div>
+
+                        <!-- Кнопки действий -->
+                        <div class="d-flex justify-content-between mt-4 pt-3 border-top">
+                            <button type="button" class="btn btn-outline-danger" id="btn-test-connection">
+                                <i class="bi bi-wifi me-2"></i>Проверить подключение
+                            </button>
+                            <div>
+                                <button type="button" class="btn btn-outline-secondary me-2" id="btn-reset-settings">
+                                    <i class="bi bi-arrow-counterclockwise me-2"></i>Сбросить
+                                </button>
+                                <button type="submit" class="btn btn-danger">
+                                    <i class="bi bi-check-lg me-2"></i>Сохранить настройки
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Боковая панель с информацией -->
+        <div class="col-lg-4">
+            <!-- Информация об интеграции -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="bi bi-info-circle-fill me-2"></i>Об интеграции</h6>
+                </div>
+                <div class="card-body">
+                    <p class="small mb-2">
+                        Интеграция с <strong>RedCheck</strong> позволяет автоматизировать процессы проверки уязвимостей 
+                        и управления конфигурациями безопасности.
+                    </p>
+                    <ul class="small mb-0 ps-3">
+                        <li>Синхронизация активов</li>
+                        <li>Запуск сканирований</li>
+                        <li>Получение результатов проверок</li>
+                        <li>Мониторинг статусов заданий</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Доступные методы API -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="bi bi-code-slash me-2"></i>Основные эндпоинты</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush small">
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><code>POST</code> /accounts/token</span>
+                            <span class="badge bg-primary rounded-pill">Auth</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><code>GET</code> /credentials</span>
+                            <span class="badge bg-success rounded-pill">Creds</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><code>POST</code> /jobs</span>
+                            <span class="badge bg-warning text-dark rounded-pill">Jobs</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><code>GET</code> /targets/hosts</span>
+                            <span class="badge bg-info text-dark rounded-pill">Hosts</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><code>GET</code> /reports</span>
+                            <span class="badge bg-danger rounded-pill">Reports</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-light small">
+                    <a href="#" class="text-decoration-none" id="btn-show-all-endpoints">
+                        <i class="bi bi-list-ul me-1"></i>Показать все 152 эндпоинта
+                    </a>
+                </div>
+            </div>
+
+            <!-- Статистика -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="bi bi-bar-chart-fill me-2"></i>Статистика</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6 mb-3">
+                            <div class="display-6 text-danger" id="statJobsCount">0</div>
+                            <div class="small text-muted">Заданий выполнено</div>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <div class="display-6 text-primary" id="statHostsCount">0</div>
+                            <div class="small text-muted">Хостов синхронизировано</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="display-6 text-success" id="statReportsCount">0</div>
+                            <div class="small text-muted">Отчётов получено</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="display-6 text-warning" id="statLastSync">-</div>
+                            <div class="small text-muted">Последняя синхронизация</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно со списком всех эндпоинтов -->
+<div class="modal fade" id="endpointsModal" tabindex="-1" aria-labelledby="endpointsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="endpointsModalLabel">
+                    <i class="bi bi-code-slash me-2"></i>Все эндпоинты RedCheck API
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm small" id="endpointsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 100px;">Метод</th>
+                                <th>Путь</th>
+                                <th style="width: 200px;">Категория</th>
+                            </tr>
+                        </thead>
+                        <tbody id="endpointsTableBody">
+                            <!-- Заполняется через JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Элементы формы
+    const form = document.getElementById('redcheckSettingsForm');
+    const togglePasswordBtn = document.getElementById('togglePassword');
+    const passwordInput = document.getElementById('redcheckPassword');
+    const testConnectionBtn = document.getElementById('btn-test-connection');
+    const resetSettingsBtn = document.getElementById('btn-reset-settings');
+    const showAllEndpointsBtn = document.getElementById('btn-show-all-endpoints');
+    
+    // Переключение видимости пароля
+    togglePasswordBtn.addEventListener('click', function() {
+        const type = passwordInput.type === 'password' ? 'text' : 'password';
+        passwordInput.type = type;
+        this.innerHTML = type === 'password' ? '<i class="bi bi-eye"></i>' : '<i class="bi bi-eye-slash"></i>';
+    });
+
+    // Загрузка сохранённых настроек
+    loadSavedSettings();
+
+    // Обработчик отправки формы
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const settings = {
+            url: document.getElementById('redcheckUrl').value.trim(),
+            apiVersion: document.getElementById('redcheckApiVersion').value,
+            username: document.getElementById('redcheckUsername').value.trim(),
+            password: passwordInput.value,
+            tokenType: document.getElementById('redcheckTokenType').value,
+            timeout: parseInt(document.getElementById('redcheckTimeout').value),
+            verifySsl: document.getElementById('redcheckVerifySsl').checked,
+            enabled: document.getElementById('redcheckEnabled').checked
+        };
+
+        try {
+            const response = await fetch('/api/integrations/redcheck/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(settings)
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+                showConnectionStatus('success', 'Настройки успешно сохранены!');
+                localStorage.setItem('redcheck_settings', JSON.stringify(settings));
+            } else {
+                showConnectionStatus('danger', `Ошибка: ${result.detail || 'Не удалось сохранить настройки'}`);
+            }
+        } catch (error) {
+            showConnectionStatus('danger', `Ошибка соединения: ${error.message}`);
+        }
+    });
+
+    // Проверка подключения
+    testConnectionBtn.addEventListener('click', async function() {
+        const url = document.getElementById('redcheckUrl').value.trim();
+        
+        if (!url) {
+            alert('Пожалуйста, укажите URL RedCheck API');
+            return;
+        }
+
+        const originalText = this.innerHTML;
+        this.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Проверка...';
+        this.disabled = true;
+
+        try {
+            const settings = {
+                url: url,
+                apiVersion: document.getElementById('redcheckApiVersion').value,
+                username: document.getElementById('redcheckUsername').value.trim(),
+                password: passwordInput.value,
+                tokenType: document.getElementById('redcheckTokenType').value,
+                timeout: parseInt(document.getElementById('redcheckTimeout').value),
+                verifySsl: document.getElementById('redcheckVerifySsl').checked
+            };
+
+            const response = await fetch('/api/integrations/redcheck/test-connection', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(settings)
+            });
+
+            const result = await response.json();
+            
+            if (response.ok) {
+                showConnectionStatus('success', `✅ Подключение успешно! Версия API: ${result.version || 'N/A'}`);
+            } else {
+                showConnectionStatus('danger', `❌ Ошибка подключения: ${result.detail || 'Неизвестная ошибка'}`);
+            }
+        } catch (error) {
+            showConnectionStatus('danger', `❌ Ошибка: ${error.message}`);
+        } finally {
+            this.innerHTML = originalText;
+            this.disabled = false;
+        }
+    });
+
+    // Сброс настроек
+    resetSettingsBtn.addEventListener('click', function() {
+        if (confirm('Вы уверены, что хотите сбросить все настройки интеграции?')) {
+            form.reset();
+            localStorage.removeItem('redcheck_settings');
+            showConnectionStatus('info', 'Настройки сброшены');
+        }
+    });
+
+    // Показать все эндпоинты
+    showAllEndpointsBtn.addEventListener('click', async function() {
+        const modal = new bootstrap.Modal(document.getElementById('endpointsModal'));
+        const tbody = document.getElementById('endpointsTableBody');
+        
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center"><div class="spinner-border spinner-border-sm" role="status"></div> Загрузка...</td></tr>';
+        modal.show();
+
+        try {
+            const response = await fetch('/api/integrations/redcheck/endpoints');
+            const endpoints = await response.json();
+            
+            tbody.innerHTML = '';
+            
+            if (Array.isArray(endpoints)) {
+                endpoints.forEach(ep => {
+                    const row = document.createElement('tr');
+                    const methodClass = getMethodClass(ep.method);
+                    row.innerHTML = `
+                        <td><span class="badge ${methodClass}">${ep.method}</span></td>
+                        <td><code>${ep.path}</code></td>
+                        <td><span class="badge bg-secondary">${ep.tag || 'API'}</span></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted">Нет данных</td></tr>';
+            }
+        } catch (error) {
+            tbody.innerHTML = `<tr><td colspan="3" class="text-center text-danger">Ошибка загрузки: ${error.message}</td></tr>`;
+        }
+    });
+
+    // Вспомогательные функции
+    function loadSavedSettings() {
+        const saved = localStorage.getItem('redcheck_settings');
+        if (saved) {
+            try {
+                const settings = JSON.parse(saved);
+                document.getElementById('redcheckUrl').value = settings.url || '';
+                document.getElementById('redcheckApiVersion').value = settings.apiVersion || 'v1.0';
+                document.getElementById('redcheckUsername').value = settings.username || '';
+                passwordInput.value = settings.password || '';
+                document.getElementById('redcheckTokenType').value = settings.tokenType || 'basic';
+                document.getElementById('redcheckTimeout').value = settings.timeout || 30;
+                document.getElementById('redcheckVerifySsl').checked = settings.verifySsl !== false;
+                document.getElementById('redcheckEnabled').checked = settings.enabled || false;
+            } catch (e) {
+                console.error('Ошибка загрузки настроек:', e);
+            }
+        }
+    }
+
+    function showConnectionStatus(type, message) {
+        const alert = document.getElementById('connectionStatusAlert');
+        const text = document.getElementById('connectionStatusText');
+        
+        alert.className = `alert alert-${type} d-flex align-items-center`;
+        alert.style.display = 'flex';
+        
+        const iconClass = type === 'success' ? 'bi-check-circle-fill' : 
+                         type === 'danger' ? 'bi-x-circle-fill' : 'bi-info-circle-fill';
+        
+        alert.innerHTML = `<i class="bi ${iconClass} me-2 fs-5"></i><div>${message}</div>`;
+        
+        if (type === 'success') {
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+    }
+
+    function getMethodClass(method) {
+        switch(method) {
+            case 'GET': return 'bg-success';
+            case 'POST': return 'bg-primary';
+            case 'PUT': return 'bg-warning text-dark';
+            case 'PATCH': return 'bg-info text-dark';
+            case 'DELETE': return 'bg-danger';
+            default: return 'bg-secondary';
+        }
+    }
+});
+</script>
+{% endblock %}

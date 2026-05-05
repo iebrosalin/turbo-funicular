@@ -6,7 +6,7 @@ from backend.db.base import Base
 
 
 class Scan(Base):
-    """Модель сканирования."""
+    """Модель сканирования (локальные сканирования nmap/rustscan/dig)."""
     
     __tablename__ = "scans"
     
@@ -75,6 +75,54 @@ class ScanResult(Base):
     scan = relationship("Scan", back_populates="results")
     asset = relationship("Asset", back_populates="scan_results")
     scan_job = relationship("ScanJob", backref="results")
+
+
+class RedCheckScan(Base):
+    """Модель сканирования RedCheck (объединяет задачу и отчёт)."""
+    
+    __tablename__ = "redcheck_scans"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
+    
+    # Информация о задаче
+    redcheck_job_id = Column(Integer, nullable=True, index=True)  # ID задачи в RedCheck
+    scan_type = Column(String(100), nullable=True)  # Тип сканирования (vulnerability, compliance, inventory)
+    profile_id = Column(Integer, nullable=True)  # ID профиля проверки
+    profile_name = Column(String(255), nullable=True)  # Название профиля
+    target_id = Column(Integer, nullable=True, index=True)  # ID цели в RedCheck
+    target_name = Column(String(255), nullable=True)  # Название цели
+    host_group_id = Column(Integer, nullable=True)  # ID группы хостов
+    
+    # Статус и прогресс
+    status = Column(String(50), default="pending")  # pending, running, completed, failed, cancelled
+    progress = Column(Integer, default=0)  # 0-100%
+    
+    # Информация об отчёте
+    redcheck_report_id = Column(Integer, nullable=True, index=True)  # ID отчёта в RedCheck
+    report_format = Column(String(50), nullable=True)  # Формат отчёта (pdf, html, xml, json)
+    report_status = Column(String(50), nullable=True)  # Статус экспорта отчёта
+    
+    # Результаты
+    vulnerabilities_count = Column(Integer, default=0)  # Количество уязвимостей
+    critical_count = Column(Integer, default=0)  # Критические
+    high_count = Column(Integer, default=0)  # Высокие
+    medium_count = Column(Integer, default=0)  # Средние
+    low_count = Column(Integer, default=0)  # Низкие
+    hosts_scanned = Column(Integer, default=0)  # Количество просканированных хостов
+    hosts_failed = Column(Integer, default=0)  # Количество неудачных хостов
+    
+    # Метаданные
+    name = Column(String(255), nullable=True)  # Название сканирования
+    description = Column(Text, nullable=True)  # Описание
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    error_message = Column(Text, nullable=True)
+    
+    # Дополнительные данные из API
+    raw_data = Column(JSON, nullable=True, default=dict)  # Сырые данные из API
 
 
 # Добавим обратные связи

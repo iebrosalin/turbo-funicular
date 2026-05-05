@@ -3,7 +3,7 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from backend.routes import assets, groups
+from backend.routes import assets, groups, redcheck
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -236,6 +236,7 @@ templates.env.policies['json.dumps_function'] = lambda obj, **kw: json.dumps(obj
 app.include_router(assets.router, prefix="/api/assets", tags=["Assets"])
 app.include_router(groups.router, prefix="/api/groups", tags=["Groups"])
 app.include_router(scans.router, prefix="/api/scans", tags=["Scans"])
+app.include_router(redcheck.router, prefix="/api", tags=["RedCheck Integration"])
 
 @app.get("/health")
 async def health_check():
@@ -333,3 +334,14 @@ async def ui_kit(request: Request):
 async def settings_page(request: Request):
     """Страница настроек приложения."""
     return templates.TemplateResponse("settings.html", {"request": request})
+
+@app.get("/integrations/redcheck")
+async def redcheck_integration_page(request: Request):
+    """Страница настройки интеграции с RedCheck."""
+    return templates.TemplateResponse("redcheck_integration.html", {"request": request})
+
+
+@app.get("/integrations/redcheck/scans")
+async def redcheck_scans_page(request: Request):
+    """Страница просмотра сканирований RedCheck."""
+    return templates.TemplateResponse("redcheck_scans.html", {"request": request})
