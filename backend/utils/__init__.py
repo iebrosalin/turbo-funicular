@@ -334,13 +334,13 @@ def build_complex_query(
 
 def generate_asset_taxonomy(asset: Any) -> Dict[str, Any]:
     """
-    Сгенерировать таксономию актива (классификацию).
+    Сгенерировать таксономию актива (классификацию) и включить все связанные данные.
     
     Args:
         asset: Экземпляр модели Asset
     
     Returns:
-        Словарь с таксономией
+        Словарь с таксономией и связанными данными
     """
     taxonomy = {
         'ip_version': 'ipv6' if ':' in asset.ip_address else 'ipv4',
@@ -349,8 +349,34 @@ def generate_asset_taxonomy(asset: Any) -> Dict[str, Any]:
         'port_count': len(asset.open_ports) if hasattr(asset, 'open_ports') and asset.open_ports else 0,
         'status': asset.status,
         'device_type': asset.device_type,
-        'group_name': asset.group.name if hasattr(asset, 'group') and asset.group else None,
+        'group_name': asset.groups[0].name if hasattr(asset, 'groups') and asset.groups and len(asset.groups) > 0 else None,
     }
+    
+    # Включаем все связанные данные для полного экспорта
+    if hasattr(asset, 'services') and asset.services:
+        taxonomy['services'] = [
+            {
+                'port': s.port,
+                'protocol': s.protocol,
+                'service': s.service,
+                'version': s.version,
+                'state': s.state,
+                'ssl': s.ssl,
+                'scripts': s.scripts
+            } for s in asset.services
+        ]
+    else:
+        taxonomy['services'] = []
+    
+    if hasattr(asset, 'dns_records') and asset.dns_records:
+        taxonomy['dns_records'] = asset.dns_records
+    else:
+        taxonomy['dns_records'] = {}
+    
+    if hasattr(asset, 'open_ports') and asset.open_ports:
+        taxonomy['open_ports'] = asset.open_ports
+    else:
+        taxonomy['open_ports'] = []
     
     # Классификация по портам
     if hasattr(asset, 'open_ports') and asset.open_ports:

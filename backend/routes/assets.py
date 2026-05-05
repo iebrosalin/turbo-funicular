@@ -166,7 +166,8 @@ async def get_assets(
         search=search, 
         ungrouped=ungrouped, 
         source=source,
-        rules=filter_rules
+        rules=filter_rules,
+        include_services=include_taxonomy  # Загружаем сервисы если нужна таксономия
     )
     
     # Если запрошена таксономия, добавляем её к каждому активу

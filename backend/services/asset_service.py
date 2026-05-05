@@ -15,9 +15,14 @@ class AssetService:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, group_id: Optional[int] = None, search: Optional[str] = None, ungrouped: Optional[bool] = None, source: Optional[str] = None, rules: Optional[List[dict]] = None) -> List[Asset]:
+    async def get_all(self, group_id: Optional[int] = None, search: Optional[str] = None, ungrouped: Optional[bool] = None, source: Optional[str] = None, rules: Optional[List[dict]] = None, include_services: bool = False) -> List[Asset]:
         """Получить все активы с фильтрацией."""
-        query = select(Asset).options(selectinload(Asset.groups))
+        # Загружаем связанные данные если нужно
+        options = [selectinload(Asset.groups)]
+        if include_services:
+            options.append(selectinload(Asset.services))
+        
+        query = select(Asset).options(*options)
         
         if ungrouped is True:
             # Активы без групп (нет записей в asset_groups)
