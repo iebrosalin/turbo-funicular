@@ -671,7 +671,36 @@ export class DashboardController {
             val = asset[col];
           }
           
-          if (Array.isArray(val)) val = val.join('; ');
+          // Обработка массивов и объектов
+          if (Array.isArray(val)) {
+            // Если массив содержит объекты, извлекаем нужные свойства или преобразуем в строку
+            if (val.length > 0 && typeof val[0] === 'object' && val[0] !== null) {
+              // Для dns_records: name:type:data
+              if (col === 'dns_records') {
+                val = val.map(item => `${item.name || ''}:${item.type || ''}:${item.data || ''}`).join('; ');
+              }
+              // Для open_ports и других портов: port/protocol/service
+              else if (['open_ports', 'rustscan_ports', 'nmap_ports'].includes(col)) {
+                val = val.map(item => {
+                  const port = item.port || item.number || '';
+                  const proto = item.protocol || item.proto || '';
+                  const service = item.service || '';
+                  return `${port}/${proto}${service ? '/' + service : ''}`;
+                }).join('; ');
+              }
+              else {
+                // Для остальных объектов - JSON строка
+                val = val.map(item => JSON.stringify(item)).join('; ');
+              }
+            } else {
+              // Простой массив значений
+              val = val.join('; ');
+            }
+          } else if (typeof val === 'object' && val !== null) {
+            // Объект преобразуем в JSON строку
+            val = JSON.stringify(val);
+          }
+          
           if (val === null || val === undefined) val = '';
           val = String(val).replace(/"/g, '""');
           if (val.includes(',') || val.includes('\n') || val.includes('"')) {
