@@ -9,7 +9,10 @@ logger = logging.getLogger(__name__)
 
 class DigScanner(BaseScanner):
     def __init__(self, job_id: int, target: str, record_types: Optional[List[str]] = None, 
-                 output_dir: str = "/app/scanner_output"):
+                 output_dir: Optional[str] = None):
+        # Используем переменную окружения или значение по умолчанию
+        if output_dir is None:
+            output_dir = os.getenv('SCANNER_OUTPUT_DIR', '/app/scanner_output')
         super().__init__(job_id, output_dir)
         self.target = target
         # Default types if not specified

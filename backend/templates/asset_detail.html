@@ -241,6 +241,36 @@
                                         </td>
                                     </tr>
                                     {% endfor %}
+                                    
+                                    {% if asset.open_ports and (asset.open_ports|length) > 0 %}
+                                        {% set service_ports = [] %}
+                                        {% for service in asset.services %}
+                                            {% set _ = service_ports.append(service.port) %}
+                                        {% endfor %}
+                                        {% for port in asset.open_ports %}
+                                            {% if port not in service_ports %}
+                                            <tr class="table-secondary">
+                                                <td><strong>{{ port }}</strong></td>
+                                                <td><span class="text-muted">-</span></td>
+                                                <td><span class="text-muted">-</span></td>
+                                                <td><span class="text-muted">-</span></td>
+                                                <td><span class="text-muted">-</span></td>
+                                                <td><span class="badge bg-info">Открыт</span></td>
+                                            </tr>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                {% elif asset.open_ports and (asset.open_ports|length) > 0 %}
+                                    {% for port in asset.open_ports %}
+                                    <tr>
+                                        <td><strong>{{ port }}</strong></td>
+                                        <td><span class="text-muted">-</span></td>
+                                        <td><span class="text-muted">-</span></td>
+                                        <td><span class="text-muted">-</span></td>
+                                        <td><span class="text-muted">-</span></td>
+                                        <td><span class="badge bg-info">Открыт</span></td>
+                                    </tr>
+                                    {% endfor %}
                                 {% else %}
                                     <tr><td colspan="6" class="text-center text-muted py-4">Сервисы не обнаружены</td></tr>
                                 {% endif %}
@@ -258,23 +288,47 @@
                     Результаты DNS сканирования (Dig)
                 </div>
                 <div class="card-body">
-                    {% if asset.dns_records and (asset.dns_records|length) > 0 %}
-                        {% for type, records in (asset.dns_records or {}).items() %}
-                        <div class="mb-4">
-                            <h5 class="border-bottom pb-2">{{ type }} Записи</h5>
-                            <ul class="list-group">
-                                {% for record in records %}
-                                    <li class="list-group-item d-flex justify-content-between align-items-start">
-                                        <div class="ms-2 me-auto">
-                                            <div class="fw-bold">{{ record.name or 'Record' }}</div>
-                                            {{ record.data or record.value }}
-                                            {% if record.ttl %}<br><small class="text-muted">TTL: {{ record.ttl }}</small>{% endif %}
-                                        </div>
-                                    </li>
-                                {% endfor %}
-                            </ul>
-                        </div>
+                    {% if asset.dns_records %}
+                        {% set has_records = false %}
+                        {% for type, records in asset.dns_records.items() %}
+                            {% if records and (records|length) > 0 %}
+                                {% set has_records = true %}
+                            {% endif %}
                         {% endfor %}
+                        
+                        {% if has_records %}
+                            {% for type, records in asset.dns_records.items() %}
+                                {% if records and (records|length) > 0 %}
+                                <div class="mb-4">
+                                    <h5 class="border-bottom pb-2">{{ type }} Записи</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-striped">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Имя</th>
+                                                    <th>Тип</th>
+                                                    <th>Значение</th>
+                                                    <th>TTL</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for record in records %}
+                                                <tr>
+                                                    <td>{{ record.name or '-' }}</td>
+                                                    <td><span class="badge bg-info">{{ type }}</span></td>
+                                                    <td>{{ record.data or record.value or '-' }}</td>
+                                                    <td>{{ record.ttl or '-' }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted text-center">DNS записи не найдены или сканирование не проводилось.</p>
+                        {% endif %}
                     {% else %}
                         <p class="text-muted text-center">DNS записи не найдены или сканирование не проводилось.</p>
                     {% endif %}

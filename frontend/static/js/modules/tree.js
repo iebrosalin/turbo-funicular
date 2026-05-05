@@ -610,6 +610,15 @@ export class TreeManager {
       const data = await Utils.apiRequest('/api/groups/tree');
       console.log('[DEBUG tree.js] Данные получены:', data);
       
+      // Загружаем корневую группу
+      let rootGroup = null;
+      try {
+        rootGroup = await Utils.apiRequest('/api/groups/root');
+        console.log('[DEBUG tree.js] Корневая группа:', rootGroup);
+      } catch (err) {
+        console.warn('[WARN tree.js] Не удалось загрузить корневую группу:', err);
+      }
+      
       let groups = [];
       let counts = {};
 
@@ -624,6 +633,18 @@ export class TreeManager {
       } else if (data.groups) {
         groups = data.groups;
         counts = data.counts ?? {};
+      }
+
+      // Добавляем данные корневой группы в counts
+      if (rootGroup) {
+        counts.root_id = rootGroup.id;
+        counts.root_name = rootGroup.name || 'Организация';
+        // Считаем активы корневой группы как сумму всех активов в дереве
+        let rootCount = counts.ungrouped || 0;
+        groups.forEach(g => {
+          rootCount += g.direct_count ?? g.count ?? g.asset_count ?? 0;
+        });
+        counts.root = rootCount;
       }
 
       console.log('[DEBUG tree.js] groups:', groups.length, 'counts:', counts);
