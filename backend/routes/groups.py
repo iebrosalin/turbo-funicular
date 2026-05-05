@@ -156,13 +156,13 @@ async def get_root_group(db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/{group_id}", response_model=GroupResponse)
-async def get_group(group_id: str, db: AsyncSession = Depends(get_db)):
+async def get_group(group_id: int, db: AsyncSession = Depends(get_db)):
     """Получить группу по ID."""
     from sqlalchemy.orm import selectinload
     from backend.models.asset import asset_groups
     
-    # Обработка специального случая 'root' или '0'
-    if group_id == 'root' or group_id == '0':
+    # Обработка специального случая 0 (корневая группа)
+    if group_id == 0:
         query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
         result = await db.execute(query)
         group = result.scalar_one_or_none()
@@ -179,14 +179,8 @@ async def get_group(group_id: str, db: AsyncSession = Depends(get_db)):
             await db.commit()
             await db.refresh(group)
     else:
-        # Преобразуем в int для обычных групп
-        try:
-            group_id_int = int(group_id)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Неверный формат ID группы")
-        
         service = GroupService(db)
-        group = await service.get_by_id(group_id_int)
+        group = await service.get_by_id(group_id)
         if not group:
             raise HTTPException(status_code=404, detail="Группа не найдена")
     

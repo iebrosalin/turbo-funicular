@@ -487,6 +487,12 @@ async def run_nmap_scan(
         logger.info(f"  - targets_list: {targets_list}")
         logger.info(f"  - parameters: {parameters}")
         
+        # Создаем директорию для вывода результатов заранее
+        output_base_dir = os.getenv('SCANNER_OUTPUT_DIR', '/app/scanner_output')
+        output_dir = os.path.join(output_base_dir, str(new_job.id))
+        os.makedirs(output_dir, exist_ok=True)
+        logger.info(f"Директория для результатов создана: {output_dir}")
+        
         logger.info(f"\n[Шаг 4/4] Добавление задачи в ScanQueueManager...")
         await scan_queue_manager.add_scan(
             db=db,
@@ -620,6 +626,12 @@ async def run_rustscan(
         logger.info(f"  - targets_list: {targets_list}")
         logger.info(f"  - parameters: {parameters}")
         
+        # Создаем директорию для вывода результатов заранее
+        output_base_dir = os.getenv('SCANNER_OUTPUT_DIR', '/app/scanner_output')
+        output_dir = os.path.join(output_base_dir, str(new_job.id))
+        os.makedirs(output_dir, exist_ok=True)
+        logger.info(f"Директория для результатов создана: {output_dir}")
+        
         logger.info(f"\n[Шаг 4/4] Добавление задачи в ScanQueueManager...")
         await scan_queue_manager.add_scan(
             db=db,
@@ -738,6 +750,12 @@ async def run_dig_scan(
         }
         logger.info(f"  - targets_list: {targets_list}")
         logger.info(f"  - parameters: {parameters}")
+        
+        # Создаем директорию для вывода результатов заранее
+        output_base_dir = os.getenv('SCANNER_OUTPUT_DIR', '/app/scanner_output')
+        output_dir = os.path.join(output_base_dir, str(new_job.id))
+        os.makedirs(output_dir, exist_ok=True)
+        logger.info(f"Директория для результатов создана: {output_dir}")
         
         logger.info(f"\n[Шаг 4/4] Добавление задачи в ScanQueueManager...")
         await scan_queue_manager.add_scan(
@@ -1133,6 +1151,12 @@ async def retry_scan_job(job_id: int, db: AsyncSession = Depends(get_db)):
     )
     db.add(new_job)
     await db.commit()
+    
+    # Создаем директорию для вывода результатов заранее
+    output_base_dir = os.getenv('SCANNER_OUTPUT_DIR', '/app/scanner_output')
+    output_dir = os.path.join(output_base_dir, str(new_job.id))
+    os.makedirs(output_dir, exist_ok=True)
+    logger.info(f"Директория для результатов создана: {output_dir}")
     
     # Добавляем новую задачу в очередь
     targets_list = parameters.get('targets_list', [])
