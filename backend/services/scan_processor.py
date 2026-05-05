@@ -233,9 +233,9 @@ class ScanProcessor:
         if not asset:
             asset = Asset(ip_address=ip, status='active')
             self.db.add(asset)
-            logger.debug(f"Создан новый актив: {ip}")
+            logger.info(f"[SCAN_PROCESS] СОЗДАН НОВЫЙ АКТИВ: IP={ip}, Группа={updates.get('group_id')}")
         else:
-            logger.debug(f"Обновление существующего актива: {ip}")
+            logger.info(f"[SCAN_PROCESS] ОБНОВЛЕНИЕ АКТИВА: IP={ip}")
 
         # Применяем обновления
         for key, value in updates.items():
@@ -247,15 +247,24 @@ class ScanProcessor:
                     # Объединяем порты, чтобы не терять старые, если сканирование частичное?
                     # Для простоты заменим на уникальные из нового + старые
                     old_ports = asset.open_ports or []
-                    asset.open_ports = list(set(old_ports + value))
+                    new_ports = list(set(old_ports + value))
+                    if len(new_ports) > len(old_ports):
+                        logger.debug(f"  - Добавлено портов: {len(new_ports) - len(old_ports)}")
+                    asset.open_ports = new_ports
                 elif key == 'services':
                      # Заменяем полностью услуги для этого хоста (упрощенно)
                      # В идеале нужно мерджить по порту
                      asset.services = value
+                     logger.debug(f"  - Обновлено сервисов: {len(value)}")
                 elif key == 'dns_records':
                     old_dns = asset.dns_records or []
                     # Простой аппенд без глубокой проверки дублей
                     asset.dns_records = old_dns + value
+                    logger.debug(f"  - Добавлено DNS записей: {len(value)}")
+                elif key == 'hostname' and value:
+                    if not asset.hostname:
+                        asset.hostname = value
+                        logger.debug(f"  - Установлен hostname: {value}")
                 else:
                     setattr(asset, key, value)
         
