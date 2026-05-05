@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, IPvAnyAddress, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Union, Dict, Any
 from datetime import datetime
 
 
@@ -46,7 +46,7 @@ class AssetResponse(BaseModel):
     source: Optional[str] = None
     dns_names: Optional[List[str]] = None
     fqdn: Optional[str] = None
-    dns_records: Optional[dict] = None
+    dns_records: Optional[Union[dict, List[Dict[str, Any]]]] = None
     open_ports: Optional[List[int]] = None
     rustscan_ports: Optional[List[int]] = None
     nmap_ports: Optional[List[int]] = None
