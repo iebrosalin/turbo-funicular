@@ -44,7 +44,8 @@ export class DashboardController {
     // Начальная загрузка данных (если еще не загружены в Store)
     if (!store.getState('assets')?.length) {
       try {
-        const assets = await Utils.apiRequest('/api/assets');
+        // Загружаем активы с таксономией для экспорта
+        const assets = await Utils.apiRequest('/api/assets?include_taxonomy=true');
         store.setState('assets', assets);
         // Явно вызываем applyFilters после загрузки
         this.allAssets = assets;
@@ -200,6 +201,9 @@ export class DashboardController {
 
   #renderGrouping() {
     if (this.currentGrouping === 'none') return;
+
+    // Обновляем шапку таблицы при группировке
+    this.assetManager.renderHeader(this.visibleColumns);
 
     const tableBody = document.querySelector('#assets-table tbody');
     if (!tableBody) return;
@@ -541,10 +545,11 @@ export class DashboardController {
     window.history.replaceState({}, '', newUrl);
   }
 
-  exportData(format, filteredOnly = true) {
+  async exportData(format, filteredOnly = true) {
+    // Определяем данные для экспорта
     const dataToExport = filteredOnly ? this.filteredAssets : this.allAssets;
     
-    if (!dataToExport?.length) {
+    if (!dataToExport || dataToExport.length === 0) {
       Utils.showNotification('Нет данных для экспорта', 'warning');
       return;
     }
@@ -552,20 +557,43 @@ export class DashboardController {
     let content = '';
     let mimeType = '';
     let extension = '';
+    const timestamp = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
 
     if (format === 'csv') {
-      // Для CSV экспортируем только видимые колонки + ID
-      const headers = ['ID', ...this.visibleColumns];
-      content = headers.join(',') + '\n';
+      // Для CSV экспортируем только видимые колонки + поля таксономии
+      const headers = [...this.visibleColumns];
+      
+      // Добавляем поля таксономии если они есть в данных
+      if (dataToExport.length > 0 && dataToExport[0].taxonomy) {
+        const taxonomyFields = Object.keys(dataToExport[0].taxonomy);
+        taxonomyFields.forEach(field => {
+          if (!headers.includes(`taxonomy_${field}`)) {
+            headers.push(`taxonomy_${field}`);
+          }
+        });
+      }
+      
+      const headerLabels = headers.map(col => {
+        const header = col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        return `"${header}"`;
+      });
+      content = headerLabels.join(',') + '\n';
       
       dataToExport.forEach(asset => {
-        const row = [asset.id];
-        this.visibleColumns.forEach(col => {
-          let val = asset[col];
+        const row = [];
+        headers.forEach(col => {
+          let val;
+          if (col.startsWith('taxonomy_')) {
+            const taxonomyField = col.replace('taxonomy_', '');
+            val = asset.taxonomy ? asset.taxonomy[taxonomyField] : null;
+          } else {
+            val = asset[col];
+          }
+          
           if (Array.isArray(val)) val = val.join('; ');
           if (val === null || val === undefined) val = '';
           val = String(val).replace(/"/g, '""');
-          if (val.includes(',') || val.includes('\n')) {
+          if (val.includes(',') || val.includes('\n') || val.includes('"')) {
             val = `"${val}"`;
           }
           row.push(val);
@@ -576,7 +604,7 @@ export class DashboardController {
       mimeType = 'text/csv;charset=utf-8;';
       extension = 'csv';
     } else if (format === 'json') {
-      // Для JSON экспортируем все данные актива целиком
+      // Для JSON экспортируем полные данные активов включая таксономию
       content = JSON.stringify(dataToExport, null, 2);
       mimeType = 'application/json;charset=utf-8;';
       extension = 'json';
@@ -586,7 +614,6 @@ export class DashboardController {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const timestamp = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
     a.download = `assets_export_${timestamp}.${extension}`;
     document.body.appendChild(a);
     a.click();

@@ -73,30 +73,28 @@
 <script type="module">
 import { Utils } from '/static/js/modules/utils.js';
 
-// Загрузка групп при инициализации
-async function loadGroups() {
-    try {
-        const groups = await Utils.apiRequest('/api/groups/tree');
-        const select = document.getElementById('target-group');
-        
-        function buildGroupOptions(groupList, level = 0) {
-            groupList.forEach(group => {
-                const indent = ' '.repeat(level * 2);
-                const option = document.createElement('option');
-                option.value = group.id;
-                option.textContent = indent + (group.name || group.group_name);
-                select.appendChild(option);
-                
-                if (group.children && group.children.length > 0) {
-                    buildGroupOptions(group.children, level + 1);
-                }
-            });
-        }
-        
-        buildGroupOptions(groups);
-    } catch (error) {
-        console.error('Ошибка загрузки групп:', error);
+// Группы уже загружены из контекста
+const groups = {{ groups | tojson }};
+
+// Инициализация выпадающего списка групп
+function initGroupSelect() {
+    const select = document.getElementById('target-group');
+    
+    function buildGroupOptions(groupList, level = 0) {
+        groupList.forEach(group => {
+            const indent = ' '.repeat(level * 2);
+            const option = document.createElement('option');
+            option.value = group.id;
+            option.textContent = indent + (group.name || group.group_name);
+            select.appendChild(option);
+            
+            if (group.children && group.children.length > 0) {
+                buildGroupOptions(group.children, level + 1);
+            }
+        });
     }
+    
+    buildGroupOptions(groups);
 }
 
 // Обработка выбора файла
@@ -215,6 +213,6 @@ document.getElementById('import-form')?.addEventListener('submit', async (e) => 
 });
 
 // Инициализация
-loadGroups();
+initGroupSelect();
 </script>
 {% endblock %}

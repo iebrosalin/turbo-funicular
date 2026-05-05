@@ -13,6 +13,7 @@ from backend.services.asset_service import AssetService
 from backend.schemas.asset import AssetCreate, AssetUpdate, AssetResponse
 from backend.models.asset import Asset
 from backend.utils.query_parser import parse_query, QueryParserError
+from backend.utils import generate_asset_taxonomy
 
 router = APIRouter(tags=["assets"])
 assets_router = router  # Алиас для совместимости импортов
@@ -128,7 +129,8 @@ async def get_assets(
     search: Optional[str] = Query(None),
     ungrouped: Optional[bool] = Query(None),
     source: Optional[str] = Query(None),
-    rules: Optional[str] = Query(None)  # JSON строка с правилами фильтрации
+    rules: Optional[str] = Query(None),  # JSON строка с правилами фильтрации
+    include_taxonomy: Optional[bool] = Query(False)  # Включить таксономию в ответ
 ):
     """Получить список активов с фильтрацией."""
     service = AssetService(db)
@@ -166,6 +168,17 @@ async def get_assets(
         source=source,
         rules=filter_rules
     )
+    
+    # Если запрошена таксономия, добавляем её к каждому активу
+    if include_taxonomy:
+        result = []
+        for asset in assets:
+            asset_dict = asset.model_dump() if hasattr(asset, 'model_dump') else asset.__dict__
+            taxonomy = generate_asset_taxonomy(asset)
+            asset_dict['taxonomy'] = taxonomy
+            result.append(asset_dict)
+        return result
+    
     return assets
 
 
