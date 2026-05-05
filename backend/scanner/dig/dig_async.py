@@ -70,6 +70,10 @@ class DigScanner(BaseScanner):
         import json
         with open(self.json_file, 'w') as f:
             json.dump(result.get("records", []), f, indent=2)
+        
+        # Отладочный вывод содержимого файлов
+        self._log_file_content(self.raw_file, "Raw вывод Dig (.txt)")
+        self._log_file_content(self.json_file, "JSON результат Dig (.json)")
             
         return {
             "hostname": self.target,
