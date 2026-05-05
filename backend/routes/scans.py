@@ -1234,7 +1234,13 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
         }
     
     # Для форматов xml, gnmap, normal, grepable, json (для rustscan) проверяем существование файла
+    logger.info(f"[DOWNLOAD_DEBUG] Проверка формата {format} для job_id={job_id}, scan_type={scan_type}")
+    logger.info(f"[DOWNLOAD_DEBUG] file_mapping: {file_mapping}")
+    
     if format in ["xml", "gnmap", "normal", "grepable", "json"] and format in file_mapping:
+        logger.info(f"[DOWNLOAD_DEBUG] Ожидаемый путь для {format}: {file_mapping[format]}")
+        logger.info(f"[DOWNLOAD_DEBUG] Файл существует: {os.path.exists(file_mapping[format])}")
+        
         if os.path.exists(file_mapping[format]):
             media_type = "application/json" if format == "json" else "application/octet-stream"
             return FileResponse(
@@ -1242,9 +1248,32 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
                 media_type=media_type,
                 filename=f"scan_{job_id}.{format}"
             )
+        else:
+            logger.error(f"[DOWNLOAD_DEBUG] Файл не найден по пути {file_mapping[format]}")
+            # Пробуем найти файл с похожим именем в директории
+            if os.path.exists(output_dir):
+                files_in_dir = os.listdir(output_dir)
+                logger.info(f"[DOWNLOAD_DEBUG] Файлы в директории {output_dir}: {files_in_dir}")
+                
+                # Ищем файлы по расширению или префиксу
+                target_ext = f".{format}" if not format.startswith('.') else format
+                for fname in files_in_dir:
+                    if fname.endswith(target_ext) or fname.startswith(scan_type) and fname.endswith(target_ext):
+                        alt_path = os.path.join(output_dir, fname)
+                        logger.info(f"[DOWNLOAD_DEBUG] Найден альтернативный файл: {alt_path}")
+                        media_type = "application/json" if format == "json" else "application/octet-stream"
+                        return FileResponse(
+                            path=alt_path,
+                            media_type=media_type,
+                            filename=f"scan_{job_id}_{fname}"
+                        )
     
     # Для raw формата пробуем прочитать файл с диска
     if format == "raw" and format in file_mapping and file_mapping[format]:
+        logger.info(f"[DOWNLOAD_DEBUG] Проверка raw файла для job_id={job_id}, scan_type={scan_type}")
+        logger.info(f"[DOWNLOAD_DEBUG] Ожидаемый путь: {file_mapping[format]}")
+        logger.info(f"[DOWNLOAD_DEBUG] Файл существует: {os.path.exists(file_mapping[format])}")
+        
         if os.path.exists(file_mapping[format]):
             with open(file_mapping[format], 'r', encoding='utf-8') as f:
                 raw_content = f.read()
@@ -1255,6 +1284,24 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
                     "Content-Disposition": f'attachment; filename="scan_{job_id}_raw.txt"'
                 }
             )
+        else:
+            # Если файл не найден, пробуем альтернативные имена
+            alt_files = [f"{output_dir}/stdout.log", f"{output_dir}/output.txt"]
+            for alt_file in alt_files:
+                logger.info(f"[DOWNLOAD_DEBUG] Проверка альтернативного файла: {alt_file}")
+                if os.path.exists(alt_file):
+                    logger.info(f"[DOWNLOAD_DEBUG] Найден альтернативный файл: {alt_file}")
+                    with open(alt_file, 'r', encoding='utf-8') as f:
+                        raw_content = f.read()
+                    return StreamingResponse(
+                        iter([raw_content.encode('utf-8')]),
+                        media_type="text/plain",
+                        headers={
+                            "Content-Disposition": f'attachment; filename="scan_{job_id}_raw.txt"'
+                        }
+                    )
+            
+            logger.error(f"[DOWNLOAD_DEBUG] Raw файл не найден ни по основному пути, ни по альтернативным")
     
     if format == "raw":
         # Сырой вывод всех результатов
