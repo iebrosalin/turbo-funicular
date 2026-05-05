@@ -286,47 +286,29 @@
                     Результаты DNS сканирования (Dig)
                 </div>
                 <div class="card-body">
-                    {% if asset.dns_records %}
-                        {% set has_records = false %}
-                        {% for type, records in asset.dns_records.items() %}
-                            {% if records and (records|length) > 0 %}
-                                {% set has_records = true %}
-                            {% endif %}
-                        {% endfor %}
-                        
-                        {% if has_records %}
-                            {% for type, records in asset.dns_records.items() %}
-                                {% if records and (records|length) > 0 %}
-                                <div class="mb-4">
-                                    <h5 class="border-bottom pb-2">{{ type }} Записи</h5>
-                                    <div class="table-responsive">
-                                        <table class="table table-sm table-striped">
-                                            <thead class="table-light">
-                                                <tr>
-                                                    <th>Имя</th>
-                                                    <th>Тип</th>
-                                                    <th>Значение</th>
-                                                    <th>TTL</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {% for record in records %}
-                                                <tr>
-                                                    <td>{{ record.name or '-' }}</td>
-                                                    <td><span class="badge bg-info">{{ type }}</span></td>
-                                                    <td>{{ record.data or record.value or '-' }}</td>
-                                                    <td>{{ record.ttl or '-' }}</td>
-                                                </tr>
-                                                {% endfor %}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                                {% endif %}
-                            {% endfor %}
-                        {% else %}
-                            <p class="text-muted text-center">DNS записи не найдены или сканирование не проводилось.</p>
-                        {% endif %}
+                    {% if asset.dns_records and asset.dns_records|length > 0 %}
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Имя</th>
+                                        <th>Тип</th>
+                                        <th>Значение</th>
+                                        <th>TTL</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for record in asset.dns_records %}
+                                    <tr>
+                                        <td>{{ record.get('name', '-') }}</td>
+                                        <td><span class="badge bg-info">{{ record.get('type', '-') }}</span></td>
+                                        <td>{{ record.get('data', record.get('value', '-')) }}</td>
+                                        <td>{{ record.get('ttl', '-') }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
                     {% else %}
                         <p class="text-muted text-center">DNS записи не найдены или сканирование не проводилось.</p>
                     {% endif %}
