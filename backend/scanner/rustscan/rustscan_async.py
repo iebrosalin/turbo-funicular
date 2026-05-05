@@ -78,6 +78,11 @@ class RustscanScanner(BaseScanner):
         # Save JSON result (parsed structure)
         with open(self.json_file, 'w') as f:
             json.dump(result, f, indent=2)
+        
+        # Отладочный вывод содержимого файлов
+        self._log_file_content(self.raw_file, "Raw вывод Rustscan (.txt)")
+        self._log_file_content(self.grepable_file, "Grepable вывод Rustscan (.txt)")
+        self._log_file_content(self.json_file, "JSON результат Rustscan (.json)")
             
         return {
             "hostname": result.get("hostname", self.target),

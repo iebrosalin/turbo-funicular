@@ -78,6 +78,11 @@ class NmapScanner(BaseScanner):
             if stderr_str:
                 f.write("\nSTDERR:\n")
                 f.write(stderr_str)
+        
+        # Отладочный вывод содержимого файлов
+        self._log_file_content(self.xml_file, "XML отчет Nmap")
+        self._log_file_content(os.path.join(self.job_output_dir, "nmap.nmap"), "Текстовый отчет Nmap (.nmap)")
+        self._log_file_content(raw_file, "Raw вывод Nmap (.txt)")
                 
         result = self._parse_output()
         return {
