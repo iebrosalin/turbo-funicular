@@ -129,55 +129,42 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     }
 
 
-@router.get("/root")
-async def get_root_group(db: AsyncSession = Depends(get_db)):
-    """
-    Получить корневую группу "Организация".
-    """
-    from sqlalchemy import select
-    
-    query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
-    result = await db.execute(query)
-    root_group = result.scalar_one_or_none()
-    
-    if not root_group:
-        # Создаем корневую группу если не существует
-        root_group = AssetGroup(
-            name="Организация",
-            description="__root_organization__",
-            parent_id=None,
-            group_type="manual"
-        )
-        db.add(root_group)
-        await db.commit()
-        await db.refresh(root_group)
-    
-    return root_group
-
-
 @router.get("/{group_id}", response_model=GroupResponse)
 async def get_group(group_id: int, db: AsyncSession = Depends(get_db)):
     """Получить группу по ID."""
     from sqlalchemy.orm import selectinload
     from backend.models.asset import asset_groups
     
-    # Обработка специального случая 0 (корневая группа)
+    # Специальная обработка для корневой группы с id=0
     if group_id == 0:
-        query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
+        query = select(AssetGroup).where(AssetGroup.id == 0)
         result = await db.execute(query)
         group = result.scalar_one_or_none()
         
         if not group:
-            # Создаем корневую группу если не существует
-            group = AssetGroup(
-                name="Организация",
-                description="__root_organization__",
-                parent_id=None,
-                group_type="manual"
-            )
-            db.add(group)
-            await db.commit()
-            await db.refresh(group)
+            # Пробуем найти по описанию для обратной совместимости
+            query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
+            result = await db.execute(query)
+            group = result.scalar_one_or_none()
+            
+            if not group:
+                # Создаем корневую группу если не существует
+                group = AssetGroup(
+                    id=0,
+                    name="Организация",
+                    description="__root_organization__",
+                    parent_id=None,
+                    group_type="manual"
+                )
+                db.add(group)
+                await db.commit()
+                await db.refresh(group)
+            else:
+                # Обновляем ID существующей корневой группы на 0
+                if group.id != 0:
+                    group.id = 0
+                    await db.commit()
+                    await db.refresh(group)
     else:
         service = GroupService(db)
         group = await service.get_by_id(group_id)
