@@ -35,9 +35,27 @@ class AssetResponse(BaseModel):
     uuid: str
     ip_address: str
     hostname: Optional[str] = None
+    mac_address: Optional[str] = None
+    vendor: Optional[str] = None
     os_family: Optional[str] = None
+    os_version: Optional[str] = None
+    device_type: Optional[str] = None
     status: Optional[str] = "active"
     location: Optional[str] = None
-    group_id: Optional[int] = None  # Возвращаем ID первой группы для совместимости
+    owner: Optional[str] = None
+    source: Optional[str] = None
+    dns_names: Optional[List[str]] = None
+    fqdn: Optional[str] = None
+    dns_records: Optional[dict] = None
+    open_ports: Optional[List[int]] = None
+    rustscan_ports: Optional[List[int]] = None
+    nmap_ports: Optional[List[int]] = None
+    last_rustscan: Optional[datetime] = None
+    last_nmap: Optional[datetime] = None
+    last_dns_scan: Optional[datetime] = None
+    last_seen: Optional[datetime] = None
+    group_id: Optional[int] = None
+    groups: Optional[List[str]] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+    taxonomy: Optional[dict] = None

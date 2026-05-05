@@ -174,7 +174,7 @@ async def get_assets(
     if include_taxonomy:
         result = []
         for asset in assets:
-            asset_dict = asset.model_dump() if hasattr(asset, 'model_dump') else asset.__dict__
+            asset_dict = asset.to_dict() if hasattr(asset, 'to_dict') else (asset.model_dump() if hasattr(asset, 'model_dump') else asset.__dict__)
             taxonomy = generate_asset_taxonomy(asset)
             asset_dict['taxonomy'] = taxonomy
             result.append(asset_dict)
