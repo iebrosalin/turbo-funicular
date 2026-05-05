@@ -133,7 +133,32 @@ class AssetService:
         """Конвертировать ORM-объект в словарь с предзагрузкой всех полей и связей."""
         # Явный доступ ко всем JSON-полям для их загрузки
         dns_names = list(asset.dns_names) if asset.dns_names else []
-        dns_records = dict(asset.dns_records) if asset.dns_records else {}
+        
+        # Корректная обработка dns_records: может быть списком словарей или списком списков
+        dns_records_data = asset.dns_records
+        if dns_records_data:
+            if isinstance(dns_records_data, list) and len(dns_records_data) > 0:
+                # Если это список словарей - оставляем как есть
+                if isinstance(dns_records_data[0], dict):
+                    dns_records = dns_records_data
+                # Если это список списков (старый формат [name, type, data]) - конвертируем в словари
+                elif isinstance(dns_records_data[0], (list, tuple)):
+                    dns_records = []
+                    for record in dns_records_data:
+                        if len(record) >= 3:
+                            dns_records.append({
+                                "name": record[0],
+                                "type": record[1],
+                                "data": record[2],
+                                "ttl": record[3] if len(record) > 3 else None
+                            })
+                else:
+                    dns_records = dns_records_data
+            else:
+                dns_records = dns_records_data
+        else:
+            dns_records = []
+            
         open_ports = list(asset.open_ports) if asset.open_ports else []
         rustscan_ports = list(asset.rustscan_ports) if asset.rustscan_ports else []
         nmap_ports = list(asset.nmap_ports) if asset.nmap_ports else []

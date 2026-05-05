@@ -381,6 +381,22 @@ class ScanQueueManager:
                 if job:
                     job.status = "completed"
                     job.completed_at = datetime.utcnow()
+                    
+                    # Вызываем ScanProcessor для гарантированного чтения файлов и обновления активов
+                    # Это надежнее чем парсинг возвращаемых данных в цикле
+                    try:
+                        from backend.services.scan_processor import ScanProcessor
+                        from backend.db.session import async_session_maker as sync_session_maker
+                        # Создаем синхронную сессию для процессора
+                        with sync_session_maker() as sync_db:
+                            processor = ScanProcessor(sync_db)
+                            logger.info(f"[ScanProcessor] Запуск обработки результатов для задачи {scan_job_id}")
+                            processor.process(scan_job_id)
+                            logger.info(f"[ScanProcessor] Обработка результатов задачи {scan_job_id} завершена")
+                    except Exception as proc_err:
+                        logger.error(f"Ошибка в ScanProcessor для задачи {scan_job_id}: {proc_err}", exc_info=True)
+                        # Не прерываем завершение задачи, но логируем ошибку
+                    
                     # Обновляем прогресс родительского сканирования
                     # Используем явный запрос вместо ленивой загрузки
                     if job.scan_id:
