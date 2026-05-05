@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+
+{% block title %}Сканирования RedCheck{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-primary"><i class="fas fa-rad-alt me-2"></i>Сканирования RedCheck</h5>
+                    <div>
+                        <button class="btn btn-outline-secondary btn-sm me-2" id="toggleColumnsBtn">
+                            <i class="fas fa-columns me-1"></i>Колонки
+                        </button>
+                        <button class="btn btn-primary btn-sm" onclick="syncScans()">
+                            <i class="fas fa-sync-alt me-1"></i>Синхронизировать
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Панель фильтров -->
+                    <div class="row g-3 mb-4" id="filtersPanel">
+                        <div class="col-md-3">
+                            <label class="form-label small text-muted">Поиск</label>
+                            <input type="text" class="form-control form-control-sm" id="filterSearch" placeholder="Название, ID...">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small text-muted">Статус</label>
+                            <select class="form-select form-select-sm" id="filterStatus">
+                                <option value="">Все</option>
+                                <option value="completed">Завершено</option>
+                                <option value="running">В процессе</option>
+                                <option value="failed">Ошибка</option>
+                                <option value="pending">Ожидание</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small text-muted">Тип</label>
+                            <select class="form-select form-select-sm" id="filterType">
+                                <option value="">Все</option>
+                                <option value="vulnerability">Уязвимости</option>
+                                <option value="compliance">Соответствие</option>
+                                <option value="inventory">Инвентаризация</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small text-muted">Профиль</label>
+                            <input type="text" class="form-control form-control-sm" id="filterProfile" placeholder="Название профиля">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label small text-muted">Цель</label>
+                            <input type="text" class="form-control form-control-sm" id="filterTarget" placeholder="IP или имя">
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button class="btn btn-outline-primary btn-sm w-100" onclick="applyFilters()">
+                                <i class="fas fa-filter"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Таблица -->
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped align-middle" id="scansTable" style="width: 100%;">
+                            <thead class="table-light">
+                                <tr>
+                                    <th data-field="id" class="sortable">ID</th>
+                                    <th data-field="name" class="sortable">Название</th>
+                                    <th data-field="status" class="sortable">Статус</th>
+                                    <th data-field="type" class="sortable">Тип</th>
+                                    <th data-field="profile_name" class="sortable">Профиль</th>
+                                    <th data-field="target_name" class="sortable">Цель</th>
+                                    <th data-field="progress" class="sortable">Прогресс</th>
+                                    <th data-field="started_at" class="sortable">Начало</th>
+                                    <th data-field="finished_at" class="sortable">Завершение</th>
+                                    <th data-field="duration" class="sortable">Длительность</th>
+                                    <th data-field="vulnerabilities_count" class="sortable">Уязвимости</th>
+                                    <th data-field="high_count" class="sortable">Высокие</th>
+                                    <th data-field="medium_count" class="sortable">Средние</th>
+                                    <th data-field="low_count" class="sortable">Низкие</th>
+                                    <th data-field="compliance_score" class="sortable">Score %</th>
+                                    <th data-field="report_available" class="sortable">Отчёт</th>
+                                    <th data-field="created_by" class="sortable">Автор</th>
+                                    <th data-field="actions">Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Данные загружаются через JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer text-muted small">
+                    <span id="tableInfo">Загрузка...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно выбора колонок -->
+<div class="modal fade" id="columnsModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">Отображение колонок</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="columnsList">
+                <!-- Чекбоксы генерируются JS -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-primary" data-bs-dismiss="modal" onclick="saveColumnSettings()">Применить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .sortable { cursor: pointer; }
+    .sortable:hover { background-color: #f8f9fa; }
+    .status-badge { font-size: 0.75rem; padding: 0.25em 0.6em; border-radius: 0.35rem; }
+    .bg-completed { background-color: #d1e7dd; color: #0f5132; }
+    .bg-running { background-color: #cff4fc; color: #055160; }
+    .bg-failed { background-color: #f8d7da; color: #842029; }
+    .bg-pending { background-color: #fff3cd; color: #664d03; }
+</style>
+
+<script>
+let scansTable;
+let defaultVisibleColumns = ['id', 'name', 'status', 'type', 'profile_name', 'target_name', 'started_at', 'vulnerabilities_count', 'actions'];
+let visibleColumns = JSON.parse(localStorage.getItem('redcheck_visible_columns')) || defaultVisibleColumns;
+
+$(document).ready(function() {
+    initTable();
+    initColumnSelector();
+    
+    // Поиск по нажатию Enter
+    $('#filterSearch').on('keypress', function(e) {
+        if(e.which == 13) applyFilters();
+    });
+});
+
+function initTable() {
+    scansTable = $('#scansTable').DataTable({
+        ajax: {
+            url: '/api/integrations/redcheck/scans',
+            dataSrc: 'data',
+            error: function(xhr, error, code) {
+                console.error('Error loading scans:', error);
+                $('#tableInfo').text('Ошибка загрузки данных');
+            }
+        },
+        columns: [
+            { data: 'id' },
+            { data: 'name' },
+            { 
+                data: 'status',
+                render: function(data) {
+                    const badges = {
+                        'completed': 'bg-completed',
+                        'running': 'bg-running',
+                        'failed': 'bg-failed',
+                        'pending': 'bg-pending'
+                    };
+                    const cls = badges[data] || 'bg-secondary';
+                    return `<span class="status-badge ${cls}">${data}</span>`;
+                }
+            },
+            { data: 'type' },
+            { data: 'profile_name' },
+            { data: 'target_name' },
+            { 
+                data: 'progress',
+                render: function(data) {
+                    return data ? `<div class="progress" style="height: 6px;"><div class="progress-bar" style="width: ${data}%"></div></div><small>${data}%</small>` : '-';
+                }
+            },
+            { data: 'started_at', render: $.fn.dataTable.render.datetime() },
+            { data: 'finished_at', render: $.fn.dataTable.render.datetime() },
+            { data: 'duration', render: function(data) { return data ? data + ' сек' : '-'; } },
+            { data: 'vulnerabilities_count' },
+            { data: 'high_count', render: function(data) { return data > 0 ? `<span class="text-danger fw-bold">${data}</span>` : data; } },
+            { data: 'medium_count' },
+            { data: 'low_count' },
+            { 
+                data: 'compliance_score',
+                render: function(data) {
+                    if (!data) return '-';
+                    const color = data >= 80 ? 'text-success' : (data >= 50 ? 'text-warning' : 'text-danger');
+                    return `<span class="${color} fw-bold">${data}%</span>`;
+                }
+            },
+            { 
+                data: 'report_available',
+                render: function(data) {
+                    return data ? '<i class="fas fa-check-circle text-success"></i>' : '<i class="fas fa-times-circle text-muted"></i>';
+                }
+            },
+            { data: 'created_by' },
+            {
+                data: null,
+                orderable: false,
+                render: function(data, type, row) {
+                    let actions = `<button class="btn btn-sm btn-outline-primary" onclick="viewScan(${row.id})" title="Детали"><i class="fas fa-eye"></i></button> `;
+                    if (row.report_available) {
+                        actions += `<button class="btn btn-sm btn-outline-success" onclick="downloadReport(${row.id})" title="Скачать отчёт"><i class="fas fa-download"></i></button>`;
+                    }
+                    return actions;
+                }
+            }
+        ],
+        pageLength: 25,
+        language: {
+            url: "//cdn.datatables.net/plug-ins/1.13.6/i18n/ru.json"
+        },
+        drawCallback: function() {
+            updateColumnVisibility();
+            const info = this.api().page.info();
+            $('#tableInfo').text(`Показано ${info.start + 1} - ${info.end} из ${info.recordsTotal} записей`);
+        }
+    });
+}
+
+function applyFilters() {
+    const params = {
+        search: $('#filterSearch').val(),
+        status: $('#filterStatus').val(),
+        type: $('#filterType').val(),
+        profile: $('#filterProfile').val(),
+        target: $('#filterTarget').val()
+    };
+    
+    scansTable.ajax.url(`/api/integrations/redcheck/scans?${new URLSearchParams(params).toString()}`);
+    scansTable.ajax.reload();
+}
+
+function syncScans() {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Синхронизация...';
+    btn.disabled = true;
+
+    fetch('/api/integrations/redcheck/scans/sync', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            alert(`Синхронизация завершена. Добавлено: ${data.added}, Обновлено: ${data.updated}`);
+            scansTable.ajax.reload();
+        })
+        .catch(err => alert('Ошибка синхронизации: ' + err))
+        .finally(() => {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        });
+}
+
+// Управление колонками
+function initColumnSelector() {
+    const headers = $('#scansTable thead th');
+    const list = $('#columnsList');
+    list.empty();
+
+    headers.each(function(index) {
+        if ($(this).data('field')) {
+            const field = $(this).data('field');
+            const title = $(this).text();
+            const checked = visibleColumns.includes(field) ? 'checked' : '';
+            
+            list.append(`
+                <div class="form-check">
+                    <input class="form-check-input col-checkbox" type="checkbox" value="${field}" id="col_${field}" ${checked}>
+                    <label class="form-check-label" for="col_${field}">${title}</label>
+                </div>
+            `);
+        }
+    });
+}
+
+$('#toggleColumnsBtn').on('click', function() {
+    $('#columnsModal').modal('show');
+});
+
+function saveColumnSettings() {
+    visibleColumns = [];
+    $('.col-checkbox:checked').each(function() {
+        visibleColumns.push($(this).val());
+    });
+    localStorage.setItem('redcheck_visible_columns', JSON.stringify(visibleColumns));
+    updateColumnVisibility();
+}
+
+function updateColumnVisibility() {
+    const headers = $('#scansTable thead th');
+    headers.each(function(index) {
+        const field = $(this).data('field');
+        if (field && !visibleColumns.includes(field)) {
+            scansTable.column(index).visible(false);
+        } else {
+            scansTable.column(index).visible(true);
+        }
+    });
+    // Колонка действий всегда видима
+    scansTable.column(headers.length - 1).visible(true);
+}
+
+function viewScan(id) {
+    alert('Просмотр деталей сканирования #' + id);
+    // TODO: Реализовать модальное окно или переход на страницу деталей
+}
+
+function downloadReport(id) {
+    window.open(`/api/integrations/redcheck/reports/${id}/download`, '_blank');
+}
+</script>
+{% endblock %}
