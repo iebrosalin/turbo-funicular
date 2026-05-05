@@ -323,6 +323,39 @@ class ScanQueueManager:
                                     asset.tags = new_tags
                                     logger.info(f"[AssetManager] Обновлены теги актива {asset.id}: {new_tags}")
                             
+                            # Обработка DNS-записей для dig сканирования
+                            dns_records = parsed.get('dns_records', [])
+                            if dns_records and scan_type == 'dig':
+                                logger.info(f"[AssetManager] Найдены DNS-записи для {target}: {len(dns_records)} записей")
+                                # Обновляем поле dns_records у актива
+                                # Объединяем с существующими записями, избегая дубликатов
+                                existing_records = asset.dns_records or []
+                                # Создаем множество ключей (name+type) для существующих записей
+                                existing_keys = {(r.get('name'), r.get('type')) for r in existing_records if isinstance(r, dict)}
+                                
+                                for record in dns_records:
+                                    key = (record.get('name'), record.get('type'))
+                                    if key not in existing_keys:
+                                        existing_records.append(record)
+                                        existing_keys.add(key)
+                                    else:
+                                        # Обновляем существующую запись с таким же ключом
+                                        for i, existing in enumerate(existing_records):
+                                            if (existing.get('name'), existing.get('type')) == key:
+                                                existing_records[i] = record
+                                                break
+                                
+                                asset.dns_records = existing_records
+                                logger.info(f"[AssetManager] Обновлены DNS-записи актива {asset.id}: всего {len(existing_records)} записей")
+                                
+                                # Если есть A или AAAA запись, обновляем IP актива если он отличается
+                                for record in dns_records:
+                                    if record.get('type') in ['A', 'AAAA'] and record.get('data'):
+                                        # data содержит IP адрес
+                                        if record.get('name').rstrip('.') == target.rstrip('.'):
+                                            # Это запись для самого таргета
+                                            break
+                            
                             logger.info(f"[AssetManager] Сохранение результата сканирования для {target} в базу данных")
                             result = ScanResult(
                                 scan_id=current_scan_id,
