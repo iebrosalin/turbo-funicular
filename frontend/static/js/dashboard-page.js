@@ -360,18 +360,25 @@ export class DashboardController {
     
     try {
       // Загружаем список групп
-      const groups = await Utils.apiRequest('/api/groups/tree');
+      const groupsData = await Utils.apiRequest('/api/groups/tree');
+      const groups = groupsData.tree || [];
       
-      // Заполняем селект группами
+      // Заполняем селект группами, включая корневую
       const select = document.getElementById('target-group-select');
-      select.innerHTML = '<option value="">-- Без группы --</option>';
+      select.innerHTML = '';
+      
+      // Добавляем опцию для корневой группы
+      const rootOption = document.createElement('option');
+      rootOption.value = groupsData.root_id || 'root';
+      rootOption.textContent = '📁 Корневая группа (Организация)';
+      select.appendChild(rootOption);
       
       function buildGroupOptions(groupList, level = 0) {
         groupList.forEach(group => {
           const indent = ' '.repeat(level * 2);
           const option = document.createElement('option');
           option.value = group.id;
-          option.textContent = indent + (group.name || group.group_name);
+          option.textContent = indent + '├─ ' + (group.name || group.group_name);
           select.appendChild(option);
           
           if (group.children && group.children.length > 0) {
@@ -404,18 +411,25 @@ export class DashboardController {
   async #confirmSingleMove(assetId) {
     try {
       // Загружаем список групп
-      const groups = await Utils.apiRequest('/api/groups/tree');
+      const groupsData = await Utils.apiRequest('/api/groups/tree');
+      const groups = groupsData.tree || [];
       
-      // Заполняем селект группами
+      // Заполняем селект группами, включая корневую
       const select = document.getElementById('target-group-select');
-      select.innerHTML = '<option value="">-- Без группы --</option>';
+      select.innerHTML = '';
+      
+      // Добавляем опцию для корневой группы
+      const rootOption = document.createElement('option');
+      rootOption.value = groupsData.root_id || 'root';
+      rootOption.textContent = '📁 Корневая группа (Организация)';
+      select.appendChild(rootOption);
       
       function buildGroupOptions(groupList, level = 0) {
         groupList.forEach(group => {
           const indent = ' '.repeat(level * 2);
           const option = document.createElement('option');
           option.value = group.id;
-          option.textContent = indent + (group.name || group.group_name);
+          option.textContent = indent + '├─ ' + (group.name || group.group_name);
           select.appendChild(option);
           
           if (group.children && group.children.length > 0) {

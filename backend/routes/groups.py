@@ -67,8 +67,34 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     """Получить дерево групп с подсчётом активов."""
     from backend.models.asset import asset_groups, Asset
     
-    # Получаем все группы
-    query = select(AssetGroup).order_by(AssetGroup.name)
+    # Получаем корневую группу
+    root_query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
+    root_result = await db.execute(root_query)
+    root_group = root_result.scalar_one_or_none()
+    
+    # Если корневой группы нет, создаём её
+    if not root_group:
+        root_group = AssetGroup(
+            name="Организация",
+            description="__root_organization__",
+            parent_id=None
+        )
+        db.add(root_group)
+        await db.commit()
+        await db.refresh(root_group)
+    
+    # Подсчитываем активы для корневой группы
+    root_count_query = select(func.count(asset_groups.c.asset_id)).where(
+        asset_groups.c.group_id == root_group.id
+    )
+    root_count_result = await db.execute(root_count_query)
+    root_group.assets_count = root_count_result.scalar() or 0
+    root_group.direct_count = root_group.assets_count
+    
+    # Получаем все остальные группы (кроме корневой)
+    query = select(AssetGroup).where(
+        AssetGroup.description != "__root_organization__"
+    ).order_by(AssetGroup.name)
     result = await db.execute(query)
     groups = list(result.scalars().all())
     
@@ -82,9 +108,11 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
         # Добавляем direct_count для корректного подсчёта без дублирования
         group.direct_count = group.assets_count
     
-    tree = build_group_tree(groups)
+    # Строим дерево начиная с корневой группы
+    all_groups = [root_group] + groups
+    tree = build_group_tree(all_groups)
     
-    # Подсчитываем активы без группы
+    # Подсчитываем активы без группы (не в корневой и не в других группах)
     from sqlalchemy import not_, exists
     ungrouped_count_query = select(func.count(Asset.id)).where(
         not_(exists().where(asset_groups.c.asset_id == Asset.id))
@@ -95,8 +123,9 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     # Возвращаем в формате, ожидаемом фронтендом
     return {
         "tree": tree,
-        "flat": groups,
-        "ungrouped_count": ungrouped_count
+        "flat": all_groups,
+        "ungrouped_count": ungrouped_count,
+        "root_id": root_group.id
     }
 
 

@@ -11,7 +11,10 @@ logger = logging.getLogger(__name__)
 class NmapScanner(BaseScanner):
     def __init__(self, job_id: int, target: str, ports: Optional[str] = None, 
                  scripts: Optional[str] = None, version_detect: bool = True, 
-                 os_detect: bool = True, output_dir: str = "/app/scanner_output"):
+                 os_detect: bool = True, output_dir: Optional[str] = None):
+        # Используем переменную окружения или значение по умолчанию
+        if output_dir is None:
+            output_dir = os.getenv('SCANNER_OUTPUT_DIR', '/app/scanner_output')
         super().__init__(job_id, output_dir)
         self.target = target
         self.ports = ports

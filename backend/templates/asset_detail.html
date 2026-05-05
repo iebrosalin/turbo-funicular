@@ -67,10 +67,10 @@
                         <div class="card-header bg-light">Основная информация</div>
                         <div class="card-body">
                             <table class="table table-sm table-borderless">
-                                <tr><th width="40%">IP Адрес:</th><td><span class="asset-view-value">{{ asset.ip_address }}</span><input type="text" class="form-control form-control-sm asset-edit-input" name="ip_address" value="{{ asset.ip_address }}" disabled></td></tr>
-                                <tr><th>Hostname:</th><td><span class="asset-view-value">{{ asset.hostname or '-' }}</span><input type="text" class="form-control form-control-sm asset-edit-input" name="hostname" value="{{ asset.hostname or '' }}" disabled></td></tr>
-                                <tr><th>FQDN:</th><td><span class="asset-view-value">{{ asset.fqdn or '-' }}</span><input type="text" class="form-control form-control-sm asset-edit-input" name="fqdn" value="{{ asset.fqdn or '' }}" disabled></td></tr>
-                                <tr><th>Тип устройства:</th><td><span class="asset-view-value">{{ asset.device_type }}</span>
+                                <tr><th width="40%">IP Адрес:</th><td>{{ asset.ip_address }}<input type="text" class="form-control form-control-sm asset-edit-input" name="ip_address" value="{{ asset.ip_address }}" disabled></td></tr>
+                                <tr><th>Hostname:</th><td>{{ asset.hostname or '-' }}<input type="text" class="form-control form-control-sm asset-edit-input" name="hostname" value="{{ asset.hostname or '' }}" disabled></td></tr>
+                                <tr><th>FQDN:</th><td>{{ asset.fqdn or '-' }}<input type="text" class="form-control form-control-sm asset-edit-input" name="fqdn" value="{{ asset.fqdn or '' }}" disabled></td></tr>
+                                <tr><th>Тип устройства:</th><td>{{ asset.device_type }}
                                     <select class="form-select form-select-sm asset-edit-input" name="device_type" disabled>
                                         <option value="unknown" {% if asset.device_type == 'unknown' %}selected{% endif %}>unknown</option>
                                         <option value="server" {% if asset.device_type == 'server' %}selected{% endif %}>server</option>
@@ -79,25 +79,23 @@
                                     </select>
                                 </td></tr>
                                 <tr><th>ОС:</th><td>
-                                    <span class="asset-view-value">{{ asset.os_family or '-' }} {{ asset.os_version or '' }}</span>
+                                    {{ asset.os_family or '-' }} {{ asset.os_version or '' }}
                                     <div class="input-group input-group-sm">
                                         <input type="text" class="form-control asset-edit-input" name="os_family" value="{{ asset.os_family or '' }}" placeholder="OS Family" disabled>
                                         <input type="text" class="form-control asset-edit-input" name="os_version" value="{{ asset.os_version or '' }}" placeholder="Version" disabled>
                                     </div>
                                 </td></tr>
-                                <tr><th>Владелец:</th><td><span class="asset-view-value">{{ asset.owner or '-' }}</span><input type="text" class="form-control form-control-sm asset-edit-input" name="owner" value="{{ asset.owner or '' }}" disabled></td></tr>
-                                <tr><th>Локация:</th><td><span class="asset-view-value">{{ asset.location or '-' }}</span><input type="text" class="form-control form-control-sm asset-edit-input" name="location" value="{{ asset.location or '' }}" disabled></td></tr>
+                                <tr><th>Владелец:</th><td>{{ asset.owner or '-' }}<input type="text" class="form-control form-control-sm asset-edit-input" name="owner" value="{{ asset.owner or '' }}" disabled></td></tr>
+                                <tr><th>Локация:</th><td>{{ asset.location or '-' }}<input type="text" class="form-control form-control-sm asset-edit-input" name="location" value="{{ asset.location or '' }}" disabled></td></tr>
                                 <tr><th>Группы:</th>
                                     <td>
-                                        <span class="asset-view-value">
-                                            {% if asset.groups and asset.groups|length > 0 %}
+                                        {% if asset.groups and asset.groups|length > 0 %}
                                                 {% for group in asset.groups %}
                                                     <span class="badge bg-primary">{{ group.name }}</span>
                                                 {% endfor %}
                                             {% else %}
                                                 <span class="text-muted">Нет групп</span>
                                             {% endif %}
-                                        </span>
                                         <select class="form-select form-select-sm asset-edit-input" name="group_id" disabled>
                                             <option value="">-- Без группы --</option>
                                             <!-- Группы будут загружены динамически или можно добавить статически -->
@@ -241,6 +239,36 @@
                                         </td>
                                     </tr>
                                     {% endfor %}
+                                    
+                                    {% if asset.open_ports and (asset.open_ports|length) > 0 %}
+                                        {% set service_ports = [] %}
+                                        {% for service in asset.services %}
+                                            {% set _ = service_ports.append(service.port) %}
+                                        {% endfor %}
+                                        {% for port in asset.open_ports %}
+                                            {% if port not in service_ports %}
+                                            <tr class="table-secondary">
+                                                <td><strong>{{ port }}</strong></td>
+                                                <td><span class="text-muted">-</span></td>
+                                                <td><span class="text-muted">-</span></td>
+                                                <td><span class="text-muted">-</span></td>
+                                                <td><span class="text-muted">-</span></td>
+                                                <td><span class="badge bg-info">Открыт</span></td>
+                                            </tr>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% endif %}
+                                {% elif asset.open_ports and (asset.open_ports|length) > 0 %}
+                                    {% for port in asset.open_ports %}
+                                    <tr>
+                                        <td><strong>{{ port }}</strong></td>
+                                        <td><span class="text-muted">-</span></td>
+                                        <td><span class="text-muted">-</span></td>
+                                        <td><span class="text-muted">-</span></td>
+                                        <td><span class="text-muted">-</span></td>
+                                        <td><span class="badge bg-info">Открыт</span></td>
+                                    </tr>
+                                    {% endfor %}
                                 {% else %}
                                     <tr><td colspan="6" class="text-center text-muted py-4">Сервисы не обнаружены</td></tr>
                                 {% endif %}
@@ -258,23 +286,47 @@
                     Результаты DNS сканирования (Dig)
                 </div>
                 <div class="card-body">
-                    {% if asset.dns_records and (asset.dns_records|length) > 0 %}
-                        {% for type, records in (asset.dns_records or {}).items() %}
-                        <div class="mb-4">
-                            <h5 class="border-bottom pb-2">{{ type }} Записи</h5>
-                            <ul class="list-group">
-                                {% for record in records %}
-                                    <li class="list-group-item d-flex justify-content-between align-items-start">
-                                        <div class="ms-2 me-auto">
-                                            <div class="fw-bold">{{ record.name or 'Record' }}</div>
-                                            {{ record.data or record.value }}
-                                            {% if record.ttl %}<br><small class="text-muted">TTL: {{ record.ttl }}</small>{% endif %}
-                                        </div>
-                                    </li>
-                                {% endfor %}
-                            </ul>
-                        </div>
+                    {% if asset.dns_records %}
+                        {% set has_records = false %}
+                        {% for type, records in asset.dns_records.items() %}
+                            {% if records and (records|length) > 0 %}
+                                {% set has_records = true %}
+                            {% endif %}
                         {% endfor %}
+                        
+                        {% if has_records %}
+                            {% for type, records in asset.dns_records.items() %}
+                                {% if records and (records|length) > 0 %}
+                                <div class="mb-4">
+                                    <h5 class="border-bottom pb-2">{{ type }} Записи</h5>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-striped">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Имя</th>
+                                                    <th>Тип</th>
+                                                    <th>Значение</th>
+                                                    <th>TTL</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for record in records %}
+                                                <tr>
+                                                    <td>{{ record.name or '-' }}</td>
+                                                    <td><span class="badge bg-info">{{ type }}</span></td>
+                                                    <td>{{ record.data or record.value or '-' }}</td>
+                                                    <td>{{ record.ttl or '-' }}</td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted text-center">DNS записи не найдены или сканирование не проводилось.</p>
+                        {% endif %}
                     {% else %}
                         <p class="text-muted text-center">DNS записи не найдены или сканирование не проводилось.</p>
                     {% endif %}
