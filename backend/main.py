@@ -262,6 +262,18 @@ async def scan_history_page(request: Request):
     """Страница истории сканирований."""
     return templates.TemplateResponse("scan_history.html", {"request": request})
 
+@app.get("/import-nmap")
+async def import_nmap_page(request: Request, db: AsyncSession = Depends(get_db)):
+    """Страница импорта Nmap XML."""
+    from backend.services.group_service import GroupService
+    group_service = GroupService(db)
+    groups = await group_service.get_all()
+    
+    return templates.TemplateResponse("import_nmap.html", {
+        "request": request,
+        "groups": groups
+    })
+
 @app.get("/assets/{asset_id}")
 async def asset_detail(request: Request, asset_id: int, db: AsyncSession = Depends(get_db)):
     """Страница детали актива."""

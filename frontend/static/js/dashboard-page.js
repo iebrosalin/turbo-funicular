@@ -32,6 +32,9 @@ export class DashboardController {
     // Инициализация дерева групп и загрузка данных
     await refreshGroupTree();
     
+    // Загрузка схемы активов для динамического заполнения опций группировки
+    await this.#loadAssetSchema();
+    
     // Подписка на обновления активов из Store
     store.subscribe('assets', (assets) => {
       this.allAssets = assets;
@@ -41,7 +44,8 @@ export class DashboardController {
     // Начальная загрузка данных (если еще не загружены в Store)
     if (!store.getState('assets')?.length) {
       try {
-        const assets = await Utils.apiRequest('/api/assets');
+        // Загружаем активы с таксономией для экспорта
+        const assets = await Utils.apiRequest('/api/assets?include_taxonomy=true');
         store.setState('assets', assets);
         // Явно вызываем applyFilters после загрузки
         this.allAssets = assets;
@@ -56,12 +60,38 @@ export class DashboardController {
       this.applyFilters();
     }
   }
+  
+  /**
+   * Загрузка схемы активов для заполнения опций группировки
+   */
+  async #loadAssetSchema() {
+    try {
+      const schema = await Utils.apiRequest('/api/assets/schema');
+      const groupSelect = document.getElementById('group-by-select');
+      if (groupSelect && schema.schema) {
+        // Очищаем все кроме базовых опций
+        const baseOptions = Array.from(groupSelect.options).slice(0, 2);
+        groupSelect.innerHTML = '';
+        baseOptions.forEach(opt => groupSelect.appendChild(opt));
+        
+        // Добавляем опции для каждого поля
+        schema.schema.forEach(field => {
+          const option = document.createElement('option');
+          option.value = field.field;
+          option.textContent = `По ${field.label}`;
+          groupSelect.appendChild(option);
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load asset schema:', error);
+    }
+  }
 
   #setupEventListeners() {
-    // Инициализация автодополнения для фильтра
+    // Инициализация автодополнения для фильтра (теперь async)
     const filterInput = document.getElementById('asset-filter');
     if (filterInput) {
-      this.filterAutocomplete.init(filterInput);
+      this.filterAutocomplete.init(filterInput);  // init теперь async, но вызываем без await т.к. не блокирует
     }
 
     // Кнопка проверки фильтра
@@ -128,6 +158,12 @@ export class DashboardController {
         if (assetId) this.deleteAsset(assetId);
       }
       
+      // Обработка кнопки перемещения актива в другую группу
+      const moveBtn = e.target.closest('.btn-move-asset');
+      if (moveBtn) {
+        const assetId = moveBtn.dataset.assetId;
+        if (assetId) this.#confirmSingleMove(assetId);
+      }
       // Обработка чекбоксов
       const checkbox = e.target.closest('input[type="checkbox"].asset-checkbox');
       if (checkbox) {
@@ -166,21 +202,29 @@ export class DashboardController {
   #renderGrouping() {
     if (this.currentGrouping === 'none') return;
 
+    // Обновляем шапку таблицы при группировке
+    this.assetManager.renderHeader(this.visibleColumns);
+
     const tableBody = document.querySelector('#assets-table tbody');
     if (!tableBody) return;
 
     const groups = {};
     this.filteredAssets.forEach(asset => {
       let key = 'Unknown';
+      
+      // Группировка по любому полю актива
       if (this.currentGrouping === 'group') {
         const assetGroups = asset.groups || [];
         key = assetGroups.length > 0 ? assetGroups[0] : 'Без группы';
-      } else if (['os_name', 'os_family', 'status', 'device_type'].includes(this.currentGrouping)) {
-        // Для os_name используем приоритет: os_name > os_family
-        if (this.currentGrouping === 'os_name') {
-          key = asset.os_name || (asset.os_family ? `${asset.os_family} ${asset.os_version || ''}`.trim() : 'Неизвестно');
+      } else if (asset.hasOwnProperty(this.currentGrouping)) {
+        // Динамическая группировка по любому полю актива
+        const value = asset[this.currentGrouping];
+        if (value === null || value === undefined) {
+          key = 'Неизвестно';
+        } else if (Array.isArray(value)) {
+          key = value.length > 0 ? value.join(', ') : 'Неизвестно';
         } else {
-          key = asset[this.currentGrouping] || 'Неизвестно';
+          key = String(value);
         }
       }
 
@@ -354,6 +398,50 @@ export class DashboardController {
     }
   }
   
+  /**
+   * Подтверждение перемещения одного актива в другую группу
+   */
+  async #confirmSingleMove(assetId) {
+    try {
+      // Загружаем список групп
+      const groups = await Utils.apiRequest('/api/groups/tree');
+      
+      // Заполняем селект группами
+      const select = document.getElementById('target-group-select');
+      select.innerHTML = '<option value="">-- Без группы --</option>';
+      
+      function buildGroupOptions(groupList, level = 0) {
+        groupList.forEach(group => {
+          const indent = ' '.repeat(level * 2);
+          const option = document.createElement('option');
+          option.value = group.id;
+          option.textContent = indent + (group.name || group.group_name);
+          select.appendChild(option);
+          
+          if (group.children && group.children.length > 0) {
+            buildGroupOptions(group.children, level + 1);
+          }
+        });
+      }
+      
+      buildGroupOptions(groups);
+      
+      // Обновляем счетчик
+      document.getElementById('bulk-move-count').textContent = '1';
+      
+      // Открываем модальное окно
+      const modal = new bootstrap.Modal(document.getElementById('bulkMoveModal'));
+      modal.show();
+      
+      // Сохраняем ID актива в data-атрибут кнопки
+      const moveBtn = document.getElementById('btn-execute-bulk-move');
+      moveBtn.dataset.assetIds = JSON.stringify([assetId]);
+      
+    } catch (err) {
+      Utils.showNotification('Ошибка загрузки групп: ' + err.message, 'danger');
+    }
+  }
+  
   async #executeBulkMove(ids, targetGroupId) {
     try {
       await Utils.apiRequest('/api/assets/bulk-move', {
@@ -457,10 +545,11 @@ export class DashboardController {
     window.history.replaceState({}, '', newUrl);
   }
 
-  exportData(format, filteredOnly = true) {
+  async exportData(format, filteredOnly = true) {
+    // Определяем данные для экспорта
     const dataToExport = filteredOnly ? this.filteredAssets : this.allAssets;
     
-    if (!dataToExport?.length) {
+    if (!dataToExport || dataToExport.length === 0) {
       Utils.showNotification('Нет данных для экспорта', 'warning');
       return;
     }
@@ -468,20 +557,43 @@ export class DashboardController {
     let content = '';
     let mimeType = '';
     let extension = '';
+    const timestamp = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
 
     if (format === 'csv') {
-      // Для CSV экспортируем только видимые колонки + ID
-      const headers = ['ID', ...this.visibleColumns];
-      content = headers.join(',') + '\n';
+      // Для CSV экспортируем только видимые колонки + поля таксономии
+      const headers = [...this.visibleColumns];
+      
+      // Добавляем поля таксономии если они есть в данных
+      if (dataToExport.length > 0 && dataToExport[0].taxonomy) {
+        const taxonomyFields = Object.keys(dataToExport[0].taxonomy);
+        taxonomyFields.forEach(field => {
+          if (!headers.includes(`taxonomy_${field}`)) {
+            headers.push(`taxonomy_${field}`);
+          }
+        });
+      }
+      
+      const headerLabels = headers.map(col => {
+        const header = col.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        return `"${header}"`;
+      });
+      content = headerLabels.join(',') + '\n';
       
       dataToExport.forEach(asset => {
-        const row = [asset.id];
-        this.visibleColumns.forEach(col => {
-          let val = asset[col];
+        const row = [];
+        headers.forEach(col => {
+          let val;
+          if (col.startsWith('taxonomy_')) {
+            const taxonomyField = col.replace('taxonomy_', '');
+            val = asset.taxonomy ? asset.taxonomy[taxonomyField] : null;
+          } else {
+            val = asset[col];
+          }
+          
           if (Array.isArray(val)) val = val.join('; ');
           if (val === null || val === undefined) val = '';
           val = String(val).replace(/"/g, '""');
-          if (val.includes(',') || val.includes('\n')) {
+          if (val.includes(',') || val.includes('\n') || val.includes('"')) {
             val = `"${val}"`;
           }
           row.push(val);
@@ -492,7 +604,7 @@ export class DashboardController {
       mimeType = 'text/csv;charset=utf-8;';
       extension = 'csv';
     } else if (format === 'json') {
-      // Для JSON экспортируем все данные актива целиком
+      // Для JSON экспортируем полные данные активов включая таксономию
       content = JSON.stringify(dataToExport, null, 2);
       mimeType = 'application/json;charset=utf-8;';
       extension = 'json';
@@ -502,7 +614,6 @@ export class DashboardController {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const timestamp = new Date().toISOString().slice(0,19).replace(/[:T]/g, '-');
     a.download = `assets_export_${timestamp}.${extension}`;
     document.body.appendChild(a);
     a.click();

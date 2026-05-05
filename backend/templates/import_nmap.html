@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}Импорт Nmap XML{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-12">
+            <h2><i class="bi bi-upload"></i> Импорт результатов сканирования Nmap</h2>
+            <p class="text-muted">Загрузите XML файл с результатами сканирования Nmap для импорта активов</p>
+        </div>
+    </div>
+
+    <!-- Форма загрузки -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <form id="import-form">
+                        <div class="mb-3">
+                            <label for="xml-file" class="form-label">XML файл</label>
+                            <input type="file" class="form-control" id="xml-file" accept=".xml" required>
+                            <div class="form-text">Поддерживаются файлы в формате Nmap XML</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="target-group" class="form-label">Группа назначения</label>
+                            <select class="form-select" id="target-group">
+                                <option value="">-- Без группы --</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-upload"></i> Импортировать
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Предпросмотр -->
+    <div class="row mt-4" id="preview-section" style="display: none;">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Предпросмотр импортируемых активов</h5>
+                    <span class="badge bg-info" id="preview-count">0 записей</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0" id="preview-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>IP Адрес</th>
+                                    <th>Hostname</th>
+                                    <th>ОС</th>
+                                    <th>Порты</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody id="preview-body">
+                                <!-- Данные предпросмотра -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module">
+import { Utils } from '/static/js/modules/utils.js';
+
+// Группы уже загружены из контекста
+const groups = {{ groups | tojson }};
+
+// Инициализация выпадающего списка групп
+function initGroupSelect() {
+    const select = document.getElementById('target-group');
+    
+    function buildGroupOptions(groupList, level = 0) {
+        groupList.forEach(group => {
+            const indent = ' '.repeat(level * 2);
+            const option = document.createElement('option');
+            option.value = group.id;
+            option.textContent = indent + (group.name || group.group_name);
+            select.appendChild(option);
+            
+            if (group.children && group.children.length > 0) {
+                buildGroupOptions(group.children, level + 1);
+            }
+        });
+    }
+    
+    buildGroupOptions(groups);
+}
+
+// Обработка выбора файла
+document.getElementById('xml-file')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const previewSection = document.getElementById('preview-section');
+    const previewBody = document.getElementById('preview-body');
+    const previewCount = document.getElementById('preview-count');
+    
+    previewSection.style.display = 'none';
+    previewBody.innerHTML = '<tr><td colspan="5" class="text-center py-4"><div class="spinner-border spinner-border-sm"></div> Обработка...</td></tr>';
+    
+    try {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            const xmlContent = event.target.result;
+            
+            // Парсим XML для предпросмотра
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
+            const hosts = xmlDoc.querySelectorAll('host');
+            
+            if (hosts.length === 0) {
+                previewBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Хосты не найдены</td></tr>';
+                return;
+            }
+            
+            previewBody.innerHTML = '';
+            previewCount.textContent = `${hosts.length} записей`;
+            
+            hosts.forEach(host => {
+                const ip = host.querySelector('address[addrtype="ipv4"]')?.getAttribute('addr') || '-';
+                const hostname = host.querySelector('hostname')?.getAttribute('name') || '-';
+                const os = host.querySelector('osmatch')?.getAttribute('name') || '-';
+                const ports = Array.from(host.querySelectorAll('port[state[state="open"]]'))
+                    .map(p => `${p.getAttribute('portid')}/${p.getAttribute('protocol')}`)
+                    .join(', ') || '-';
+                const status = host.querySelector('status')?.getAttribute('state') || 'unknown';
+                const statusClass = status === 'up' ? 'bg-success' : 'bg-secondary';
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${ip}</td>
+                    <td>${hostname}</td>
+                    <td>${os}</td>
+                    <td>${ports}</td>
+                    <td><span class="badge ${statusClass}">${status}</span></td>
+                `;
+                previewBody.appendChild(tr);
+            });
+            
+            previewSection.style.display = 'block';
+        };
+        reader.readAsText(file);
+    } catch (error) {
+        previewBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Ошибка: ${error.message}</td></tr>`;
+    }
+});
+
+// Обработка отправки формы
+document.getElementById('import-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const fileInput = document.getElementById('xml-file');
+    const groupSelect = document.getElementById('target-group');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        Utils.showNotification('Выберите файл для импорта', 'warning');
+        return;
+    }
+    
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Импорт...';
+    
+    try {
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            const base64Content = btoa(event.target.result);
+            
+            const response = await fetch('/api/scans/import-nmap-xml', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    filename: file.name,
+                    content: base64Content,
+                    group_id: groupSelect.value || null
+                })
+            });
+            
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || 'Ошибка импорта');
+            }
+            
+            const result = await response.json();
+            Utils.showNotification(`Импорт завершен: ${result.count} активов добавлено`, 'success');
+            
+            // Сброс формы
+            fileInput.value = '';
+            document.getElementById('preview-section').style.display = 'none';
+        };
+        reader.readAsText(file);
+    } catch (error) {
+        Utils.showNotification(`Ошибка: ${error.message}`, 'danger');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+    }
+});
+
+// Инициализация
+initGroupSelect();
+</script>
+{% endblock %}

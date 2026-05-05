@@ -10,6 +10,28 @@ export class AssetManager {
     }
   }
 
+  /**
+   * Отрисовать шапку таблицы
+   * @param {Array} columns - Массив видимых колонок
+   */
+  renderHeader(columns) {
+    const thead = this.tbody.parentElement?.querySelector('thead');
+    if (thead) {
+      const headerRow = thead.querySelector('#table-header-row');
+      if (headerRow) {
+        headerRow.innerHTML = '<th class="text-center"><input type="checkbox" id="select-all" class="form-check-input"></th>' +
+          columns.map(col => `<th>${this.#getColumnLabel(col)}</th>`).join('') +
+          '<th>Действия</th>';
+        
+        // Перепривязка чекбокса "Выбрать все"
+        const selectAll = headerRow.querySelector('#select-all');
+        if (selectAll) {
+          selectAll.addEventListener('change', () => this.#handleSelectAll(selectAll));
+        }
+      }
+    }
+  }
+
   #initListeners() {
     const selAll = document.getElementById('select-all');
     if (selAll) {
@@ -224,8 +246,8 @@ export class AssetManager {
       </td>
       ${cells}
       <td>
-        <button class="btn btn-sm btn-outline-primary me-1" title="Редактировать">
-          <i class="bi bi-pencil"></i>
+        <button class="btn btn-sm btn-outline-secondary me-1 btn-move-asset" title="Переместить в другую группу" data-asset-id="${asset.id}">
+          <i class="bi bi-folder-symlink"></i>
         </button>
         <button class="btn btn-sm btn-danger btn-delete-asset" data-asset-id="${asset.id}" title="Удалить">
           <i class="bi bi-trash"></i>
