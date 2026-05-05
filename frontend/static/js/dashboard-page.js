@@ -235,15 +235,82 @@ export class DashboardController {
     tableBody.innerHTML = '';
     
     Object.keys(groups).sort().forEach(groupName => {
-      const trGroup = document.createElement('tr');
-      trGroup.className = 'table-active';
-      trGroup.innerHTML = `<td colspan="100"><strong>${groupName}</strong> <span class="badge bg-secondary">${groups[groupName].length}</span></td>`;
-      tableBody.appendChild(trGroup);
+      // Создаем строку заголовка группы с чекбоксом выделения
+      const trGroupHeader = document.createElement('tr');
+      trGroupHeader.className = 'table-active group-header-row';
+      const groupId = groupName.replace(/\s+/g, '-').toLowerCase(); // Уникальный ID для группы
+      
+      trGroupHeader.innerHTML = `
+        <td colspan="100">
+          <div class="d-flex align-items-center">
+            <input type="checkbox" class="form-check-input me-2 group-select-checkbox" data-group="${groupId}" title="Выделить все в группе">
+            <strong>${groupName}</strong> 
+            <span class="badge bg-secondary ms-2">${groups[groupName].length}</span>
+          </div>
+        </td>
+      `;
+      tableBody.appendChild(trGroupHeader);
 
       groups[groupName].forEach(asset => {
         const tr = this.assetManager.createRow(asset, this.visibleColumns);
+        tr.dataset.group = groupId; // Помечаем строку принадлежностью к группе
         tableBody.appendChild(tr);
       });
+      
+      // Навешиваем обработчик на чекбокс группы
+      const groupCheckbox = trGroupHeader.querySelector('.group-select-checkbox');
+      if (groupCheckbox) {
+        groupCheckbox.addEventListener('change', (e) => {
+          const isChecked = e.target.checked;
+          const rows = tableBody.querySelectorAll(`tr[data-group="${groupId}"]`);
+          rows.forEach(row => {
+            const checkbox = row.querySelector('input[type="checkbox"].asset-checkbox');
+            if (checkbox) {
+              checkbox.checked = isChecked;
+              // Эмулируем событие change для обновления общего состояния
+              checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          });
+          this.#updateSelectAllState();
+        });
+      }
+    });
+    
+    // Обновляем состояние чекбокса "Выделить все" после рендера групп
+    this.#updateSelectAllState();
+  }
+  
+  /**
+   * Обновляет состояние чекбокса "Выделить все" и чекбоксов групп
+   * на основе текущего состояния выбранных активов.
+   */
+  #updateSelectAllState() {
+    const allCheckboxes = document.querySelectorAll('input[type="checkbox"].asset-checkbox');
+    const selectAllCheckbox = document.getElementById('select-all-assets');
+    
+    if (!selectAllCheckbox || allCheckboxes.length === 0) return;
+
+    const checkedCount = Array.from(allCheckboxes).filter(cb => cb.checked).length;
+    
+    // Обновляем главный чекбокс
+    selectAllCheckbox.checked = checkedCount === allCheckboxes.length;
+    selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < allCheckboxes.length;
+
+    // Обновляем чекбоксы групп
+    const groupHeaders = document.querySelectorAll('.group-header-row');
+    groupHeaders.forEach(header => {
+      const groupCheckbox = header.querySelector('.group-select-checkbox');
+      const groupId = groupCheckbox?.dataset.group;
+      if (!groupId) return;
+
+      const groupRows = document.querySelectorAll(`tr[data-group="${groupId}"]`);
+      const groupCheckboxes = Array.from(groupRows).map(row => row.querySelector('input[type="checkbox"].asset-checkbox')).filter(Boolean);
+      
+      if (groupCheckboxes.length > 0) {
+        const groupCheckedCount = groupCheckboxes.filter(cb => cb.checked).length;
+        groupCheckbox.checked = groupCheckedCount === groupCheckboxes.length;
+        groupCheckbox.indeterminate = groupCheckedCount > 0 && groupCheckedCount < groupCheckboxes.length;
+      }
     });
   }
 
