@@ -46,7 +46,7 @@ class AssetResponse(BaseModel):
     source: Optional[str] = None
     dns_names: Optional[List[str]] = None
     fqdn: Optional[str] = None
-    dns_records: Optional[dict] = None
+    dns_records: Optional[List[dict]] = None
     open_ports: Optional[List[int]] = None
     rustscan_ports: Optional[List[int]] = None
     nmap_ports: Optional[List[int]] = None
