@@ -382,9 +382,9 @@ class ScanQueueManager:
                             db.add(result)
                             await db.commit()
                             logger.info(f"[AssetManager] Результат сканирования успешно сохранён для {target}")
-                    else:
-                        logger.warning(f"[AssetManager] Результат сканирования пуст для {target}, raw_output не будет сохранён в job.parameters")
-                    
+                        else:
+                            logger.warning(f"[AssetManager] Результат сканирования пуст для {target}, raw_output не будет сохранён в job.parameters")
+                        
                     except Exception as scan_error:
                         logger.error(f"Ошибка сканирования {target}: {scan_error}", exc_info=True)
                         # Продолжаем сканирование остальных целей
