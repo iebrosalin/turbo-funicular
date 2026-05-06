@@ -92,7 +92,42 @@ export class ScanManager {
       args += ` --script=${scripts.join(',')}`;
     }
 
-    await this.#sendScanRequest('nmap', target, args, true);
+    try {
+      // Формируем query параметры для GET запроса
+      const params = new URLSearchParams({
+        target: target,
+        custom_args: args,
+        save_assets: 'true',
+        known_ports_only: 'false'
+      });
+
+      if (ports && profile !== 'custom') {
+        params.append('ports', ports);
+      }
+
+      const scriptsParam = scripts.join(',');
+      if (scriptsParam) {
+        params.append('scripts', scriptsParam);
+      }
+
+      const response = await fetch(`/api/scans/nmap?${params.toString()}`, {
+        method: 'GET'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка запуска сканирования');
+      }
+
+      form.reset();
+      // Обновляем историю через глобальный контроллер если доступен
+      if (typeof window.scanResultsController !== 'undefined' && typeof window.scanResultsController.loadHistory === 'function') {
+        window.scanResultsController.loadHistory();
+      }
+    } catch (error) {
+      console.error('[ScanResultsController] Nmap scan error:', error);
+      Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
+    }
   }
 
   /**
@@ -121,7 +156,41 @@ export class ScanManager {
 
     if (customArgs) args += ` ${customArgs}`;
 
-    await this.#sendScanRequest('rustscan', target, args, true);
+    try {
+      // Формируем query параметры для GET запроса
+      const params = new URLSearchParams({
+        target: target,
+        custom_args: args,
+        save_assets: 'true',
+        run_nmap_after: 'false'
+      });
+
+      if (portsRange && topPorts === 'custom') {
+        params.append('ports', portsRange);
+      } else if (topPorts === 'all') {
+        params.append('ports', '1-65535');
+      } else {
+        params.append('ports', topPorts);
+      }
+
+      const response = await fetch(`/api/scans/rustscan?${params.toString()}`, {
+        method: 'GET'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка запуска сканирования');
+      }
+
+      form.reset();
+      // Обновляем историю через глобальный контроллер если доступен
+      if (typeof window.scanResultsController !== 'undefined' && typeof window.scanResultsController.loadHistory === 'function') {
+        window.scanResultsController.loadHistory();
+      }
+    } catch (error) {
+      console.error('[ScanResultsController] Rustscan scan error:', error);
+      Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
+    }
   }
 
   /**
@@ -145,20 +214,25 @@ export class ScanManager {
     args += ` ${domain}`;
 
     try {
-      await Utils.apiRequest('/api/scans/dig', {
-        method: 'POST',
-        body: JSON.stringify({
-          target: domain,
-          args: args,
-          scan_type: 'dig',
-          save_assets: true,
-          record_types: recordType,
-          dns_server: server,
-          cli_args: customArgs
-        })
+      // Формируем query параметры для GET запроса
+      const params = new URLSearchParams({
+        target: domain,
+        args: args,
+        record_types: recordType,
+        dns_server: server,
+        cli_args: customArgs,
+        save_assets: 'true'
       });
 
-      // Не показываем уведомление об успехе для сканирований
+      const response = await fetch(`/api/scans/dig?${params.toString()}`, {
+        method: 'GET'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка запуска сканирования');
+      }
+
       form.reset();
       // Обновляем историю через глобальный контроллер если доступен
       if (typeof window.scanResultsController !== 'undefined' && typeof window.scanResultsController.loadHistory === 'function') {
@@ -228,85 +302,11 @@ export class ScanManager {
   }
 
   /**
-   * Универсальная отправка запроса на сканирование
+   * Универсальная отправка запроса на сканирование (устаревший метод, используется только для совместимости)
    */
   async #sendScanRequest(scanType, target, args, saveAssets, recordTypes = null, dnsServer = null, cliArgs = null) {
-    const progressDiv = document.getElementById('scan-progress');
-    if (progressDiv) progressDiv.style.display = 'block';
-
-    try {
-      // Формируем JSON объект
-      const requestData = {
-        target: target,
-        args: args,
-        scan_type: scanType,
-        save_assets: true  // Всегда сохраняем активы
-      };
-
-      // Добавляем специфичные поля для dig
-      if (scanType === 'dig') {
-        if (recordTypes) requestData.record_types = recordTypes.join(',');
-        if (dnsServer) requestData.dns_server = dnsServer;
-        if (cliArgs) requestData.cli_args = cliArgs;
-      }
-
-      // Определяем правильный эндпоинт для каждого типа сканирования
-      let endpoint;
-      switch (scanType) {
-        case 'dig':
-          endpoint = '/api/scans/dig';
-          break;
-        case 'nmap':
-          endpoint = '/api/scans/nmap';
-          // Для nmap добавляем дополнительные поля
-          requestData.ports = null;
-          requestData.custom_args = args;
-          requestData.known_ports_only = false;
-          break;
-        case 'rustscan':
-          endpoint = '/api/scans/rustscan';
-          // Для rustscan добавляем дополнительные поля
-          requestData.ports = null;
-          requestData.custom_args = args;
-          requestData.run_nmap_after = false;
-          requestData.nmap_args = null;
-          break;
-        default:
-          throw new Error(`Неизвестный тип сканирования: ${scanType}`);
-      }
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestData)
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Ошибка запуска сканирования');
-      }
-
-      const result = await response.json();
-      
-      // Не показываем уведомление об успехе для сканирований
-      
-      // Очистка формы
-      const form = document.getElementById('dig-scan-form');
-      if (form) form.reset();
-      
-      // Обновление истории сканирований
-      if (typeof window.scanResultsController !== 'undefined' && typeof window.scanResultsController.loadHistory === 'function') {
-        window.scanResultsController.loadHistory();
-      }
-    } catch (error) {
-      console.error('Ошибка запуска сканирования:', error);
-      Utils.showNotification(error.message, 'danger');
-    } finally {
-      const progressDiv = document.getElementById('scan-progress');
-      if (progressDiv) progressDiv.style.display = 'none';
-    }
+    console.warn('#sendScanRequest устарел. Используйте прямые GET запросы.');
+    // Этот метод больше не используется, так как все формы теперь отправляют GET запросы напрямую
   }
 
   /**

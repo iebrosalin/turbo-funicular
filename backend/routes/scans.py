@@ -409,13 +409,18 @@ async def import_xml_scan(
         raise HTTPException(status_code=500, detail=f"Ошибка импорта XML: {str(e)}")
 
 
-@router.post("/nmap")
+@router.get("/nmap")
 async def run_nmap_scan(
-    request_data: NmapScanRequest,
-    background_tasks: BackgroundTasks = None,
+    target: str,
+    ports: Optional[str] = None,
+    scripts: Optional[str] = "",
+    custom_args: Optional[str] = None,
+    known_ports_only: bool = False,
+    save_assets: bool = True,
+    group_ids: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Запустить сканирование Nmap (принимает JSON)."""
+    """Запустить сканирование Nmap (принимает query-параметры)."""
     from backend.models.scan import Scan, ScanJob
     from backend.services.scan_queue_manager import scan_queue_manager
     from datetime import datetime, timezone
@@ -423,26 +428,16 @@ async def run_nmap_scan(
     
     logger = logging.getLogger(__name__)
     
-    target = request_data.target
-    ports = request_data.ports or ""
-    scripts = request_data.scripts or ""
-    custom_args = request_data.custom_args or ""
-    known_ports_only = request_data.known_ports_only
-    save_assets = request_data.save_assets
-    group_ids = request_data.group_ids
-    
     # Обработка group_ids
     parsed_group_ids = None
-    if group_ids and isinstance(group_ids, list):
-        parsed_group_ids = [int(x) for x in group_ids if isinstance(x, (int, str)) and str(x).isdigit()]
-    elif group_ids and isinstance(group_ids, str):
+    if group_ids and isinstance(group_ids, str):
         try:
             parsed_group_ids = [int(x.strip()) for x in group_ids.split(',') if x.strip()]
         except ValueError:
             parsed_group_ids = None
     
     logger.info("=" * 60)
-    logger.info("=== ПОЛУЧЕН ЗАПРОС НА NMAP СКАНИРОВАНИЕ (JSON) ===")
+    logger.info("=== ПОЛУЧЕН ЗАПРОС НА NMAP СКАНИРОВАНИЕ (QUERY) ===")
     logger.info("=" * 60)
     logger.info(f"Входящие данные запроса:")
     logger.info(f"  - target: {target}")
@@ -453,14 +448,15 @@ async def run_nmap_scan(
     logger.info(f"  - save_assets: {save_assets}")
     logger.info(f"  - group_ids: {parsed_group_ids}")
     
-    target_str = target or ""
+    if not target:
+        raise HTTPException(status_code=400, detail="Параметр 'target' обязателен")
     
     try:
         # Создаём запись сканирования
         logger.info(f"\n[Шаг 1/4] Создание записи сканирования в БД...")
         new_scan = Scan(
-            name=f"Nmap scan: {target_str[:50] if target_str else 'known ports'}",
-            target=target_str or ("known_ports_only" if known_ports_only else ""),
+            name=f"Nmap scan: {target[:50] if target else 'known ports'}",
+            target=target or ("known_ports_only" if known_ports_only else ""),
             scan_type="nmap",
             status="queued",
             progress=0,
@@ -538,13 +534,19 @@ async def run_nmap_scan(
         raise HTTPException(status_code=500, detail=f"Ошибка запуска сканирования: {str(e)}")
 
 
-@router.post("/rustscan")
+@router.get("/rustscan")
 async def run_rustscan(
-    request_data: RustscanRequest,
-    background_tasks: BackgroundTasks = None,
+    target: str,
+    ports: Optional[str] = None,
+    custom_args: Optional[str] = None,
+    run_nmap_after: bool = False,
+    nmap_args: Optional[str] = None,
+    nmap_scripts: Optional[str] = None,
+    save_assets: bool = True,
+    group_ids: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Запустить сканирование Rustscan (принимает JSON)."""
+    """Запустить сканирование Rustscan (принимает query-параметры)."""
     from backend.models.scan import Scan, ScanJob
     from backend.services.scan_queue_manager import scan_queue_manager
     from datetime import datetime, timezone
@@ -552,27 +554,16 @@ async def run_rustscan(
     
     logger = logging.getLogger(__name__)
     
-    target = request_data.target
-    ports = request_data.ports
-    custom_args = request_data.custom_args
-    run_nmap_after = request_data.run_nmap_after
-    nmap_args = request_data.nmap_args
-    nmap_scripts = request_data.nmap_scripts
-    save_assets = request_data.save_assets
-    group_ids = request_data.group_ids
-    
     # Обработка group_ids
     parsed_group_ids = None
-    if group_ids and isinstance(group_ids, list):
-        parsed_group_ids = [int(x) for x in group_ids if isinstance(x, (int, str)) and str(x).isdigit()]
-    elif group_ids and isinstance(group_ids, str):
+    if group_ids and isinstance(group_ids, str):
         try:
             parsed_group_ids = [int(x.strip()) for x in group_ids.split(',') if x.strip()]
         except ValueError:
             parsed_group_ids = None
     
     logger.info("=" * 60)
-    logger.info("=== ПОЛУЧЕН ЗАПРОС НА RUSTSCAN (JSON) ===")
+    logger.info("=== ПОЛУЧЕН ЗАПРОС НА RUSTSCAN (QUERY) ===")
     logger.info("=" * 60)
     logger.info(f"Входящие данные запроса:")
     logger.info(f"  - target: {target}")
@@ -670,13 +661,18 @@ async def run_rustscan(
         raise HTTPException(status_code=500, detail=f"Ошибка запуска сканирования: {str(e)}")
 
 
-@router.post("/dig")
+@router.get("/dig")
 async def run_dig_scan(
-    request_data: DigScanRequest,
-    background_tasks: BackgroundTasks = None,
+    target: str,
+    args: Optional[str] = None,
+    dns_server: Optional[str] = None,
+    cli_args: Optional[str] = None,
+    record_types: Optional[str] = 'ALL',
+    save_assets: bool = True,
+    group_ids: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Запустить DNS сканирование (dig) (принимает JSON)."""
+    """Запустить DNS сканирование (dig) (принимает query-параметры)."""
     from backend.models.scan import Scan, ScanJob
     from backend.services.scan_queue_manager import scan_queue_manager
     from datetime import datetime, timezone
@@ -684,19 +680,11 @@ async def run_dig_scan(
     
     logger = logging.getLogger(__name__)
     
-    target = request_data.target
-    args = request_data.args
-    dns_server = request_data.dns_server
-    cli_args = request_data.cli_args
-    record_types = request_data.record_types
-    save_assets = request_data.save_assets
-    group_ids = request_data.group_ids
-    
     if not target:
         raise HTTPException(status_code=400, detail="Параметр 'target' обязателен")
     
     logger.info("=" * 60)
-    logger.info("=== ПОЛУЧЕН ЗАПРОС НА DIG СКАНИРОВАНИЕ (JSON) ===")
+    logger.info("=== ПОЛУЧЕН ЗАПРОС НА DIG СКАНИРОВАНИЕ (QUERY) ===")
     logger.info("=" * 60)
     logger.info(f"Входящие данные запроса:")
     logger.info(f"  - target: {target}")
@@ -705,7 +693,7 @@ async def run_dig_scan(
     logger.info(f"  - cli_args: {cli_args}")
     logger.info(f"  - record_types: {record_types}")
     logger.info(f"  - save_assets: {save_assets}")
-    logger.info(f"  - group_ids: {group_ids}")
+    logger.info(f"  - group_ids: {parsed_group_ids if 'parsed_group_ids' in locals() else group_ids}")
     
     try:
         # Создаём запись сканирования
@@ -741,13 +729,22 @@ async def run_dig_scan(
         # Добавляем задачу в очередь выполнения
         logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
         targets_list = [target.strip()] if target.strip() else []
+        
+        # Обработка group_ids
+        parsed_group_ids = None
+        if group_ids and isinstance(group_ids, str):
+            try:
+                parsed_group_ids = [int(x.strip()) for x in group_ids.split(',') if x.strip()]
+            except ValueError:
+                parsed_group_ids = None
+        
         parameters = {
             "args": args,
             "dns_server": dns_server,
             "cli_args": cli_args,
             "record_types": record_types,
             "save_assets": save_assets,
-            "group_ids": group_ids,
+            "group_ids": parsed_group_ids,
             "target": target
         }
         logger.info(f"  - targets_list: {targets_list}")
@@ -1533,6 +1530,7 @@ async def delete_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
     success = await service.delete(scan_id)
     if not success:
         raise HTTPException(status_code=404, detail="Сканирование не найдено")
+
 
 # -----------------------------------------------------------------------------
 # Страница истории сканирований
