@@ -62,7 +62,8 @@ class ScanProcessor:
 
     def _process_nmap(self, job: ScanJob, job_params: Dict[str, Any]):
         """Обработка результатов Nmap из XML строки."""
-        xml_str = job_params.get('raw_output', '')
+        # Сначала пробуем получить XML из output_xml, затем из raw_output для обратной совместимости
+        xml_str = job_params.get('output_xml', '') or job_params.get('raw_output', '')
         
         if not xml_str:
             raise FileNotFoundError(f"XML данные результатов не найдены в параметрах задачи {job.id}")

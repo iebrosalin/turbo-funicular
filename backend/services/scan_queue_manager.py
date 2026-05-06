@@ -261,6 +261,9 @@ class ScanQueueManager:
                             raw_output_value = result_data.get('raw_output', '')
                             logger.info(f"[DEBUG] Запись raw_output в job.parameters: длина={len(raw_output_value)}, первые 100 символов: {raw_output_value[:100] if raw_output_value else 'ПУСТО'}")
                             job.parameters['raw_output'] = raw_output_value
+                            job.parameters['output_xml'] = result_data.get('output_xml', '')
+                            job.parameters['output_gnmap'] = result_data.get('output_gnmap', '')
+                            job.parameters['output_normal'] = result_data.get('output_normal', '')
                             job.parameters['ports'] = result_data.get('ports', [])
                             job.parameters['hostname'] = result_data.get('hostname', target)
                             job.parameters['ip'] = result_data.get('ip', target)
