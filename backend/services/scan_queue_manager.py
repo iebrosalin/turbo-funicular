@@ -399,7 +399,7 @@ class ScanQueueManager:
                     # Это надежнее чем парсинг возвращаемых данных в цикле
                     try:
                         from backend.services.scan_processor import ScanProcessor
-                        from backend.db.session import async_session_maker as sync_session_maker
+                        from backend.db.session import sync_session_maker
                         # Создаем синхронную сессию для процессора
                         with sync_session_maker() as sync_db:
                             processor = ScanProcessor(sync_db)
