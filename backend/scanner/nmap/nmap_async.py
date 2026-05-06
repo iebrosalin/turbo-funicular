@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import os
+import tempfile
+import shutil
 import xml.etree.ElementTree as ET
 from typing import Dict, Any, List, Optional
 from ..base import BaseScanner
@@ -20,8 +22,19 @@ class NmapScanner(BaseScanner):
         self.scripts = scripts
         self.version_detect = version_detect
         self.os_detect = os_detect
+        # Создаем временную директорию для файлов результатов
+        self.temp_dir = None
 
     async def scan(self) -> Dict[str, Any]:
+        # Создаем временную директорию для хранения файлов результатов
+        self.temp_dir = tempfile.mkdtemp(prefix=f"nmap_job_{self.job_id}_")
+        logger.info(f"[NmapScanner] Создана временная директория: {self.temp_dir}")
+        
+        # Пути к временным файлам
+        xml_file = os.path.join(self.temp_dir, "output.xml")
+        gnmap_file = os.path.join(self.temp_dir, "output.gnmap")
+        normal_file = os.path.join(self.temp_dir, "output.txt")
+        
         cmd = ["nmap"]
         
         if self.ports:
@@ -38,8 +51,8 @@ class NmapScanner(BaseScanner):
         if self.os_detect:
             cmd.append("-O")
             
-        # Output to stdout in multiple formats
-        cmd.extend(["-oX", "-", "-oG", "-", "-oN", "-"])  # XML, Grepable, Normal to stdout
+        # Output to separate files in different formats
+        cmd.extend(["-oX", xml_file, "-oG", gnmap_file, "-oN", normal_file])
         
         cmd.append(self.target)
         
@@ -58,21 +71,60 @@ class NmapScanner(BaseScanner):
         stdout_str = stdout.decode('utf-8', errors='ignore')
         stderr_str = stderr.decode('utf-8', errors='ignore')
         
-        if stdout_str:
-            for line in stdout_str.splitlines():
-                logger.debug(f"[Nmap] {line}")
         if stderr_str:
             for line in stderr_str.splitlines():
                 logger.debug(f"[Nmap] {line}")
                 
         logger.info(f"[NmapScanner] Процесс Nmap завершен с кодом {process.returncode}")
-                
-        result = self._parse_output(stdout_str)
         
-        # Разделяем вывод на форматы (XML, GNMAP, Normal)
-        # Nmap выводит последовательно: сначала XML, потом Grepable, потом Normal
-        # Нужно разделить их
-        xml_output, gnmap_output, normal_output = self._split_nmap_output(stdout_str)
+        if process.returncode != 0:
+            logger.error(f"[NmapScanner] Nmap вернул код ошибки {process.returncode}. stderr: {stderr_str}")
+        
+        # Читаем результаты из файлов
+        xml_output = ""
+        gnmap_output = ""
+        normal_output = ""
+        
+        # Проверяем существование и размер файлов
+        for f_path, f_name in [(xml_file, "XML"), (gnmap_file, "Grepable"), (normal_file, "Normal")]:
+            if os.path.exists(f_path):
+                file_size = os.path.getsize(f_path)
+                logger.info(f"[NmapScanner] Файл {f_name} существует, размер: {file_size} байт")
+                if file_size == 0:
+                    logger.warning(f"[NmapScanner] Файл {f_name} пустой!")
+            else:
+                logger.error(f"[NmapScanner] Файл {f_name} не найден по пути {f_path}")
+        
+        try:
+            if os.path.exists(xml_file):
+                with open(xml_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    xml_output = f.read()
+                logger.info(f"[NmapScanner] Прочитан XML файл, размер: {len(xml_output)} байт")
+                if not xml_output.strip():
+                    logger.error("[NmapScanner] XML файл прочитан, но содержимое пустое!")
+            
+            if os.path.exists(gnmap_file):
+                with open(gnmap_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    gnmap_output = f.read()
+                    logger.info(f"[NmapScanner] Прочитан Grepable файл, размер: {len(gnmap_output)} байт")
+                    
+            if os.path.exists(normal_file):
+                with open(normal_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    normal_output = f.read()
+                    logger.info(f"[NmapScanner] Прочитан Normal файл, размер: {len(normal_output)} байт")
+        except Exception as e:
+            logger.error(f"[NmapScanner] Ошибка чтения файлов результатов: {e}", exc_info=True)
+            raise
+        
+        # Парсим XML для извлечения данных
+        result = self._parse_output(xml_output)
+        
+        # Очищаем временную директорию
+        try:
+            shutil.rmtree(self.temp_dir)
+            logger.info(f"[NmapScanner] Временная директория удалена: {self.temp_dir}")
+        except Exception as e:
+            logger.warning(f"[NmapScanner] Не удалось удалить временную директорию: {e}")
         
         return {
             "hostname": result.get("hostname", self.target),
@@ -84,58 +136,6 @@ class NmapScanner(BaseScanner):
             "output_gnmap": gnmap_output,
             "output_normal": normal_output
         }
-    
-    def _split_nmap_output(self, output: str) -> tuple:
-        """Разделяет комбинированный вывод nmap на отдельные форматы."""
-        # Nmap выводит форматы последовательно: XML, затем Grepable, затем Normal
-        # Проблема: внутри XML тегов могут быть вставлены текстовые строки из normal вывода
-        
-        xml_lines = []
-        gnmap_lines = []
-        normal_lines = []
-        
-        current_format = None
-        in_xml = False
-        
-        for line in output.split('\n'):
-            stripped = line.strip()
-            
-            # Начало XML блока
-            if line.startswith('<?xml') or line.startswith('<!DOCTYPE'):
-                current_format = 'xml'
-                in_xml = True
-                xml_lines.append(line)
-            elif in_xml:
-                # Пропускаем текстовые строки внутри XML (не начинающиеся с < или # или <!--)
-                # Это строки вида "Nmap scan report for...", "Host is up...", "PORT STATE..." и т.д.
-                if stripped and not stripped.startswith('<') and not stripped.startswith('#') and not stripped.startswith('<!--'):
-                    # Это текстовая строка, вставленная в XML - пропускаем её
-                    continue
-                xml_lines.append(line)
-                # Конец XML блока
-                if stripped == '</nmaprun>':
-                    in_xml = False
-                    current_format = None
-            # Начало Grepable блока
-            elif line.startswith('# Nmap') and 'grepable' in line.lower():
-                current_format = 'gnmap'
-                gnmap_lines.append(line)
-            elif current_format == 'gnmap':
-                # Конец Grepable, начало Normal
-                if line.startswith('# Nmap') and 'normal' in line.lower():
-                    current_format = 'normal'
-                    normal_lines.append(line)
-                else:
-                    gnmap_lines.append(line)
-            # Начало Normal блока
-            elif line.startswith('# Nmap') and 'normal' in line.lower():
-                current_format = 'normal'
-                normal_lines.append(line)
-            elif current_format == 'normal':
-                normal_lines.append(line)
-            # Игнорируем всё остальное
-        
-        return '\n'.join(xml_lines), '\n'.join(gnmap_lines), '\n'.join(normal_lines)
 
     def _parse_output(self, xml_str: str) -> Dict[str, Any]:
         result = {
