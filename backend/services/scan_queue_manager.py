@@ -258,13 +258,17 @@ class ScanQueueManager:
                             
                             # Сохраняем результаты в параметры задачи для последующей обработки
                             job.parameters = job.parameters or {}
-                            job.parameters['raw_output'] = result_data.get('raw_output', '')
+                            raw_output_value = result_data.get('raw_output', '')
+                            logger.info(f"[DEBUG] Запись raw_output в job.parameters: длина={len(raw_output_value)}, первые 100 символов: {raw_output_value[:100] if raw_output_value else 'ПУСТО'}")
+                            job.parameters['raw_output'] = raw_output_value
                             job.parameters['ports'] = result_data.get('ports', [])
                             job.parameters['hostname'] = result_data.get('hostname', target)
                             job.parameters['ip'] = result_data.get('ip', target)
                             job.parameters['os'] = result_data.get('os', '')
                             job.parameters['dns_records'] = result_data.get('dns_records', [])
+                            logger.info(f"[DEBUG] job.parameters перед коммитом: {job.parameters.keys()}")
                             await db.commit()  # Коммитим параметры задачи сразу чтобы ScanProcessor мог их прочитать
+                            logger.info(f"[DEBUG] job.parameters закоммичены в БД")
                             
                             # Получаем scan_id из job
                             current_scan_id = job.scan_id
@@ -406,6 +410,15 @@ class ScanQueueManager:
                     try:
                         from backend.services.scan_processor import ScanProcessor
                         from backend.db.session import sync_session_maker
+                        
+                        # Проверяем параметры задачи перед передачей в процессор
+                        job_for_check = await db.get(ScanJob, scan_job_id)
+                        if job_for_check and job_for_check.parameters:
+                            logger.info(f"[DEBUG] Перед ScanProcessor: job.parameters содержит ключи: {job_for_check.parameters.keys()}")
+                            logger.info(f"[DEBUG] Перед ScanProcessor: raw_output длина={len(job_for_check.parameters.get('raw_output', ''))}, первые 100 символов: {job_for_check.parameters.get('raw_output', '')[:100] if job_for_check.parameters.get('raw_output') else 'ПУСТО'}")
+                        else:
+                            logger.error(f"[DEBUG] Перед ScanProcessor: job.parameters пуст или None!")
+                        
                         # Создаем синхронную сессию для процессора
                         with sync_session_maker() as sync_db:
                             processor = ScanProcessor(sync_db)

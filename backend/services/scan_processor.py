@@ -25,6 +25,14 @@ class ScanProcessor:
             return
 
         logger.info(f"Начало обработки результатов для задачи {job_id} (тип: {job.job_type})")
+        
+        # Логируем параметры задачи для отладки
+        if job.parameters:
+            logger.info(f"[DEBUG ScanProcessor] job.parameters содержит ключи: {job.parameters.keys()}")
+            raw_output = job.parameters.get('raw_output', '')
+            logger.info(f"[DEBUG ScanProcessor] raw_output длина={len(raw_output)}, первые 100 символов: {raw_output[:100] if raw_output else 'ПУСТО'}")
+        else:
+            logger.error(f"[DEBUG ScanProcessor] job.parameters пуст или None!")
 
         try:
             if job.job_type == 'nmap':
