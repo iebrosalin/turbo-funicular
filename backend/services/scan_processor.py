@@ -8,7 +8,8 @@ from sqlalchemy import select
 
 from backend.models.asset import Asset
 from backend.models.group import AssetGroup
-from backend.models.scan import ScanJob, ScanStatus
+from backend.models.scan import ScanJob
+from backend.schemas.scan import ScanStatus
 
 logger = logging.getLogger(__name__)
 
@@ -23,23 +24,23 @@ class ScanProcessor:
             logger.error(f"Задача {job_id} не найдена.")
             return
 
-        logger.info(f"Начало обработки результатов для задачи {job_id} (тип: {job.scan_type})")
+        logger.info(f"Начало обработки результатов для задачи {job_id} (тип: {job.job_type})")
 
         try:
-            if job.scan_type == 'nmap':
+            if job.job_type == 'nmap':
                 self._process_nmap(job)
-            elif job.scan_type == 'rustscan':
+            elif job.job_type == 'rustscan':
                 self._process_rustscan(job)
-            elif job.scan_type == 'dig':
+            elif job.job_type == 'dig':
                 self._process_dig(job)
             
-            job.status = ScanStatus.COMPLETED
+            job.status = ScanStatus.COMPLETED.value
             job.completed_at = datetime.utcnow()
             self.db.commit()
             logger.info(f"Задача {job_id} успешно обработана и помечена как завершенная.")
         except Exception as e:
             logger.error(f"Ошибка при обработке задачи {job_id}: {e}", exc_info=True)
-            job.status = ScanStatus.FAILED
+            job.status = ScanStatus.FAILED.value
             job.error_message = str(e)
             self.db.commit()
 
@@ -111,11 +112,10 @@ class ScanProcessor:
                 "open_ports": open_ports,
                 "services": services,
                 "os_family": os_family,
-                "group_id": job.group_id
+                "group_id": job.scan.group_id
             })
             hosts_count += 1
 
-        job.result_summary = {"hosts_found": hosts_count}
         logger.info(f"Nmap: Обработано {hosts_count} хостов.")
 
     def _process_rustscan(self, job: ScanJob):
@@ -139,7 +139,7 @@ class ScanProcessor:
                 # Создаем/обновляем актив
                 self._upsert_asset(ip, {
                     "open_ports": [int(port)],
-                    "group_id": job.group_id
+                    "group_id": job.scan.group_id
                 })
                 hosts_count += 1
             else:
@@ -154,7 +154,6 @@ class ScanProcessor:
                     except ValueError:
                         pass
         
-        job.result_summary = {"hosts_found": hosts_count}
         logger.info(f"Rustscan: Обработано {hosts_count} хостов.")
 
     def _process_dig(self, job: ScanJob):
@@ -186,7 +185,7 @@ class ScanProcessor:
                 # Создаем актив если нет
                 self._upsert_asset(ip, {
                     "hostname": rec_name, # Имя из запроса
-                    "group_id": job.group_id
+                    "group_id": job.scan.group_id
                 })
         
         # Обновляем DNS записи у активов
@@ -203,7 +202,6 @@ class ScanProcessor:
                     logger.debug(f"Добавлено {len(new_recs)} DNS записей для {ip}")
         
         self.db.commit()
-        job.result_summary = {"records_processed": len(dns_records)}
         logger.info(f"Dig: Обработано {len(dns_records)} записей.")
 
     def _upsert_asset(self, ip: str, updates: Dict[str, Any]):
