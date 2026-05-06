@@ -67,10 +67,10 @@
                         <div class="card-header bg-light">Основная информация</div>
                         <div class="card-body">
                             <table class="table table-sm table-borderless">
-                                <tr><th width="40%">IP Адрес:</th><td>{{ asset.ip_address }}<input type="text" class="form-control form-control-sm asset-edit-input" name="ip_address" value="{{ asset.ip_address }}" disabled></td></tr>
-                                <tr><th>Hostname:</th><td>{{ asset.hostname or '-' }}<input type="text" class="form-control form-control-sm asset-edit-input" name="hostname" value="{{ asset.hostname or '' }}" disabled></td></tr>
-                                <tr><th>FQDN:</th><td>{{ asset.fqdn or '-' }}<input type="text" class="form-control form-control-sm asset-edit-input" name="fqdn" value="{{ asset.fqdn or '' }}" disabled></td></tr>
-                                <tr><th>Тип устройства:</th><td>{{ asset.device_type }}
+                                <tr><th width="40%">IP Адрес:</th><td><input type="text" class="form-control form-control-sm asset-edit-input" name="ip_address" value="{{ asset.ip_address }}" disabled></td></tr>
+                                <tr><th>Hostname:</th><td><input type="text" class="form-control form-control-sm asset-edit-input" name="hostname" value="{{ asset.hostname or '' }}" disabled></td></tr>
+                                <tr><th>FQDN:</th><td><input type="text" class="form-control form-control-sm asset-edit-input" name="fqdn" value="{{ asset.fqdn or '' }}" disabled></td></tr>
+                                <tr><th>Тип устройства:</th><td>
                                     <select class="form-select form-select-sm asset-edit-input" name="device_type" disabled>
                                         <option value="unknown" {% if asset.device_type == 'unknown' %}selected{% endif %}>unknown</option>
                                         <option value="server" {% if asset.device_type == 'server' %}selected{% endif %}>server</option>
@@ -79,14 +79,13 @@
                                     </select>
                                 </td></tr>
                                 <tr><th>ОС:</th><td>
-                                    {{ asset.os_family or '-' }} {{ asset.os_version or '' }}
                                     <div class="input-group input-group-sm">
                                         <input type="text" class="form-control asset-edit-input" name="os_family" value="{{ asset.os_family or '' }}" placeholder="OS Family" disabled>
                                         <input type="text" class="form-control asset-edit-input" name="os_version" value="{{ asset.os_version or '' }}" placeholder="Version" disabled>
                                     </div>
                                 </td></tr>
-                                <tr><th>Владелец:</th><td>{{ asset.owner or '-' }}<input type="text" class="form-control form-control-sm asset-edit-input" name="owner" value="{{ asset.owner or '' }}" disabled></td></tr>
-                                <tr><th>Локация:</th><td>{{ asset.location or '-' }}<input type="text" class="form-control form-control-sm asset-edit-input" name="location" value="{{ asset.location or '' }}" disabled></td></tr>
+                                <tr><th>Владелец:</th><td><input type="text" class="form-control form-control-sm asset-edit-input" name="owner" value="{{ asset.owner or '' }}" disabled></td></tr>
+                                <tr><th>Локация:</th><td><input type="text" class="form-control form-control-sm asset-edit-input" name="location" value="{{ asset.location or '' }}" disabled></td></tr>
                                 <tr><th>Группы:</th>
                                     <td>
                                         {% if asset.groups and asset.groups|length > 0 %}
