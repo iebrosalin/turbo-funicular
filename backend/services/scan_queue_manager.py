@@ -382,12 +382,25 @@ class ScanQueueManager:
                             await db.commit()
                             logger.info(f"[AssetManager] Результат сканирования успешно сохранён для {target}")
                             
+                            # Явно обновляем job.parameters в текущей сессии после сохранения результата
+                            # чтобы ScanProcessor мог их прочитать
+                            job.parameters = job.parameters or {}
+                            job.parameters['raw_output'] = result_data.get('raw_output', '')
+                            job.parameters['ports'] = result_data.get('ports', [])
+                            job.parameters['hostname'] = result_data.get('hostname', target)
+                            job.parameters['ip'] = result_data.get('ip', target)
+                            job.parameters['os'] = result_data.get('os', '')
+                            job.parameters['dns_records'] = result_data.get('dns_records', [])
+                    
                     except Exception as scan_error:
                         logger.error(f"Ошибка сканирования {target}: {scan_error}", exc_info=True)
                         # Продолжаем сканирование остальных целей
                     
                     # Небольшая задержка между сканированиями
                     await asyncio.sleep(0.1)
+                
+                # Коммитим все изменения job.parameters перед запуском ScanProcessor
+                await db.commit()
                 
                 # Завершение задачи
                 job = await db.get(ScanJob, scan_job_id)
