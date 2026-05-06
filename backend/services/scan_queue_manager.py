@@ -246,7 +246,7 @@ class ScanQueueManager:
                             raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
                         
                         # Сохранение результата
-                        # Сканеры возвращают данные напрямую, оборачиваем их в единый формат
+                        # Сканеры возвращают данные напрямую, сохраняем их в параметры задачи
                         if result_data:
                             logger.info(f"[DEBUG] Результат сканирования получен: {result_data}")
                             
@@ -255,6 +255,15 @@ class ScanQueueManager:
                                 parsed = result_data
                             else:
                                 parsed = result_data.get('result', result_data)
+                            
+                            # Сохраняем результаты в параметры задачи для последующей обработки
+                            job.parameters = job.parameters or {}
+                            job.parameters['raw_output'] = result_data.get('raw_output', '')
+                            job.parameters['ports'] = result_data.get('ports', [])
+                            job.parameters['hostname'] = result_data.get('hostname', target)
+                            job.parameters['ip'] = result_data.get('ip', target)
+                            job.parameters['os'] = result_data.get('os', '')
+                            job.parameters['dns_records'] = result_data.get('dns_records', [])
                             
                             # Получаем scan_id из job
                             current_scan_id = job.scan_id
@@ -363,6 +372,10 @@ class ScanQueueManager:
                                 hostname=parsed.get('hostname', target),
                                 ports=parsed.get('ports', []),
                                 raw_output=result_data.get('raw_output', str(result_data)),
+                                output_xml=result_data.get('output_xml'),
+                                output_gnmap=result_data.get('output_gnmap'),
+                                output_normal=result_data.get('output_normal'),
+                                output_json=result_data.get('output_json'),
                                 scanned_at=datetime.utcnow()
                             )
                             db.add(result)

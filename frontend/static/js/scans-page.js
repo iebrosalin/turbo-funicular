@@ -792,12 +792,11 @@ export class ScanResultsController {
     if (job.scan_type === 'rustscan') {
       links += `<li><hr class="dropdown-divider"></li>`;
       links += `<li><a class="dropdown-item" href="${base}/json">JSON (rustscan)</a></li>`;
-      links += `<li><a class="dropdown-item" href="${base}/grepable">Grepable (rustscan)</a></li>`;
     }
     
     if (job.scan_type === 'dig') {
       links += `<li><hr class="dropdown-divider"></li>`;
-      links += `<li><a class="dropdown-item" href="${base}/json-dig">JSON (dig)</a></li>`;
+      links += `<li><a class="dropdown-item" href="${base}/json">JSON (dig)</a></li>`;
     }
     
     return links;

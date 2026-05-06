@@ -145,7 +145,14 @@ class ScanHistoryManager {
             actions += `<button class="btn btn-sm btn-outline-primary btn-retry-job" data-job-id="${scan.id}"><i class="bi bi-arrow-clockwise"></i></button> `;
         }
         if (scan.status === 'completed') {
-            actions += `<div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">⬇️</button><ul class="dropdown-menu"><li><a class="dropdown-item" href="/api/scans/${scan.id}/download/xml">XML</a></li><li><a class="dropdown-item" href="/api/scans/${scan.id}/download/json">JSON</a></li></ul></div>`;
+            let downloadLinks = `<li><a class="dropdown-item" href="/api/scans/${scan.id}/download/raw">Raw</a></li>`;
+            if (scan.scan_type === 'nmap') {
+                downloadLinks += `<li><a class="dropdown-item" href="/api/scans/${scan.id}/download/xml">XML</a></li>`;
+                downloadLinks += `<li><a class="dropdown-item" href="/api/scans/${scan.id}/download/gnmap">Grepable</a></li>`;
+                downloadLinks += `<li><a class="dropdown-item" href="/api/scans/${scan.id}/download/normal">Normal</a></li>`;
+            }
+            downloadLinks += `<li><a class="dropdown-item" href="/api/scans/${scan.id}/download/json">JSON</a></li>`;
+            actions += `<div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">⬇️</button><ul class="dropdown-menu">${downloadLinks}</ul></div>`;
         }
         if (!['pending', 'queued', 'running'].includes(scan.status)) {
             actions += `<button class="btn btn-sm btn-outline-danger btn-delete-job" data-job-id="${scan.id}"><i class="bi bi-trash"></i></button> `;

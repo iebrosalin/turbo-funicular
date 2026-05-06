@@ -44,22 +44,14 @@ class ScanProcessor:
             self.db.commit()
 
     def _process_nmap(self, job: ScanJob):
-        """Обработка результатов Nmap из XML файла."""
-        import os
-        xml_path = os.path.join(job.output_dir, 'result.xml')
+        """Обработка результатов Nmap из XML строки."""
+        xml_str = job.parameters.get('raw_output', '') if job.parameters else ''
         
-        if not os.path.exists(xml_path):
-            # Пробуем альтернативное имя, если nmap сохранил иначе
-            for f in os.listdir(job.output_dir):
-                if f.endswith('.xml'):
-                    xml_path = os.path.join(job.output_dir, f)
-                    break
-        
-        if not os.path.exists(xml_path):
-            raise FileNotFoundError(f"XML файл результатов не найден в {job.output_dir}")
+        if not xml_str:
+            raise FileNotFoundError(f"XML данные результатов не найдены в параметрах задачи {job.id}")
 
-        tree = ET.parse(xml_path)
-        root = tree.getroot()
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(xml_str)
         
         hosts_count = 0
         for host in root.findall('host'):
@@ -127,67 +119,58 @@ class ScanProcessor:
         logger.info(f"Nmap: Обработано {hosts_count} хостов.")
 
     def _process_rustscan(self, job: ScanJob):
-        """Обработка результатов Rustscan из JSON файла."""
-        import os
-        json_path = os.path.join(job.output_dir, 'rustscan.json')
+        """Обработка результатов Rustscan из данных задачи."""
+        # Получаем результаты из raw_output в параметрах задачи
+        raw_output = job.parameters.get('raw_output', '') if job.parameters else ''
         
-        if not os.path.exists(json_path):
-             for f in os.listdir(job.output_dir):
-                if f.endswith('.json') and 'rustscan' in f.lower():
-                    json_path = os.path.join(job.output_dir, f)
-                    break
+        if not raw_output:
+            raise ValueError(f"Нет данных raw_output для задачи Rustscan {job.id}")
 
-        if not os.path.exists(json_path):
-            raise FileNotFoundError(f"JSON файл результатов Rustscan не найден в {job.output_dir}")
-
-        with open(json_path, 'r') as f:
-            data = json.load(f)
-
-        # Ожидаем список или объект с полями ip/ports
-        items = data if isinstance(data, list) else [data]
+        # Парсим вывод напрямую
+        import re
+        pattern = r"Open\s+([\d\.]+|[\w\.-]+):(\d+)"
+        matches = re.findall(pattern, raw_output)
         
+        seen_ips = set()
         hosts_count = 0
-        for item in items:
-            ip = item.get('ip') or item.get('address')
-            if not ip:
-                continue
-            
-            ports = item.get('ports', [])
-            # Преобразуем в int, если были строки
-            open_ports = [int(p) for p in ports]
-
-            self._upsert_asset(ip, {
-                "open_ports": open_ports,
-                "group_id": job.group_id
-            })
-            hosts_count += 1
-            
+        for ip, port in matches:
+            if ip not in seen_ips:
+                seen_ips.add(ip)
+                # Создаем/обновляем актив
+                self._upsert_asset(ip, {
+                    "open_ports": [int(port)],
+                    "group_id": job.group_id
+                })
+                hosts_count += 1
+            else:
+                # Обновляем существующий актив с новым портом
+                asset = self.db.execute(select(Asset).where(Asset.ip_address == ip)).scalar_one_or_none()
+                if asset:
+                    old_ports = asset.open_ports or []
+                    try:
+                        port_int = int(port)
+                        if port_int not in old_ports:
+                            asset.open_ports = list(set(old_ports + [port_int]))
+                    except ValueError:
+                        pass
+        
         job.result_summary = {"hosts_found": hosts_count}
         logger.info(f"Rustscan: Обработано {hosts_count} хостов.")
 
     def _process_dig(self, job: ScanJob):
-        """Обработка результатов Dig из JSON файла."""
-        import os
-        json_path = os.path.join(job.output_dir, 'dig.json') # Или result.json
+        """Обработка результатов Dig из данных задачи."""
+        # Получаем DNS записи из параметров задачи
+        dns_records = job.parameters.get('dns_records', []) if job.parameters else []
         
-        if not os.path.exists(json_path):
-             for f in os.listdir(job.output_dir):
-                if f.endswith('.json') and ('dig' in f.lower() or 'result' in f.lower()):
-                    json_path = os.path.join(job.output_dir, f)
-                    break
+        if not dns_records:
+            raise ValueError(f"Нет данных dns_records для задачи Dig {job.id}")
 
-        if not os.path.exists(json_path):
-            raise FileNotFoundError(f"JSON файл результатов Dig не найден в {job.output_dir}")
-
-        with open(json_path, 'r') as f:
-            records = json.load(f)
-
-        if not isinstance(records, list):
-            records = [records]
+        if not isinstance(dns_records, list):
+            dns_records = [dns_records]
 
         dns_by_ip = {} # Группируем записи по IP для пакетного обновления
         
-        for rec in records:
+        for rec in dns_records:
             rec_type = rec.get('type', '')
             rec_data = rec.get('data', '')
             rec_name = rec.get('name', '')
@@ -205,10 +188,7 @@ class ScanProcessor:
                     "hostname": rec_name, # Имя из запроса
                     "group_id": job.group_id
                 })
-            
-            # Если это CNAME, MX и т.д., но мы знаем IP из контекста (упрощено)
-            # В полной версии нужно резолвить имена, здесь просто сохраняем если есть IP в data
-            
+        
         # Обновляем DNS записи у активов
         for ip, recs in dns_by_ip.items():
             asset = self.db.execute(select(Asset).where(Asset.ip_address == ip)).scalar_one_or_none()
@@ -223,8 +203,8 @@ class ScanProcessor:
                     logger.debug(f"Добавлено {len(new_recs)} DNS записей для {ip}")
         
         self.db.commit()
-        job.result_summary = {"records_processed": len(records)}
-        logger.info(f"Dig: Обработано {len(records)} записей.")
+        job.result_summary = {"records_processed": len(dns_records)}
+        logger.info(f"Dig: Обработано {len(dns_records)} записей.")
 
     def _upsert_asset(self, ip: str, updates: Dict[str, Any]):
         """Создает или обновляет актив."""
