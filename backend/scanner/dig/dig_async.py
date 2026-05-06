@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import os
-import re
+import json
 from typing import Dict, Any, List, Optional
 from ..base import BaseScanner
 
@@ -17,8 +17,6 @@ class DigScanner(BaseScanner):
         self.target = target
         # Default types if not specified
         self.record_types = record_types or ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA"]
-        self.raw_file = os.path.join(self.job_output_dir, "dig.txt")
-        self.json_file = os.path.join(self.job_output_dir, "dig.json")
 
     async def scan(self) -> Dict[str, Any]:
         cmd = ["dig"]
@@ -57,30 +55,23 @@ class DigScanner(BaseScanner):
                 
         logger.info(f"[DigScanner] Процесс Dig завершен с кодом {process.returncode}")
         
-        # Save raw output
-        with open(self.raw_file, 'w') as f:
-            f.write(stdout_str)
-            if stderr_str:
-                f.write("\nSTDERR:\n")
-                f.write(stderr_str)
-        
         result = self._parse_output(stdout_str)
         
-        # Save JSON result
-        import json
-        with open(self.json_file, 'w') as f:
-            json.dump(result.get("records", []), f, indent=2)
-        
-        # Отладочный вывод содержимого файлов
-        self._log_file_content(self.raw_file, "Raw вывод Dig (.txt)")
-        self._log_file_content(self.json_file, "JSON результат Dig (.json)")
+        # Формируем JSON формат для dig
+        json_output = {
+            "target": self.target,
+            "hostname": self.target,
+            "dns_records": result.get("records", []),
+            "raw_output": stdout_str + "\n" + stderr_str
+        }
             
         return {
             "hostname": self.target,
             "ip": "", # Dig doesn't necessarily resolve the IP of the target itself in the same way
             "ports": [],
             "dns_records": result.get("records", []),
-            "raw_output": stdout_str + "\n" + stderr_str
+            "raw_output": stdout_str + "\n" + stderr_str,
+            "output_json": json_output
         }
 
     def _parse_output(self, output: str) -> Dict[str, Any]:

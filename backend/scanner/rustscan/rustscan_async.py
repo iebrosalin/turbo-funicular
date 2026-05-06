@@ -18,9 +18,6 @@ class RustscanScanner(BaseScanner):
         self.target = target
         self.ports = ports
         self.nmap_scripts = nmap_scripts
-        self.raw_file = os.path.join(self.job_output_dir, "rustscan.txt")
-        self.grepable_file = os.path.join(self.job_output_dir, "rustscan_grepable.txt")
-        self.json_file = os.path.join(self.job_output_dir, "rustscan.json")
 
     async def scan(self) -> Dict[str, Any]:
         cmd = ["rustscan", "-a", self.target]
@@ -28,7 +25,7 @@ class RustscanScanner(BaseScanner):
         if self.ports:
             cmd.extend(["-p", self.ports])
         
-        # Add greppable flag without path (output is captured from stdout anyway)
+        # Add greppable flag for parsing
         cmd.append("-g")
             
         # Add Nmap arguments if scripts are specified
@@ -62,33 +59,23 @@ class RustscanScanner(BaseScanner):
                 
         logger.info(f"[RustscanScanner] Процесс Rustscan завершен с кодом {process.returncode}")
         
-        # Save raw output to txt file
-        with open(self.raw_file, 'w') as f:
-            f.write(stdout_str)
-            if stderr_str:
-                f.write("\nSTDERR:\n")
-                f.write(stderr_str)
-        
-        # Save stdout to grepable file for parsing
-        with open(self.grepable_file, 'w') as f:
-            f.write(stdout_str)
-        
         result = self._parse_output(stdout_str, stderr_str)
         
-        # Save JSON result (parsed structure)
-        with open(self.json_file, 'w') as f:
-            json.dump(result, f, indent=2)
-        
-        # Отладочный вывод содержимого файлов
-        self._log_file_content(self.raw_file, "Raw вывод Rustscan (.txt)")
-        self._log_file_content(self.grepable_file, "Grepable вывод Rustscan (.txt)")
-        self._log_file_content(self.json_file, "JSON результат Rustscan (.json)")
+        # Формируем JSON формат для rustscan
+        json_output = {
+            "target": self.target,
+            "ip": result.get("ip", self.target),
+            "hostname": result.get("hostname", ""),
+            "ports": result.get("ports", []),
+            "raw_output": stdout_str + "\n" + stderr_str
+        }
             
         return {
             "hostname": result.get("hostname", self.target),
             "ip": result.get("ip", self.target),
             "ports": result.get("ports", []),
-            "raw_output": stdout_str + "\n" + stderr_str
+            "raw_output": stdout_str + "\n" + stderr_str,
+            "output_json": json_output
         }
 
     def _parse_output(self, stdout: str, stderr: str) -> Dict[str, Any]:
@@ -112,25 +99,6 @@ class RustscanScanner(BaseScanner):
                 result["ports"].append(int(port))
             except ValueError:
                 pass
-        
-        # If no IP found in "Open" lines, try to find it elsewhere or use target
-        if not result["ip"]:
-            # Try to extract from grepable file if exists
-            if os.path.exists(self.grepable_file):
-                with open(self.grepable_file, 'r') as f:
-                    content = f.read()
-                    # Grepable format: Host: IP Ports: Port1,Port2...
-                    g_pattern = r"Host:\s*([\d\.]+|[\w\.-]+).*?Ports:\s*([\d,]+)"
-                    g_match = re.search(g_pattern, content)
-                    if g_match:
-                        result["ip"] = g_match.group(1)
-                        ports_str = g_match.group(2)
-                        for p in ports_str.split(','):
-                            if p.strip():
-                                try:
-                                    result["ports"].append(int(p.strip()))
-                                except ValueError:
-                                    pass
         
         if not result["ip"]:
             result["ip"] = self.target

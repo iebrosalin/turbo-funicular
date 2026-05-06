@@ -66,7 +66,11 @@ class ScanResult(Base):
     services = Column(JSON, nullable=True, default=dict)  # Информация о сервисах
     os_info = Column(String(255), nullable=True)
     hostname = Column(String(255), nullable=True)
-    raw_output = Column(Text, nullable=True)  # Сырой вывод сканера
+    raw_output = Column(Text, nullable=True)  # Сырой вывод сканера (по умолчанию для всех)
+    output_xml = Column(Text, nullable=True)  # XML формат (для nmap)
+    output_gnmap = Column(Text, nullable=True)  # Grepable/Nmap формат (для nmap)
+    output_normal = Column(Text, nullable=True)  # Normal формат (для nmap)
+    output_json = Column(JSON, nullable=True)  # JSON формат (для rustscan и dig)
     scanned_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

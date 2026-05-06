@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-import re
 import xml.etree.ElementTree as ET
 from typing import Dict, Any, List, Optional
 from ..base import BaseScanner
@@ -21,7 +20,6 @@ class NmapScanner(BaseScanner):
         self.scripts = scripts
         self.version_detect = version_detect
         self.os_detect = os_detect
-        self.xml_file = os.path.join(self.job_output_dir, "nmap.xml")
 
     async def scan(self) -> Dict[str, Any]:
         cmd = ["nmap"]
@@ -40,10 +38,8 @@ class NmapScanner(BaseScanner):
         if self.os_detect:
             cmd.append("-O")
             
-        # Output formats
-        cmd.extend(["-oX", self.xml_file])
-        cmd.extend(["-oN", os.path.join(self.job_output_dir, "nmap.nmap")])
-        cmd.extend(["-oG", os.path.join(self.job_output_dir, "nmap.gnmap")])
+        # Output to stdout in multiple formats
+        cmd.extend(["-oX", "-", "-oG", "-", "-oN", "-"])  # XML, Grepable, Normal to stdout
         
         cmd.append(self.target)
         
@@ -70,30 +66,71 @@ class NmapScanner(BaseScanner):
                 logger.debug(f"[Nmap] {line}")
                 
         logger.info(f"[NmapScanner] Процесс Nmap завершен с кодом {process.returncode}")
-        
-        # Save raw output
-        raw_file = os.path.join(self.job_output_dir, "nmap.txt")
-        with open(raw_file, 'w') as f:
-            f.write(stdout_str)
-            if stderr_str:
-                f.write("\nSTDERR:\n")
-                f.write(stderr_str)
-        
-        # Отладочный вывод содержимого файлов
-        self._log_file_content(self.xml_file, "XML отчет Nmap")
-        self._log_file_content(os.path.join(self.job_output_dir, "nmap.nmap"), "Текстовый отчет Nmap (.nmap)")
-        self._log_file_content(raw_file, "Raw вывод Nmap (.txt)")
                 
-        result = self._parse_output()
+        result = self._parse_output(stdout_str)
+        
+        # Разделяем вывод на форматы (XML, GNMAP, Normal)
+        # Nmap выводит последовательно: сначала XML, потом Grepable, потом Normal
+        # Нужно разделить их
+        xml_output, gnmap_output, normal_output = self._split_nmap_output(stdout_str)
+        
         return {
             "hostname": result.get("hostname", self.target),
             "ip": result.get("ip", self.target),
             "ports": result.get("ports", []),
             "os": result.get("os", ""),
-            "raw_output": stdout_str + "\n" + stderr_str
+            "raw_output": normal_output,  # raw = normal format
+            "output_xml": xml_output,
+            "output_gnmap": gnmap_output,
+            "output_normal": normal_output
         }
+    
+    def _split_nmap_output(self, output: str) -> tuple:
+        """Разделяет комбинированный вывод nmap на отдельные форматы."""
+        # Nmap выводит форматы последовательно, разделенные заголовками
+        lines = output.split('\n')
+        
+        xml_lines = []
+        gnmap_lines = []
+        normal_lines = []
+        
+        current_format = None
+        
+        for line in lines:
+            # Определяем начало каждого формата по характерным признакам
+            if line.startswith('<?xml') or line.startswith('<!DOCTYPE'):
+                current_format = 'xml'
+                xml_lines.append(line)
+            elif current_format == 'xml':
+                xml_lines.append(line)
+                if line.strip() == '</nmaprun>':
+                    current_format = None
+            elif line.startswith('# Nmap') and 'grepable' in line.lower():
+                current_format = 'gnmap'
+                gnmap_lines.append(line)
+            elif current_format == 'gnmap':
+                if line.startswith('# Nmap') and 'normal' in line.lower():
+                    current_format = 'normal'
+                else:
+                    gnmap_lines.append(line)
+            elif line.startswith('# Nmap') and 'normal' in line.lower():
+                current_format = 'normal'
+                normal_lines.append(line)
+            elif current_format == 'normal':
+                normal_lines.append(line)
+            elif line.startswith('#') and 'Host:' in line:
+                # Это может быть начало normal вывода
+                if current_format is None:
+                    current_format = 'normal'
+                normal_lines.append(line)
+            elif current_format == 'normal' or (current_format is None and normal_lines):
+                normal_lines.append(line)
+            elif current_format == 'gnmap' or (current_format is None and gnmap_lines):
+                gnmap_lines.append(line)
+        
+        return '\n'.join(xml_lines), '\n'.join(gnmap_lines), '\n'.join(normal_lines)
 
-    def _parse_output(self) -> Dict[str, Any]:
+    def _parse_output(self, xml_str: str) -> Dict[str, Any]:
         result = {
             "hostname": "",
             "ip": "",
@@ -101,50 +138,48 @@ class NmapScanner(BaseScanner):
             "os": ""
         }
         
-        # Parse XML for reliable data
-        if os.path.exists(self.xml_file):
-            try:
-                tree = ET.parse(self.xml_file)
-                root = tree.getroot()
+        # Parse XML from string
+        try:
+            root = ET.fromstring(xml_str)
+            
+            host = root.find('host')
+            if host is not None:
+                # Get IP and Hostname
+                addr = host.find('address')
+                if addr is not None:
+                    result["ip"] = addr.get('addr', '')
                 
-                host = root.find('host')
-                if host is not None:
-                    # Get IP and Hostname
-                    addr = host.find('address')
-                    if addr is not None:
-                        result["ip"] = addr.get('addr', '')
-                    
-                    hostname_elem = host.find('hostnames/host')
-                    if hostname_elem is not None:
-                        result["hostname"] = hostname_elem.get('name', '')
-                    
-                    # Get Ports
-                    ports_elem = host.find('ports')
-                    if ports_elem is not None:
-                        for port in ports_elem.findall('port'):
-                            state = port.find('state')
-                            if state is not None and state.get('state') == 'open':
-                                port_id = port.get('portid')
-                                protocol = port.get('protocol')
-                                service = port.find('service')
-                                service_name = service.get('name', '') if service is not None else ''
-                                product = service.get('product', '') if service is not None else ''
-                                version = service.get('version', '') if service is not None else ''
-                                
-                                result["ports"].append({
-                                    "port": int(port_id),
-                                    "protocol": protocol,
-                                    "service": service_name,
-                                    "product": product,
-                                    "version": version
-                                })
-                    
-                    # Get OS
-                    osmatch = host.find('os/osmatch')
-                    if osmatch is not None:
-                        result["os"] = osmatch.get('name', '')
+                hostname_elem = host.find('hostnames/host')
+                if hostname_elem is not None:
+                    result["hostname"] = hostname_elem.get('name', '')
+                
+                # Get Ports
+                ports_elem = host.find('ports')
+                if ports_elem is not None:
+                    for port in ports_elem.findall('port'):
+                        state = port.find('state')
+                        if state is not None and state.get('state') == 'open':
+                            port_id = port.get('portid')
+                            protocol = port.get('protocol')
+                            service = port.find('service')
+                            service_name = service.get('name', '') if service is not None else ''
+                            product = service.get('product', '') if service is not None else ''
+                            version = service.get('version', '') if service is not None else ''
+                            
+                            result["ports"].append({
+                                "port": int(port_id),
+                                "protocol": protocol,
+                                "service": service_name,
+                                "product": product,
+                                "version": version
+                            })
+                
+                # Get OS
+                osmatch = host.find('os/osmatch')
+                if osmatch is not None:
+                    result["os"] = osmatch.get('name', '')
                         
-            except Exception as e:
-                logger.error(f"[NmapScanner] Ошибка парсинга XML: {e}")
+        except Exception as e:
+            logger.error(f"[NmapScanner] Ошибка парсинга XML: {e}")
         
         return result

@@ -31,6 +31,10 @@ async def init_db():
             lambda conn: asset_change_logs_table.create(conn, checkfirst=True)
         )
         
+        # Создаем индексы для asset_change_logs
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_asset_change_logs_asset_id ON asset_change_logs(asset_id)"))
+        await conn.execute(text("CREATE INDEX IF NOT EXISTS idx_asset_change_logs_created_at ON asset_change_logs(created_at)"))
+        
         # Проверяем результат
         result = await conn.execute(
             text("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
