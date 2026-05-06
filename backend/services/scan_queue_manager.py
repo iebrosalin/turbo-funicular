@@ -410,24 +410,24 @@ class ScanQueueManager:
                     try:
                         from backend.services.scan_processor import ScanProcessor
                         from backend.db.session import sync_session_maker
-                        
-                        # Получаем актуальные параметры задачи перед передачей в процессор
-                        job_for_processor = await db.get(ScanJob, scan_job_id)
-                        if job_for_processor and job_for_processor.parameters:
-                            logger.info(f"[DEBUG] Перед ScanProcessor: job.parameters содержит ключи: {job_for_processor.parameters.keys()}")
-                            logger.info(f"[DEBUG] Перед ScanProcessor: raw_output длина={len(job_for_processor.parameters.get('raw_output', ''))}, первые 100 символов: {job_for_processor.parameters.get('raw_output', '')[:100] if job_for_processor.parameters.get('raw_output') else 'ПУСТО'}")
-                            
-                            # Явно коммитим изменения чтобы они были видны в синхронной сессии
-                            await db.commit()
-                            
-                            # Создаем синхронную сессию для процессора
-                            with sync_session_maker() as sync_db:
+
+                        # Явно коммитим изменения чтобы они были видны в синхронной сессии
+                        await db.commit()
+
+                        # Создаем синхронную сессию для процессора с autocommit для чтения свежих данных
+                        with sync_session_maker() as sync_db:
+                            # Получаем актуальные параметры задачи из синхронной сессии
+                            sync_job = sync_db.get(ScanJob, scan_job_id)
+                            if sync_job and sync_job.parameters:
+                                logger.info(f"[DEBUG] Перед ScanProcessor: job.parameters содержит ключи: {sync_job.parameters.keys()}")
+                                logger.info(f"[DEBUG] Перед ScanProcessor: raw_output длина={len(sync_job.parameters.get('raw_output', '' ))}, первые 100 символов: {sync_job.parameters.get('raw_output', '' )[:100] if sync_job.parameters.get('raw_output') else 'ПУСТО'}")
+
                                 processor = ScanProcessor(sync_db)
                                 logger.info(f"[ScanProcessor] Запуск обработки результатов для задачи {scan_job_id}")
                                 processor.process(scan_job_id)
                                 logger.info(f"[ScanProcessor] Обработка результатов задачи {scan_job_id} завершена")
-                        else:
-                            logger.error(f"[DEBUG] Перед ScanProcessor: job.parameters пуст или None!")
+                            else:
+                                logger.error(f"[DEBUG] Перед ScanProcessor: job.parameters пуст или None в синхронной сессии!")
                     except Exception as proc_err:
                         logger.error(f"Ошибка в ScanProcessor для задачи {scan_job_id}: {proc_err}", exc_info=True)
                         # Не прерываем завершение задачи, но логируем ошибку
