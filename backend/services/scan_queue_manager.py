@@ -264,6 +264,7 @@ class ScanQueueManager:
                             job.parameters['ip'] = result_data.get('ip', target)
                             job.parameters['os'] = result_data.get('os', '')
                             job.parameters['dns_records'] = result_data.get('dns_records', [])
+                            await db.commit()  # Коммитим параметры задачи сразу чтобы ScanProcessor мог их прочитать
                             
                             # Получаем scan_id из job
                             current_scan_id = job.scan_id
@@ -381,16 +382,8 @@ class ScanQueueManager:
                             db.add(result)
                             await db.commit()
                             logger.info(f"[AssetManager] Результат сканирования успешно сохранён для {target}")
-                            
-                            # Явно обновляем job.parameters в текущей сессии после сохранения результата
-                            # чтобы ScanProcessor мог их прочитать
-                            job.parameters = job.parameters or {}
-                            job.parameters['raw_output'] = result_data.get('raw_output', '')
-                            job.parameters['ports'] = result_data.get('ports', [])
-                            job.parameters['hostname'] = result_data.get('hostname', target)
-                            job.parameters['ip'] = result_data.get('ip', target)
-                            job.parameters['os'] = result_data.get('os', '')
-                            job.parameters['dns_records'] = result_data.get('dns_records', [])
+                    else:
+                        logger.warning(f"[AssetManager] Результат сканирования пуст для {target}, raw_output не будет сохранён в job.parameters")
                     
                     except Exception as scan_error:
                         logger.error(f"Ошибка сканирования {target}: {scan_error}", exc_info=True)
