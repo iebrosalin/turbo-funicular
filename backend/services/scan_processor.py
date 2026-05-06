@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from backend.models.asset import Asset
 from backend.models.group import AssetGroup
-from backend.models.scan_job import ScanJob, ScanStatus
+from backend.models.scan import ScanJob, ScanStatus
 
 logger = logging.getLogger(__name__)
 
