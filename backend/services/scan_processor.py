@@ -17,8 +17,13 @@ class ScanProcessor:
     def __init__(self, db: Session):
         self.db = db
 
-    def process(self, job_id: int):
-        """Основной метод обработки результатов сканирования."""
+    def process(self, job_id: int, parameters: Optional[Dict[str, Any]] = None):
+        """Основной метод обработки результатов сканирования.
+        
+        Args:
+            job_id: ID задачи сканирования
+            parameters: Опциональные параметры задачи (чтобы избежать проблем с чтением из БД)
+        """
         job = self.db.get(ScanJob, job_id)
         if not job:
             logger.error(f"Задача {job_id} не найдена.")
@@ -26,21 +31,24 @@ class ScanProcessor:
 
         logger.info(f"Начало обработки результатов для задачи {job_id} (тип: {job.job_type})")
         
+        # Используем переданные параметры если они есть, иначе читаем из БД
+        job_params = parameters if parameters is not None else (job.parameters or {})
+        
         # Логируем параметры задачи для отладки
-        if job.parameters:
-            logger.info(f"[DEBUG ScanProcessor] job.parameters содержит ключи: {job.parameters.keys()}")
-            raw_output = job.parameters.get('raw_output', '')
+        if job_params:
+            logger.info(f"[DEBUG ScanProcessor] job.parameters содержит ключи: {job_params.keys()}")
+            raw_output = job_params.get('raw_output', '')
             logger.info(f"[DEBUG ScanProcessor] raw_output длина={len(raw_output)}, первые 100 символов: {raw_output[:100] if raw_output else 'ПУСТО'}")
         else:
             logger.error(f"[DEBUG ScanProcessor] job.parameters пуст или None!")
 
         try:
             if job.job_type == 'nmap':
-                self._process_nmap(job)
+                self._process_nmap(job, job_params)
             elif job.job_type == 'rustscan':
-                self._process_rustscan(job)
+                self._process_rustscan(job, job_params)
             elif job.job_type == 'dig':
-                self._process_dig(job)
+                self._process_dig(job, job_params)
             
             job.status = ScanStatus.COMPLETED.value
             job.completed_at = datetime.utcnow()
@@ -52,9 +60,9 @@ class ScanProcessor:
             job.error_message = str(e)
             self.db.commit()
 
-    def _process_nmap(self, job: ScanJob):
+    def _process_nmap(self, job: ScanJob, job_params: Dict[str, Any]):
         """Обработка результатов Nmap из XML строки."""
-        xml_str = job.parameters.get('raw_output', '') if job.parameters else ''
+        xml_str = job_params.get('raw_output', '')
         
         if not xml_str:
             raise FileNotFoundError(f"XML данные результатов не найдены в параметрах задачи {job.id}")
@@ -126,10 +134,10 @@ class ScanProcessor:
 
         logger.info(f"Nmap: Обработано {hosts_count} хостов.")
 
-    def _process_rustscan(self, job: ScanJob):
+    def _process_rustscan(self, job: ScanJob, job_params: Dict[str, Any]):
         """Обработка результатов Rustscan из данных задачи."""
         # Получаем результаты из raw_output в параметрах задачи
-        raw_output = job.parameters.get('raw_output', '') if job.parameters else ''
+        raw_output = job_params.get('raw_output', '')
         
         if not raw_output:
             raise ValueError(f"Нет данных raw_output для задачи Rustscan {job.id}")
@@ -164,10 +172,10 @@ class ScanProcessor:
         
         logger.info(f"Rustscan: Обработано {hosts_count} хостов.")
 
-    def _process_dig(self, job: ScanJob):
+    def _process_dig(self, job: ScanJob, job_params: Dict[str, Any]):
         """Обработка результатов Dig из данных задачи."""
         # Получаем DNS записи из параметров задачи
-        dns_records = job.parameters.get('dns_records', []) if job.parameters else []
+        dns_records = job_params.get('dns_records', [])
         
         if not dns_records:
             raise ValueError(f"Нет данных dns_records для задачи Dig {job.id}")
