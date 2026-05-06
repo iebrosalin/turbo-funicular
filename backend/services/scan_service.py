@@ -24,7 +24,9 @@ class ScanService:
     
     async def get_active(self) -> List[Scan]:
         """Получить активные сканирования."""
-        query = select(Scan).where(Scan.status.in_(["pending", "running"])).order_by(Scan.created_at.desc())
+        query = select(Scan).options(
+            selectinload(Scan.results)
+        ).where(Scan.status.in_(["pending", "running"])).order_by(Scan.created_at.desc())
         result = await self.db.execute(query)
         return list(result.scalars().all())
     

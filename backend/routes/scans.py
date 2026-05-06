@@ -309,12 +309,12 @@ async def get_scan_history(
     db: AsyncSession = Depends(get_db)
 ):
     """Получить историю сканирований (завершенные задачи ScanJob)."""
-    from backend.models.scan import ScanJob
+    from backend.models.scan import ScanJob, Scan
     from sqlalchemy.orm import selectinload
     
-    # Получаем завершенные задачи сканирования
+    # Получаем завершенные задачи сканирования с eager loading для scan и results
     query = select(ScanJob).options(
-        selectinload(ScanJob.scan)
+        selectinload(ScanJob.scan).selectinload(Scan.results)
     ).where(
         ScanJob.status.in_(['completed', 'failed', 'stopped', 'cancelled'])
     ).order_by(ScanJob.created_at.desc()).offset(offset).limit(limit)

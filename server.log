@@ -1,45 +1,27 @@
-INFO:     Will watch for changes in these directories: ['/workspace']
+INFO:     Started server process [610]
+INFO:     Waiting for application startup.
+2026-05-06 12:11:04,613 - backend.main - INFO - ✅ База данных проверена и инициализирована.
+2026-05-06 12:11:04,613 - backend.main - INFO - ✅ Таблица asset_change_logs создана/проверена.
+2026-05-06 12:11:04,629 - backend.main - INFO - ✅ Подключение к базе данных установлено.
+2026-05-06 12:11:04,629 - backend.main - INFO - 🚀 Приложение успешно запущено.
+2026-05-06 12:11:04,629 - backend.services.scan_queue_manager - INFO - ScanQueueManager запущен
+INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:5000 (Press CTRL+C to quit)
-INFO:     Started reloader process [3359] using WatchFiles
-INFO:     Started server process [3367]
-INFO:     Waiting for application startup.
-2026-05-02 09:09:08,133 - backend.main - INFO - ✅ База данных проверена и инициализирована.
-2026-05-02 09:09:08,135 - backend.main - INFO - ✅ Подключение к базе данных установлено.
-2026-05-02 09:09:08,135 - backend.main - INFO - 🚀 Приложение успешно запущено.
-2026-05-02 09:09:08,135 - backend.services.scan_queue_manager - INFO - ScanQueueManager запущен
-INFO:     Application startup complete.
-WARNING:  WatchFiles detected changes in 'backend/routes/scans.py'. Reloading...
+============================================================
+🚀 Starting Network Asset Manager...
+============================================================
+Database: SQLite (/workspace/instance/app.db)
+
+🌐 Доступные интерфейсы для подключения:
+   ➤ http://21.0.6.216:5000
+
+📚 API Documentation: http://localhost:5000/docs
+🏠 Web Interface:     http://localhost:5000/
+============================================================
+INFO:     127.0.0.1:37858 - "GET /api/scans/history?limit=20&offset=0 HTTP/1.1" 200 OK
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
-2026-05-02 09:11:09,488 - backend.main - INFO - 🛑 Остановка приложения...
-2026-05-02 09:11:09,488 - backend.services.scan_queue_manager - INFO - ScanQueueManager остановлен
+2026-05-06 12:11:16,909 - backend.main - INFO - 🛑 Остановка приложения...
+2026-05-06 12:11:16,909 - backend.services.scan_queue_manager - INFO - ScanQueueManager остановлен
 INFO:     Application shutdown complete.
-INFO:     Finished server process [3367]
-INFO:     Started server process [3736]
-INFO:     Waiting for application startup.
-2026-05-02 09:11:12,150 - backend.main - INFO - ✅ База данных проверена и инициализирована.
-2026-05-02 09:11:12,153 - backend.main - INFO - ✅ Подключение к базе данных установлено.
-2026-05-02 09:11:12,153 - backend.main - INFO - 🚀 Приложение успешно запущено.
-2026-05-02 09:11:12,153 - backend.services.scan_queue_manager - INFO - ScanQueueManager запущен
-INFO:     Application startup complete.
-WARNING:  WatchFiles detected changes in 'backend/routes/scans.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2026-05-02 09:11:25,092 - backend.main - INFO - 🛑 Остановка приложения...
-2026-05-02 09:11:25,092 - backend.services.scan_queue_manager - INFO - ScanQueueManager остановлен
-INFO:     Application shutdown complete.
-INFO:     Finished server process [3736]
-INFO:     Started server process [3738]
-INFO:     Waiting for application startup.
-2026-05-02 09:11:27,855 - backend.main - INFO - ✅ База данных проверена и инициализирована.
-2026-05-02 09:11:27,867 - backend.main - INFO - ✅ Подключение к базе данных установлено.
-2026-05-02 09:11:27,867 - backend.main - INFO - 🚀 Приложение успешно запущено.
-2026-05-02 09:11:27,867 - backend.services.scan_queue_manager - INFO - ScanQueueManager запущен
-INFO:     Application startup complete.
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-2026-05-02 09:11:54,837 - backend.main - INFO - 🛑 Остановка приложения...
-2026-05-02 09:11:54,837 - backend.services.scan_queue_manager - INFO - ScanQueueManager остановлен
-INFO:     Application shutdown complete.
-INFO:     Finished server process [3738]
-INFO:     Stopping reloader process [3359]
+INFO:     Finished server process [610]
