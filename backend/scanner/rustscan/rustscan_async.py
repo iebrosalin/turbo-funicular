@@ -28,16 +28,14 @@ class RustscanScanner(BaseScanner):
         self.temp_dir = tempfile.mkdtemp(prefix=f"rustscan_job_{self.job_id}_")
         logger.info(f"[RustscanScanner] Создана временная директория: {self.temp_dir}")
         
-        # Путь к временному файлу для greppable вывода
-        greppable_file = os.path.join(self.temp_dir, "output.gnmap")
-        
         cmd = ["rustscan", "-a", self.target]
         
         if self.ports:
             cmd.extend(["-p", self.ports])
         
-        # Добавляем флаг greppable с указанием файла
-        cmd.extend(["-g", greppable_file])
+        # Rustscan не поддерживает вывод в файл через -g, он только включает greppable формат в stdout
+        # Поэтому мы просто включаем greppable вывод и будем парсить stdout
+        cmd.append("-g")
             
         # Add Nmap arguments if scripts are specified
         if self.nmap_scripts and self.nmap_scripts.strip() and self.nmap_scripts.lower() != "none":
@@ -73,24 +71,35 @@ class RustscanScanner(BaseScanner):
         if process.returncode != 0:
             logger.error(f"[RustscanScanner] Rustscan вернул код ошибки {process.returncode}. stderr: {stderr_str}")
         
-        # Читаем результаты из greppable файла
+        # Сохраняем greppable вывод во временный файл для последующего чтения
+        greppable_file = os.path.join(self.temp_dir, "output.gnmap")
         greppable_output = ""
         try:
-            if os.path.exists(greppable_file):
-                file_size = os.path.getsize(greppable_file)
-                logger.info(f"[RustscanScanner] Greppable файл существует, размер: {file_size} байт")
-                if file_size == 0:
-                    logger.warning("[RustscanScanner] Greppable файл пустой!")
-                with open(greppable_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    greppable_output = f.read()
-                logger.info(f"[RustscanScanner] Прочитан greppable файл, размер: {len(greppable_output)} байт")
-                if not greppable_output.strip():
-                    logger.error("[RustscanScanner] Greppable файл прочитан, но содержимое пустое!")
-            else:
-                logger.error(f"[RustscanScanner] Greppable файл не найден по пути {greppable_file}")
+            # Парсим stdout для извлечения greppable строк (формат: IP PORT1,PORT2,PORT3)
+            # Rustscan с флагом -g выводит строки вида: "127.0.0.1 80,443,8080"
+            greppable_lines = []
+            for line in stdout_str.splitlines():
+                line = line.strip()
+                # Проверяем формат greppable: IP адрес followed by пробел и порты через запятую
+                if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\s+\d+(,\d+)*$', line):
+                    greppable_lines.append(line)
+                elif re.match(r'^[a-zA-Z0-9.-]+\s+\d+(,\d+)*$', line) and not line.startswith('Open'):
+                    # Также проверяем hostname формат
+                    parts = line.split()
+                    if len(parts) == 2 and ',' in parts[1]:
+                        greppable_lines.append(line)
+            
+            greppable_output = '\n'.join(greppable_lines)
+            
+            # Сохраняем в файл
+            with open(greppable_file, 'w', encoding='utf-8') as f:
+                f.write(greppable_output)
+            
+            logger.info(f"[RustscanScanner] Greppable данные извлечены из stdout, размер: {len(greppable_output)} байт")
+            if greppable_lines:
+                logger.info(f"[RustscanScanner] Найдено {len(greppable_lines)} строк в greppable формате")
         except Exception as e:
-            logger.error(f"[RustscanScanner] Ошибка чтения greppable файла: {e}", exc_info=True)
-            raise
+            logger.error(f"[RustscanScanner] Ошибка обработки greppable вывода: {e}", exc_info=True)
         
         # Парсим вывод для извлечения данных
         result = self._parse_output(stdout_str, stderr_str, greppable_output)
