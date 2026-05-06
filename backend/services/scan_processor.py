@@ -69,7 +69,12 @@ class ScanProcessor:
             raise FileNotFoundError(f"XML данные результатов не найдены в параметрах задачи {job.id}")
 
         import xml.etree.ElementTree as ET
-        root = ET.fromstring(xml_str)
+        try:
+            root = ET.fromstring(xml_str)
+        except ET.ParseError as e:
+            self.logger.error(f"[ScanProcessor] Ошибка парсинга XML для задачи {job.id}: {e}")
+            self.logger.error(f"[ScanProcessor] Первые 500 символов XML: {xml_str[:500]}")
+            raise ValueError(f"Некорректный формат XML в задаче {job.id}: {e}")
         
         hosts_count = 0
         for host in root.findall('host'):
