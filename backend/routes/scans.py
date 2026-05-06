@@ -308,12 +308,26 @@ async def get_scan_history(
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db)
 ):
-    """Получить историю сканирований с выводом утилит (алиас для корня)."""
-    service = ScanService(db)
-    scans = await service.get_all(limit=limit, offset=offset)
+    """Получить историю сканирований (завершенные задачи ScanJob)."""
+    from backend.models.scan import ScanJob
+    from sqlalchemy.orm import selectinload
     
-    result = []
-    for scan in scans:
+    # Получаем завершенные задачи сканирования
+    query = select(ScanJob).options(
+        selectinload(ScanJob.scan)
+    ).where(
+        ScanJob.status.in_(['completed', 'failed', 'stopped', 'cancelled'])
+    ).order_by(ScanJob.created_at.desc()).offset(offset).limit(limit)
+    
+    result = await db.execute(query)
+    jobs = list(result.scalars().all())
+    
+    scan_list = []
+    for job in jobs:
+        scan = job.scan
+        if not scan:
+            continue
+            
         # Собираем raw_output из всех результатов сканирования
         raw_output_parts = []
         if scan.results:
@@ -334,11 +348,11 @@ async def get_scan_history(
             "started_at": scan.started_at.isoformat() if scan.started_at else None,
             "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
             "created_at": scan.created_at.isoformat() if scan.created_at else None,
-            "error_message": scan.error_message,
+            "error_message": scan.error_message or job.error_message,
         }
-        result.append(scan_data)
+        scan_list.append(scan_data)
     
-    return result
+    return scan_list
 
 
 # ==========================================
