@@ -32,7 +32,7 @@ sync_engine = create_engine(
     pool_pre_ping=True,
     connect_args={"check_same_thread": False} if "sqlite" in sync_db_url else {},
 )
-sync_session_maker = sessionmaker(bind=sync_engine)
+sync_session_maker = sessionmaker(bind=sync_engine, autocommit=False, expire_on_commit=False)
 db = scoped_session(sync_session_maker)
 
 
