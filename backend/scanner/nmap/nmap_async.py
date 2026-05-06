@@ -87,46 +87,53 @@ class NmapScanner(BaseScanner):
     
     def _split_nmap_output(self, output: str) -> tuple:
         """Разделяет комбинированный вывод nmap на отдельные форматы."""
-        # Nmap выводит форматы последовательно, разделенные заголовками
-        lines = output.split('\n')
+        # Nmap выводит форматы последовательно: XML, затем Grepable, затем Normal
+        # Проблема: внутри XML тегов могут быть вставлены текстовые строки из normal вывода
         
         xml_lines = []
         gnmap_lines = []
         normal_lines = []
         
         current_format = None
+        in_xml = False
         
-        for line in lines:
-            # Определяем начало каждого формата по характерным признакам
+        for line in output.split('\n'):
+            stripped = line.strip()
+            
+            # Начало XML блока
             if line.startswith('<?xml') or line.startswith('<!DOCTYPE'):
                 current_format = 'xml'
+                in_xml = True
                 xml_lines.append(line)
-            elif current_format == 'xml':
+            elif in_xml:
+                # Пропускаем текстовые строки внутри XML (не начинающиеся с < или # или <!--)
+                # Это строки вида "Nmap scan report for...", "Host is up...", "PORT STATE..." и т.д.
+                if stripped and not stripped.startswith('<') and not stripped.startswith('#') and not stripped.startswith('<!--'):
+                    # Это текстовая строка, вставленная в XML - пропускаем её
+                    continue
                 xml_lines.append(line)
-                if line.strip() == '</nmaprun>':
+                # Конец XML блока
+                if stripped == '</nmaprun>':
+                    in_xml = False
                     current_format = None
+            # Начало Grepable блока
             elif line.startswith('# Nmap') and 'grepable' in line.lower():
                 current_format = 'gnmap'
                 gnmap_lines.append(line)
             elif current_format == 'gnmap':
+                # Конец Grepable, начало Normal
                 if line.startswith('# Nmap') and 'normal' in line.lower():
                     current_format = 'normal'
+                    normal_lines.append(line)
                 else:
                     gnmap_lines.append(line)
+            # Начало Normal блока
             elif line.startswith('# Nmap') and 'normal' in line.lower():
                 current_format = 'normal'
                 normal_lines.append(line)
             elif current_format == 'normal':
                 normal_lines.append(line)
-            elif line.startswith('#') and 'Host:' in line:
-                # Это может быть начало normal вывода
-                if current_format is None:
-                    current_format = 'normal'
-                normal_lines.append(line)
-            elif current_format == 'normal' or (current_format is None and normal_lines):
-                normal_lines.append(line)
-            elif current_format == 'gnmap' or (current_format is None and gnmap_lines):
-                gnmap_lines.append(line)
+            # Игнорируем всё остальное
         
         return '\n'.join(xml_lines), '\n'.join(gnmap_lines), '\n'.join(normal_lines)
 
