@@ -72,14 +72,15 @@ class ScanProcessor:
         try:
             root = ET.fromstring(xml_str)
         except ET.ParseError as e:
-            self.logger.error(f"[ScanProcessor] Ошибка парсинга XML для задачи {job.id}: {e}")
-            self.logger.error(f"[ScanProcessor] Первые 500 символов XML: {xml_str[:500]}")
+            logger.error(f"[ScanProcessor] Ошибка парсинга XML для задачи {job.id}: {e}")
+            logger.error(f"[ScanProcessor] Первые 500 символов XML: {xml_str[:500]}")
             raise ValueError(f"Некорректный формат XML в задаче {job.id}: {e}")
         
         hosts_count = 0
         for host in root.findall('host'):
             status_elem = host.find('status')
-            if status_elem is None or status_elem.get('state') != 'up':
+            # Если status отсутствует, считаем хост активным (для обратной совместимости)
+            if status_elem is not None and status_elem.get('state') != 'up':
                 continue
 
             # Извлечение IP
@@ -142,39 +143,60 @@ class ScanProcessor:
 
     def _process_rustscan(self, job: ScanJob, job_params: Dict[str, Any]):
         """Обработка результатов Rustscan из данных задачи."""
-        # Получаем результаты из raw_output в параметрах задачи
+        # Сначала пробуем получить данные из output_gnmap (файловый формат), затем из raw_output
+        greppable_output = job_params.get('output_gnmap', '')
         raw_output = job_params.get('raw_output', '')
         
-        if not raw_output:
-            raise ValueError(f"Нет данных raw_output для задачи Rustscan {job.id}")
+        if not greppable_output and not raw_output:
+            raise ValueError(f"Нет данных output_gnmap или raw_output для задачи Rustscan {job.id}")
 
         # Парсим вывод напрямую
         import re
-        pattern = r"Open\s+([\d\.]+|[\w\.-]+):(\d+)"
-        matches = re.findall(pattern, raw_output)
         
-        seen_ips = set()
+        hosts_data = {}  # ip -> set of ports
+        
+        # Сначала парсим greppable формат (более надежный)
+        # Пример: "127.0.0.1 80,443,8080"
+        if greppable_output:
+            for line in greppable_output.splitlines():
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                # Формат: IP PORT1,PORT2,PORT3
+                parts = line.split()
+                if len(parts) >= 2:
+                    ip = parts[0]
+                    if ip not in hosts_data:
+                        hosts_data[ip] = set()
+                    # Парсим порты
+                    port_str = parts[1]
+                    for port in port_str.split(','):
+                        try:
+                            hosts_data[ip].add(int(port))
+                        except ValueError:
+                            pass
+        
+        # Если greppable пустой или не содержит данных, парсим raw_output (stdout)
+        if not hosts_data:
+            pattern = r"Open\s+([\d\.]+|[\w\.-]+):(\d+)"
+            matches = re.findall(pattern, raw_output)
+            
+            for ip, port in matches:
+                if ip not in hosts_data:
+                    hosts_data[ip] = set()
+                try:
+                    hosts_data[ip].add(int(port))
+                except ValueError:
+                    pass
+        
         hosts_count = 0
-        for ip, port in matches:
-            if ip not in seen_ips:
-                seen_ips.add(ip)
-                # Создаем/обновляем актив
-                self._upsert_asset(ip, {
-                    "open_ports": [int(port)],
-                    "group_id": job.scan.group_id
-                })
-                hosts_count += 1
-            else:
-                # Обновляем существующий актив с новым портом
-                asset = self.db.execute(select(Asset).where(Asset.ip_address == ip)).scalar_one_or_none()
-                if asset:
-                    old_ports = asset.open_ports or []
-                    try:
-                        port_int = int(port)
-                        if port_int not in old_ports:
-                            asset.open_ports = list(set(old_ports + [port_int]))
-                    except ValueError:
-                        pass
+        for ip, ports in hosts_data.items():
+            # Создаем/обновляем актив
+            self._upsert_asset(ip, {
+                "open_ports": list(ports),
+                "group_id": job.scan.group_id
+            })
+            hosts_count += 1
         
         logger.info(f"Rustscan: Обработано {hosts_count} хостов.")
 
@@ -273,3 +295,6 @@ class ScanProcessor:
             asset.group_id = updates['group_id']
             
         asset.updated_at = datetime.utcnow()
+        
+        self.db.commit()
+        logger.info(f"[SCAN_PROCESS] Изменения закоммичены для актива {ip}")

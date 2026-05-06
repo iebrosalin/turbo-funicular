@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import os
+import tempfile
+import shutil
 import re
 import json
 from typing import Dict, Any, List, Optional
@@ -18,15 +20,24 @@ class RustscanScanner(BaseScanner):
         self.target = target
         self.ports = ports
         self.nmap_scripts = nmap_scripts
+        # Создаем временную директорию для файлов результатов
+        self.temp_dir = None
 
     async def scan(self) -> Dict[str, Any]:
+        # Создаем временную директорию для хранения файлов результатов
+        self.temp_dir = tempfile.mkdtemp(prefix=f"rustscan_job_{self.job_id}_")
+        logger.info(f"[RustscanScanner] Создана временная директория: {self.temp_dir}")
+        
+        # Путь к временному файлу для greppable вывода
+        greppable_file = os.path.join(self.temp_dir, "output.gnmap")
+        
         cmd = ["rustscan", "-a", self.target]
         
         if self.ports:
             cmd.extend(["-p", self.ports])
         
-        # Add greppable flag for parsing
-        cmd.append("-g")
+        # Добавляем флаг greppable с указанием файла
+        cmd.extend(["-g", greppable_file])
             
         # Add Nmap arguments if scripts are specified
         if self.nmap_scripts and self.nmap_scripts.strip() and self.nmap_scripts.lower() != "none":
@@ -59,7 +70,37 @@ class RustscanScanner(BaseScanner):
                 
         logger.info(f"[RustscanScanner] Процесс Rustscan завершен с кодом {process.returncode}")
         
-        result = self._parse_output(stdout_str, stderr_str)
+        if process.returncode != 0:
+            logger.error(f"[RustscanScanner] Rustscan вернул код ошибки {process.returncode}. stderr: {stderr_str}")
+        
+        # Читаем результаты из greppable файла
+        greppable_output = ""
+        try:
+            if os.path.exists(greppable_file):
+                file_size = os.path.getsize(greppable_file)
+                logger.info(f"[RustscanScanner] Greppable файл существует, размер: {file_size} байт")
+                if file_size == 0:
+                    logger.warning("[RustscanScanner] Greppable файл пустой!")
+                with open(greppable_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    greppable_output = f.read()
+                logger.info(f"[RustscanScanner] Прочитан greppable файл, размер: {len(greppable_output)} байт")
+                if not greppable_output.strip():
+                    logger.error("[RustscanScanner] Greppable файл прочитан, но содержимое пустое!")
+            else:
+                logger.error(f"[RustscanScanner] Greppable файл не найден по пути {greppable_file}")
+        except Exception as e:
+            logger.error(f"[RustscanScanner] Ошибка чтения greppable файла: {e}", exc_info=True)
+            raise
+        
+        # Парсим вывод для извлечения данных
+        result = self._parse_output(stdout_str, stderr_str, greppable_output)
+        
+        # Очищаем временную директорию
+        try:
+            shutil.rmtree(self.temp_dir)
+            logger.info(f"[RustscanScanner] Временная директория удалена: {self.temp_dir}")
+        except Exception as e:
+            logger.warning(f"[RustscanScanner] Не удалось удалить временную директорию: {e}")
         
         # Формируем JSON формат для rustscan
         json_output = {
@@ -67,7 +108,8 @@ class RustscanScanner(BaseScanner):
             "ip": result.get("ip", self.target),
             "hostname": result.get("hostname", ""),
             "ports": result.get("ports", []),
-            "raw_output": stdout_str + "\n" + stderr_str
+            "raw_output": stdout_str + "\n" + stderr_str,
+            "greppable_output": greppable_output
         }
             
         return {
@@ -75,30 +117,54 @@ class RustscanScanner(BaseScanner):
             "ip": result.get("ip", self.target),
             "ports": result.get("ports", []),
             "raw_output": stdout_str + "\n" + stderr_str,
-            "output_json": json_output
+            "output_json": json_output,
+            "output_gnmap": greppable_output
         }
 
-    def _parse_output(self, stdout: str, stderr: str) -> Dict[str, Any]:
+    def _parse_output(self, stdout: str, stderr: str, greppable: str) -> Dict[str, Any]:
         result = {
             "hostname": "",
             "ip": "",
             "ports": []
         }
         
-        # Parse stdout for "Open IP:PORT" lines
-        # Example: Open 1.1.1.1:53
-        pattern = r"Open\s+([\d\.]+|[\w\.-]+):(\d+)"
-        matches = re.findall(pattern, stdout)
+        # Сначала пробуем парсить greppable формат (более надежный)
+        # Пример: "127.0.0.1 80,443,8080"
+        if greppable:
+            for line in greppable.splitlines():
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                # Формат: IP PORT1,PORT2,PORT3
+                parts = line.split()
+                if len(parts) >= 2:
+                    ip = parts[0]
+                    if not result["ip"]:
+                        result["ip"] = ip
+                    # Парсим порты
+                    port_str = parts[1]
+                    for port in port_str.split(','):
+                        try:
+                            result["ports"].append(int(port))
+                        except ValueError:
+                            pass
         
-        seen_ips = set()
-        for ip, port in matches:
-            if ip not in seen_ips:
-                result["ip"] = ip
-                seen_ips.add(ip)
-            try:
-                result["ports"].append(int(port))
-            except ValueError:
-                pass
+        # Если greppable пустой, парсим stdout
+        if not result["ports"]:
+            # Parse stdout for "Open IP:PORT" lines
+            # Example: Open 1.1.1.1:53
+            pattern = r"Open\s+([\d\.]+|[\w\.-]+):(\d+)"
+            matches = re.findall(pattern, stdout)
+            
+            seen_ips = set()
+            for ip, port in matches:
+                if ip not in seen_ips:
+                    result["ip"] = ip
+                    seen_ips.add(ip)
+                try:
+                    result["ports"].append(int(port))
+                except ValueError:
+                    pass
         
         if not result["ip"]:
             result["ip"] = self.target

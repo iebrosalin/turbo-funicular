@@ -61,6 +61,44 @@ class ScanQueueManager:
         self._tasks.clear()
         logger.info("ScanQueueManager остановлен")
     
+    def _merge_nmap_xml(self, existing_xml: str, new_xml: str) -> str:
+        """Объединяет два XML документа nmap, извлекая <host> элементы из нового и добавляя их в существующий."""
+        import xml.etree.ElementTree as ET
+        
+        try:
+            existing_root = ET.fromstring(existing_xml)
+            new_root = ET.fromstring(new_xml)
+            
+            # Извлекаем все <host> элементы из нового XML
+            for host in new_root.findall('host'):
+                existing_root.append(host)
+            
+            # Обновляем статистику runstats если есть
+            new_runstats = new_root.find('runstats')
+            if new_runstats is not None:
+                existing_runstats = existing_root.find('runstats')
+                if existing_runstats is not None:
+                    # Обновляем атрибуты hosts
+                    existing_hosts = existing_runstats.find('hosts')
+                    new_hosts = new_runstats.find('hosts')
+                    if existing_hosts is not None and new_hosts is not None:
+                        try:
+                            total = int(existing_hosts.get('total', 0)) + int(new_hosts.get('total', 0))
+                            up = int(existing_hosts.get('up', 0)) + int(new_hosts.get('up', 0))
+                            down = int(existing_hosts.get('down', 0)) + int(new_hosts.get('down', 0))
+                            existing_hosts.set('total', str(total))
+                            existing_hosts.set('up', str(up))
+                            existing_hosts.set('down', str(down))
+                        except (ValueError, TypeError):
+                            pass
+            
+            # Сериализуем обратно в строку
+            return ET.tostring(existing_root, encoding='unicode')
+        except ET.ParseError as e:
+            logger.error(f"Ошибка при объединении XML: {e}")
+            # В случае ошибки возвращаем новый XML как есть
+            return new_xml
+    
     async def _process_queues(self):
         """Обработчик очередей - распределяет задачи на выполнение."""
         while self._running:
@@ -257,18 +295,43 @@ class ScanQueueManager:
                                 parsed = result_data.get('result', result_data)
                             
                             # Сохраняем результаты в параметры задачи для последующей обработки
+                            # Для поддержки нескольких целей используем списки или объединяем XML
                             job.parameters = job.parameters or {}
+                            
                             raw_output_value = result_data.get('raw_output', '')
+                            output_xml_value = result_data.get('output_xml', '')
+                            
                             logger.info(f"[DEBUG] Запись raw_output в job.parameters: длина={len(raw_output_value)}, первые 100 символов: {raw_output_value[:100] if raw_output_value else 'ПУСТО'}")
-                            job.parameters['raw_output'] = raw_output_value
-                            job.parameters['output_xml'] = result_data.get('output_xml', '')
+                            
+                            # Для raw_output и других текстовых полей - аппендим если уже есть (для нескольких целей)
+                            if 'raw_output' in job.parameters and job.parameters['raw_output']:
+                                job.parameters['raw_output'] += '\n\n' + raw_output_value
+                            else:
+                                job.parameters['raw_output'] = raw_output_value
+                            
+                            # Для XML от nmap - объединяем все хосты в один XML документ
+                            if scan_type == 'nmap' and output_xml_value:
+                                if 'output_xml' not in job.parameters or not job.parameters['output_xml']:
+                                    # Первый XML - сохраняем как есть
+                                    job.parameters['output_xml'] = output_xml_value
+                                else:
+                                    # Последующие XML - извлекаем только <host> элементы и добавляем в существующий XML
+                                    job.parameters['output_xml'] = self._merge_nmap_xml(job.parameters['output_xml'], output_xml_value)
+                            else:
+                                # Для не-nmap сканеров просто сохраняем
+                                job.parameters['output_xml'] = output_xml_value
+                            
                             job.parameters['output_gnmap'] = result_data.get('output_gnmap', '')
                             job.parameters['output_normal'] = result_data.get('output_normal', '')
+                            
+                            # Порты, hostname, ip, os - сохраняем для последней цели (или можно агрегировать)
+                            # Но для ScanProcessor важнее output_xml который уже содержит все данные
                             job.parameters['ports'] = result_data.get('ports', [])
                             job.parameters['hostname'] = result_data.get('hostname', target)
                             job.parameters['ip'] = result_data.get('ip', target)
                             job.parameters['os'] = result_data.get('os', '')
                             job.parameters['dns_records'] = result_data.get('dns_records', [])
+                            
                             logger.info(f"[DEBUG] job.parameters перед коммитом: {job.parameters.keys()}")
                             await db.commit()  # Коммитим параметры задачи сразу чтобы ScanProcessor мог их прочитать
                             logger.info(f"[DEBUG] job.parameters закоммичены в БД")
