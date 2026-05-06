@@ -945,7 +945,7 @@ export class ScanResultsController {
     const scanType = scanTypeSelect?.value || 'standard';
 
     try {
-      const response = await fetch('/api/scans/scan', {
+      const response = await fetch('/api/scans/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
