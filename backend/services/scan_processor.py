@@ -9,6 +9,7 @@ from sqlalchemy import select
 from backend.models.asset import Asset
 from backend.models.group import AssetGroup
 from backend.models.scan import ScanJob
+from backend.models.service import ServiceInventory
 from backend.schemas.scan import ScanStatus
 
 logger = logging.getLogger(__name__)
@@ -129,14 +130,21 @@ class ScanProcessor:
             if os_match is not None:
                 os_family = os_match.get('name', '').split()[0] # Берем первое слово (например, Linux)
 
-            # Обновление или создание актива
+            # Обновление или создание актива (без services)
             self._upsert_asset(ip_addr, {
                 "hostname": hostname,
                 "open_ports": open_ports,
-                "services": services,
                 "os_family": os_family,
                 "group_id": job.scan.group_id
             })
+            
+            # Обработка сервисов - создаем/обновляем записи ServiceInventory
+            # Нужно получить asset после _upsert_asset
+            asset = self.db.execute(select(Asset).where(Asset.ip_address == ip_addr)).scalar_one_or_none()
+            if asset and services:
+                self._upsert_services(asset, services)
+                logger.debug(f"  - Обновлено сервисов: {len(services)}")
+            
             hosts_count += 1
 
         logger.info(f"Nmap: Обработано {hosts_count} хостов.")
@@ -274,3 +282,32 @@ class ScanProcessor:
         
         self.db.commit()
         logger.info(f"[SCAN_PROCESS] Изменения закоммичены для актива {ip}")
+
+    def _upsert_services(self, asset: Asset, services_data: List[Dict[str, Any]]):
+        """Создает или обновляет сервисы для актива."""
+        # Удаляем старые сервисы для этого актива (полная замена)
+        asset.services.clear()
+        self.db.flush()  # Применяем удаление перед добавлением новых
+        
+        for svc in services_data:
+            service = ServiceInventory(
+                asset_id=asset.id,
+                port=svc.get('port'),
+                protocol=svc.get('protocol', 'tcp'),
+                state=svc.get('state', 'open'),
+                service_name=svc.get('service', ''),
+                product=svc.get('product', ''),
+                version=svc.get('version', ''),
+                extra_info=svc.get('extrainfo', ''),
+                ostype=svc.get('ostype', ''),
+                devicetype=svc.get('devicetype', '')
+            )
+            # Обработка SSL
+            if svc.get('tunnel') == 'ssl':
+                service.ssl_cert_subject = svc.get('ssl_subject', '')
+                service.ssl_cert_issuer = svc.get('ssl_issuer', '')
+            
+            self.db.add(service)
+        
+        self.db.flush()  # Флешим чтобы получить ID и применить изменения
+        logger.debug(f"  - Создано/обновлено {len(services_data)} сервисов для {asset.ip_address}")
