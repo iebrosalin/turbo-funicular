@@ -179,7 +179,8 @@ class AssetService:
                 'ssl_issuer': service.ssl_cert_issuer,
                 'ssl_not_before': service.ssl_cert_not_before.isoformat() if service.ssl_cert_not_before else None,
                 'ssl_not_after': service.ssl_cert_not_after.isoformat() if service.ssl_cert_not_after else None,
-                'script_output': service.scripts
+                'script_output': service.scripts,
+                'scripts': service.scripts  # Добавлено для совместимости с шаблоном
             })
         
         # Предзагрузка групп
