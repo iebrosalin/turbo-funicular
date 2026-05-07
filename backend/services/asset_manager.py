@@ -167,9 +167,9 @@ async def upsert_service(
             product=product,
             version=version,
             extra_info=extra_info,
-            script_output=script_output,
-            ssl_subject=ssl_subject,
-            ssl_issuer=ssl_issuer,
+            scripts=script_output,
+            ssl_cert_subject=ssl_subject,
+            ssl_cert_issuer=ssl_issuer,
             discovered_at=datetime.now(MOSCOW_TZ)
         )
         db.add(service)
