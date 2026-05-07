@@ -9,6 +9,9 @@ from backend.schemas.group import GroupCreate, GroupUpdate, GroupResponse
 from backend.services.group_service import GroupService
 from backend.utils import build_group_tree, build_complex_query, log_asset_change, get_moscow_time
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["groups"])
 groups_router = router  # Алиас для совместимости импортов
@@ -194,6 +197,12 @@ async def create_group(
     service = GroupService(db)
 
     try:
+        # Проверка на дубликат имени перед созданием
+        existing_groups = await service.get_all()
+        if any(g.name == group_data.name for g in existing_groups):
+            logger.warning(f"Попытка создания группы с дублирующимся именем: '{group_data.name}'. Данные запроса: {group_data.dict()}")
+            raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
+
         # Создание группы
         group = await service.create(group_data)
 
@@ -210,11 +219,19 @@ async def create_group(
         if hasattr(group_data, 'filter_rules') and group_data.filter_rules:
             await service.update_dynamic_group_members(group.id, group_data.filter_rules)
 
+        logger.info(f"Группа успешно создана: id={group.id}, name='{group.name}'")
         return group
         
-    except IntegrityError:
+    except HTTPException:
+        raise
+    except IntegrityError as e:
         await db.rollback()
+        logger.error(f"IntegrityError при создании группы '{group_data.name}': {e}")
         raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Неожиданная ошибка при создании группы '{group_data.name}': {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка при создании группы: {str(e)}")
 
 @router.put("/{group_id}", response_model=GroupResponse)
 async def update_group(
@@ -228,18 +245,28 @@ async def update_group(
     # Проверка на дубликат имени (если имя меняется)
     if group_data.name:
         existing = await service.get_all()
-        if any(g.name == group_data.name and g.id != group_id for g in existing):
+        duplicate = next((g for g in existing if g.name == group_data.name and g.id != group_id), None)
+        if duplicate:
+            logger.warning(f"Попытка обновления группы с дублирующимся именем: '{group_data.name}'. ID группы: {group_id}, существующий дубликат ID: {duplicate.id}")
             raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
     
-    group = await service.update(group_id, group_data)
-    if not group:
-        raise HTTPException(status_code=404, detail="Группа не найдена")
-    
-    # Если это динамическая группа, обновляем состав
-    if hasattr(group_data, 'filter_rules') and group_data.filter_rules is not None:
-        await service.update_dynamic_group_members(group.id, group_data.filter_rules)
-    
-    return group
+    try:
+        group = await service.update(group_id, group_data)
+        if not group:
+            logger.warning(f"Попытка обновления несуществующей группы: id={group_id}")
+            raise HTTPException(status_code=404, detail="Группа не найдена")
+        
+        # Если это динамическая группа, обновляем состав
+        if hasattr(group_data, 'filter_rules') and group_data.filter_rules is not None:
+            await service.update_dynamic_group_members(group.id, group_data.filter_rules)
+        
+        logger.info(f"Группа успешно обновлена: id={group.id}, name='{group.name}'")
+        return group
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении группы id={group_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Ошибка при обновлении группы: {str(e)}")
 
 
 @router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
