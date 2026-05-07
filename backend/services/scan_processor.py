@@ -113,14 +113,41 @@ class ScanProcessor:
                         
                         service_elem = port.find('service')
                         if service_elem is not None:
+                            # Извлечение script output
+                            scripts_output = []
+                            for script_elem in port.findall('script'):
+                                script_id = script_elem.get('id', '')
+                                script_out = script_elem.get('output', '')
+                                scripts_output.append({
+                                    'id': script_id,
+                                    'output': script_out
+                                })
+                            
+                            # Извлечение SSL информации
+                            ssl_subject = None
+                            ssl_issuer = None
+                            tunnel = service_elem.get('tunnel', '')
+                            if tunnel == 'ssl':
+                                cert_elem = service_elem.find('cert')
+                                if cert_elem is not None:
+                                    subject_elem = cert_elem.find('subject')
+                                    issuer_elem = cert_elem.find('issuer')
+                                    if subject_elem is not None:
+                                        ssl_subject = subject_elem.text or ''
+                                    if issuer_elem is not None:
+                                        ssl_issuer = issuer_elem.text or ''
+                            
                             svc_data = {
                                 "port": int(port_id),
                                 "protocol": protocol,
-                                "name": service_elem.get('name', ''),
+                                "service": service_elem.get('name', ''),
                                 "product": service_elem.get('product', ''),
                                 "version": service_elem.get('version', ''),
                                 "extrainfo": service_elem.get('extrainfo', ''),
-                                "tunnel": service_elem.get('tunnel', '') # ssl
+                                "tunnel": tunnel,
+                                "scripts": scripts_output,
+                                "ssl_subject": ssl_subject,
+                                "ssl_issuer": ssl_issuer
                             }
                             services.append(svc_data)
 
@@ -300,12 +327,16 @@ class ScanProcessor:
                 version=svc.get('version', ''),
                 extra_info=svc.get('extrainfo', ''),
                 ostype=svc.get('ostype', ''),
-                devicetype=svc.get('devicetype', '')
+                devicetype=svc.get('devicetype', ''),
+                scripts=svc.get('scripts', [])
             )
             # Обработка SSL
-            if svc.get('tunnel') == 'ssl':
-                service.ssl_cert_subject = svc.get('ssl_subject', '')
-                service.ssl_cert_issuer = svc.get('ssl_issuer', '')
+            ssl_subject = svc.get('ssl_subject')
+            ssl_issuer = svc.get('ssl_issuer')
+            if ssl_subject:
+                service.ssl_cert_subject = ssl_subject
+            if ssl_issuer:
+                service.ssl_cert_issuer = ssl_issuer
             
             self.db.add(service)
         

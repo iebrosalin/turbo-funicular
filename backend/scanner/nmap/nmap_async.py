@@ -179,14 +179,46 @@ class NmapScanner(BaseScanner):
                             service_name = service.get('name', '') if service is not None else ''
                             product = service.get('product', '') if service is not None else ''
                             version = service.get('version', '') if service is not None else ''
+                            extra_info = service.get('extrainfo', '') if service is not None else ''
                             
-                            result["ports"].append({
+                            # Извлечение script output
+                            scripts_output = []
+                            for script_elem in port.findall('script'):
+                                script_id = script_elem.get('id', '')
+                                script_output = script_elem.get('output', '')
+                                scripts_output.append({
+                                    'id': script_id,
+                                    'output': script_output
+                                })
+                            
+                            # Извлечение SSL информации
+                            ssl_subject = None
+                            ssl_issuer = None
+                            if service is not None:
+                                tunnel = service.get('tunnel', '')
+                                if tunnel == 'ssl':
+                                    # Пытаемся получить SSL cert из service elem
+                                    cert_elem = service.find('cert')
+                                    if cert_elem is not None:
+                                        subject_elem = cert_elem.find('subject')
+                                        issuer_elem = cert_elem.find('issuer')
+                                        if subject_elem is not None:
+                                            ssl_subject = subject_elem.text or ''
+                                        if issuer_elem is not None:
+                                            ssl_issuer = issuer_elem.text or ''
+                            
+                            port_data = {
                                 "port": int(port_id),
                                 "protocol": protocol,
                                 "service": service_name,
                                 "product": product,
-                                "version": version
-                            })
+                                "version": version,
+                                "extra_info": extra_info,
+                                "script_output": scripts_output,
+                                "ssl_subject": ssl_subject,
+                                "ssl_issuer": ssl_issuer
+                            }
+                            result["ports"].append(port_data)
                 
                 # Get OS
                 osmatch = host.find('os/osmatch')
