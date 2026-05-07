@@ -25,7 +25,8 @@ async def upsert_asset(
     os_version: Optional[str] = None,
     status: str = "up",
     scanner_name: str = "unknown",
-    group_ids: Optional[List[int]] = None
+    group_ids: Optional[List[int]] = None,
+    open_ports: Optional[List[int]] = None
 ) -> Asset:
     """
     Создать или обновить актив.
@@ -40,6 +41,7 @@ async def upsert_asset(
     :param status: Статус актива
     :param scanner_name: Имя сканера для логирования
     :param group_ids: Список ID групп для добавления актива (опционально)
+    :param open_ports: Список открытых портов для определения активности (опционально)
     :return: Объект актива
     """
     stmt = select(Asset).where(Asset.ip_address == ip_address)
@@ -48,8 +50,13 @@ async def upsert_asset(
     
     now = datetime.now(MOSCOW_TZ)
     
+    # Определяем активность по наличию открытых портов
+    has_open_ports = open_ports is not None and len(open_ports) > 0
+    
     if not asset:
         logger.info(f"[{scanner_name}] Создание нового актива: {ip_address}")
+        # Новый актив: статус зависит от наличия открытых портов
+        asset_status = 'active' if has_open_ports else 'inactive'
         asset = Asset(
             ip_address=ip_address,
             hostname=hostname,
@@ -57,10 +64,12 @@ async def upsert_asset(
             vendor=vendor,
             os_family=os_family,
             os_version=os_version,
-            status=status
+            status=asset_status,
+            open_ports=open_ports or []
         )
         asset.last_seen = now
         db.add(asset)
+        logger.info(f"[{scanner_name}] Актив {ip_address} создан со статусом {asset_status}")
     else:
         updated_fields = []
         
@@ -84,7 +93,18 @@ async def upsert_asset(
             asset.os_version = os_version
             updated_fields.append(f"os_version={os_version}")
         
-        asset.status = status
+        # Обновляем открытые порты если переданы
+        if open_ports is not None:
+            asset.open_ports = open_ports
+            updated_fields.append(f"open_ports={len(open_ports)}")
+        
+        # Обновляем статус актива на основе наличия открытых портов
+        if has_open_ports:
+            asset.status = 'active'
+        else:
+            asset.status = 'inactive'
+        updated_fields.append(f"status={asset.status}")
+        
         asset.last_seen = now  # Обновляем дату последнего сканирования
         updated_fields.append(f"last_seen={now}")
         
@@ -274,6 +294,12 @@ def update_asset_ports(
     # Обновляем объединенный список open_ports
     all_source_ports = set(asset.nmap_ports or []) | set(asset.rustscan_ports or [])
     asset.open_ports = sorted(list(all_source_ports))
+    
+    # Обновляем статус актива на основе наличия открытых портов
+    if len(asset.open_ports) > 0:
+        asset.status = 'active'
+    else:
+        asset.status = 'inactive'
     
     return all_ports
 
