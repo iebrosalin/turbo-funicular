@@ -227,7 +227,7 @@
                                                                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                                             </div>
                                                             <div class="modal-body">
-                                                                <pre class="bg-dark text-light p-3 rounded script-output">{% if service.scripts %}{% for script in service.scripts %}<strong>{{ script.id }}</strong>: {{ script.output }}{% if not loop.last %}<br><br>{% endif %}{% endfor %}{% else %}Нет данных{% endif %}</pre>
+                                                                <pre class="bg-dark text-light p-3 rounded script-output">{% for script in service.scripts %}<strong>{{ script.id }}</strong>: {{ script.output }}{% if not loop.last %}<br><br>{% endif %}{% endfor %}</pre>
                                                             </div>
                                                         </div>
                                                     </div>
