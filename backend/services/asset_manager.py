@@ -2,6 +2,7 @@
 Модуль унифицированных функций для управления активами при сканировании.
 Используется всеми типами сканеров (Nmap, Rustscan, Dig).
 """
+import json
 import logging
 from datetime import datetime
 from typing import Optional, List, Set, Dict, Any
@@ -167,7 +168,7 @@ async def upsert_service(
             product=product,
             version=version,
             extra_info=extra_info,
-            scripts=script_output if script_output else [],
+            scripts=json.loads(script_output) if script_output and isinstance(script_output, str) else (script_output if script_output else []),
             ssl_cert_subject=ssl_subject,
             ssl_cert_issuer=ssl_issuer,
             last_seen=datetime.now(MOSCOW_TZ)
@@ -193,7 +194,7 @@ async def upsert_service(
             updated_fields.append(f"version={version}")
         
         service.extra_info = extra_info
-        service.scripts = script_output if script_output else []
+        service.scripts = json.loads(script_output) if script_output and isinstance(script_output, str) else (script_output if script_output else [])
         service.ssl_cert_subject = ssl_subject
         service.ssl_cert_issuer = ssl_issuer
         service.last_seen = datetime.now(MOSCOW_TZ)
