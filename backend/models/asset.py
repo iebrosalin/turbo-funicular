@@ -43,6 +43,9 @@ class Asset(Base):
     fqdn = Column(String(255), nullable=True)  # Основное полное доменное имя
     dns_records = Column(JSON, nullable=True, default=dict)  # Словарь записей: {'A': [...], 'MX': [...], ...}
 
+    # Теги
+    tags = Column(JSON, nullable=True, default=list)  # Список тегов актива
+
     # Порты (разделение по источникам)
     rustscan_ports = Column(JSON, nullable=True, default=list)
     nmap_ports = Column(JSON, nullable=True, default=list)
@@ -104,6 +107,7 @@ class Asset(Base):
             'dns_names': self.dns_names,
             'fqdn': self.fqdn,
             'dns_records': self.dns_records,
+            'tags': self.tags,
             'open_ports': self.open_ports,
             'rustscan_ports': self.rustscan_ports,
             'nmap_ports': self.nmap_ports,
