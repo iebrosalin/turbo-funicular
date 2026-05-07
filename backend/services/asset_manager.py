@@ -193,9 +193,9 @@ async def upsert_service(
             updated_fields.append(f"version={version}")
         
         service.extra_info = extra_info
-        service.script_output = script_output
-        service.ssl_subject = ssl_subject
-        service.ssl_issuer = ssl_issuer
+        service.scripts = script_output
+        service.ssl_cert_subject = ssl_subject
+        service.ssl_cert_issuer = ssl_issuer
         service.last_seen = datetime.now(MOSCOW_TZ)
         
         if updated_fields:
