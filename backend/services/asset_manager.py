@@ -158,6 +158,18 @@ async def upsert_service(
         logger.info(
             f"[{scanner_name}] Создание сервиса {service_name} на {asset.ip_address}:{port}/{protocol}"
         )
+        
+        # Обработка скриптов (преобразование строки JSON в список, если нужно)
+        scripts_data = []
+        if script_output:
+            try:
+                if isinstance(script_output, str):
+                    scripts_data = json.loads(script_output)
+                else:
+                    scripts_data = script_output
+            except (json.JSONDecodeError, TypeError):
+                scripts_data = script_output
+        
         service = ServiceInventory(
             asset_id=asset.id,
             port=port,
@@ -167,7 +179,7 @@ async def upsert_service(
             product=product,
             version=version,
             extra_info=extra_info,
-            scripts=script_output if script_output else [],
+            scripts=scripts_data,
             ssl_cert_subject=ssl_subject,
             ssl_cert_issuer=ssl_issuer,
             last_seen=datetime.now(MOSCOW_TZ)
@@ -193,7 +205,19 @@ async def upsert_service(
             updated_fields.append(f"version={version}")
         
         service.extra_info = extra_info
-        service.scripts = script_output if script_output else []
+        
+        # Обработка скриптов (преобразование строки JSON в список, если нужно)
+        if script_output:
+            try:
+                if isinstance(script_output, str):
+                    service.scripts = json.loads(script_output)
+                else:
+                    service.scripts = script_output
+            except (json.JSONDecodeError, TypeError):
+                service.scripts = script_output
+        else:
+            service.scripts = []
+            
         service.ssl_cert_subject = ssl_subject
         service.ssl_cert_issuer = ssl_issuer
         service.last_seen = datetime.now(MOSCOW_TZ)
