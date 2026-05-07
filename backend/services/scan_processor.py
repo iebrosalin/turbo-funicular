@@ -142,52 +142,28 @@ class ScanProcessor:
         logger.info(f"Nmap: Обработано {hosts_count} хостов.")
 
     def _process_rustscan(self, job: ScanJob, job_params: Dict[str, Any]):
-        """Обработка результатов Rustscan из данных задачи."""
-        # Сначала пробуем получить данные из output_gnmap (файловый формат), затем из raw_output
-        greppable_output = job_params.get('output_gnmap', '')
+        """Обработка результатов Rustscan из raw_output."""
         raw_output = job_params.get('raw_output', '')
         
-        if not greppable_output and not raw_output:
-            raise ValueError(f"Нет данных output_gnmap или raw_output для задачи Rustscan {job.id}")
+        if not raw_output:
+            raise ValueError(f"Нет данных raw_output для задачи Rustscan {job.id}")
 
-        # Парсим вывод напрямую
+        # Парсим вывод напрямую из stdout
         import re
         
         hosts_data = {}  # ip -> set of ports
         
-        # Сначала парсим greppable формат (более надежный)
-        # Пример: "127.0.0.1 80,443,8080"
-        if greppable_output:
-            for line in greppable_output.splitlines():
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                # Формат: IP PORT1,PORT2,PORT3
-                parts = line.split()
-                if len(parts) >= 2:
-                    ip = parts[0]
-                    if ip not in hosts_data:
-                        hosts_data[ip] = set()
-                    # Парсим порты
-                    port_str = parts[1]
-                    for port in port_str.split(','):
-                        try:
-                            hosts_data[ip].add(int(port))
-                        except ValueError:
-                            pass
+        # Парсим raw_output (stdout) - формат: "Open IP:PORT"
+        pattern = r"Open\s+([\d\.]+|[\w\.-]+):(\d+)"
+        matches = re.findall(pattern, raw_output)
         
-        # Если greppable пустой или не содержит данных, парсим raw_output (stdout)
-        if not hosts_data:
-            pattern = r"Open\s+([\d\.]+|[\w\.-]+):(\d+)"
-            matches = re.findall(pattern, raw_output)
-            
-            for ip, port in matches:
-                if ip not in hosts_data:
-                    hosts_data[ip] = set()
-                try:
-                    hosts_data[ip].add(int(port))
-                except ValueError:
-                    pass
+        for ip, port in matches:
+            if ip not in hosts_data:
+                hosts_data[ip] = set()
+            try:
+                hosts_data[ip].add(int(port))
+            except ValueError:
+                pass
         
         hosts_count = 0
         for ip, ports in hosts_data.items():

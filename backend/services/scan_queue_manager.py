@@ -321,8 +321,8 @@ class ScanQueueManager:
                                 # Для не-nmap сканеров просто сохраняем
                                 job.parameters['output_xml'] = output_xml_value
                             
-                            job.parameters['output_gnmap'] = result_data.get('output_gnmap', '')
-                            job.parameters['output_normal'] = result_data.get('output_normal', '')
+                            # Для rustscan и dig сохраняем только raw_output
+                            # output_gnmap, output_normal, output_json больше не используются
                             
                             # Порты, hostname, ip, os - сохраняем для последней цели (или можно агрегировать)
                             # Но для ScanProcessor важнее output_xml который уже содержит все данные
@@ -444,9 +444,6 @@ class ScanQueueManager:
                                 ports=parsed.get('ports', []),
                                 raw_output=result_data.get('raw_output', str(result_data)),
                                 output_xml=result_data.get('output_xml'),
-                                output_gnmap=result_data.get('output_gnmap'),
-                                output_normal=result_data.get('output_normal'),
-                                output_json=result_data.get('output_json'),
                                 scanned_at=datetime.utcnow()
                             )
                             db.add(result)
