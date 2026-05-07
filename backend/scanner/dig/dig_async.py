@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import os
+import tempfile
+import shutil
 import json
 from typing import Dict, Any, List, Optional
 from ..base import BaseScanner
@@ -17,8 +19,17 @@ class DigScanner(BaseScanner):
         self.target = target
         # Default types if not specified
         self.record_types = record_types or ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA"]
+        # Создаем временную директорию для файлов результатов
+        self.temp_dir = None
 
     async def scan(self) -> Dict[str, Any]:
+        # Создаем временную директорию для хранения файлов результатов
+        self.temp_dir = tempfile.mkdtemp(prefix=f"dig_job_{self.job_id}_")
+        logger.info(f"[DigScanner] Создана временная директория: {self.temp_dir}")
+        
+        # Пути к временным файлам
+        stdout_file = os.path.join(self.temp_dir, "stdout.txt")
+        
         cmd = ["dig"]
         
         # Add record types
@@ -33,45 +44,50 @@ class DigScanner(BaseScanner):
         
         logger.info(f"[DigScanner] Запуск команды: {' '.join(cmd)}")
         
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+        # Открываем файл для записи stdout
+        with open(stdout_file, 'w', encoding='utf-8') as stdout_f:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=stdout_f,
+                stderr=asyncio.subprocess.PIPE
+            )
         
         logger.info(f"[DigScanner] Запущен процесс Dig для задачи {self.job_id}, PID: {process.pid}")
         
-        stdout, stderr = await process.communicate()
+        stderr = await process.stderr.read()
+        stderr_str = stderr.decode('utf-8', errors='ignore') if stderr else ""
         
-        stdout_str = stdout.decode('utf-8', errors='ignore')
-        stderr_str = stderr.decode('utf-8', errors='ignore')
-        
-        if stdout_str:
-            for line in stdout_str.splitlines():
-                logger.debug(f"[Dig] {line}")
         if stderr_str:
             for line in stderr_str.splitlines():
                 logger.debug(f"[Dig] {line}")
                 
         logger.info(f"[DigScanner] Процесс Dig завершен с кодом {process.returncode}")
         
+        # Читаем stdout из временного файла
+        stdout_str = ""
+        try:
+            if os.path.exists(stdout_file):
+                with open(stdout_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    stdout_str = f.read()
+                logger.info(f"[DigScanner] Прочитан stdout файл, размер: {len(stdout_str)} байт")
+        except Exception as e:
+            logger.error(f"[DigScanner] Ошибка чтения stdout файла: {e}", exc_info=True)
+        
         result = self._parse_output(stdout_str)
         
-        # Формируем JSON формат для dig
-        json_output = {
-            "target": self.target,
-            "hostname": self.target,
-            "dns_records": result.get("records", []),
-            "raw_output": stdout_str + "\n" + stderr_str
-        }
-            
+        # Очищаем временную директорию
+        try:
+            shutil.rmtree(self.temp_dir)
+            logger.info(f"[DigScanner] Временная директория удалена: {self.temp_dir}")
+        except Exception as e:
+            logger.warning(f"[DigScanner] Не удалось удалить временную директорию: {e}")
+        
         return {
             "hostname": self.target,
-            "ip": "", # Dig doesn't necessarily resolve the IP of the target itself in the same way
+            "ip": "",  # Dig doesn't necessarily resolve the IP of the target itself in the same way
             "ports": [],
             "dns_records": result.get("records", []),
-            "raw_output": stdout_str + "\n" + stderr_str,
-            "output_json": json_output
+            "raw_output": stdout_str + "\n" + stderr_str  # raw из временного файла
         }
 
     def _parse_output(self, output: str) -> Dict[str, Any]:

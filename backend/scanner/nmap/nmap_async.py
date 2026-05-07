@@ -34,6 +34,7 @@ class NmapScanner(BaseScanner):
         xml_file = os.path.join(self.temp_dir, "output.xml")
         gnmap_file = os.path.join(self.temp_dir, "output.gnmap")
         normal_file = os.path.join(self.temp_dir, "output.txt")
+        stdout_file = os.path.join(self.temp_dir, "stdout.txt")
         
         cmd = ["nmap"]
         
@@ -58,18 +59,18 @@ class NmapScanner(BaseScanner):
         
         logger.info(f"[NmapScanner] Запуск команды: {' '.join(cmd)}")
         
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+        # Открываем файл для записи stdout
+        with open(stdout_file, 'w', encoding='utf-8') as stdout_f:
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=stdout_f,
+                stderr=asyncio.subprocess.PIPE
+            )
         
         logger.info(f"[NmapScanner] Запущен процесс Nmap для задачи {self.job_id}, PID: {process.pid}")
         
-        stdout, stderr = await process.communicate()
-        
-        stdout_str = stdout.decode('utf-8', errors='ignore')
-        stderr_str = stderr.decode('utf-8', errors='ignore')
+        stderr = await process.stderr.read()
+        stderr_str = stderr.decode('utf-8', errors='ignore') if stderr else ""
         
         if stderr_str:
             for line in stderr_str.splitlines():
@@ -80,13 +81,14 @@ class NmapScanner(BaseScanner):
         if process.returncode != 0:
             logger.error(f"[NmapScanner] Nmap вернул код ошибки {process.returncode}. stderr: {stderr_str}")
         
-        # Читаем результаты из файлов
+        # Читаем результаты из временных файлов
         xml_output = ""
         gnmap_output = ""
         normal_output = ""
+        stdout_output = ""
         
         # Проверяем существование и размер файлов
-        for f_path, f_name in [(xml_file, "XML"), (gnmap_file, "Grepable"), (normal_file, "Normal")]:
+        for f_path, f_name in [(xml_file, "XML"), (gnmap_file, "Grepable"), (normal_file, "Normal"), (stdout_file, "Stdout")]:
             if os.path.exists(f_path):
                 file_size = os.path.getsize(f_path)
                 logger.info(f"[NmapScanner] Файл {f_name} существует, размер: {file_size} байт")
@@ -112,6 +114,11 @@ class NmapScanner(BaseScanner):
                 with open(normal_file, 'r', encoding='utf-8', errors='ignore') as f:
                     normal_output = f.read()
                     logger.info(f"[NmapScanner] Прочитан Normal файл, размер: {len(normal_output)} байт")
+            
+            if os.path.exists(stdout_file):
+                with open(stdout_file, 'r', encoding='utf-8', errors='ignore') as f:
+                    stdout_output = f.read()
+                    logger.info(f"[NmapScanner] Прочитан Stdout файл, размер: {len(stdout_output)} байт")
         except Exception as e:
             logger.error(f"[NmapScanner] Ошибка чтения файлов результатов: {e}", exc_info=True)
             raise
@@ -131,7 +138,7 @@ class NmapScanner(BaseScanner):
             "ip": result.get("ip", self.target),
             "ports": result.get("ports", []),
             "os": result.get("os", ""),
-            "raw_output": normal_output,  # raw = normal format
+            "raw_output": normal_output,  # raw = normal format из файла
             "output_xml": xml_output,
             "output_gnmap": gnmap_output,
             "output_normal": normal_output

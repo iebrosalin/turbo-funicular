@@ -1292,15 +1292,23 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
         # JSON формат - поддержка множества IP/DNS
         data = []
         for r in results:
-            # Для rustscan и dig используем output_json если есть
-            if r.output_json and isinstance(r.output_json, dict):
-                data.append(r.output_json)
+            # Для rustscan и dig используем raw_output если есть
+            if r.raw_output:
+                data.append({
+                    "ip_address": r.ip_address,
+                    "hostname": r.hostname,
+                    "ports": r.ports,
+                    "services": r.services,
+                    "os_info": r.os_info,
+                    "status": r.status,
+                    "raw_output": r.raw_output
+                })
             else:
                 data.append({
                     "ip_address": r.ip_address,
+                    "hostname": r.hostname,
                     "ports": r.ports,
                     "services": r.services,
-                    "hostname": r.hostname,
                     "os_info": r.os_info,
                     "status": r.status
                 })
@@ -1434,9 +1442,17 @@ async def download_scan_result(scan_id: int, format: str, db: AsyncSession = Dep
         # JSON формат - поддержка множества IP/DNS
         data = []
         for r in results:
-            # Для rustscan и dig используем output_json если есть
-            if r.output_json and isinstance(r.output_json, dict):
-                data.append(r.output_json)
+            # Для rustscan и dig используем raw_output если есть
+            if r.raw_output:
+                data.append({
+                    "ip_address": r.ip_address,
+                    "hostname": r.hostname,
+                    "ports": r.ports,
+                    "services": r.services,
+                    "os_info": r.os_info,
+                    "status": r.status,
+                    "raw_output": r.raw_output
+                })
             else:
                 data.append({
                     "ip_address": r.ip_address,
