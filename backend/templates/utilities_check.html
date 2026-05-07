@@ -112,12 +112,11 @@
         grid.innerHTML = html;
     }
 
-    function getUtilityIcon(name) {
+    def getUtilityIcon(name) {
         const icons = {
             'nmap': 'radar',
             'rustscan': 'lightning-charge',
-            'dig': 'globe',
-            'masscan': 'broadcast'
+            'dig': 'globe'
         };
         return icons[name] || 'tools';
     }
@@ -156,10 +155,6 @@
                 case 'dig':
                     installCommand = 'apt-get install dnsutils или yum install bind-utils';
                     docsUrl = 'https://www.isc.org/bind/';
-                    break;
-                case 'masscan':
-                    installCommand = 'apt-get install masscan или yum install masscan';
-                    docsUrl = 'https://github.com/robertdavidgraham/masscan';
                     break;
             }
             

@@ -222,7 +222,7 @@ def update_asset_ports(
     Обновить список портов актива для указанного типа сканера.
     
     :param asset: Объект актива
-    :param scanner_type: Тип порта ('nmap', 'rustscan', 'masscan')
+    :param scanner_type: Тип порта ('nmap', 'rustscan')
     :param ports: Список найденных портов
     :param scanner_name: Имя сканера для логирования
     :return: Обновленное множество портов
@@ -243,14 +243,12 @@ def update_asset_ports(
         asset.nmap_ports = list(all_ports)
     elif scanner_type == 'rustscan':
         asset.rustscan_ports = list(all_ports)
-    elif scanner_type == 'masscan':
-        asset.masscan_ports = list(all_ports)
     else:
         # Для неизвестного типа используем open_ports как fallback
         asset.open_ports = list(all_ports)
     
     # Обновляем объединенный список open_ports
-    all_source_ports = set(asset.nmap_ports or []) | set(asset.rustscan_ports or []) | set(asset.masscan_ports or [])
+    all_source_ports = set(asset.nmap_ports or []) | set(asset.rustscan_ports or [])
     asset.open_ports = sorted(list(all_source_ports))
     
     return all_ports

@@ -96,7 +96,6 @@ async def check_utilities():
         "nmap": {"installed": False, "version": None, "path": None},
         "rustscan": {"installed": False, "version": None, "path": None},
         "dig": {"installed": False, "version": None, "path": None},
-        "masscan": {"installed": False, "version": None, "path": None},
     }
     
     for util in utilities.keys():
