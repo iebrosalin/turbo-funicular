@@ -162,15 +162,31 @@ export class GroupManager {
     document.getElementById('groupEditTitle').textContent = 'Редактировать группу';
 
     // Обработка для корневой группы "Все активы"
-    if (id === 'all') {
+    if (id === 'all' || id === '0') {
       const nameInput = document.getElementById('edit-group-name');
       const parentSelect = document.getElementById('edit-group-parent');
       const modeRadios = document.querySelectorAll('input[name="groupMode"]');
       const secCommon = document.getElementById('sectionCommon');
       
-      if (nameInput) nameInput.value = 'Все активы';
-      if (parentSelect) parentSelect.disabled = true;
-      if (parentSelect) parentSelect.value = '';
+      // Загружаем данные корневой группы для отображения её названия
+      let rootGroupName = 'Организация';
+      try {
+        const res = await fetch('/api/groups/0');
+        if (res.ok) {
+          const data = await res.json();
+          rootGroupName = data.name || 'Организация';
+        }
+      } catch (err) {
+        console.warn('[showRenameModal] Не удалось загрузить название корневой группы:', err);
+      }
+      
+      if (nameInput) nameInput.value = rootGroupName;
+      if (parentSelect) {
+        parentSelect.disabled = true;
+        // Устанавливаем опцию корня с названием группы
+        parentSelect.innerHTML = `<option value="">-- ${rootGroupName} (корневая) --</option>`;
+        parentSelect.value = '';
+      }
       
       // Отключаем выбор режима группы
       modeRadios.forEach(radio => {
@@ -477,8 +493,8 @@ export class GroupManager {
       const moveItem = ctx.querySelector('[data-action="move"]');
       const deleteItem = ctx.querySelector('[data-action="delete"]');
 
-      // Для корневой группы "Все активы" показываем только переименование
-      if (groupId === 'all') {
+      // Для корневой группы "Все активы" и группы с id=0 показываем только переименование
+      if (groupId === 'all' || groupId === '0') {
         if (createItem) createItem.style.display = 'none';
         if (renameItem) renameItem.style.display = 'block';
         if (moveItem) moveItem.style.display = 'none';

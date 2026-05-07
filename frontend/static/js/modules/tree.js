@@ -36,6 +36,7 @@ export class TreeManager {
     }
 
     // Формируем полный HTML для рендеринга
+    const rootName = counts.root_name || 'Организация';
     let html = `
       <div class="sidebar-section">
         <div class="sidebar-section-title">
@@ -43,10 +44,10 @@ export class TreeManager {
         </div>
         
         <div id="group-tree" class="group-tree">
-          <!-- Статический элемент: Все активы -->
+          <!-- Статический элемент: Все активы (корневая группа) -->
           <div class="tree-node active" data-id="all">
             <i class="bi bi-globe folder-icon"></i>
-            <span class="group-name" data-id="all">Все активы</span>
+            <span class="group-name" data-id="all">${rootName}</span>
             <span class="badge bg-primary ms-auto" id="count-all">${counts['all'] || 0}</span>
           </div>
           <!-- Статический элемент: Без группы -->
