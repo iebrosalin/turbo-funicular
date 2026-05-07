@@ -173,11 +173,11 @@ async def http_404_handler(request: Request, exc):
 async def http_500_handler(request: Request, exc):
     return templates.TemplateResponse("500.html", {"request": request}, status_code=500)
 
-# Middleware для логирования запросов к сканированиям (для отладки)
+# Middleware для логирования запросов к сканированиям и группам (для отладки)
 @app.middleware("http")
-async def log_scan_requests_middleware(request: Request, call_next):
-    """Логирование всех POST-запросов к /api/scans/ для отладки."""
-    if request.url.path.startswith('/api/scans/') and request.method == 'POST':
+async def log_requests_middleware(request: Request, call_next):
+    """Логирование POST-запросов к /api/scans/ и /api/groups для отладки."""
+    if request.method == 'POST' and (request.url.path.startswith('/api/scans/') or request.url.path.startswith('/api/groups')):
         logger.info("=" * 80)
         logger.info(f"📥 ВХОДЯЩИЙ ЗАПРОС: {request.method} {request.url.path}")
         logger.info(f"   Client: {request.client.host}:{request.client.port if request.client.port else 'unknown'}")
@@ -189,6 +189,9 @@ async def log_scan_requests_middleware(request: Request, call_next):
             logger.warning(f"   Не удалось прочитать тело запроса: {e}")
         logger.info("=" * 80)
     response = await call_next(request)
+    # Логирование ответа для групп
+    if request.method == 'POST' and request.url.path.startswith('/api/groups'):
+        logger.info(f"📤 ОТВЕТ: {response.status_code} для {request.method} {request.url.path}")
     return response
 
 # Настройка путей к статике и шаблонам

@@ -185,17 +185,35 @@ async def get_group(group_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("", response_model=GroupResponse, status_code=status.HTTP_201_CREATED)
 async def create_group(
     group_data: GroupCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    background_tasks: BackgroundTasks = None
 ):
     """
     Создать новую группу.
     Поддерживает статические и динамические группы (с filter_rules).
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     service = GroupService(db)
+    
+    # Логирование входящего запроса
+    logger.info(f"📥 POST /api/groups - Запрос на создание группы: name='{group_data.name}', parent_id={group_data.parent_id}")
+    logger.debug(f"   Полные данные запроса: {group_data.model_dump()}")
 
     try:
+        # Проверка существующих групп перед созданием
+        existing_groups = await service.get_all()
+        existing_names = [g.name for g in existing_groups]
+        logger.debug(f"   Существующие группы: {existing_names}")
+        
+        if group_data.name in existing_names:
+            logger.warning(f"⚠️ Отказано в создании группы '{group_data.name}': группа с таким именем уже существует")
+            raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
+
         # Создание группы
         group = await service.create(group_data)
+        logger.info(f"✅ Группа успешно создана: id={group.id}, name='{group.name}'")
 
         # Логирование
         await log_asset_change(
@@ -208,13 +226,22 @@ async def create_group(
 
         # Если это динамическая группа с filter_rules, обновляем состав
         if hasattr(group_data, 'filter_rules') and group_data.filter_rules:
+            logger.info(f"   Обновление состава динамической группы {group.id}...")
             await service.update_dynamic_group_members(group.id, group_data.filter_rules)
 
         return group
         
-    except IntegrityError:
+    except HTTPException:
+        # Переподнимаем HTTP исключения без изменений
+        raise
+    except IntegrityError as e:
         await db.rollback()
+        logger.error(f"❌ Ошибка IntegrityError при создании группы '{group_data.name}': {e}")
         raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"❌ Неожиданная ошибка при создании группы '{group_data.name}': {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка сервера: {str(e)}")
 
 @router.put("/{group_id}", response_model=GroupResponse)
 async def update_group(
