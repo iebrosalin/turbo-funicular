@@ -358,10 +358,10 @@ def generate_asset_taxonomy(asset: Any) -> Dict[str, Any]:
             {
                 'port': s.port,
                 'protocol': s.protocol,
-                'service': s.name,
+                'service': s.service_name,
                 'version': s.version,
                 'state': s.state,
-                'ssl': s.ssl,
+                'ssl': bool(s.ssl_cert_subject),
                 'scripts': s.scripts
             } for s in asset.services
         ]
