@@ -227,7 +227,9 @@
                                                                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                                             </div>
                                                             <div class="modal-body">
-                                                                <pre class="bg-dark text-light p-3 rounded script-output">{{ service.script_output | replace('\n', '\n') | safe }}</pre>
+                                                                <pre class="bg-dark text-light p-3 rounded script-output">{% if service.scripts %}{% for script in service.scripts %}<strong>{{ script.id }}</strong>
+{{ script.output | safe }}
+{% endfor %}{% else %}Нет данных{% endif %}</pre>
                                                             </div>
                                                         </div>
                                                     </div>
