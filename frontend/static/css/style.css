@@ -193,3 +193,12 @@ select.hierarchy-select {
 .taxon-child { display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: 0.875rem; }
 .taxon-child-label { color: var(--text-secondary); }
 .taxon-child-value { font-weight: 500; }
+
+/* ═══════════════════════════════════════════════════════════════
+   SCRIPT OUTPUT PRE STYLES
+   ═══════════════════════════════════════════════════════════════ */
+pre.script-output {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    max-width: 100%;
+}

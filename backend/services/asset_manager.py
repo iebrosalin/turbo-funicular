@@ -167,10 +167,10 @@ async def upsert_service(
             product=product,
             version=version,
             extra_info=extra_info,
-            scripts=script_output,
+            scripts=script_output if script_output else [],
             ssl_cert_subject=ssl_subject,
             ssl_cert_issuer=ssl_issuer,
-            discovered_at=datetime.now(MOSCOW_TZ)
+            last_seen=datetime.now(MOSCOW_TZ)
         )
         db.add(service)
     else:
@@ -193,7 +193,7 @@ async def upsert_service(
             updated_fields.append(f"version={version}")
         
         service.extra_info = extra_info
-        service.scripts = script_output
+        service.scripts = script_output if script_output else []
         service.ssl_cert_subject = ssl_subject
         service.ssl_cert_issuer = ssl_issuer
         service.last_seen = datetime.now(MOSCOW_TZ)
