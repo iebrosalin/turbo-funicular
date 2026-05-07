@@ -142,6 +142,21 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 .tree-node .group-name { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tree-node .badge { flex-shrink: 0; font-size: 0.75rem; min-width: 1.5rem; justify-content: center; }
 
+/* Toggle icon for expand/collapse */
+.tree-node .toggle-icon { 
+  transition: transform 0.2s ease;
+  color: var(--text-secondary);
+}
+.tree-node .toggle-icon:hover {
+  color: var(--bs-primary);
+}
+.tree-node .toggle-icon.bi-chevron-down {
+  transform: rotate(0deg);
+}
+.tree-node .toggle-icon.bi-chevron-right {
+  transform: rotate(0deg);
+}
+
 /* Group Actions */
 .group-actions { display: flex; gap: 4px; opacity: 0; transition: opacity 0.2s; }
 .tree-node:hover .group-actions { opacity: 1; }
