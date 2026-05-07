@@ -229,7 +229,7 @@
                                                             <div class="modal-body">
                                                                 <pre class="bg-dark text-light p-3 rounded script-output">{% if service.scripts %}{% for script in service.scripts %}<strong>{{ script.id }}</strong>
 {{ script.output | replace('\n', '<br>') | safe }}
-{% endfor %}{% else %}Нет данных{% endif %}</pre>
+{% endfor %}{% endif %}</pre>
                                                             </div>
                                                         </div>
                                                     </div>
