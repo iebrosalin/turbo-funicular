@@ -263,10 +263,16 @@ class ScanProcessor:
         """Создает или обновляет актив."""
         asset = self.db.execute(select(Asset).where(Asset.ip_address == ip)).scalar_one_or_none()
         
+        # Определяем активность по наличию открытых портов
+        new_open_ports = updates.get('open_ports', [])
+        has_open_ports = len(new_open_ports) > 0
+        
         if not asset:
-            asset = Asset(ip_address=ip, status='active')
+            # Новый актив: статус зависит от наличия открытых портов
+            status = 'active' if has_open_ports else 'inactive'
+            asset = Asset(ip_address=ip, status=status)
             self.db.add(asset)
-            logger.info(f"[SCAN_PROCESS] СОЗДАН НОВЫЙ АКТИВ: IP={ip}, Группа={updates.get('group_id')}")
+            logger.info(f"[SCAN_PROCESS] СОЗДАН НОВЫЙ АКТИВ: IP={ip}, Группа={updates.get('group_id')}, Статус={status}")
         else:
             logger.info(f"[SCAN_PROCESS] ОБНОВЛЕНИЕ АКТИВА: IP={ip}")
 
@@ -300,6 +306,13 @@ class ScanProcessor:
                         logger.debug(f"  - Установлен hostname: {value}")
                 else:
                     setattr(asset, key, value)
+        
+        # Обновляем статус актива на основе наличия открытых портов
+        current_open_ports = asset.open_ports or []
+        if len(current_open_ports) > 0:
+            asset.status = 'active'
+        else:
+            asset.status = 'inactive'
         
         # Группа
         if updates.get('group_id'):
