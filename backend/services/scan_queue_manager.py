@@ -170,17 +170,15 @@ class ScanQueueManager:
         # Rustscan и Dig - параллельные задачи (могут выполняться несколько)
         is_exclusive = scan_type == 'nmap'
         
-        # Создаем новую сессию БД для фоновой задачи
-        from backend.db.session import async_session_maker
-        async with async_session_maker() as new_db:
-            scan_params = (scan_job_id, scan_type, targets, parameters, None)
-            
-            if is_exclusive:
-                logger.info(f"Задача {scan_job_id} добавлена в эксклюзивную очередь")
-                await self._exclusive_queue.put(scan_params)
-            else:
-                logger.info(f"Задача {scan_job_id} добавлена в параллельную очередь")
-                await self._parallel_queue.put(scan_params)
+        # Формируем параметры для передачи в фоновую задачу
+        scan_params = (scan_job_id, scan_type, targets, parameters, None)
+        
+        if is_exclusive:
+            logger.info(f"Задача {scan_job_id} добавлена в эксклюзивную очередь")
+            await self._exclusive_queue.put(scan_params)
+        else:
+            logger.info(f"Задача {scan_job_id} добавлена в параллельную очередь")
+            await self._parallel_queue.put(scan_params)
         
         self._progress[scan_job_id] = {
             "total": len(targets),
