@@ -37,6 +37,31 @@ export class TreeManager {
 
     // Формируем полный HTML для рендеринга
     const rootName = counts.root_name || 'Организация';
+    
+    // Отделяем корневую группу (id=0) от пользовательских групп
+    let userGroups = [];
+    let rootGroup = null;
+    
+    if (Array.isArray(groups)) {
+      groups.forEach(group => {
+        if (group.id === 0 || group.id === '0') {
+          rootGroup = group;
+        } else {
+          userGroups.push(group);
+        }
+      });
+    }
+    
+    // Если корневая группа не найдена в массиве, используем данные из counts
+    if (!rootGroup && counts.root_name) {
+      rootGroup = {
+        id: 0,
+        name: counts.root_name,
+        parent_id: null,
+        depth: 0
+      };
+    }
+    
     let html = `
       <div class="sidebar-section">
         <div class="sidebar-section-title">
@@ -44,7 +69,7 @@ export class TreeManager {
         </div>
         
         <div id="group-tree" class="group-tree">
-          <!-- Статический элемент: Все активы (корневая группа) -->
+          <!-- Статический элемент: Все активы -->
           <div class="tree-node active" data-id="all">
             <i class="bi bi-globe folder-icon"></i>
             <span class="group-name" data-id="all">${rootName}</span>
@@ -56,13 +81,19 @@ export class TreeManager {
             <span class="group-name" data-id="ungrouped">Без группы</span>
             <span class="badge bg-secondary ms-auto" id="count-ungrouped">${counts['ungrouped'] || 0}</span>
           </div>
+          <!-- Корневая группа (инсталляция) -->
+          <div class="tree-node" data-id="0" style="border-top: 1px solid var(--bs-border-color); margin-top: 5px; padding-top: 5px;">
+            <i class="bi bi-folder folder-icon"></i>
+            <span class="group-name" data-id="0">${rootName}</span>
+            <span class="badge bg-secondary ms-auto" id="count-0">${counts['root'] || 0}</span>
+          </div>
 
-          <!-- Динамический контейнер для групп (включая корневую) -->
+          <!-- Динамический контейнер для пользовательских групп -->
           <div id="group-tree-root">
     `;
 
-    if (Array.isArray(groups)) {
-      groups.forEach(group => {
+    if (Array.isArray(userGroups)) {
+      userGroups.forEach(group => {
         const el = this.#createNodeElement(group, group.depth || 0, counts);
         html += el.outerHTML;
       });
@@ -159,8 +190,8 @@ export class TreeManager {
     const ungroupedBadge = document.getElementById('count-ungrouped');
     if (ungroupedBadge) ungroupedBadge.textContent = counts?.ungrouped ?? 0;
     
-    // Обновляем счетчик корневой группы
-    const rootBadge = document.getElementById('count-root');
+    // Обновляем счетчик корневой группы (id=0)
+    const rootBadge = document.getElementById('count-0');
     if (rootBadge) rootBadge.textContent = counts?.root ?? 0;
   }
 
@@ -234,6 +265,7 @@ export class TreeManager {
 
     initListener('.tree-node[data-id="all"]', 'all');
     initListener('.tree-node[data-id="ungrouped"]', 'ungrouped');
+    initListener('.tree-node[data-id="0"]', '0');
 
     // Инициализация обработчиков для динамических узлов дерева
     this.#initTreeToggleListeners();
