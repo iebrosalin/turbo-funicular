@@ -997,7 +997,20 @@ export class ScanResultsController {
       return;
     }
 
-    const m = new bootstrap.Modal(modalEl);
+    // Получаем существующий экземпляр или создаем новый
+    let m = bootstrap.Modal.getInstance(modalEl);
+    if (!m) {
+      m = new bootstrap.Modal(modalEl);
+      // Добавляем обработчик для очистки backdrop после закрытия
+      modalEl.addEventListener('hidden.bs.modal', () => {
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) backdrop.remove();
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+      }, { once: true });
+    }
+    
     const c = document.getElementById('scanResultContent');
     const titleEl = document.getElementById('resultScanId');
     
