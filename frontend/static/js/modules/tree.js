@@ -40,26 +40,13 @@ export class TreeManager {
     
     // Отделяем корневую группу (id=0) от пользовательских групп
     let userGroups = [];
-    let rootGroup = null;
     
     if (Array.isArray(groups)) {
       groups.forEach(group => {
-        if (group.id === 0 || group.id === '0') {
-          rootGroup = group;
-        } else {
+        if (group.id !== 0 && group.id !== '0') {
           userGroups.push(group);
         }
       });
-    }
-    
-    // Если корневая группа не найдена в массиве, используем данные из counts
-    if (!rootGroup && counts.root_name) {
-      rootGroup = {
-        id: 0,
-        name: counts.root_name,
-        parent_id: null,
-        depth: 0
-      };
     }
     
     let html = `
@@ -72,7 +59,7 @@ export class TreeManager {
           <!-- Статический элемент: Все активы -->
           <div class="tree-node active" data-id="all">
             <i class="bi bi-globe folder-icon"></i>
-            <span class="group-name" data-id="all">${rootName}</span>
+            <span class="group-name" data-id="all">Все активы</span>
             <span class="badge bg-primary ms-auto" id="count-all">${counts['all'] || 0}</span>
           </div>
           <!-- Статический элемент: Без группы -->
@@ -80,12 +67,6 @@ export class TreeManager {
             <i class="bi bi-inbox folder-icon"></i>
             <span class="group-name" data-id="ungrouped">Без группы</span>
             <span class="badge bg-secondary ms-auto" id="count-ungrouped">${counts['ungrouped'] || 0}</span>
-          </div>
-          <!-- Корневая группа (инсталляция) -->
-          <div class="tree-node" data-id="0" style="border-top: 1px solid var(--bs-border-color); margin-top: 5px; padding-top: 5px;">
-            <i class="bi bi-folder folder-icon"></i>
-            <span class="group-name" data-id="0">${rootName}</span>
-            <span class="badge bg-secondary ms-auto" id="count-0">${counts['root'] || 0}</span>
           </div>
 
           <!-- Динамический контейнер для пользовательских групп -->
