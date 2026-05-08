@@ -689,7 +689,8 @@ export class TreeManager {
       editBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         // Открываем модальное окно редактирования актива
-        const modal = new bootstrap.Modal(document.getElementById('assetModal'));
+        const modalEl = document.getElementById('assetModal');
+        const modal = new bootstrap.Modal(modalEl);
         document.getElementById('assetId').value = asset.id;
         document.getElementById('assetIp').value = asset.ip_address || '';
         document.getElementById('assetHostname').value = asset.hostname || '';
@@ -701,6 +702,15 @@ export class TreeManager {
         document.getElementById('assetLocation').value = asset.location || '';
         document.getElementById('assetModalLabel').textContent = 'Редактирование актива';
         modal.show();
+        
+        // Очищаем backdrop после закрытия
+        modalEl.addEventListener('hidden.bs.modal', () => {
+          const backdrop = document.querySelector('.modal-backdrop');
+          if (backdrop) backdrop.remove();
+          document.body.classList.remove('modal-open');
+          document.body.style.overflow = '';
+          document.body.style.paddingRight = '';
+        }, { once: true });
       });
     }
 

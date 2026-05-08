@@ -150,6 +150,15 @@ export class GroupManager {
 
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
     modal.show();
+    
+    // Очищаем backdrop после закрытия
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      const backdrop = document.querySelector('.modal-backdrop');
+      if (backdrop) backdrop.remove();
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    }, { once: true });
   }
 
   async showRenameModal(id) {
@@ -196,6 +205,15 @@ export class GroupManager {
       
       const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
       modal.show();
+      
+      // Очищаем backdrop после закрытия
+      modalEl.addEventListener('hidden.bs.modal', () => {
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) backdrop.remove();
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+      }, { once: true });
       return;
     }
 
@@ -254,6 +272,15 @@ export class GroupManager {
 
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
     modal.show();
+    
+    // Очищаем backdrop после закрытия
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      const backdrop = document.querySelector('.modal-backdrop');
+      if (backdrop) backdrop.remove();
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    }, { once: true });
   }
 
   async saveGroup() {
@@ -368,6 +395,15 @@ export class GroupManager {
     
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
     modal.show();
+    
+    // Очищаем backdrop после закрытия
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      const backdrop = document.querySelector('.modal-backdrop');
+      if (backdrop) backdrop.remove();
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    }, { once: true });
   }
 
   async confirmDeleteGroup() {
@@ -419,6 +455,15 @@ export class GroupManager {
     
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
     modal.show();
+    
+    // Очищаем backdrop после закрытия
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      const backdrop = document.querySelector('.modal-backdrop');
+      if (backdrop) backdrop.remove();
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    }, { once: true });
   }
 
   async moveGroup() {

@@ -192,6 +192,15 @@ class ScanHistoryManager {
         document.getElementById('scanResultContent').innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div><br>Загрузка результатов...</div>';
 
         modal.show();
+        
+        // Очищаем backdrop после закрытия
+        modalEl.addEventListener('hidden.bs.modal', () => {
+          const backdrop = document.querySelector('.modal-backdrop');
+          if (backdrop) backdrop.remove();
+          document.body.classList.remove('modal-open');
+          document.body.style.overflow = '';
+          document.body.style.paddingRight = '';
+        }, { once: true });
 
         try {
             const response = await fetch(`/api/scans/${scanId}`);
