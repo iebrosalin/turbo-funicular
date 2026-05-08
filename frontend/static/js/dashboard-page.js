@@ -460,8 +460,18 @@ export class DashboardController {
       document.getElementById('bulk-move-count').textContent = ids.length;
       
       // Открываем модальное окно
-      const modal = new bootstrap.Modal(document.getElementById('bulkMoveModal'));
+      const modalEl = document.getElementById('bulkMoveModal');
+      const modal = new bootstrap.Modal(modalEl);
       modal.show();
+      
+      // Очищаем backdrop после закрытия
+      modalEl.addEventListener('hidden.bs.modal', () => {
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) backdrop.remove();
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+      }, { once: true });
       
       // Сохраняем IDs в data-атрибут кнопки
       const moveBtn = document.getElementById('btn-execute-bulk-move');
@@ -511,8 +521,18 @@ export class DashboardController {
       document.getElementById('bulk-move-count').textContent = '1';
       
       // Открываем модальное окно
-      const modal = new bootstrap.Modal(document.getElementById('bulkMoveModal'));
+      const modalEl = document.getElementById('bulkMoveModal');
+      const modal = new bootstrap.Modal(modalEl);
       modal.show();
+      
+      // Очищаем backdrop после закрытия
+      modalEl.addEventListener('hidden.bs.modal', () => {
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) backdrop.remove();
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+      }, { once: true });
       
       // Сохраняем ID актива в data-атрибут кнопки
       const moveBtn = document.getElementById('btn-execute-bulk-move');
@@ -565,8 +585,18 @@ export class DashboardController {
     deleteBtn.dataset.assetIds = JSON.stringify(ids);
     
     // Открываем модальное окно
-    const modal = new bootstrap.Modal(document.getElementById('bulkDeleteModal'));
+    const modalEl = document.getElementById('bulkDeleteModal');
+    const modal = new bootstrap.Modal(modalEl);
     modal.show();
+    
+    // Очищаем backdrop после закрытия
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      const backdrop = document.querySelector('.modal-backdrop');
+      if (backdrop) backdrop.remove();
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    }, { once: true });
   }
 
   async #executeBulkDelete(ids) {

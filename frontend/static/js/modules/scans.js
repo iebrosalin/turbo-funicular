@@ -340,6 +340,15 @@ export class ScanManager {
     
     m.show();
     
+    // Очищаем backdrop после закрытия
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      const backdrop = document.querySelector('.modal-backdrop');
+      if (backdrop) backdrop.remove();
+      document.body.classList.remove('modal-open');
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    }, { once: true });
+    
     try {
       const r = await fetch(`/api/scans/${id}/results`);
       const d = await r.json();
