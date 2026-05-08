@@ -92,6 +92,29 @@ export class TreeManager {
     node.dataset.id = group.id;
     node.style.paddingLeft = `${depth * 20}px`;
 
+    // Добавляем иконку сворачивания/разворачивания для групп с детьми
+    const hasChildren = group.has_children || (group.children && group.children.length > 0);
+    
+    if (hasChildren) {
+      const toggleIcon = document.createElement('i');
+      toggleIcon.className = 'bi bi-chevron-right toggle-icon';
+      toggleIcon.dataset.action = 'toggle';
+      toggleIcon.style.cursor = 'pointer';
+      toggleIcon.style.fontSize = '0.75rem';
+      toggleIcon.style.width = '16px';
+      toggleIcon.style.height = '16px';
+      toggleIcon.style.display = 'flex';
+      toggleIcon.style.alignItems = 'center';
+      toggleIcon.style.justifyContent = 'center';
+      node.appendChild(toggleIcon);
+    } else {
+      // Пустой спейсер для выравнивания
+      const spacer = document.createElement('span');
+      spacer.style.width = '16px';
+      spacer.style.flexShrink = '0';
+      node.appendChild(spacer);
+    }
+
     const icon = document.createElement('i');
     icon.className = 'bi bi-folder folder-icon';
     node.appendChild(icon);
@@ -107,6 +130,14 @@ export class TreeManager {
     badge.id = `count-${group.id}`;
     badge.textContent = counts[group.id] !== undefined ? counts[group.id] : 0;
     node.appendChild(badge);
+
+    // Сохраняем состояние свернутости и parent_id для вложенности
+    if (hasChildren) {
+      node.dataset.expanded = 'false';
+    }
+    if (group.parent_id !== null && group.parent_id !== undefined) {
+      node.dataset.parentId = group.parent_id;
+    }
 
     return node;
   }
@@ -204,8 +235,95 @@ export class TreeManager {
     initListener('.tree-node[data-id="all"]', 'all');
     initListener('.tree-node[data-id="ungrouped"]', 'ungrouped');
 
+    // Инициализация обработчиков для динамических узлов дерева
+    this.#initTreeToggleListeners();
+
     // Инициализация массовых операций
     this.#initBulkActions();
+  }
+
+  /**
+   * Инициализация обработчиков сворачивания/разворачивания узлов дерева
+   * @private
+   */
+  #initTreeToggleListeners() {
+    // Удаляем старые обработчики и добавляем новые для всех узлов
+    document.querySelectorAll('.tree-node[data-id]').forEach(node => {
+      // Клонируем узел для удаления старых обработчиков
+      const newNode = node.cloneNode(true);
+      node.parentNode.replaceChild(newNode, node);
+
+      newNode.addEventListener('click', (e) => {
+        // Если клик по иконке сворачивания/разворачивания
+        if (e.target.dataset.action === 'toggle') {
+          e.stopPropagation();
+          this.#toggleNode(newNode);
+          return;
+        }
+
+        // Иначе обрабатываем как обычный клик по группе
+        const groupId = newNode.dataset.id;
+        if (groupId) {
+          this.handleGroupClick(groupId);
+        }
+      });
+    });
+  }
+
+  /**
+   * Переключить состояние свернутости/развернутости узла
+   * @private
+   * @param {HTMLElement} node
+   */
+  #toggleNode(node) {
+    const groupId = node.dataset.id;
+    const isExpanded = node.dataset.expanded === 'true';
+    
+    // Находим все дочерние узлы по data-parent-id
+    const childNodes = document.querySelectorAll(`.tree-node[data-parent-id="${groupId}"]`);
+    
+    if (isExpanded) {
+      // Сворачиваем: скрываем детей
+      childNodes.forEach(child => {
+        child.style.display = 'none';
+        // Рекурсивно скрываем внуков, если они были развернуты
+        if (child.dataset.expanded === 'true') {
+          this.#hideDescendants(child.dataset.id);
+        }
+      });
+      node.dataset.expanded = 'false';
+      const toggleIcon = node.querySelector('.toggle-icon');
+      if (toggleIcon) {
+        toggleIcon.classList.remove('bi-chevron-down');
+        toggleIcon.classList.add('bi-chevron-right');
+      }
+    } else {
+      // Разворачиваем: показываем детей
+      childNodes.forEach(child => {
+        child.style.display = 'flex';
+      });
+      node.dataset.expanded = 'true';
+      const toggleIcon = node.querySelector('.toggle-icon');
+      if (toggleIcon) {
+        toggleIcon.classList.remove('bi-chevron-right');
+        toggleIcon.classList.add('bi-chevron-down');
+      }
+    }
+  }
+
+  /**
+   * Рекурсивно скрыть всех потомков узла
+   * @private
+   * @param {string} parentId
+   */
+  #hideDescendants(parentId) {
+    const descendants = document.querySelectorAll(`.tree-node[data-parent-id="${parentId}"]`);
+    descendants.forEach(desc => {
+      desc.style.display = 'none';
+      if (desc.dataset.expanded === 'true') {
+        this.#hideDescendants(desc.dataset.id);
+      }
+    });
   }
 
   /**
