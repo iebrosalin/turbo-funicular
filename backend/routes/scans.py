@@ -143,7 +143,8 @@ async def get_scans_status(db: AsyncSession = Depends(get_db)):
     jobs = list(jobs_result.scalars().all())
     
     # Формируем очереди
-    nmap_rustscan_queue = []
+    nmap_queue = []
+    rustscan_queue = []
     utilities_queue = []
     
     for job in jobs:
@@ -154,21 +155,26 @@ async def get_scans_status(db: AsyncSession = Depends(get_db)):
             "status": job.status
         }
         
-        if job.job_type in ['nmap', 'rustscan']:
-            nmap_rustscan_queue.append(job_info)
+        if job.job_type == 'nmap':
+            nmap_queue.append(job_info)
+        elif job.job_type == 'rustscan':
+            rustscan_queue.append(job_info)
         else:
             utilities_queue.append(job_info)
     
     # Фильтруем активные задачи для очередей
-    active_nmap = [j for j in nmap_rustscan_queue if j['status'] in ['pending', 'running', 'queued']]
+    active_nmap = [j for j in nmap_queue if j['status'] in ['pending', 'running', 'queued']]
+    active_rustscan = [j for j in rustscan_queue if j['status'] in ['pending', 'running', 'queued']]
     active_utilities = [j for j in utilities_queue if j['status'] in ['pending', 'running', 'queued']]
     
     # Текущая задача (первая running)
     current_nmap = next((j for j in active_nmap if j['status'] == 'running'), None)
+    current_rustscan = next((j for j in active_rustscan if j['status'] == 'running'), None)
     current_utility = next((j for j in active_utilities if j['status'] == 'running'), None)
     
     # Очередь задач (без running)
     queued_nmap = [j for j in active_nmap if j['status'] != 'running']
+    queued_rustscan = [j for j in active_rustscan if j['status'] != 'running']
     queued_utilities = [j for j in active_utilities if j['status'] != 'running']
     
     # Формируем recent_jobs (последние 20 задач)
@@ -190,6 +196,12 @@ async def get_scans_status(db: AsyncSession = Depends(get_db)):
                 "current_job_id": current_nmap["job_id"] if current_nmap else None,
                 "is_running": current_nmap is not None,
                 "queued_jobs": queued_nmap
+            },
+            "rustscan": {
+                "queue_length": len(queued_rustscan),
+                "current_job_id": current_rustscan["job_id"] if current_rustscan else None,
+                "is_running": current_rustscan is not None,
+                "queued_jobs": queued_rustscan
             },
             "utilities": {
                 "queue_length": len(queued_utilities),

@@ -24,7 +24,7 @@
                 <div class="col-md-6 mb-3">
                     <div class="card h-100 border-primary">
                         <div class="card-header bg-primary text-white">
-                            <i class="bi bi-hdd-network"></i> Очередь Nmap/Rustscan
+                            <i class="bi bi-hdd-network"></i> Очередь Nmap
                         </div>
                         <div class="card-body">
                             <div class="row text-center">
@@ -50,28 +50,28 @@
                     </div>
                 </div>
                 <div class="col-md-6 mb-3">
-                    <div class="card h-100 border-info">
-                        <div class="card-header bg-info text-white">
-                            <i class="bi bi-tools"></i> Очередь утилит (Dig, DNS)
+                    <div class="card h-100 border-success">
+                        <div class="card-header bg-success text-white">
+                            <i class="bi bi-lightning-charge"></i> Очередь Rustscan
                         </div>
                         <div class="card-body">
                             <div class="row text-center">
                                 <div class="col-4">
                                     <h6 class="text-muted">В очереди</h6>
-                                    <h3 id="utility-queue-count">0</h3>
+                                    <h3 id="rustscan-queue-count">0</h3>
                                 </div>
                                 <div class="col-4">
                                     <h6 class="text-muted">Текущая задача</h6>
-                                    <h5 id="utility-current-job">Нет</h5>
+                                    <h5 id="rustscan-current-job">Нет</h5>
                                 </div>
                                 <div class="col-4">
                                     <h6 class="text-muted">Статус</h6>
-                                    <span id="utility-queue-status" class="badge bg-secondary">Ожидание</span>
+                                    <span id="rustscan-queue-status" class="badge bg-secondary">Ожидание</span>
                                 </div>
                             </div>
                             <hr>
                             <h6>Задачи в очереди:</h6>
-                            <div id="utility-queue-list" class="small text-muted" style="max-height: 150px; overflow-y: auto;">
+                            <div id="rustscan-queue-list" class="small text-muted" style="max-height: 150px; overflow-y: auto;">
                                 <span class="text-muted">Пусто</span>
                             </div>
                         </div>
