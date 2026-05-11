@@ -217,3 +217,11 @@ pre.script-output {
     word-wrap: break-word;
     max-width: 100%;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   NOTIFICATION STYLES
+   ═══════════════════════════════════════════════════════════════ */
+#notifications-container .alert {
+    padding-top: 10px;
+    padding-bottom: 10px;
+}

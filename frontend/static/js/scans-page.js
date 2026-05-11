@@ -252,7 +252,7 @@ export class ScanResultsController {
       if (!response.ok) return;
       const data = await response.json();
       
-      // Очередь Nmap/Rustscan
+      // Очередь Nmap
       const nmapQ = data?.queues?.nmap_rustscan;
       if (nmapQ) {
         const elCount = document.getElementById('nmap-queue-count');
@@ -273,21 +273,21 @@ export class ScanResultsController {
         if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
       }
 
-      // Очередь Utilities (Dig и другие)
-      const utilQ = data?.queues?.utilities;
-      if (utilQ) {
-        const elCount = document.getElementById('utility-queue-count');
-        const elCurrent = document.getElementById('utility-current-job');
-        const elStatus = document.getElementById('utility-queue-status');
-        const elList = document.getElementById('utility-queue-list');
+      // Очередь Rustscan
+      const rustscanQ = data?.queues?.rustscan;
+      if (rustscanQ) {
+        const elCount = document.getElementById('rustscan-queue-count');
+        const elCurrent = document.getElementById('rustscan-current-job');
+        const elStatus = document.getElementById('rustscan-queue-status');
+        const elList = document.getElementById('rustscan-queue-list');
 
-        if (elCount) elCount.textContent = utilQ.queue_length;
-        if (elCurrent) elCurrent.textContent = utilQ.current_job_id ? `#${utilQ.current_job_id}` : 'Нет';
-        if (elStatus) elStatus.textContent = utilQ.is_running ? 'Выполняется' : 'Ожидание';
+        if (elCount) elCount.textContent = rustscanQ.queue_length;
+        if (elCurrent) elCurrent.textContent = rustscanQ.current_job_id ? `#${rustscanQ.current_job_id}` : 'Нет';
+        if (elStatus) elStatus.textContent = rustscanQ.is_running ? 'Выполняется' : 'Ожидание';
         
         let html = '';
-        if (Array.isArray(utilQ.queued_jobs)) {
-          utilQ.queued_jobs.forEach(job => { 
+        if (Array.isArray(rustscanQ.queued_jobs)) {
+          rustscanQ.queued_jobs.forEach(job => { 
             html += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`; 
           });
         }
@@ -522,27 +522,27 @@ export class ScanResultsController {
             html += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`; 
           });
         }
-        if (elList) elList.innerHTML = html;
+        if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
       }
 
-      const utilQ = data?.queues?.utilities;
-      if (utilQ) {
-        const elCount = document.getElementById('utility-queue-count');
-        const elCurrent = document.getElementById('utility-current-job');
-        const elStatus = document.getElementById('utility-queue-status');
-        const elList = document.getElementById('utility-queue-list');
+      const rustscanQ = data?.queues?.rustscan;
+      if (rustscanQ) {
+        const elCount = document.getElementById('rustscan-queue-count');
+        const elCurrent = document.getElementById('rustscan-current-job');
+        const elStatus = document.getElementById('rustscan-queue-status');
+        const elList = document.getElementById('rustscan-queue-list');
 
-        if (elCount) elCount.textContent = utilQ.queue_length;
-        if (elCurrent) elCurrent.textContent = utilQ.current_job_id ? `#${utilQ.current_job_id}` : 'Нет';
-        if (elStatus) elStatus.textContent = utilQ.is_running ? 'Выполняется' : 'Ожидание';
+        if (elCount) elCount.textContent = rustscanQ.queue_length;
+        if (elCurrent) elCurrent.textContent = rustscanQ.current_job_id ? `#${rustscanQ.current_job_id}` : 'Нет';
+        if (elStatus) elStatus.textContent = rustscanQ.is_running ? 'Выполняется' : 'Ожидание';
         
         let html = '';
-        if (Array.isArray(utilQ.queued_jobs)) {
-          utilQ.queued_jobs.forEach(job => { 
+        if (Array.isArray(rustscanQ.queued_jobs)) {
+          rustscanQ.queued_jobs.forEach(job => { 
             html += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`; 
           });
         }
-        if (elList) elList.innerHTML = html;
+        if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
       }
     } catch (e) {
       console.error('Update queue status error:', e);

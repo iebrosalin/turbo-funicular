@@ -252,28 +252,26 @@ async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_d
 async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession = Depends(get_db), username: Optional[str] = None):
     """Обновить актив."""
     service = AssetService(db)
-    asset = await service.update(asset_id, asset_data, username=username)
-    if not asset:
+    asset_dict = await service.update(asset_id, asset_data, username=username)
+    if not asset_dict:
         raise HTTPException(status_code=404, detail="Актив не найден")
     
-    # Явно загружаем связи для ответа
-    await db.refresh(asset, attribute_names=['groups'])
-    
-    # Создаем ответ вручную, чтобы корректно установить group_id
+    # Создаем ответ из словаря
     group_id = None
-    if asset.groups and len(asset.groups) > 0:
-        group_id = asset.groups[0].id
+    groups_data = asset_dict.get('groups', [])
+    if groups_data and len(groups_data) > 0:
+        group_id = groups_data[0].get('id')
     
     return AssetResponse(
-        id=asset.id,
-        ip_address=asset.ip_address,
-        hostname=asset.hostname,
-        os_family=asset.os_family,
-        status=asset.status,
-        location=asset.location,
+        id=asset_dict['id'],
+        ip_address=asset_dict['ip_address'],
+        hostname=asset_dict['hostname'],
+        os_family=asset_dict['os_family'],
+        status=asset_dict['status'],
+        location=asset_dict['location'],
         group_id=group_id,
-        created_at=asset.created_at,
-        updated_at=asset.updated_at
+        created_at=asset_dict['created_at'],
+        updated_at=asset_dict['updated_at']
     )
 
 
