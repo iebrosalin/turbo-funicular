@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from backend.models.asset import Asset
 from backend.models.group import Group
@@ -263,7 +264,13 @@ class ScanProcessor:
 
     async def _upsert_asset(self, ip: str, updates: Dict[str, Any]):
         """Создает или обновляет актив."""
-        result = await self.db.execute(select(Asset).where(Asset.ip_address == ip))
+        # Явно загружаем актив со всеми связями чтобы избежать ленивой загрузки
+        result = await self.db.execute(
+            select(Asset).options(
+                selectinload(Asset.groups),
+                selectinload(Asset.services)
+            ).where(Asset.ip_address == ip)
+        )
         asset = result.scalar_one_or_none()
         
         # Определяем активность по наличию открытых портов

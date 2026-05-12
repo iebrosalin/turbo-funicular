@@ -174,13 +174,15 @@ async def get_assets(
     if include_taxonomy:
         result = []
         for asset in assets:
-            asset_dict = asset.to_dict() if hasattr(asset, 'to_dict') else (asset.model_dump() if hasattr(asset, 'model_dump') else asset.__dict__)
+            # Конвертируем ORM-объект в словарь пока сессия активна
+            asset_dict = service._asset_to_dict(asset)
             taxonomy = generate_asset_taxonomy(asset)
             asset_dict['taxonomy'] = taxonomy
             result.append(asset_dict)
         return result
     
-    return assets
+    # Конвертируем все активы в словари пока сессия активна
+    return [service._asset_to_dict(asset) for asset in assets]
 
 
 @router.get("/{asset_id}", response_model=AssetResponse)

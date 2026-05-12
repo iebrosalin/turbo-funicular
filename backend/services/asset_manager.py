@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Optional, List, Set, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from backend.models.asset import Asset
 from backend.models.service import ServiceInventory
@@ -44,7 +45,8 @@ async def upsert_asset(
     :param open_ports: Список открытых портов для определения активности (опционально)
     :return: Объект актива
     """
-    stmt = select(Asset).where(Asset.ip_address == ip_address)
+    # Явно загружаем актив со связями чтобы избежать ленивой загрузки
+    stmt = select(Asset).options(selectinload(Asset.groups)).where(Asset.ip_address == ip_address)
     result = await db.execute(stmt)
     asset = result.scalar_one_or_none()
     

@@ -243,24 +243,23 @@ class AssetService:
     
     async def update(self, asset_id: int, asset_data: AssetUpdate, username: Optional[str] = None) -> Optional[dict]:
         """Обновить актив с записью в лог изменений."""
-        # Получаем актив как словарь (текущее состояние)
-        current_asset_dict = await self.get_by_id(asset_id)
-        if not current_asset_dict:
-            return None
-        
-        # Для обновления нам нужно получить ORM-объект
-        query = select(Asset).where(Asset.id == asset_id)
+        # Для обновления нам нужно получить ORM-объект с предзагруженными связями
+        query = select(Asset).options(
+            selectinload(Asset.groups),
+            selectinload(Asset.services)
+        ).where(Asset.id == asset_id)
         result = await self.db.execute(query)
         asset = result.scalar_one_or_none()
         
         if not asset:
             return None
         
+        # Собираем изменения для логирования (текущие значения)
+        changed_fields = {}
+        
         update_data = asset_data.model_dump(exclude_unset=True)
         group_ids = update_data.pop('groups', None)
         
-        # Собираем изменения для логирования
-        changed_fields = {}
         for field, value in update_data.items():
             old_value = getattr(asset, field, None)
             if old_value != value:
@@ -292,7 +291,6 @@ class AssetService:
                 changed_fields['groups'] = {'old': old_group_names, 'new': new_group_names}
         
         await self.db.flush()
-        await self.db.refresh(asset)
         
         # Записываем в лог изменений если были изменения
         if changed_fields:
@@ -307,8 +305,20 @@ class AssetService:
             await self.db.execute(stmt)
             await self.db.flush()
         
+        # После flush и коммита связанных данных, заново получаем актив со всеми связями
+        # Это гарантирует, что все данные загружены в рамках активной сессии
+        refresh_query = select(Asset).options(
+            selectinload(Asset.groups),
+            selectinload(Asset.services)
+        ).where(Asset.id == asset_id)
+        refresh_result = await self.db.execute(refresh_query)
+        refreshed_asset = refresh_result.scalar_one_or_none()
+        
+        if not refreshed_asset:
+            return None
+        
         # Возвращаем обновленные данные как словарь
-        return self._asset_to_dict(asset)
+        return self._asset_to_dict(refreshed_asset)
     
     async def delete(self, asset_id: int, username: Optional[str] = None) -> bool:
         """Удалить актив с записью в лог."""
