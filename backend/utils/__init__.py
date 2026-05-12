@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 import logging
 import json
 
@@ -55,8 +56,8 @@ async def create_asset_if_not_exists(
     from backend.models.asset import Asset
     from backend.models.group import AssetGroup
     
-    # Проверяем существование
-    query = select(Asset).where(Asset.ip_address == ip_address)
+    # Проверяем существование с явной загрузкой связей
+    query = select(Asset).options(selectinload(Asset.groups)).where(Asset.ip_address == ip_address)
     result = await db.execute(query)
     asset = result.scalar_one_or_none()
     
