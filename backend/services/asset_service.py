@@ -219,21 +219,22 @@ class AssetService:
     async def create(self, asset_data: AssetCreate) -> Asset:
         """Создать новый актив."""
         data = asset_data.model_dump()
-        group_id = data.pop('group_id', None)
+        group_ids = data.pop('groups', None)
         
         asset = Asset(**data)
         
-        # Если указана группа, добавляем связь
-        if group_id is not None:
-            group_query = select(Group).where(Group.id == group_id)
-            group_result = await self.db.execute(group_query)
-            group = group_result.scalar_one_or_none()
-            if group:
-                asset.groups.append(group)
-            else:
-                # Группа не найдена - выбрасываем ошибку
-                from fastapi import HTTPException
-                raise HTTPException(status_code=400, detail=f"Группа с ID {group_id} не найдена")
+        # Если указаны группы, добавляем связи
+        if group_ids is not None and len(group_ids) > 0:
+            for gid in group_ids:
+                group_query = select(Group).where(Group.id == gid)
+                group_result = await self.db.execute(group_query)
+                group = group_result.scalar_one_or_none()
+                if group:
+                    asset.groups.append(group)
+                else:
+                    # Группа не найдена - выбрасываем ошибку
+                    from fastapi import HTTPException
+                    raise HTTPException(status_code=400, detail=f"Группа с ID {gid} не найдена")
         
         self.db.add(asset)
         await self.db.flush()
@@ -256,7 +257,7 @@ class AssetService:
             return None
         
         update_data = asset_data.model_dump(exclude_unset=True)
-        group_id = update_data.pop('group_id', None)
+        group_ids = update_data.pop('groups', None)
         
         # Собираем изменения для логирования
         changed_fields = {}
@@ -267,7 +268,7 @@ class AssetService:
             setattr(asset, field, value)
         
         # Обновляем связи с группами
-        if group_id is not None:
+        if group_ids is not None:
             # Получаем текущие группы для логирования
             old_group_ids = [g.id for g in asset.groups]
             old_group_names = [g.name for g in asset.groups]
@@ -275,18 +276,16 @@ class AssetService:
             # Очищаем текущие группы
             asset.groups.clear()
             
-            # Добавляем новую группу если указана
-            if group_id:
-                group_query = select(Group).where(Group.id == group_id)
-                group_result = await self.db.execute(group_query)
-                group = group_result.scalar_one_or_none()
-                if group:
-                    asset.groups.append(group)
-                    new_group_names = [group.name]
-                else:
-                    new_group_names = []
-            else:
-                new_group_names = []
+            # Добавляем новые группы если указаны
+            new_group_names = []
+            if group_ids and len(group_ids) > 0:
+                for gid in group_ids:
+                    group_query = select(Group).where(Group.id == gid)
+                    group_result = await self.db.execute(group_query)
+                    group = group_result.scalar_one_or_none()
+                    if group:
+                        asset.groups.append(group)
+                        new_group_names.append(group.name)
             
             # Логируем изменение группы
             if old_group_names != new_group_names:

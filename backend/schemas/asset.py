@@ -8,7 +8,7 @@ class AssetBase(BaseModel):
     ip_address: str = Field(..., description="IP адрес")
     hostname: Optional[str] = Field(None, description="Имя хоста")
     os_family: Optional[str] = Field(None, description="Семейство ОС")
-    group_id: Optional[int] = Field(None, description="ID группы")
+    groups: Optional[List[int]] = Field(None, description="Список ID групп")
     status: Optional[str] = Field("active", description="Статус")
     location: Optional[str] = Field(None, description="Расположение")
 
@@ -22,7 +22,7 @@ class AssetUpdate(BaseModel):
     """Схема для обновления актива."""
     hostname: Optional[str] = None
     os_family: Optional[str] = None
-    group_id: Optional[int] = None
+    groups: Optional[List[int]] = None
     status: Optional[str] = None
     location: Optional[str] = None
 
@@ -54,8 +54,8 @@ class AssetResponse(BaseModel):
     last_nmap: Optional[datetime] = None
     last_dns_scan: Optional[datetime] = None
     last_seen: Optional[datetime] = None
-    group_id: Optional[int] = None
-    groups: Optional[List[str]] = None
+    group_id: Optional[int] = None  # Для обратной совместимости (первый элемент groups)
+    groups: Optional[List[Dict[str, Any]]] = None  # Список объектов групп {id, name}
     created_at: datetime
     updated_at: Optional[datetime] = None
     taxonomy: Optional[dict] = None

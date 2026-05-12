@@ -37,7 +37,7 @@ async def create_asset_if_not_exists(
     ip_address: str,
     hostname: Optional[str] = None,
     mac_address: Optional[str] = None,
-    group_id: Optional[int] = None
+    groups: Optional[List[int]] = None
 ) -> Any:
     """
     Создать актив если он не существует, иначе вернуть существующий.
@@ -47,7 +47,7 @@ async def create_asset_if_not_exists(
         ip_address: IP адрес актива
         hostname: Имя хоста (опционально)
         mac_address: MAC адрес (опционально)
-        group_id: ID группы (опционально)
+        groups: Список ID групп (опционально)
     
     Returns:
         Экземпляр модели Asset
@@ -74,16 +74,17 @@ async def create_asset_if_not_exists(
     db.add(asset)
     await db.flush()
     
-    # Если указан group_id, добавляем актив в группу
-    if group_id is not None:
-        group_query = select(AssetGroup).where(AssetGroup.id == group_id)
-        group_result = await db.execute(group_query)
-        group = group_result.scalar_one_or_none()
-        if group:
-            asset.groups.append(group)
-            logger.info(f"[AssetManager] Добавлен актив {asset.id} в группу {group.name} (ID: {group_id})")
-        else:
-            logger.warning(f"[AssetManager] Группа с ID {group_id} не найдена, актив создан без группы")
+    # Если указаны groups, добавляем актив в группы
+    if groups is not None and len(groups) > 0:
+        for gid in groups:
+            group_query = select(AssetGroup).where(AssetGroup.id == gid)
+            group_result = await db.execute(group_query)
+            group = group_result.scalar_one_or_none()
+            if group:
+                asset.groups.append(group)
+                logger.info(f"[AssetManager] Добавлен актив {asset.id} в группу {group.name} (ID: {gid})")
+            else:
+                logger.warning(f"[AssetManager] Группа с ID {gid} не найдена, пропускаем")
     
     await db.refresh(asset)
     logger.info(f"[AssetManager] Успешно создан актив {asset.id} для IP: {ip_address} (hostname: {hostname})")
@@ -317,15 +318,22 @@ def build_complex_query(
         )
     
     if ungrouped:
-        # Активы без группы
-        query = query.where(Asset.group_id.is_(None))
+        # Активы без группы - используем таблицу связи many-to-many
+        # Выбираем активы, у которых нет записей в asset_groups
+        from sqlalchemy import not_, exists
+        query = query.where(
+            not_(exists().where(asset_groups.c.asset_id == Asset.id))
+        )
     elif group_id is not None:
-        # Включая подгруппы
+        # Включая подгруппы - используем таблицу связи many-to-many
         from sqlalchemy.orm import aliased
         sub_group = aliased(AssetGroup)
         query = query.join(
+            asset_groups,
+            Asset.id == asset_groups.c.asset_id
+        ).join(
             sub_group,
-            (Asset.group_id == sub_group.id) | 
+            (asset_groups.c.group_id == sub_group.id) | 
             (sub_group.path.like(f"%/{group_id}/%"))
         )
     

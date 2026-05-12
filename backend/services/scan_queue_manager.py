@@ -470,25 +470,19 @@ class ScanQueueManager:
                     # Это надежнее чем парсинг возвращаемых данных в цикле
                     try:
                         from backend.services.scan_processor import ScanProcessor
-                        from backend.db.session import sync_session_maker
 
-                        # Явно коммитим изменения чтобы они были видны в синхронной сессии
-                        await db.commit()
-                        
-                        # Получаем актуальные параметры задачи ПЕРЕД созданием синхронной сессии
-                        # и передаем их напрямую в процессор чтобы избежать проблем с изоляцией БД
+                        # Получаем актуальные параметры задачи и передаем их напрямую в процессор
                         job_params = job.parameters.copy() if job.parameters else {}
                         raw_output_value = job_params.get('raw_output', '')
                         logger.info(f"[DEBUG] Перед ScanProcessor: job.parameters содержит ключи: {job_params.keys()}")
                         logger.info(f"[DEBUG] Перед ScanProcessor: raw_output длина={len(raw_output_value)}, первые 100 символов: {raw_output_value[:100] if raw_output_value else 'ПУСТО'}")
 
-                        # Создаем синхронную сессию для процессора
-                        with sync_session_maker() as sync_db:
-                            processor = ScanProcessor(sync_db)
-                            logger.info(f"[ScanProcessor] Запуск обработки результатов для задачи {scan_job_id}")
-                            # Передаем параметры напрямую чтобы избежать проблем с чтением из БД
-                            processor.process(scan_job_id, parameters=job_params)
-                            logger.info(f"[ScanProcessor] Обработка результатов задачи {scan_job_id} завершена")
+                        # Создаем асинхронный процессор с той же сессией
+                        processor = ScanProcessor(db)
+                        logger.info(f"[ScanProcessor] Запуск обработки результатов для задачи {scan_job_id}")
+                        # Передаем параметры напрямую чтобы избежать проблем с чтением из БД
+                        await processor.process(scan_job_id, parameters=job_params)
+                        logger.info(f"[ScanProcessor] Обработка результатов задачи {scan_job_id} завершена")
                     except Exception as proc_err:
                         logger.error(f"Ошибка в ScanProcessor для задачи {scan_job_id}: {proc_err}", exc_info=True)
                         # Не прерываем завершение задачи, но логируем ошибку

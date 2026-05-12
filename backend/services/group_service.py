@@ -45,6 +45,17 @@ class GroupService:
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
     
+    async def get_assets_count(self, group_id: int) -> int:
+        """Получить количество активов в группе."""
+        from backend.models.asset import asset_groups
+        from sqlalchemy import func
+        
+        stmt = select(func.count(asset_groups.c.asset_id)).where(
+            asset_groups.c.group_id == group_id
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one() or 0
+    
     async def create(self, group_data: GroupCreate) -> Group:
         """Создать новую группу."""
         group = Group(**group_data.model_dump(exclude_unset=True))

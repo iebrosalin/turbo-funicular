@@ -28,12 +28,11 @@ class Group(Base):
     assets = relationship("Asset", secondary="asset_groups", back_populates="groups")
     scans = relationship("Scan", back_populates="group", cascade="all, delete-orphan")
     
-    def to_dict(self, include_children=False):
-        """Конвертировать группу в словарь с подсчётом активов."""
-        from sqlalchemy import select, func
-        from backend.db.session import get_sync_session
-        from backend.models.asset import asset_groups
+    def to_dict(self):
+        """Конвертировать группу в словарь без подсчёта активов.
         
+        Для получения количества активов используйте отдельный асинхронный метод сервиса.
+        """
         result = {
             'id': self.id,
             'uuid': self.uuid,
@@ -48,19 +47,8 @@ class Group(Base):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
         
-        # Подсчёт активов через many-to-many связь
-        try:
-            with get_sync_session() as session:
-                stmt = select(func.count(asset_groups.c.asset_id)).where(
-                    asset_groups.c.group_id == self.id
-                )
-                assets_count = session.scalar(stmt)
-                result['assets_count'] = assets_count or 0
-        except Exception:
-            result['assets_count'] = 0
-        
-        if include_children and hasattr(self, 'children') and self.children:
-            result['children'] = [child.to_dict(include_children=True) for child in self.children]
+        if hasattr(self, '_children_list') and self._children_list:
+            result['children'] = [child.to_dict() for child in self._children_list]
         
         return result
 # Алиас для совместимости со старым кодом

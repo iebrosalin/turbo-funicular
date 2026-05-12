@@ -159,7 +159,7 @@ class NmapXmlImporter:
                 db=self.db,
                 ip_address=host_data['ip_address'],
                 hostname=host_data.get('hostname'),
-                group_id=group_id
+                groups=[group_id] if group_id is not None else None
             )
             
             # Обновляем информацию об ОС
