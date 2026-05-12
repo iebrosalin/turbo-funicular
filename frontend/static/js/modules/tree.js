@@ -405,12 +405,15 @@ export class TreeManager {
         }
         
         try {
-          const response = await fetch(`/api/assets/bulk-move?group_id=${groupId === null ? '' : groupId}`, {
+          const response = await fetch('/api/assets/bulk-move', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify(selectedIds),
+            body: JSON.stringify({
+              ids: selectedIds,
+              group_id: groupId,
+            }),
           });
           
           if (!response.ok) {
