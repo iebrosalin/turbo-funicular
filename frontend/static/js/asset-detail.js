@@ -130,10 +130,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Группы (если есть select)
+        // Группы (если есть select) - теперь передаем как массив IDs
         const groupSelect = document.querySelector('[name="group_id"]');
         if (groupSelect && !groupSelect.disabled) {
-            data.group_id = groupSelect.value ? parseInt(groupSelect.value) : null;
+            // Для обратной совместимости с текущим UI (один select), 
+            // но в формате массива для нового API
+            const selectedValue = groupSelect.value ? parseInt(groupSelect.value) : null;
+            data.groups = selectedValue !== null ? [selectedValue] : [];
         }
 
         // DNS имена (textarea)

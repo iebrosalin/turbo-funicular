@@ -3,11 +3,11 @@ import json
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from backend.models.asset import Asset
-from backend.models.group import AssetGroup
+from backend.models.group import Group
 from backend.models.scan import ScanJob
 from backend.models.service import ServiceInventory
 from backend.schemas.scan import ScanStatus
@@ -15,17 +15,17 @@ from backend.schemas.scan import ScanStatus
 logger = logging.getLogger(__name__)
 
 class ScanProcessor:
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
 
-    def process(self, job_id: int, parameters: Optional[Dict[str, Any]] = None):
+    async def process(self, job_id: int, parameters: Optional[Dict[str, Any]] = None):
         """Основной метод обработки результатов сканирования.
         
         Args:
             job_id: ID задачи сканирования
             parameters: Опциональные параметры задачи (чтобы избежать проблем с чтением из БД)
         """
-        job = self.db.get(ScanJob, job_id)
+        job = await self.db.get(ScanJob, job_id)
         if not job:
             logger.error(f"Задача {job_id} не найдена.")
             return
@@ -45,23 +45,23 @@ class ScanProcessor:
 
         try:
             if job.job_type == 'nmap':
-                self._process_nmap(job, job_params)
+                await self._process_nmap(job, job_params)
             elif job.job_type == 'rustscan':
-                self._process_rustscan(job, job_params)
+                await self._process_rustscan(job, job_params)
             elif job.job_type == 'dig':
-                self._process_dig(job, job_params)
+                await self._process_dig(job, job_params)
             
             job.status = ScanStatus.COMPLETED.value
             job.completed_at = datetime.utcnow()
-            self.db.commit()
+            await self.db.commit()
             logger.info(f"Задача {job_id} успешно обработана и помечена как завершенная.")
         except Exception as e:
             logger.error(f"Ошибка при обработке задачи {job_id}: {e}", exc_info=True)
             job.status = ScanStatus.FAILED.value
             job.error_message = str(e)
-            self.db.commit()
+            await self.db.commit()
 
-    def _process_nmap(self, job: ScanJob, job_params: Dict[str, Any]):
+    async def _process_nmap(self, job: ScanJob, job_params: Dict[str, Any]):
         """Обработка результатов Nmap из XML строки."""
         # Сначала пробуем получить XML из output_xml, затем из raw_output для обратной совместимости
         xml_str = job_params.get('output_xml', '') or job_params.get('raw_output', '')
@@ -158,7 +158,7 @@ class ScanProcessor:
                 os_family = os_match.get('name', '').split()[0] # Берем первое слово (например, Linux)
 
             # Обновление или создание актива (без services)
-            self._upsert_asset(ip_addr, {
+            await self._upsert_asset(ip_addr, {
                 "hostname": hostname,
                 "open_ports": open_ports,
                 "os_family": os_family,
@@ -167,16 +167,17 @@ class ScanProcessor:
             
             # Обработка сервисов - создаем/обновляем записи ServiceInventory
             # Нужно получить asset после _upsert_asset
-            asset = self.db.execute(select(Asset).where(Asset.ip_address == ip_addr)).scalar_one_or_none()
+            result = await self.db.execute(select(Asset).where(Asset.ip_address == ip_addr))
+            asset = result.scalar_one_or_none()
             if asset and services:
-                self._upsert_services(asset, services)
+                await self._upsert_services(asset, services)
                 logger.debug(f"  - Обновлено сервисов: {len(services)}")
             
             hosts_count += 1
 
         logger.info(f"Nmap: Обработано {hosts_count} хостов.")
 
-    def _process_rustscan(self, job: ScanJob, job_params: Dict[str, Any]):
+    async def _process_rustscan(self, job: ScanJob, job_params: Dict[str, Any]):
         """Обработка результатов Rustscan из raw_output."""
         raw_output = job_params.get('raw_output', '')
         
@@ -203,7 +204,7 @@ class ScanProcessor:
         hosts_count = 0
         for ip, ports in hosts_data.items():
             # Создаем/обновляем актив
-            self._upsert_asset(ip, {
+            await self._upsert_asset(ip, {
                 "open_ports": list(ports),
                 "group_id": job.scan.group_id
             })
@@ -211,7 +212,7 @@ class ScanProcessor:
         
         logger.info(f"Rustscan: Обработано {hosts_count} хостов.")
 
-    def _process_dig(self, job: ScanJob, job_params: Dict[str, Any]):
+    async def _process_dig(self, job: ScanJob, job_params: Dict[str, Any]):
         """Обработка результатов Dig из данных задачи."""
         # Получаем DNS записи из параметров задачи
         dns_records = job_params.get('dns_records', [])
@@ -238,14 +239,15 @@ class ScanProcessor:
                 dns_by_ip[ip].append(rec)
                 
                 # Создаем актив если нет
-                self._upsert_asset(ip, {
+                await self._upsert_asset(ip, {
                     "hostname": rec_name, # Имя из запроса
                     "group_id": job.scan.group_id
                 })
         
         # Обновляем DNS записи у активов
         for ip, recs in dns_by_ip.items():
-            asset = self.db.execute(select(Asset).where(Asset.ip_address == ip)).scalar_one_or_none()
+            result = await self.db.execute(select(Asset).where(Asset.ip_address == ip))
+            asset = result.scalar_one_or_none()
             if asset:
                 current_dns = asset.dns_records or []
                 # Объединяем, избегая дублей (простая логика)
@@ -256,29 +258,43 @@ class ScanProcessor:
                     asset.dns_records = (current_dns + new_recs)
                     logger.debug(f"Добавлено {len(new_recs)} DNS записей для {ip}")
         
-        self.db.commit()
+        await self.db.commit()
         logger.info(f"Dig: Обработано {len(dns_records)} записей.")
 
-    def _upsert_asset(self, ip: str, updates: Dict[str, Any]):
+    async def _upsert_asset(self, ip: str, updates: Dict[str, Any]):
         """Создает или обновляет актив."""
-        asset = self.db.execute(select(Asset).where(Asset.ip_address == ip)).scalar_one_or_none()
+        result = await self.db.execute(select(Asset).where(Asset.ip_address == ip))
+        asset = result.scalar_one_or_none()
         
         # Определяем активность по наличию открытых портов
         new_open_ports = updates.get('open_ports', [])
         has_open_ports = len(new_open_ports) > 0
+        
+        # Получаем group_id из обновлений для работы с группой
+        group_id = updates.get('group_id')
         
         if not asset:
             # Новый актив: статус зависит от наличия открытых портов
             status = 'active' if has_open_ports else 'inactive'
             asset = Asset(ip_address=ip, status=status)
             self.db.add(asset)
-            logger.info(f"[SCAN_PROCESS] СОЗДАН НОВЫЙ АКТИВ: IP={ip}, Группа={updates.get('group_id')}, Статус={status}")
+            logger.info(f"[SCAN_PROCESS] СОЗДАН НОВЫЙ АКТИВ: IP={ip}, Группа={group_id}, Статус={status}")
+            
+            # Если указана группа, добавляем связь для нового актива
+            if group_id:
+                group_result = await self.db.execute(select(Group).where(Group.id == group_id))
+                group = group_result.scalar_one_or_none()
+                if group:
+                    asset.groups.append(group)
+                    logger.debug(f"  - Добавлена группа {group.name} для нового актива {ip}")
+                else:
+                    logger.warning(f"  - Группа с ID {group_id} не найдена для актива {ip}")
         else:
             logger.info(f"[SCAN_PROCESS] ОБНОВЛЕНИЕ АКТИВА: IP={ip}")
 
         # Применяем обновления
         for key, value in updates.items():
-            if value is not None:
+            if value is not None and key != 'group_id':  # group_id обрабатывается отдельно
                 # Для списков (порты, сервисы) можно решать: заменять или дополнять.
                 # Здесь заменяем данными последнего сканирования для простоты, 
                 # либо можно реализовать мерж.
@@ -314,20 +330,35 @@ class ScanProcessor:
         else:
             asset.status = 'inactive'
         
-        # Группа
-        if updates.get('group_id'):
-            asset.group_id = updates['group_id']
+        # Обновляем группу для существующего актива
+        if group_id and asset.id:  # Только для существующих активов (у новых уже добавлено выше)
+            # Получаем текущие группы
+            current_group_ids = [g.id for g in asset.groups]
+            
+            # Если группа изменилась, обновляем связь
+            if current_group_ids != [group_id]:
+                # Очищаем текущие группы
+                asset.groups.clear()
+                
+                # Добавляем новую группу
+                group_result = await self.db.execute(select(Group).where(Group.id == group_id))
+                group = group_result.scalar_one_or_none()
+                if group:
+                    asset.groups.append(group)
+                    logger.debug(f"  - Обновлена группа на {group.name} для актива {ip}")
+                else:
+                    logger.warning(f"  - Группа с ID {group_id} не найдена для актива {ip}")
             
         asset.updated_at = datetime.utcnow()
         
-        self.db.commit()
+        await self.db.commit()
         logger.info(f"[SCAN_PROCESS] Изменения закоммичены для актива {ip}")
 
-    def _upsert_services(self, asset: Asset, services_data: List[Dict[str, Any]]):
+    async def _upsert_services(self, asset: Asset, services_data: List[Dict[str, Any]]):
         """Создает или обновляет сервисы для актива."""
         # Удаляем старые сервисы для этого актива (полная замена)
         asset.services.clear()
-        self.db.flush()  # Применяем удаление перед добавлением новых
+        await self.db.flush()  # Применяем удаление перед добавлением новых
         
         for svc in services_data:
             service = ServiceInventory(
@@ -353,5 +384,5 @@ class ScanProcessor:
             
             self.db.add(service)
         
-        self.db.flush()  # Флешим чтобы получить ID и применить изменения
+        await self.db.flush()  # Флешим чтобы получить ID и применить изменения
         logger.debug(f"  - Создано/обновлено {len(services_data)} сервисов для {asset.ip_address}")

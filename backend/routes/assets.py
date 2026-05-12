@@ -229,11 +229,13 @@ async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_d
     
     asset = await service.create(asset_data)
     
-    # Создаем ответ вручную, чтобы корректно установить group_id
+    # Создаем ответ вручную, чтобы корректно установить group_id и groups
     from backend.schemas.asset import AssetResponse
     group_id = None
+    groups_list = []
     if asset.groups and len(asset.groups) > 0:
-        group_id = asset.groups[0].id
+        groups_list = [{'id': g.id, 'name': g.name} for g in asset.groups]
+        group_id = groups_list[0]['id']
     
     return AssetResponse(
         id=asset.id,
@@ -243,6 +245,7 @@ async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_d
         status=asset.status,
         location=asset.location,
         group_id=group_id,
+        groups=groups_list,
         created_at=asset.created_at,
         updated_at=asset.updated_at
     )
@@ -257,8 +260,8 @@ async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession 
         raise HTTPException(status_code=404, detail="Актив не найден")
     
     # Создаем ответ из словаря
-    group_id = None
     groups_data = asset_dict.get('groups', [])
+    group_id = None
     if groups_data and len(groups_data) > 0:
         group_id = groups_data[0].get('id')
     
@@ -270,6 +273,7 @@ async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession 
         status=asset_dict['status'],
         location=asset_dict['location'],
         group_id=group_id,
+        groups=groups_data,
         created_at=asset_dict['created_at'],
         updated_at=asset_dict['updated_at']
     )
