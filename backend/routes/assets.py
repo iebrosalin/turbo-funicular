@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy import select
 from typing import List, Optional, Any, Dict
 from pydantic import BaseModel
 import json
@@ -200,8 +201,14 @@ async def get_asset_page(request: Request, asset_id: int, db: AsyncSession = Dep
     """Отобразить страницу детали актива."""
     from fastapi.responses import JSONResponse
     
-    service = AssetService(db)
-    asset = await service.get_by_id(asset_id)
+    # Получаем ORM-объект напрямую с предзагрузкой связей
+    query = select(Asset).options(
+        selectinload(Asset.groups),
+        selectinload(Asset.services)
+    ).where(Asset.id == asset_id)
+    result = await db.execute(query)
+    asset = result.scalar_one_or_none()
+    
     if not asset:
         # Возвращаем JSON ошибку вместо HTML 404 страницы
         return JSONResponse(
@@ -210,6 +217,7 @@ async def get_asset_page(request: Request, asset_id: int, db: AsyncSession = Dep
         )
     
     # Получаем историю изменений
+    service = AssetService(db)
     change_logs = await service.get_change_logs(asset_id, limit=50)
     
     return templates.TemplateResponse("asset_detail.html", {
