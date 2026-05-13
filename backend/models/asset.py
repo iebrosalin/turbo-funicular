@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Boolean, Index, JSON, Table
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Boolean, Index, JSON, Table, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
@@ -118,4 +118,81 @@ class Asset(Base):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'groups': [g.name for g in self.groups]
+        }
+
+
+class RedCheckHost(Base):
+    """Модель хоста (актива) из RedCheck."""
+    
+    __tablename__ = "redcheck_hosts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    external_id = Column(String(100), unique=True, nullable=False, index=True)  # ID в RedCheck
+    
+    # Основная информация
+    hostname = Column(String(255), nullable=True)
+    ip_address = Column(String(45), nullable=True, index=True)
+    mac_address = Column(String(17), nullable=True)
+    
+    # ОС
+    os_type = Column(String(100), nullable=True)  # Windows, Linux, etc.
+    os_version = Column(String(255), nullable=True)
+    os_architecture = Column(String(50), nullable=True)
+    
+    # Статус
+    status = Column(String(50), default="active")  # active, inactive, unknown
+    is_active = Column(Boolean, default=True)
+    
+    # Группы
+    groups = Column(Text, nullable=True)  # Список групп через запятую
+    
+    # Уязвимости
+    vulnerabilities_count = Column(Integer, default=0)
+    critical_vulnerabilities = Column(Integer, default=0)
+    high_vulnerabilities = Column(Integer, default=0)
+    medium_vulnerabilities = Column(Integer, default=0)
+    low_vulnerabilities = Column(Integer, default=0)
+    
+    # Соответствие
+    compliance_score = Column(Float, nullable=True)  # Процент соответствия
+    last_compliance_check = Column(DateTime(timezone=True), nullable=True)
+    
+    # Временные метки
+    first_seen = Column(DateTime(timezone=True), nullable=True)
+    last_seen = Column(DateTime(timezone=True), nullable=True)
+    last_synced = Column(DateTime(timezone=True), nullable=True)
+    
+    # Дополнительные данные
+    raw_data = Column(JSON, nullable=True)
+    
+    # Метаданные
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    def to_dict(self):
+        """Преобразование в словарь."""
+        return {
+            "id": self.id,
+            "external_id": self.external_id,
+            "hostname": self.hostname,
+            "ip_address": self.ip_address,
+            "mac_address": self.mac_address,
+            "os_type": self.os_type,
+            "os_version": self.os_version,
+            "os_architecture": self.os_architecture,
+            "status": self.status,
+            "is_active": self.is_active,
+            "groups": self.groups,
+            "vulnerabilities_count": self.vulnerabilities_count,
+            "critical_vulnerabilities": self.critical_vulnerabilities,
+            "high_vulnerabilities": self.high_vulnerabilities,
+            "medium_vulnerabilities": self.medium_vulnerabilities,
+            "low_vulnerabilities": self.low_vulnerabilities,
+            "compliance_score": self.compliance_score,
+            "last_compliance_check": self.last_compliance_check.isoformat() if self.last_compliance_check else None,
+            "first_seen": self.first_seen.isoformat() if self.first_seen else None,
+            "last_seen": self.last_seen.isoformat() if self.last_seen else None,
+            "last_synced": self.last_synced.isoformat() if self.last_synced else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
         }

@@ -1,0 +1,475 @@
+{% extends "base.html" %}
+
+{% block title %}Сканирования RedCheck{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Заголовок страницы -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="bi bi-shield-check text-primary me-2"></i>Сканирования RedCheck
+                    </h2>
+                    <p class="text-muted mb-0">Управление сканированиями и отчётами из системы RedCheck</p>
+                </div>
+                <div>
+                    <button class="btn btn-outline-primary me-2" id="syncBtn" onclick="syncScans()">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Синхронизировать
+                    </button>
+                    <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#columnsModal">
+                        <i class="bi bi-table me-1"></i>Колонки
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Фильтры -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Поиск</label>
+                    <input type="text" class="form-control" id="searchFilter" placeholder="Название, описание...">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Статус</label>
+                    <select class="form-select" id="statusFilter">
+                        <option value="">Все</option>
+                        <option value="pending">Ожидает</option>
+                        <option value="running">Выполняется</option>
+                        <option value="completed">Завершено</option>
+                        <option value="failed">Ошибка</option>
+                        <option value="cancelled">Отменено</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Тип</label>
+                    <select class="form-select" id="typeFilter">
+                        <option value="">Все</option>
+                        <option value="vulnerability_scan">Сканирование уязвимостей</option>
+                        <option value="compliance_check">Проверка соответствия</option>
+                        <option value="inventory">Инвентаризация</option>
+                        <option value="discovery">Обнаружение</option>
+                        <option value="audit">Аудит</option>
+                        <option value="pentest">Пентест</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Профиль</label>
+                    <input type="text" class="form-control" id="profileFilter" placeholder="Название профиля">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Цель</label>
+                    <input type="text" class="form-control" id="targetFilter" placeholder="Имя цели">
+                </div>
+            </div>
+            <div class="row mt-3">
+                <div class="col-12">
+                    <button class="btn btn-primary" onclick="loadScans()">
+                        <i class="bi bi-search me-1"></i>Применить фильтры
+                    </button>
+                    <button class="btn btn-outline-secondary ms-2" onclick="clearFilters()">
+                        <i class="bi bi-x-circle me-1"></i>Сбросить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Таблица сканирований -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="scansTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Название</th>
+                            <th>Тип</th>
+                            <th>Статус</th>
+                            <th>Прогресс</th>
+                            <th>Профиль</th>
+                            <th>Цель</th>
+                            <th>Создано</th>
+                            <th>Критические</th>
+                            <th>Отчёт</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="scansTableBody">
+                        <tr>
+                            <td colspan="11" class="text-center text-muted py-4">
+                                <i class="bi bi-hourglass-split me-2"></i>Загрузка данных...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Пагинация -->
+            <nav aria-label="Пагинация" class="mt-3">
+                <ul class="pagination justify-content-center" id="pagination"></ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно управления колонками -->
+<div class="modal fade" id="columnsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Настройка колонок</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="list-group" id="columnsList">
+                    <!-- Колонки будут добавлены через JS -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-primary" onclick="applyColumnSettings()">Применить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+}
+.status-pending { background-color: #ffc107; color: #000; }
+.status-running { background-color: #0d6efd; color: #fff; }
+.status-completed { background-color: #198754; color: #fff; }
+.status-failed { background-color: #dc3545; color: #fff; }
+.status-cancelled { background-color: #6c757d; color: #fff; }
+
+.critical-badge {
+    background-color: #dc3545;
+    color: #fff;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+}
+
+.progress {
+    height: 0.5rem;
+}
+</style>
+
+<script>
+let currentPage = 1;
+const perPage = 50;
+let availableColumns = [];
+let visibleColumns = {};
+
+// Загрузка страницы
+document.addEventListener('DOMContentLoaded', function() {
+    loadColumnSettings();
+    loadScans();
+});
+
+// Загрузка сканирований
+async function loadScans() {
+    const tbody = document.getElementById('scansTableBody');
+    tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4"><i class="bi bi-hourglass-spin me-2"></i>Загрузка...</td></tr>';
+    
+    const params = new URLSearchParams({
+        page: currentPage,
+        per_page: perPage,
+        status: document.getElementById('statusFilter').value,
+        scan_type: document.getElementById('typeFilter').value,
+        profile: document.getElementById('profileFilter').value,
+        target: document.getElementById('targetFilter').value,
+        search: document.getElementById('searchFilter').value
+    });
+    
+    try {
+        const response = await fetch(`/api/integrations/redcheck/scans?${params}`);
+        const data = await response.json();
+        
+        if (data.scans && data.scans.length > 0) {
+            renderScans(data.scans);
+            renderPagination(data.total, data.page, data.pages);
+        } else {
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">Нет данных</td></tr>';
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки:', error);
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">Ошибка загрузки данных</td></tr>';
+    }
+}
+
+// Рендеринг таблицы
+function renderScans(scans) {
+    const tbody = document.getElementById('scansTableBody');
+    tbody.innerHTML = scans.map(scan => `
+        <tr>
+            <td>${scan.id}</td>
+            <td>
+                <strong>${escapeHtml(scan.name)}</strong>
+                ${scan.description ? `<br><small class="text-muted">${escapeHtml(scan.description.substring(0, 50))}...</small>` : ''}
+            </td>
+            <td>${getScanTypeLabel(scan.scan_type)}</td>
+            <td><span class="status-badge status-${scan.status}">${getStatusLabel(scan.status)}</span></td>
+            <td style="width: 150px;">
+                <div class="d-flex align-items-center">
+                    <div class="progress flex-grow-1 me-2">
+                        <div class="progress-bar" role="progressbar" style="width: ${scan.progress}%"></div>
+                    </div>
+                    <small>${scan.progress}%</small>
+                </div>
+            </td>
+            <td>${escapeHtml(scan.profile_name || '-')}</td>
+            <td>${escapeHtml(scan.target_name || '-')}</td>
+            <td>${formatDate(scan.created_at)}</td>
+            <td>
+                ${scan.vulnerabilities_critical > 0 
+                    ? `<span class="critical-badge">${scan.vulnerabilities_critical}</span>` 
+                    : '<span class="text-muted">0</span>'}
+            </td>
+            <td>
+                ${scan.has_report 
+                    ? '<i class="bi bi-file-earmark-check text-success" title="Отчёт доступен"></i>' 
+                    : '<i class="bi bi-file-earmark-x text-muted" title="Нет отчёта"></i>'}
+            </td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" title="Детали" onclick="viewScan(${scan.id})">
+                    <i class="bi bi-eye"></i>
+                </button>
+                ${scan.has_report ? `
+                <button class="btn btn-sm btn-outline-success" title="Скачать отчёт" onclick="downloadReport(${scan.id})">
+                    <i class="bi bi-download"></i>
+                </button>
+                ` : ''}
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Рендеринг пагинации
+function renderPagination(total, current, pages) {
+    const pagination = document.getElementById('pagination');
+    if (pages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let html = `
+        <li class="page-item ${current === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${current - 1}); return false;">← Пред.</a>
+        </li>
+    `;
+    
+    for (let i = 1; i <= pages; i++) {
+        if (i === 1 || i === pages || (i >= current - 2 && i <= current + 2)) {
+            html += `
+                <li class="page-item ${i === current ? 'active' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i}</a>
+                </li>
+            `;
+        } else if (i === current - 3 || i === current + 3) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+    }
+    
+    html += `
+        <li class="page-item ${current === pages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="changePage(${current + 1}); return false;">След. →</a>
+        </li>
+    `;
+    
+    pagination.innerHTML = html;
+}
+
+function changePage(page) {
+    currentPage = page;
+    loadScans();
+}
+
+// Синхронизация
+async function syncScans() {
+    const btn = document.getElementById('syncBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise spin me-1"></i>Синхронизация...';
+    
+    try {
+        const response = await fetch('/api/integrations/redcheck/scans/sync', {
+            method: 'POST'
+        });
+        const result = await response.json();
+        
+        if (result.success) {
+            showAlert(`Синхронизация завершена: добавлено ${result.added}, обновлено ${result.updated}`, 'success');
+            loadScans();
+        } else {
+            showAlert('Ошибка синхронизации: ' + result.message, 'danger');
+        }
+    } catch (error) {
+        console.error('Ошибка:', error);
+        showAlert('Ошибка синхронизации', 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>Синхронизировать';
+    }
+}
+
+// Управление колонками
+async function loadColumnSettings() {
+    try {
+        const response = await fetch('/api/integrations/redcheck/scans/columns');
+        const data = await response.json();
+        availableColumns = data.columns || [];
+        
+        // Загружаем сохранённые настройки
+        const saved = localStorage.getItem('redcheck_scans_columns');
+        if (saved) {
+            visibleColumns = JSON.parse(saved);
+        } else {
+            availableColumns.forEach(col => {
+                visibleColumns[col.key] = col.default !== false;
+            });
+        }
+        
+        renderColumnsList();
+        applyColumnSettings();
+    } catch (error) {
+        console.error('Ошибка загрузки настроек колонок:', error);
+    }
+}
+
+function renderColumnsList() {
+    const list = document.getElementById('columnsList');
+    list.innerHTML = availableColumns.map(col => `
+        <label class="list-group-item">
+            <input type="checkbox" class="form-check-input me-2" 
+                   value="${col.key}" 
+                   ${visibleColumns[col.key] ? 'checked' : ''}>
+            ${col.label}
+        </label>
+    `).join('');
+}
+
+function applyColumnSettings() {
+    // Сохраняем настройки
+    const checkboxes = document.querySelectorAll('#columnsList input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+        visibleColumns[cb.value] = cb.checked;
+    });
+    localStorage.setItem('redcheck_scans_columns', JSON.stringify(visibleColumns));
+    
+    // Применяем к таблице
+    const table = document.getElementById('scansTable');
+    const headers = table.querySelectorAll('thead th');
+    const columnKeys = ['id', 'name', 'scan_type', 'status', 'progress', 'profile_name', 'target_name', 'created_at', 'vulnerabilities_critical', 'has_report', 'actions'];
+    
+    headers.forEach((th, index) => {
+        const key = columnKeys[index];
+        if (key && visibleColumns[key] === false) {
+            th.style.display = 'none';
+        } else {
+            th.style.display = '';
+        }
+    });
+    
+    const rows = table.querySelectorAll('tbody tr');
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td, th');
+        cells.forEach((td, index) => {
+            const key = columnKeys[index];
+            if (key && visibleColumns[key] === false) {
+                td.style.display = 'none';
+            } else {
+                td.style.display = '';
+            }
+        });
+    });
+    
+    // Закрываем модальное окно
+    const modal = bootstrap.Modal.getInstance(document.getElementById('columnsModal'));
+    if (modal) modal.hide();
+}
+
+// Вспомогательные функции
+function getScanTypeLabel(type) {
+    const labels = {
+        'vulnerability_scan': 'Уязвимости',
+        'compliance_check': 'Соответствие',
+        'inventory': 'Инвентаризация',
+        'discovery': 'Обнаружение',
+        'audit': 'Аудит',
+        'pentest': 'Пентест',
+        'unknown': 'Неизвестно'
+    };
+    return labels[type] || type;
+}
+
+function getStatusLabel(status) {
+    const labels = {
+        'pending': 'Ожидает',
+        'running': 'Выполняется',
+        'completed': 'Завершено',
+        'failed': 'Ошибка',
+        'cancelled': 'Отменено',
+        'unknown': 'Неизвестно'
+    };
+    return labels[status] || status;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('ru-RU', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function clearFilters() {
+    document.getElementById('searchFilter').value = '';
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('typeFilter').value = '';
+    document.getElementById('profileFilter').value = '';
+    document.getElementById('targetFilter').value = '';
+    loadScans();
+}
+
+function viewScan(id) {
+    alert('Просмотр сканирования ID: ' + id);
+    // TODO: Реализовать просмотр деталей
+}
+
+function downloadReport(id) {
+    alert('Скачивание отчёта для сканирования ID: ' + id);
+    // TODO: Реализовать скачивание отчёта
+}
+
+function showAlert(message, type) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(alertDiv);
+    setTimeout(() => alertDiv.remove(), 5000);
+}
+</script>
+{% endblock %}
