@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Boolean, JSON
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Boolean, JSON, Float
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
@@ -79,6 +79,85 @@ class ScanResult(Base):
     scan = relationship("Scan", back_populates="results")
     asset = relationship("Asset", back_populates="scan_results")
     scan_job = relationship("ScanJob", backref="results")
+
+
+# Добавим обратные связи
+Scan.results = relationship("ScanResult", back_populates="scan", cascade="all, delete-orphan")
+
+
+class RedCheckScan(Base):
+    """Модель сканирования RedCheck (объединяет задачу и отчёт)."""
+    
+    __tablename__ = "redcheck_scans"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    external_id = Column(String(100), unique=True, nullable=False, index=True)  # ID в RedCheck
+    
+    # Основная информация
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    scan_type = Column(String(50), default="unknown")  # vulnerability_scan, compliance_check, etc.
+    status = Column(String(50), default="pending")  # pending, running, completed, failed, cancelled
+    progress = Column(Integer, default=0)  # 0-100%
+    
+    # Профиль и цель
+    profile_name = Column(String(255), nullable=True)
+    profile_id = Column(String(100), nullable=True)
+    target_name = Column(String(255), nullable=True)
+    target_id = Column(String(100), nullable=True)
+    
+    # Временные метки
+    created_at = Column(DateTime(timezone=True), nullable=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    
+    # Уязвимости
+    vulnerabilities_critical = Column(Integer, default=0)
+    vulnerabilities_high = Column(Integer, default=0)
+    vulnerabilities_medium = Column(Integer, default=0)
+    vulnerabilities_low = Column(Integer, default=0)
+    vulnerabilities_total = Column(Integer, default=0)
+    
+    # Отчёт
+    has_report = Column(Boolean, default=False)
+    report_id = Column(String(100), nullable=True)
+    report_format = Column(String(20), nullable=True)
+    
+    # Дополнительные данные
+    raw_data = Column(JSON, nullable=True)
+    
+    # Метаданные
+    synced_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    def to_dict(self):
+        """Преобразование в словарь."""
+        return {
+            "id": self.id,
+            "external_id": self.external_id,
+            "name": self.name,
+            "description": self.description,
+            "scan_type": self.scan_type,
+            "status": self.status,
+            "progress": self.progress,
+            "profile_name": self.profile_name,
+            "profile_id": self.profile_id,
+            "target_name": self.target_name,
+            "target_id": self.target_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "vulnerabilities_critical": self.vulnerabilities_critical,
+            "vulnerabilities_high": self.vulnerabilities_high,
+            "vulnerabilities_medium": self.vulnerabilities_medium,
+            "vulnerabilities_low": self.vulnerabilities_low,
+            "vulnerabilities_total": self.vulnerabilities_total,
+            "has_report": self.has_report,
+            "report_id": self.report_id,
+            "report_format": self.report_format,
+            "synced_at": self.synced_at.isoformat() if self.synced_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
 
 
 # Добавим обратные связи

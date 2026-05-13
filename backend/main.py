@@ -237,6 +237,14 @@ app.include_router(assets.router, prefix="/api/assets", tags=["Assets"])
 app.include_router(groups.router, prefix="/api/groups", tags=["Groups"])
 app.include_router(scans.router, prefix="/api/scans", tags=["Scans"])
 
+# RedCheck Integration Router
+try:
+    from backend.routes import redcheck
+    app.include_router(redcheck.router, prefix="/api", tags=["RedCheck"])
+    logger.info("✅ RedCheck integration router подключён")
+except ImportError as e:
+    logger.warning(f"⚠️ RedCheck integration router не подключён: {e}")
+
 @app.get("/health")
 async def health_check():
     """Эндпоинт для проверки статуса сервиса (Health Check)."""
@@ -333,3 +341,13 @@ async def ui_kit(request: Request):
 async def settings_page(request: Request):
     """Страница настроек приложения."""
     return templates.TemplateResponse("settings.html", {"request": request})
+
+
+# ============================================================================
+# RedCheck Integration Pages
+# ============================================================================
+
+@app.get("/integrations/redcheck/scans")
+async def redcheck_scans_page(request: Request):
+    """Страница сканирований RedCheck."""
+    return templates.TemplateResponse("redcheck_scans.html", {"request": request})
