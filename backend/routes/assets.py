@@ -249,6 +249,7 @@ async def create_asset(asset_data: AssetCreate, db: AsyncSession = Depends(get_d
     
     return AssetResponse(
         id=asset.id,
+        uuid=asset.uuid,
         ip_address=asset.ip_address,
         hostname=asset.hostname,
         os_family=asset.os_family,
@@ -277,6 +278,7 @@ async def update_asset(asset_id: int, asset_data: AssetUpdate, db: AsyncSession 
     
     return AssetResponse(
         id=asset_dict['id'],
+        uuid=asset_dict['uuid'],
         ip_address=asset_dict['ip_address'],
         hostname=asset_dict['hostname'],
         os_family=asset_dict['os_family'],
