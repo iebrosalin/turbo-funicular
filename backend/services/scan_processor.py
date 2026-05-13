@@ -26,7 +26,13 @@ class ScanProcessor:
             job_id: ID задачи сканирования
             parameters: Опциональные параметры задачи (чтобы избежать проблем с чтением из БД)
         """
-        job = await self.db.get(ScanJob, job_id)
+        # Явно загружаем задачу вместе со связью scan и group
+        stmt = select(ScanJob).options(
+            selectinload(ScanJob.scan).selectinload(Scan.group)
+        ).where(ScanJob.id == job_id)
+        result = await self.db.execute(stmt)
+        job = result.scalar_one_or_none()
+        
         if not job:
             logger.error(f"Задача {job_id} не найдена.")
             return

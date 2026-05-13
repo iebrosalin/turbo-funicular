@@ -514,9 +514,8 @@ export class GroupManager {
 
       const groupId = treeNode.dataset.id;
       
-      // Блокируем контекстное меню только для системного узла "Без группы"
-      // Узел "Все активы" должен быть доступен для переименования
-      if (groupId === 'ungrouped') {
+      // Блокируем контекстное меню для системных узлов "Все активы" и "Без группы"
+      if (groupId === 'ungrouped' || groupId === 'all') {
         return;
       }
 
@@ -538,8 +537,8 @@ export class GroupManager {
       const moveItem = ctx.querySelector('[data-action="move"]');
       const deleteItem = ctx.querySelector('[data-action="delete"]');
 
-      // Для корневой группы "Все активы" и группы с id=0 показываем только переименование
-      if (groupId === 'all' || groupId === '0') {
+      // Для корневой группы с id=0 показываем только переименование
+      if (groupId === '0') {
         if (createItem) createItem.style.display = 'none';
         if (renameItem) renameItem.style.display = 'block';
         if (moveItem) moveItem.style.display = 'none';
