@@ -1,5 +1,6 @@
 // static/js/modules/assets.js
 import { store } from './index.js';
+import { Utils } from './utils.js';
 
 export class AssetManager {
   constructor(targetTableId = 'assets-body') {
@@ -289,7 +290,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (assetId && !isNaN(assetId)) {
                 startAssetScan(parseInt(assetId));
             } else {
-                alert('Не удалось определить ID актива');
+                Utils.showFlashMessage('danger', 'Не удалось определить ID актива');
             }
         });
     }
@@ -317,12 +318,12 @@ function startAssetScan(assetId) {
         return response.json();
     })
     .then(data => {
-        alert('Сканирование запущено');
+        Utils.showFlashMessage('success', 'Сканирование запущено');
         // Опционально: перенаправить на страницу сканирований
         // window.location.href = '/scans';
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Ошибка при запуске сканирования: ' + error.message);
+        Utils.showFlashMessage('danger', 'Ошибка при запуске сканирования: ' + error.message);
     });
 }

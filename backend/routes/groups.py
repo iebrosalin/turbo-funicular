@@ -197,12 +197,6 @@ async def create_group(
     service = GroupService(db)
 
     try:
-        # Проверка на дубликат имени перед созданием
-        existing_groups = await service.get_all()
-        if any(g.name == group_data.name for g in existing_groups):
-            logger.warning(f"Попытка создания группы с дублирующимся именем: '{group_data.name}'. Данные запроса: {group_data.dict()}")
-            raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
-
         # Создание группы
         group = await service.create(group_data)
 
@@ -227,7 +221,10 @@ async def create_group(
     except IntegrityError as e:
         await db.rollback()
         logger.error(f"IntegrityError при создании группы '{group_data.name}': {e}")
-        raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
+        # Проверяем тип ошибки - дубликат имени
+        if "UNIQUE constraint failed: groups.name" in str(e):
+            raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
+        raise HTTPException(status_code=400, detail="Ошибка при создании группы (возможно, группа с таким именем уже существует)")
     except Exception as e:
         await db.rollback()
         logger.error(f"Неожиданная ошибка при создании группы '{group_data.name}': {e}", exc_info=True)
