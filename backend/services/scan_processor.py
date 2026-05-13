@@ -276,6 +276,9 @@ class ScanProcessor:
                         old_hostname = asset.hostname
                         asset.hostname = ptr_hostname
                         logger.info(f"Hostname актива {ip} обновлён через PTR: '{old_hostname}' -> '{ptr_hostname}'")
+                        
+                        # Обновляем last_dns_scan при изменении hostname через PTR
+                        asset.last_dns_scan = datetime.utcnow()
         
         await self.db.commit()
         logger.info(f"Dig: Обработано {len(dns_records)} записей.")
@@ -370,15 +373,17 @@ class ScanProcessor:
         
         # Обновляем статус актива на основе наличия открытых портов
         # Только активы с открытыми портами считаются active
-        current_open_ports = asset.open_ports or []
-        if len(current_open_ports) > 0:
-            if asset.status != 'active':
-                logger.debug(f"  - Статус изменён на 'active' (порты: {current_open_ports})")
-            asset.status = 'active'
-        else:
-            if asset.status != 'inactive':
-                logger.debug(f"  - Статус изменён на 'inactive' (нет открытых портов)")
-            asset.status = 'inactive'
+        # При сканировании dig не обновляем статус, т.к. оно только обновляет DNS/PTR
+        if scan_type != 'dig':
+            current_open_ports = asset.open_ports or []
+            if len(current_open_ports) > 0:
+                if asset.status != 'active':
+                    logger.debug(f"  - Статус изменён на 'active' (порты: {current_open_ports})")
+                asset.status = 'active'
+            else:
+                if asset.status != 'inactive':
+                    logger.debug(f"  - Статус изменён на 'inactive' (нет открытых портов)")
+                asset.status = 'inactive'
         
         # Обновляем группу для существующего актива
         if group_id and asset.id:  # Только для существующих активов (у новых уже добавлено выше)

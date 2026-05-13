@@ -153,6 +153,10 @@ class RedCheckHost(Base):
     medium_vulnerabilities = Column(Integer, default=0)
     low_vulnerabilities = Column(Integer, default=0)
     
+    # Порты
+    open_ports = Column(JSON, nullable=True, default=list)  # Список открытых портов
+    open_ports_count = Column(Integer, default=0)
+    
     # Соответствие
     compliance_score = Column(Float, nullable=True)  # Процент соответствия
     last_compliance_check = Column(DateTime(timezone=True), nullable=True)
@@ -188,6 +192,8 @@ class RedCheckHost(Base):
             "high_vulnerabilities": self.high_vulnerabilities,
             "medium_vulnerabilities": self.medium_vulnerabilities,
             "low_vulnerabilities": self.low_vulnerabilities,
+            "open_ports": self.open_ports or [],
+            "open_ports_count": self.open_ports_count,
             "compliance_score": self.compliance_score,
             "last_compliance_check": self.last_compliance_check.isoformat() if self.last_compliance_check else None,
             "first_seen": self.first_seen.isoformat() if self.first_seen else None,

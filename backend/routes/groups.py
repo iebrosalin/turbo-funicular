@@ -196,8 +196,8 @@ async def create_group(
     """
     service = GroupService(db)
 
-    # Проверка на дубликат имени перед созданием
-    existing_query = select(AssetGroup).where(AssetGroup.name == group_data.name)
+    # Проверка на дубликат имени перед созданием с блокировкой
+    existing_query = select(AssetGroup).where(AssetGroup.name == group_data.name).with_for_update()
     existing_result = await db.execute(existing_query)
     existing_group = existing_result.scalar_one_or_none()
     
@@ -229,6 +229,16 @@ async def create_group(
         raise
     except IntegrityError as e:
         await db.rollback()
+        # Проверяем, не является ли ошибка следствием дублирования имени
+        if existing_group is None:
+            # Повторная проверка после rollback - возможно группа была создана конкурентным запросом
+            existing_query_retry = select(AssetGroup).where(AssetGroup.name == group_data.name)
+            existing_result_retry = await db.execute(existing_query_retry)
+            existing_group_retry = existing_result_retry.scalar_one_or_none()
+            if existing_group_retry:
+                logger.warning(f"Группа '{group_data.name}' была создана конкурентным запросом. ID: {existing_group_retry.id}")
+                raise HTTPException(status_code=400, detail=f"Группа с именем '{group_data.name}' уже существует в базе данных")
+        
         logger.error(f"IntegrityError при создании группы '{group_data.name}': {e}")
         raise HTTPException(status_code=400, detail="Ошибка при создании группы (возможно, группа с таким именем уже существует)")
     except Exception as e:
