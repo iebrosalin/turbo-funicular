@@ -38,7 +38,8 @@ async def create_asset_if_not_exists(
     ip_address: str,
     hostname: Optional[str] = None,
     mac_address: Optional[str] = None,
-    groups: Optional[List[int]] = None
+    groups: Optional[List[int]] = None,
+    open_ports: Optional[List[int]] = None
 ) -> Any:
     """
     Создать актив если он не существует, иначе вернуть существующий.
@@ -49,6 +50,7 @@ async def create_asset_if_not_exists(
         hostname: Имя хоста (опционально)
         mac_address: MAC адрес (опционально)
         groups: Список ID групп (опционально)
+        open_ports: Список открытых портов (опционально)
     
     Returns:
         Экземпляр модели Asset
@@ -67,10 +69,17 @@ async def create_asset_if_not_exists(
     
     # Создаём новый
     logger.info(f"[AssetManager] Создание нового актива для IP: {ip_address}")
+    
+    # Определяем статус на основе портов - если нет открытых портов, статус inactive
+    has_open_ports = open_ports and len(open_ports) > 0
+    status = 'active' if has_open_ports else 'inactive'
+    
     asset = Asset(
         ip_address=ip_address,
         hostname=hostname,
-        mac_address=mac_address
+        mac_address=mac_address,
+        status=status,
+        open_ports=open_ports or []
     )
     db.add(asset)
     await db.flush()
@@ -88,7 +97,7 @@ async def create_asset_if_not_exists(
                 logger.warning(f"[AssetManager] Группа с ID {gid} не найдена, пропускаем")
     
     await db.refresh(asset)
-    logger.info(f"[AssetManager] Успешно создан актив {asset.id} для IP: {ip_address} (hostname: {hostname})")
+    logger.info(f"[AssetManager] Успешно создан актив {asset.id} для IP: {ip_address} (hostname: {hostname}, status: {status})")
     return asset
 
 
