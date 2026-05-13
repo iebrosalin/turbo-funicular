@@ -646,13 +646,21 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
             "os_type": host.get("os", "") or host.get("os_type", ""),
             "os_version": host.get("os_version", ""),
             "status": "active" if host.get("is_active", True) else "inactive",
-            "groups": ",".join(host.get("groups", [])),
+            "groups": ",".join(host.get("groups", [])) if isinstance(host.get("groups"), list) else host.get("groups", ""),
             "mac_address": host.get("mac", ""),
             "last_seen": parse_datetime(host.get("last_seen")),
             "vulnerabilities_count": host.get("vulnerabilities_count", 0),
             "critical_vulnerabilities": host.get("critical_vulnerabilities", 0),
+            "high_vulnerabilities": host.get("high_vulnerabilities", 0),
+            "open_ports": host.get("open_ports", []) or [],
+            "open_ports_count": len(host.get("open_ports", []) or []),
             "compliance_score": host.get("compliance_score", 0)
         }
+        
+        # Если нет открытых портов, помечаем как неактивный
+        if host_data["open_ports_count"] == 0:
+            host_data["status"] = "inactive"
+            host_data["is_active"] = False
         
         if db_host:
             # Обновляем существующую запись
