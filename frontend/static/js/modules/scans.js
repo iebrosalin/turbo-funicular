@@ -228,6 +228,85 @@ export class ScanManager {
   }
 
   /**
+   * Обновление статуса очередей сканирований
+   */
+  async updateQueueStatus() {
+    try {
+      const response = await fetch('/api/scans/queue-status');
+      if (!response.ok) return;
+      const data = await response.json();
+      
+      // Обновляем очередь Nmap
+      const nmapCountEl = document.getElementById('nmap-queue-count');
+      const nmapCurrentEl = document.getElementById('nmap-current-job');
+      const nmapStatusEl = document.getElementById('nmap-queue-status');
+      const nmapListEl = document.getElementById('nmap-queue-list');
+      
+      if (nmapCountEl) nmapCountEl.textContent = data.nmap?.queued_count || 0;
+      if (nmapCurrentEl) nmapCurrentEl.textContent = data.nmap?.current_job || 'Нет';
+      if (nmapStatusEl) {
+        nmapStatusEl.textContent = data.nmap?.status || 'Ожидание';
+        nmapStatusEl.className = `badge bg-${data.nmap?.status === 'running' ? 'warning text-dark' : 'secondary'}`;
+      }
+      if (nmapListEl) {
+        if (data.nmap?.queue && data.nmap.queue.length > 0) {
+          nmapListEl.innerHTML = data.nmap.queue.map(job => 
+            `<div class="mb-1"><span class="badge bg-info">${job.job_type}</span> ${job.target || 'N/A'}</div>`
+          ).join('');
+        } else {
+          nmapListEl.innerHTML = '<span class="text-muted">Пусто</span>';
+        }
+      }
+      
+      // Обновляем очередь Rustscan
+      const rustscanCountEl = document.getElementById('rustscan-queue-count');
+      const rustscanCurrentEl = document.getElementById('rustscan-current-job');
+      const rustscanStatusEl = document.getElementById('rustscan-queue-status');
+      const rustscanListEl = document.getElementById('rustscan-queue-list');
+      
+      if (rustscanCountEl) rustscanCountEl.textContent = data.rustscan?.queued_count || 0;
+      if (rustscanCurrentEl) rustscanCurrentEl.textContent = data.rustscan?.current_job || 'Нет';
+      if (rustscanStatusEl) {
+        rustscanStatusEl.textContent = data.rustscan?.status || 'Ожидание';
+        rustscanStatusEl.className = `badge bg-${data.rustscan?.status === 'running' ? 'warning text-dark' : 'secondary'}`;
+      }
+      if (rustscanListEl) {
+        if (data.rustscan?.queue && data.rustscan.queue.length > 0) {
+          rustscanListEl.innerHTML = data.rustscan.queue.map(job => 
+            `<div class="mb-1"><span class="badge bg-info">${job.job_type}</span> ${job.target || 'N/A'}</div>`
+          ).join('');
+        } else {
+          rustscanListEl.innerHTML = '<span class="text-muted">Пусто</span>';
+        }
+      }
+      
+      // Обновляем другие очереди (Dig и прочие)
+      const digCountEl = document.getElementById('dig-queue-count');
+      const digStatusEl = document.getElementById('dig-queue-status');
+      const otherListEl = document.getElementById('other-queue-list');
+      
+      const otherJobs = data.other || [];
+      if (digCountEl) digCountEl.textContent = otherJobs.length;
+      if (digStatusEl) {
+        const hasRunning = otherJobs.some(j => j.status === 'running');
+        digStatusEl.textContent = hasRunning ? 'Выполняется' : 'Ожидание';
+        digStatusEl.className = `badge bg-${hasRunning ? 'warning text-dark' : 'secondary'}`;
+      }
+      if (otherListEl) {
+        if (otherJobs.length > 0) {
+          otherListEl.innerHTML = otherJobs.map(job => 
+            `<div class="mb-1"><span class="badge bg-info">${job.job_type}</span> ${job.target || 'N/A'} <span class="badge bg-${job.status === 'running' ? 'warning text-dark' : 'secondary'}">${job.status}</span></div>`
+          ).join('');
+        } else {
+          otherListEl.innerHTML = '<span class="text-muted">Пусто</span>';
+        }
+      }
+    } catch (error) {
+      console.error('Ошибка обновления статуса очередей:', error);
+    }
+  }
+
+  /**
    * Универсальная отправка запроса на сканирование
    */
   async #sendScanRequest(scanType, target, args, saveAssets, recordTypes = null, dnsServer = null, cliArgs = null) {
