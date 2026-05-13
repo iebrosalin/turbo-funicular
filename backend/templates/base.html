@@ -41,6 +41,20 @@
                         <li><a class="dropdown-item" href="/api/scans/utilities-check"><i class="bi bi-tools me-2"></i>Проверка утилит</a></li>
                     </ul>
                 </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-box-arrow-in-right me-1"></i>Интеграции
+                    </a>
+                    <ul class="dropdown-menu" id="integrations-dropdown">
+                        <li><a class="dropdown-item" href="/redcheck"><i class="bi bi-shield-check me-2"></i>Redcheck</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li class="px-3 py-2 small text-muted">Страницы Redcheck:</li>
+                        <li id="redcheck-pages-list">
+                            <!-- Сюда будут добавляться созданные страницы Redcheck -->
+                            <span class="dropdown-item-text text-muted small">Нет созданных страниц</span>
+                        </li>
+                    </ul>
+                </li>
                 <li class="nav-item">
                     <a href="/settings" class="nav-link {% if request.scope.get('endpoint') and 'settings_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
                         <i class="bi bi-gear-fill me-1"></i>Настройки

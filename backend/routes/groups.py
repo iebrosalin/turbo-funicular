@@ -220,10 +220,22 @@ async def create_group(
         raise
     except IntegrityError as e:
         await db.rollback()
-        logger.error(f"IntegrityError при создании группы '{group_data.name}': {e}")
+        # Добавляем подробное логирование для диагностики проблемы
+        existing_group_query = select(AssetGroup).where(AssetGroup.name == group_data.name)
+        existing_result = await db.execute(existing_group_query)
+        existing_group = existing_result.scalar_one_or_none()
+        
+        if existing_group:
+            logger.error(f"IntegrityError при создании группы '{group_data.name}': Группа уже существует в БД (id={existing_group.id}, parent_id={existing_group.parent_id}, group_type={existing_group.group_type})")
+            logger.error(f"Полные данные существующей группы: name='{existing_group.name}', description='{existing_group.description}', is_dynamic={existing_group.is_dynamic}")
+        else:
+            logger.error(f"IntegrityError при создании группы '{group_data.name}': {e}")
+            logger.error(f"SQL: {e.statement}")
+            logger.error(f"Parameters: {e.params}")
+        
         # Проверяем тип ошибки - дубликат имени
         if "UNIQUE constraint failed: groups.name" in str(e):
-            raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
+            raise HTTPException(status_code=400, detail=f"Группа с именем '{group_data.name}' уже существует в базе данных")
         raise HTTPException(status_code=400, detail="Ошибка при создании группы (возможно, группа с таким именем уже существует)")
     except Exception as e:
         await db.rollback()
