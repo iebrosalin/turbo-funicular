@@ -347,7 +347,17 @@ async def settings_page(request: Request):
 # RedCheck Integration Pages
 # ============================================================================
 
+@app.get("/integrations/redcheck")
+async def redcheck_integration_page(request: Request):
+    """Страница настройки интеграции с RedCheck."""
+    return templates.TemplateResponse("redcheck_integration.html", {"request": request})
+
 @app.get("/integrations/redcheck/scans")
 async def redcheck_scans_page(request: Request):
     """Страница сканирований RedCheck."""
     return templates.TemplateResponse("redcheck_scans.html", {"request": request})
+
+@app.get("/integrations/redcheck/hosts")
+async def redcheck_hosts_page(request: Request):
+    """Страница хостов (активов) RedCheck."""
+    return templates.TemplateResponse("redcheck_hosts.html", {"request": request})
