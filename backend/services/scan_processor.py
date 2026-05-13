@@ -169,7 +169,8 @@ class ScanProcessor:
                 "hostname": hostname,
                 "open_ports": open_ports,
                 "os_family": os_family,
-                "group_id": job.scan.group_id
+                "group_id": job.scan.group_id,
+                "scan_type": "nmap"  # Передаем тип сканирования для обновления временных меток
             })
             
             # Обработка сервисов - создаем/обновляем записи ServiceInventory
@@ -213,7 +214,8 @@ class ScanProcessor:
             # Создаем/обновляем актив
             await self._upsert_asset(ip, {
                 "open_ports": list(ports),
-                "group_id": job.scan.group_id
+                "group_id": job.scan.group_id,
+                "scan_type": "rustscan"  # Передаем тип сканирования для обновления временных меток
             })
             hosts_count += 1
         
@@ -248,7 +250,8 @@ class ScanProcessor:
                 # Создаем актив если нет
                 await self._upsert_asset(ip, {
                     "hostname": rec_name, # Имя из запроса
-                    "group_id": job.scan.group_id
+                    "group_id": job.scan.group_id,
+                    "scan_type": "dig"  # Передаем тип сканирования для обновления временных меток
                 })
         
         # Обновляем DNS записи у активов
@@ -283,8 +286,9 @@ class ScanProcessor:
         new_open_ports = updates.get('open_ports', [])
         has_open_ports = len(new_open_ports) > 0
         
-        # Получаем group_id из обновлений для работы с группой
+        # Получаем group_id и scan_type из обновлений
         group_id = updates.get('group_id')
+        scan_type = updates.get('scan_type')  # rustscan, nmap, dig
         
         if not asset:
             # Новый актив: статус зависит от наличия открытых портов
@@ -307,7 +311,7 @@ class ScanProcessor:
 
         # Применяем обновления
         for key, value in updates.items():
-            if value is not None and key != 'group_id':  # group_id обрабатывается отдельно
+            if value is not None and key != 'group_id' and key != 'scan_type':  # group_id и scan_type обрабатываются отдельно
                 # Для списков (порты, сервисы) можно решать: заменять или дополнять.
                 # Здесь заменяем данными последнего сканирования для простоты, 
                 # либо можно реализовать мерж.
@@ -336,6 +340,24 @@ class ScanProcessor:
                 else:
                     setattr(asset, key, value)
         
+        # Обновляем временные метки сканирований в зависимости от типа
+        now = datetime.utcnow()
+        if scan_type == 'rustscan':
+            asset.last_rustscan = now
+            # Обновляем rustscan_ports
+            if new_open_ports:
+                asset.rustscan_ports = new_open_ports
+        elif scan_type == 'nmap':
+            asset.last_nmap = now
+            # Обновляем nmap_ports
+            if new_open_ports:
+                asset.nmap_ports = new_open_ports
+        elif scan_type == 'dig':
+            asset.last_dns_scan = now
+        
+        # Обновляем last_seen для любого типа сканирования
+        asset.last_seen = now
+        
         # Обновляем статус актива на основе наличия открытых портов
         current_open_ports = asset.open_ports or []
         if len(current_open_ports) > 0:
@@ -362,7 +384,7 @@ class ScanProcessor:
                 else:
                     logger.warning(f"  - Группа с ID {group_id} не найдена для актива {ip}")
             
-        asset.updated_at = datetime.utcnow()
+        asset.updated_at = now
         
         await self.db.commit()
         logger.info(f"[SCAN_PROCESS] Изменения закоммичены для актива {ip}")
