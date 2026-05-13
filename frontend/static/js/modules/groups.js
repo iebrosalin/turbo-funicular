@@ -316,7 +316,7 @@ export class GroupManager {
         return;
       } catch (e) {
         console.error('[saveGroup] Ошибка переименования корневой группы:', e);
-        alert(e.message);
+        Utils.showFlashMessage('danger', e.message);
         return;
       }
     }
@@ -331,7 +331,7 @@ export class GroupManager {
       const cidr = document.getElementById('cidr-network').value.trim();
       const mask = document.getElementById('cidr-mask').value;
       if (!cidr) {
-        alert('Укажите CIDR');
+        Utils.showFlashMessage('warning', 'Укажите CIDR');
         return;
       }
       payload.cidr_network = cidr;
@@ -382,7 +382,7 @@ export class GroupManager {
       console.log('[saveGroup] Группа успешно сохранена');
     } catch (e) {
       console.error('[saveGroup] Ошибка сохранения группы:', e);
-      alert(e.message);
+      Utils.showFlashMessage('danger', e.message);
     }
   }
 
@@ -435,11 +435,11 @@ export class GroupManager {
       } else {
         const errData = await response.json().catch(() => ({}));
         console.error('[confirmDeleteGroup] Ошибка удаления:', errData);
-        alert('Ошибка при удалении группы: ' + (errData.detail || 'Неизвестная ошибка'));
+        Utils.showFlashMessage('danger', 'Ошибка при удалении группы: ' + (errData.detail || 'Неизвестная ошибка'));
       }
     } catch (error) {
       console.error('[confirmDeleteGroup] Исключение:', error);
-      alert('Ошибка сети: ' + error.message);
+      Utils.showFlashMessage('danger', 'Ошибка сети: ' + error.message);
     }
   }
 
@@ -497,7 +497,7 @@ export class GroupManager {
       console.log('[moveGroup] Группа успешно перемещена');
     } catch (e) {
       console.error('[moveGroup] Ошибка перемещения группы:', e);
-      alert(e.message);
+      Utils.showFlashMessage('danger', e.message);
     }
   }
 
