@@ -254,7 +254,7 @@ class ScanProcessor:
                     "scan_type": "dig"  # Передаем тип сканирования для обновления временных меток
                 })
         
-        # Обновляем DNS записи у активов
+        # Обновляем DNS записи у активов и обновляем hostname из PTR записей
         for ip, recs in dns_by_ip.items():
             result = await self.db.execute(select(Asset).where(Asset.ip_address == ip))
             asset = result.scalar_one_or_none()
@@ -267,6 +267,15 @@ class ScanProcessor:
                 if new_recs:
                     asset.dns_records = (current_dns + new_recs)
                     logger.debug(f"Добавлено {len(new_recs)} DNS записей для {ip}")
+                
+                # Проверяем PTR записи и обновляем hostname если найдено
+                ptr_records = [r for r in recs if r.get('type') == 'PTR']
+                if ptr_records and ptr_records[0].get('data'):
+                    ptr_hostname = ptr_records[0]['data'].rstrip('.')
+                    if asset.hostname != ptr_hostname:
+                        old_hostname = asset.hostname
+                        asset.hostname = ptr_hostname
+                        logger.info(f"Hostname актива {ip} обновлён через PTR: '{old_hostname}' -> '{ptr_hostname}'")
         
         await self.db.commit()
         logger.info(f"Dig: Обработано {len(dns_records)} записей.")
@@ -292,10 +301,11 @@ class ScanProcessor:
         
         if not asset:
             # Новый актив: статус зависит от наличия открытых портов
+            # Активы без открытых портов помечаются как inactive
             status = 'active' if has_open_ports else 'inactive'
             asset = Asset(ip_address=ip, status=status)
             self.db.add(asset)
-            logger.info(f"[SCAN_PROCESS] СОЗДАН НОВЫЙ АКТИВ: IP={ip}, Группа={group_id}, Статус={status}")
+            logger.info(f"[SCAN_PROCESS] СОЗДАН НОВЫЙ АКТИВ: IP={ip}, Группа={group_id}, Статус={status}, Портов={len(new_open_ports)}")
             
             # Если указана группа, добавляем связь для нового актива
             if group_id:
@@ -307,7 +317,7 @@ class ScanProcessor:
                 else:
                     logger.warning(f"  - Группа с ID {group_id} не найдена для актива {ip}")
         else:
-            logger.info(f"[SCAN_PROCESS] ОБНОВЛЕНИЕ АКТИВА: IP={ip}")
+            logger.info(f"[SCAN_PROCESS] ОБНОВЛЕНИЕ АКТИВА: IP={ip}, Текущий статус={asset.status}, Портов={len(asset.open_ports or [])}")
 
         # Применяем обновления
         for key, value in updates.items():
@@ -359,10 +369,15 @@ class ScanProcessor:
         asset.last_seen = now
         
         # Обновляем статус актива на основе наличия открытых портов
+        # Только активы с открытыми портами считаются active
         current_open_ports = asset.open_ports or []
         if len(current_open_ports) > 0:
+            if asset.status != 'active':
+                logger.debug(f"  - Статус изменён на 'active' (порты: {current_open_ports})")
             asset.status = 'active'
         else:
+            if asset.status != 'inactive':
+                logger.debug(f"  - Статус изменён на 'inactive' (нет открытых портов)")
             asset.status = 'inactive'
         
         # Обновляем группу для существующего актива
