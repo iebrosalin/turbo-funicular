@@ -42,41 +42,14 @@ class App {
   }
 
   #initUIComponents() {
-    // --- Логика переключения сайдбара (кнопка) ---
-    const sidebarToggle = document.getElementById('sidebarToggle');
     const sidebar = document.getElementById('sidebar');
     
-    if (sidebarToggle && sidebar) {
-      sidebarToggle.addEventListener('click', () => {
-        sidebar.classList.toggle('collapsed');
-        const icon = sidebarToggle.querySelector('i');
-        const isCollapsed = sidebar.classList.contains('collapsed');
-        
-        // Меняем иконку стрелки
-        if (isCollapsed) {
-          icon.classList.remove('bi-chevron-left');
-          icon.classList.add('bi-chevron-right');
-        } else {
-          icon.classList.remove('bi-chevron-right');
-          icon.classList.add('bi-chevron-left');
-        }
-        
-        // Сохраняем состояние в localStorage
-        localStorage.setItem('sidebarCollapsed', isCollapsed ? 'true' : 'false');
-      });
-      
-      // Восстанавливаем состояние при загрузке
-      const wasCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
-      if (wasCollapsed) {
-        sidebar.classList.add('collapsed');
-        const icon = sidebarToggle.querySelector('i');
-        if (icon) {
-          icon.classList.remove('bi-chevron-left');
-          icon.classList.add('bi-chevron-right');
-        }
-      }
+    // Восстанавливаем состояние сворачивания при загрузке
+    const wasCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+    if (wasCollapsed && sidebar) {
+      sidebar.classList.add('collapsed');
     }
-
+    
     // --- Логика изменения размера сайдбара (resizer) ---
     const resizer = document.getElementById('sidebarResizer');
     
@@ -99,10 +72,17 @@ class App {
         if (!this.isResizing) return;
 
         let newWidth = e.clientX;
-        const minWidth = 200;
+        const minWidth = 60;
         const maxWidth = 600;
         
-        if (newWidth < minWidth) newWidth = minWidth;
+        // Если ширина меньше порога сворачивания, сворачиваем
+        if (newWidth < 100) {
+          sidebar.classList.add('collapsed');
+          newWidth = 60;
+        } else {
+          sidebar.classList.remove('collapsed');
+        }
+        
         if (newWidth > maxWidth) newWidth = maxWidth;
 
         document.documentElement.style.setProperty('--sidebar-width', `${newWidth}px`);
@@ -117,6 +97,7 @@ class App {
           
           const currentWidth = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim();
           localStorage.setItem('sidebarWidth', currentWidth);
+          localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed') ? 'true' : 'false');
         }
       });
     }
