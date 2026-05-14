@@ -27,32 +27,6 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 .navbar { background: var(--bg-card) !important; border-bottom: 1px solid var(--border-color); box-shadow: var(--shadow-sm); }
 .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 0.5rem; box-shadow: var(--shadow-sm); transition: all 0.3s ease; }
 
-/* Sidebar Toggle Button */
-.sidebar-toggle-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-primary);
-    padding: 0.25rem 0.5rem;
-    cursor: pointer;
-    border-radius: 0.25rem;
-    transition: background 0.2s;
-}
-.sidebar-toggle-btn:hover {
-    background: var(--bg-hover);
-}
-
-/* Sidebar Resizer */
-.sidebar-resizer {
-    width: 5px;
-    cursor: col-resize;
-    background: transparent;
-    transition: background 0.2s;
-    z-index: 10;
-}
-.sidebar-resizer:hover, .sidebar-resizer.resizing {
-    background: var(--bs-primary);
-}
-
 /* Sidebar Styles */
 .sidebar {
     min-width: var(--sidebar-width);
@@ -62,6 +36,9 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     border-right: 1px solid var(--border-color);
     overflow: hidden;
     position: relative;
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 56px);
 }
 .sidebar .card {
     background: var(--bg-card);
@@ -72,6 +49,24 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     background: var(--bg-card);
     border-bottom: 1px solid var(--border-color);
 }
+
+/* Sidebar Resizer */
+.sidebar-resizer {
+    width: 5px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.2s;
+    z-index: 10;
+    align-self: stretch;
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+}
+.sidebar-resizer:hover, .sidebar-resizer.resizing {
+    background: var(--bs-primary);
+}
+
 .sidebar.collapsed {
     min-width: 60px;
     max-width: 60px;
@@ -79,13 +74,8 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 .sidebar.collapsed .sidebar-text,
 .sidebar.collapsed .sidebar-section-title,
 .sidebar.collapsed .card-header h6,
-.sidebar.collapsed #btn-add-group,
-.sidebar.collapsed .sidebar-toggle-btn span {
+.sidebar.collapsed #btn-add-group {
     display: none;
-}
-.sidebar.collapsed .sidebar-toggle-btn {
-    width: 100%;
-    justify-content: center;
 }
 .sidebar.collapsed .card-header {
     justify-content: center;
