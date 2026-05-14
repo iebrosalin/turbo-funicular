@@ -3,14 +3,11 @@
 {% block title %}Сканирования{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <!-- Основной контент страницы сканирований -->
-        <div class="col-md-9 col-lg-10 ms-sm-auto px-md-4">
-            <h2 class="mb-4"><i class="bi bi-wifi"></i> Управление сканированиями</h2>
+<div class="col-12">
+    <h2 class="mb-4"><i class="bi bi-wifi"></i> Управление сканированиями</h2>
 
-            <!-- Статус очередей сканирований -->
-            <div id="queue-status-container" class="row mb-4">
+    <!-- Статус очередей сканирований -->
+    <div id="queue-status-container" class="row mb-4">
                 <div class="col-md-4 mb-3">
                     <div class="card h-100 border-primary">
                         <div class="card-header bg-primary text-white">
@@ -287,7 +284,6 @@
             </div>
         </div>
     </div>
-</div>
 
 <!-- Модальное окно результатов -->
 <div class="modal fade" id="scanResultModal" tabindex="-1">

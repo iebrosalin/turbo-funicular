@@ -19,11 +19,16 @@
 
 <div class="wrapper">
     <!-- TOP NAVBAR -->
-    <nav class="navbar sticky-top border-bottom">
+    <nav class="navbar sticky-top border-bottom navbar-expand-lg">
         <div class="container-fluid">
             <a class="navbar-brand" href="/"><h4 class="mb-0"><i class="bi bi-hdd-network me-2"></i>AssetMgr</h4></a>
             
-            <ul class="nav mb-0">
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarMain">
+                <ul class="navbar-nav me-auto mb-0">
                 <li class="nav-item">
                     <a href="/" class="nav-link {% if request.scope.get('endpoint') and 'root' in request.scope.get('endpoint').__name__ %}active{% endif %}">
                         <i class="bi bi-speedometer2 me-1"></i>Дашборд
@@ -71,55 +76,61 @@
                     </ul>
                 </li>
             </ul>
-        </div>
-    </nav>
-
-    <!-- SIDEBAR -->
-    <div class="d-flex" id="wrapper">
-
-        <!-- LEFT SIDEBAR -->
-        <div class="col-md-3 col-lg-2 mb-4 px-3">
-            <!-- Сайдбар с группами активов -->
-            <div class="card shadow-sm mb-3">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="mb-0">Группы</h6>
-                    <button class="btn btn-sm btn-link p-0" id="btn-add-group" title="Добавить группу">
-                        <i class="bi bi-plus-circle"></i>
-                    </button>
-                </div>
-                <div class="card-body p-2" id="sidebar-content">
-                    <!-- Дерево групп будет загружено сюда через tree.js -->
-                    <div class="text-center text-muted py-3">
-                        <div class="spinner-border spinner-border-sm" role="status"></div>
-                        <small class="d-block mt-1">Загрузка...</small>
-                    </div>
-                </div>
-            </div>
             
-            <!-- Блок активных задач -->
-            <div id="sidebar-tasks-container">
-                <div class="sidebar-section">
-                    <div class="sidebar-section-title">Активные задачи</div>
-                    <div id="active-scans-list">
-                        <div class="text-center text-muted small py-3">Нет активных задач</div>
+            <div class="d-flex align-items-center text-white">
+                <span class="me-3 small"><i class="bi bi-person-circle me-1"></i> Admin</span>
+            </div>
+        </div>
+    </div>
+</nav>
+
+    <!-- MAIN LAYOUT -->
+    <div class="container-fluid">
+        <div class="row">
+            <!-- LEFT SIDEBAR -->
+            <div class="col-md-3 col-lg-2 mb-4 px-3">
+                <!-- Сайдбар с группами активов -->
+                <div class="card shadow-sm mb-3">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">Группы</h6>
+                        <button class="btn btn-sm btn-link p-0" id="btn-add-group" title="Добавить группу">
+                            <i class="bi bi-plus-circle"></i>
+                        </button>
+                    </div>
+                    <div class="card-body p-2" id="sidebar-content">
+                        <!-- Дерево групп будет загружено сюда через tree.js -->
+                        <div class="text-center text-muted py-3">
+                            <div class="spinner-border spinner-border-sm" role="status"></div>
+                            <small class="d-block mt-1">Загрузка...</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Блок активных задач -->
+                <div id="sidebar-tasks-container">
+                    <div class="sidebar-section">
+                        <div class="sidebar-section-title">Активные задачи</div>
+                        <div id="active-scans-list">
+                            <div class="text-center text-muted small py-3">Нет активных задач</div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- PAGE CONTENT -->
-        <div id="content" class="w-100">
-        <!-- Контейнер для уведомлений -->
-        <div id="notifications-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1100;"></div>
-        
-        <!-- Основной контент страницы -->
-        <main class="py-4">
-            {% block content %}{% endblock %}
-        </main>
-        
-        <footer class="mt-5 pt-3 border-top text-center text-muted small">
-            &copy; 2026 Asset Management System. Version 2.0
-        </footer>
+            <!-- PAGE CONTENT -->
+            <div class="col-md-9 col-lg-10" id="content">
+                <!-- Контейнер для уведомлений -->
+                <div id="notifications-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1100;"></div>
+                
+                <!-- Основной контент страницы -->
+                <main class="py-4">
+                    {% block content %}{% endblock %}
+                </main>
+                
+                <footer class="mt-5 pt-3 border-top text-center text-muted small">
+                    &copy; 2026 Asset Management System. Version 2.0
+                </footer>
+            </div>
         </div>
     </div>
 </div>
