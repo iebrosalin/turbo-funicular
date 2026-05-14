@@ -17,126 +17,121 @@
 </head>
 <body>
 
-<div class="wrapper">
-    <!-- TOP NAVBAR -->
-    <nav class="navbar sticky-top border-bottom navbar-expand-lg">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/"><h4 class="mb-0"><i class="bi bi-hdd-network me-2"></i>AssetMgr</h4></a>
-            
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            
-            <div class="collapse navbar-collapse" id="navbarMain">
-                <ul class="navbar-nav me-auto mb-0">
-                <li class="nav-item">
-                    <a href="/" class="nav-link {% if request.scope.get('endpoint') and 'root' in request.scope.get('endpoint').__name__ %}active{% endif %}">
-                        <i class="bi bi-speedometer2 me-1"></i>Дашборд
-                    </a>
-                </li>
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="/scans" role="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-radar me-1"></i>Сканирования
-                    </a>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="/scans"><i class="bi bi-play-circle me-2"></i>Сканирование</a></li>
-                        <li><a class="dropdown-item" href="/scan-history"><i class="bi bi-clock-history me-2"></i>История сканирований</a></li>
-                        <li><a class="dropdown-item" href="/import-nmap"><i class="bi bi-upload me-2"></i>Импорт Nmap XML</a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="/api/scans/utilities-check"><i class="bi bi-tools me-2"></i>Проверка утилит</a></li>
-                    </ul>
-                </li>
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-box-arrow-in-right me-1"></i>Интеграции
-                    </a>
-                    <ul class="dropdown-menu" id="integrations-dropdown">
-                        <li><a class="dropdown-item" href="/integrations/redcheck"><i class="bi bi-shield-check me-2"></i>RedCheck</a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li class="px-3 py-2 small text-muted">Страницы Redcheck:</li>
-                        <li id="redcheck-pages-list">
-                            <a class="dropdown-item" href="/integrations/redcheck/scans"><i class="bi bi-list-task me-2"></i>Сканирования</a>
-                            <a class="dropdown-item" href="/integrations/redcheck/hosts"><i class="bi bi-hdd-network me-2"></i>Хосты (Активы)</a>
-                        </li>
-                    </ul>
-                </li>
-                <li class="nav-item">
-                    <a href="/settings" class="nav-link {% if request.scope.get('endpoint') and 'settings_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
-                        <i class="bi bi-gear-fill me-1"></i>Настройки
-                    </a>
-                </li>
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-wrench me-1"></i>Служебные
-                    </a>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="/taxonomy"><i class="bi bi-diagram-3 me-2"></i>Таксономия активов</a></li>
-                        <li><a class="dropdown-item" href="/utilities"><i class="bi bi-tools me-2"></i>Утилиты</a></li>
-                        <li><a class="dropdown-item" href="/ui-kit"><i class="bi bi-palette me-2"></i>UI Kit</a></li>
-                    </ul>
-                </li>
-            </ul>
-            <!-- Убран блок с именем админа по запросу -->
-        </div>
-    </nav>
+<!-- TOP NAVBAR -->
+<nav class="navbar sticky-top border-bottom navbar-expand-lg bg-body-tertiary">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/"><h4 class="mb-0"><i class="bi bi-hdd-network me-2"></i>AssetMgr</h4></a>
+        
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        
+        <div class="collapse navbar-collapse" id="navbarMain">
+            <ul class="navbar-nav me-auto mb-0">
+            <li class="nav-item">
+                <a href="/" class="nav-link {% if request.scope.get('endpoint') and 'root' in request.scope.get('endpoint').__name__ %}active{% endif %}">
+                    <i class="bi bi-speedometer2 me-1"></i>Дашборд
+                </a>
+            </li>
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="/scans" role="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-radar me-1"></i>Сканирования
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="/scans"><i class="bi bi-play-circle me-2"></i>Сканирование</a></li>
+                    <li><a class="dropdown-item" href="/scan-history"><i class="bi bi-clock-history me-2"></i>История сканирований</a></li>
+                    <li><a class="dropdown-item" href="/import-nmap"><i class="bi bi-upload me-2"></i>Импорт Nmap XML</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="/api/scans/utilities-check"><i class="bi bi-tools me-2"></i>Проверка утилит</a></li>
+                </ul>
+            </li>
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-box-arrow-in-right me-1"></i>Интеграции
+                </a>
+                <ul class="dropdown-menu" id="integrations-dropdown">
+                    <li><a class="dropdown-item" href="/integrations/redcheck"><i class="bi bi-shield-check me-2"></i>RedCheck</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li class="px-3 py-2 small text-muted">Страницы Redcheck:</li>
+                    <li id="redcheck-pages-list">
+                        <a class="dropdown-item" href="/integrations/redcheck/scans"><i class="bi bi-list-task me-2"></i>Сканирования</a>
+                        <a class="dropdown-item" href="/integrations/redcheck/hosts"><i class="bi bi-hdd-network me-2"></i>Хосты (Активы)</a>
+                    </li>
+                </ul>
+            </li>
+            <li class="nav-item">
+                <a href="/settings" class="nav-link {% if request.scope.get('endpoint') and 'settings_page' in request.scope.get('endpoint').__name__ %}active{% endif %}">
+                    <i class="bi bi-gear-fill me-1"></i>Настройки
+                </a>
+            </li>
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-wrench me-1"></i>Служебные
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a class="dropdown-item" href="/taxonomy"><i class="bi bi-diagram-3 me-2"></i>Таксономия активов</a></li>
+                    <li><a class="dropdown-item" href="/utilities"><i class="bi bi-tools me-2"></i>Утилиты</a></li>
+                    <li><a class="dropdown-item" href="/ui-kit"><i class="bi bi-palette me-2"></i>UI Kit</a></li>
+                </ul>
+            </li>
+        </ul>
+        <!-- Убран блок с именем админа по запросу -->
+    </div>
+</nav>
 
-    <!-- MAIN LAYOUT -->
-    <div class="container-fluid py-3">
-        <div class="row">
-            <!-- LEFT SIDEBAR -->
-            <div class="col-md-3 col-lg-2 mb-4">
-                <div class="sidebar" id="sidebar">
-                    <div class="d-flex flex-column h-100">
-                        <!-- Сайдбар с группами активов -->
-                        <div class="card shadow-sm border-0 mb-3">
-                            <div class="card-header d-flex justify-content-between align-items-center border-bottom pb-0">
-                                <h6 class="mb-0 small text-uppercase text-muted sidebar-text">Группы</h6>
-                                <button class="btn btn-sm btn-link p-0 sidebar-text" id="btn-add-group" title="Добавить группу">
-                                    <i class="bi bi-plus-circle"></i>
-                                </button>
-                            </div>
-                            <div class="card-body p-2" id="sidebar-content">
-                                <!-- Дерево групп будет загружено сюда через tree.js -->
-                                <div class="text-center text-muted py-3">
-                                    <div class="spinner-border spinner-border-sm" role="status"></div>
-                                    <small class="d-block mt-1 sidebar-text">Загрузка...</small>
-                                </div>
-                            </div>
+<!-- MAIN LAYOUT - Bootstrap Grid -->
+<div class="container-fluid py-3">
+    <div class="row g-3">
+        <!-- LEFT SIDEBAR -->
+        <aside class="col-12 col-md-3 col-lg-2">
+            <div class="sidebar h-100" id="sidebar">
+                <div class="d-flex flex-column h-100">
+                    <!-- Сайдбар с группами активов -->
+                    <div class="card shadow-sm border-0 mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center border-bottom pb-0">
+                            <h6 class="mb-0 small text-uppercase text-muted sidebar-text">Группы</h6>
+                            <button class="btn btn-sm btn-link p-0 sidebar-text" id="btn-add-group" title="Добавить группу">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
                         </div>
-                        
-                        <!-- Блок активных задач -->
-                        <div id="sidebar-tasks-container" class="mb-3">
-                            <div class="sidebar-section">
-                                <div class="sidebar-section-title small text-uppercase text-muted mb-2 sidebar-text">Активные задачи</div>
-                                <div id="active-scans-list">
-                                    <div class="text-center text-muted small py-3 sidebar-text">Нет активных задач</div>
-                                </div>
+                        <div class="card-body p-2" id="sidebar-content">
+                            <!-- Дерево групп будет загружено сюда через tree.js -->
+                            <div class="text-center text-muted py-3">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                <small class="d-block mt-1 sidebar-text">Загрузка...</small>
                             </div>
                         </div>
                     </div>
-                    <!-- Sidebar Resizer -->
-                    <div class="sidebar-resizer" id="sidebarResizer"></div>
+                    
+                    <!-- Блок активных задач -->
+                    <div id="sidebar-tasks-container" class="mb-3">
+                        <div class="sidebar-section">
+                            <div class="sidebar-section-title small text-uppercase text-muted mb-2 sidebar-text">Активные задачи</div>
+                            <div id="active-scans-list">
+                                <div class="text-center text-muted small py-3 sidebar-text">Нет активных задач</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+                <!-- Sidebar Resizer -->
+                <div class="sidebar-resizer" id="sidebarResizer"></div>
             </div>
+        </aside>
 
-            <!-- PAGE CONTENT -->
-            <div class="col-md-9 col-lg-10">
-                <div class="h-100">
-                    <!-- Контейнер для уведомлений -->
-                    <div id="notifications-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1100;"></div>
-                    
-                    <!-- Основной контент страницы -->
-                    <main>
-                        {% block content %}{% endblock %}
-                    </main>
-                    
-                    <footer class="mt-5 pt-3 border-top text-center text-muted small">
-                        &copy; 2026 Asset Management System. Version 2.0
-                    </footer>
-                </div>
-            </div>
-        </div>
+        <!-- PAGE CONTENT -->
+        <main class="col-12 col-md-9 col-lg-10">
+            <!-- Контейнер для уведомлений -->
+            <div id="notifications-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1100;"></div>
+            
+            <!-- Основной контент страницы -->
+            {% block content %}{% endblock %}
+            
+            <footer class="mt-4 pt-3 border-top text-center text-muted small">
+                &copy; 2026 Asset Management System. Version 2.0
+            </footer>
+        </main>
     </div>
+</div>
 
 <!-- Модальные окна -->
 {% include 'components/modals_groups.html' %}
