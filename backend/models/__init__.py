@@ -8,6 +8,7 @@ from backend.models.group import Group
 from backend.models.scan import Scan, ScanJob, ScanResult
 from backend.models.log import ActivityLog
 from backend.models.service import ServiceInventory
+from backend.models.integration_settings import IntegrationSettings
 
 __all__ = [
     'Asset',
@@ -18,4 +19,5 @@ __all__ = [
     'ScanResult',
     'ActivityLog',
     'ServiceInventory',
+    'IntegrationSettings',
 ]

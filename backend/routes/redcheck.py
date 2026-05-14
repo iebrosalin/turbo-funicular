@@ -382,11 +382,45 @@ async def save_settings(settings: RedCheckSettings, request: Request, db: AsyncS
     """
     Сохранение настроек подключения к RedCheck
     """
-    # Здесь должна быть логика сохранения в БД или конфиг
-    # Для примера просто возвращаем успех
+    from sqlalchemy import select, update
+    from backend.models.integration_settings import IntegrationSettings
+    
     logger.info(f"Сохранение настроек RedCheck: {settings.api_url}")
     
-    # TODO: Реализовать сохранение в базу данных или зашифрованное хранилище
+    # Проверяем существующие настройки
+    query = select(IntegrationSettings).where(IntegrationSettings.name == "redcheck")
+    result = await db.execute(query)
+    existing_settings = result.scalar_one_or_none()
+    
+    if existing_settings:
+        # Обновляем существующие настройки
+        existing_settings.api_url = settings.api_url
+        existing_settings.api_version = settings.api_version
+        existing_settings.username = settings.username
+        existing_settings.password = settings.password
+        existing_settings.auth_type = settings.auth_type
+        existing_settings.timeout = settings.timeout
+        existing_settings.verify_ssl = settings.verify_ssl
+        existing_settings.enabled = True
+        logger.info(f"[DEBUG] Настройки RedCheck обновлены в БД (id={existing_settings.id})")
+    else:
+        # Создаем новые настройки
+        new_settings = IntegrationSettings(
+            name="redcheck",
+            api_url=settings.api_url,
+            api_version=settings.api_version,
+            username=settings.username,
+            password=settings.password,
+            auth_type=settings.auth_type,
+            timeout=settings.timeout,
+            verify_ssl=settings.verify_ssl,
+            enabled=True
+        )
+        db.add(new_settings)
+        logger.info(f"[DEBUG] Настройки RedCheck созданы в БД")
+    
+    await db.commit()
+    logger.info(f"[DEBUG] Настройки RedCheck закоммичены в БД")
     
     return {
         "success": True,
@@ -396,7 +430,8 @@ async def save_settings(settings: RedCheckSettings, request: Request, db: AsyncS
             "api_version": settings.api_version,
             "auth_type": settings.auth_type,
             "timeout": settings.timeout,
-            "verify_ssl": settings.verify_ssl
+            "verify_ssl": settings.verify_ssl,
+            "enabled": True
         }
     }
 
@@ -406,15 +441,34 @@ async def get_current_settings(db: AsyncSession = Depends(get_db)):
     """
     Получение текущих настроек подключения
     """
-    # TODO: Реализовать получение из БД
-    # Для примера возвращаем пустые настройки
-    return {
-        "api_url": "",
-        "api_version": "v1.0",
-        "auth_type": "basic",
-        "timeout": 30,
-        "verify_ssl": True
-    }
+    from sqlalchemy import select
+    from backend.models.integration_settings import IntegrationSettings
+    
+    query = select(IntegrationSettings).where(IntegrationSettings.name == "redcheck")
+    result = await db.execute(query)
+    settings_record = result.scalar_one_or_none()
+    
+    if settings_record:
+        logger.info(f"[DEBUG] Настройки RedCheck найдены в БД (id={settings_record.id})")
+        return {
+            "api_url": settings_record.api_url or "",
+            "api_version": settings_record.api_version or "v1.0",
+            "username": settings_record.username or "",
+            "auth_type": settings_record.auth_type or "basic",
+            "timeout": settings_record.timeout or 30,
+            "verify_ssl": settings_record.verify_ssl if settings_record.verify_ssl is not None else True,
+            "enabled": settings_record.enabled if settings_record.enabled is not None else False
+        }
+    else:
+        logger.info(f"[DEBUG] Настройки RedCheck не найдены в БД")
+        return {
+            "api_url": "",
+            "api_version": "v1.0",
+            "auth_type": "basic",
+            "timeout": 30,
+            "verify_ssl": True,
+            "enabled": False
+        }
 
 
 @router.get("/info")
@@ -422,13 +476,27 @@ async def get_integration_info(db: AsyncSession = Depends(get_db)):
     """
     Общая информация об интеграции с RedCheck
     """
-    # TODO: Реализовать получение статистики из БД
+    from sqlalchemy import select, func
+    from backend.models.integration_settings import IntegrationSettings
+    
+    # Получаем настройки
+    query = select(IntegrationSettings).where(IntegrationSettings.name == "redcheck")
+    result = await db.execute(query)
+    settings_record = result.scalar_one_or_none()
+    
+    enabled = False
+    last_sync = None
+    if settings_record:
+        enabled = settings_record.enabled if settings_record.enabled is not None else False
+        # В будущем можно добавить поле last_sync в модель IntegrationSettings
+    
     return {
-        "enabled": False,
-        "last_sync": None,
-        "total_scans": 0,
-        "total_hosts": 0,
-        "status": "not_configured"
+        "enabled": enabled,
+        "last_sync": last_sync,
+        "total_scans": 0,  # В будущем можно получить из БД
+        "total_hosts": 0,  # В будущем можно получить из БД
+        "status": "configured" if enabled else "not_configured",
+        "api_url": settings_record.api_url if settings_record else None
     }
 
 
