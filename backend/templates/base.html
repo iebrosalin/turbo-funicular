@@ -77,6 +77,36 @@
     <!-- SIDEBAR -->
     <div class="d-flex" id="wrapper">
 
+        <!-- LEFT SIDEBAR -->
+        <div class="col-md-3 col-lg-2 mb-4 px-3">
+            <!-- Сайдбар с группами активов -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">Группы</h6>
+                    <button class="btn btn-sm btn-link p-0" id="btn-add-group" title="Добавить группу">
+                        <i class="bi bi-plus-circle"></i>
+                    </button>
+                </div>
+                <div class="card-body p-2" id="sidebar-content">
+                    <!-- Дерево групп будет загружено сюда через tree.js -->
+                    <div class="text-center text-muted py-3">
+                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                        <small class="d-block mt-1">Загрузка...</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Блок активных задач -->
+            <div id="sidebar-tasks-container">
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Активные задачи</div>
+                    <div id="active-scans-list">
+                        <div class="text-center text-muted small py-3">Нет активных задач</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- PAGE CONTENT -->
         <div id="content" class="w-100">
         <!-- Контейнер для уведомлений -->
