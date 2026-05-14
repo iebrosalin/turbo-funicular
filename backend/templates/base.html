@@ -76,54 +76,52 @@
                     </ul>
                 </li>
             </ul>
-            
-            <div class="d-flex align-items-center text-white">
-                <span class="me-3 small"><i class="bi bi-person-circle me-1"></i> Admin</span>
-            </div>
+            <!-- Убран блок с именем админа по запросу -->
         </div>
-    </div>
-</nav>
+    </nav>
 
     <!-- MAIN LAYOUT -->
-    <div class="container-fluid">
-        <div class="row">
+    <div class="container-fluid px-4">
+        <div class="row flex-nowrap">
             <!-- LEFT SIDEBAR -->
-            <div class="col-md-3 col-lg-2 mb-4 px-3">
-                <!-- Сайдбар с группами активов -->
-                <div class="card shadow-sm mb-3">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h6 class="mb-0">Группы</h6>
-                        <button class="btn btn-sm btn-link p-0" id="btn-add-group" title="Добавить группу">
-                            <i class="bi bi-plus-circle"></i>
-                        </button>
-                    </div>
-                    <div class="card-body p-2" id="sidebar-content">
-                        <!-- Дерево групп будет загружено сюда через tree.js -->
-                        <div class="text-center text-muted py-3">
-                            <div class="spinner-border spinner-border-sm" role="status"></div>
-                            <small class="d-block mt-1">Загрузка...</small>
+            <div class="col-auto col-md-3 col-xl-2 px-sm-2 px-0 bg-white border-end">
+                <div class="d-flex flex-column align-items-center align-items-sm-start px-sm-2 pt-3 text-dark min-vh-100">
+                    <!-- Сайдбар с группами активов -->
+                    <div class="card shadow-sm border-0 mb-3 w-100">
+                        <div class="card-header d-flex justify-content-between align-items-center bg-white border-bottom-0 pb-0">
+                            <h6 class="mb-0 small text-uppercase text-muted">Группы</h6>
+                            <button class="btn btn-sm btn-link p-0" id="btn-add-group" title="Добавить группу">
+                                <i class="bi bi-plus-circle"></i>
+                            </button>
+                        </div>
+                        <div class="card-body p-2" id="sidebar-content">
+                            <!-- Дерево групп будет загружено сюда через tree.js -->
+                            <div class="text-center text-muted py-3">
+                                <div class="spinner-border spinner-border-sm" role="status"></div>
+                                <small class="d-block mt-1">Загрузка...</small>
+                            </div>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Блок активных задач -->
-                <div id="sidebar-tasks-container">
-                    <div class="sidebar-section">
-                        <div class="sidebar-section-title">Активные задачи</div>
-                        <div id="active-scans-list">
-                            <div class="text-center text-muted small py-3">Нет активных задач</div>
+                    
+                    <!-- Блок активных задач -->
+                    <div id="sidebar-tasks-container" class="w-100">
+                        <div class="sidebar-section">
+                            <div class="sidebar-section-title small text-uppercase text-muted mb-2">Активные задачи</div>
+                            <div id="active-scans-list">
+                                <div class="text-center text-muted small py-3">Нет активных задач</div>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- PAGE CONTENT -->
-            <div class="col-md-9 col-lg-10" id="content">
+            <div class="col-md-9 col-xl-10 px-4 py-4">
                 <!-- Контейнер для уведомлений -->
                 <div id="notifications-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1100;"></div>
                 
                 <!-- Основной контент страницы -->
-                <main class="py-4">
+                <main>
                     {% block content %}{% endblock %}
                 </main>
                 
