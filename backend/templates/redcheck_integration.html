@@ -1,0 +1,263 @@
+<!-- templates/redcheck_integration.html -->
+{% extends "base.html" %}
+
+{% block title %}RedCheck Integration - Asset Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i class="bi bi-shield-check me-2"></i>Интеграция с RedCheck</h2>
+            <p class="text-muted">Настройка подключения к системе управления уязвимостями RedCheck</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Настройки подключения -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-gear me-2"></i>Настройки подключения</h5>
+                </div>
+                <div class="card-body">
+                    <form id="redcheck-settings-form">
+                        <div class="mb-3">
+                            <label for="api_url" class="form-label">URL API</label>
+                            <input type="url" class="form-control" id="api_url" placeholder="https://redcheck.example.com" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="api_version" class="form-label">Версия API</label>
+                            <select class="form-select" id="api_version">
+                                <option value="v1.0">v1.0</option>
+                                <option value="v2.0">v2.0</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="auth_type" class="form-label">Тип аутентификации</label>
+                            <select class="form-select" id="auth_type">
+                                <option value="basic">Basic Auth</option>
+                                <option value="token">Token</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Имя пользователя</label>
+                            <input type="text" class="form-control" id="username">
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label">Пароль</label>
+                            <input type="password" class="form-control" id="password">
+                        </div>
+                        <div class="form-check mb-3">
+                            <input type="checkbox" class="form-check-input" id="verify_ssl" checked>
+                            <label class="form-check-label" for="verify_ssl">Проверять SSL сертификат</label>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-primary" onclick="testConnection()">
+                                <i class="bi bi-plug me-1"></i>Проверить подключение
+                            </button>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-save me-1"></i>Сохранить
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Статус интеграции -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Статус интеграции</h5>
+                </div>
+                <div class="card-body">
+                    <div id="integration-status">
+                        <div class="text-center py-4">
+                            <i class="bi bi-question-circle text-muted" style="font-size: 3rem;"></i>
+                            <p class="mt-3 text-muted">Настройте подключение для получения статуса</p>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h6>Быстрые ссылки</h6>
+                    <div class="list-group">
+                        <a href="/integrations/redcheck/scans" class="list-group-item list-group-item-action">
+                            <i class="bi bi-list-task me-2"></i>Сканирования RedCheck
+                        </a>
+                        <a href="/integrations/redcheck/hosts" class="list-group-item list-group-item-action">
+                            <i class="bi bi-hdd-network me-2"></i>Хосты (Активы)
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="test-result-modal" class="modal fade" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Результат проверки подключения</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="test-result-content"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Загрузка текущих настроек
+async function loadSettings() {
+    try {
+        const response = await fetch('/api/integrations/redcheck/settings');
+        const settings = await response.json();
+        
+        if (settings.api_url) {
+            document.getElementById('api_url').value = settings.api_url;
+        }
+        document.getElementById('api_version').value = settings.api_version || 'v1.0';
+        document.getElementById('auth_type').value = settings.auth_type || 'basic';
+        document.getElementById('verify_ssl').checked = settings.verify_ssl !== false;
+    } catch (error) {
+        console.error('Ошибка загрузки настроек:', error);
+    }
+}
+
+// Проверка подключения
+async function testConnection() {
+    const settings = {
+        api_url: document.getElementById('api_url').value,
+        api_version: document.getElementById('api_version').value,
+        auth_type: document.getElementById('auth_type').value,
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+        verify_ssl: document.getElementById('verify_ssl').checked,
+        timeout: 30
+    };
+    
+    if (!settings.api_url) {
+        alert('Введите URL API');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/integrations/redcheck/test-connection', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(settings)
+        });
+        
+        const result = await response.json();
+        
+        const modal = new bootstrap.Modal(document.getElementById('test-result-modal'));
+        const content = document.getElementById('test-result-content');
+        
+        if (result.success) {
+            content.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle me-2"></i>
+                    ${result.message}
+                    ${result.token_received ? '<br><small>Токен получен успешно</small>' : ''}
+                </div>
+            `;
+        } else {
+            content.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle me-2"></i>
+                    ${result.message}
+                    ${result.error_details ? `<br><small>${result.error_details}</small>` : ''}
+                </div>
+            `;
+        }
+        
+        modal.show();
+    } catch (error) {
+        alert('Ошибка проверки подключения: ' + error.message);
+    }
+}
+
+// Сохранение настроек
+document.getElementById('redcheck-settings-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const settings = {
+        api_url: document.getElementById('api_url').value,
+        api_version: document.getElementById('api_version').value,
+        auth_type: document.getElementById('auth_type').value,
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+        verify_ssl: document.getElementById('verify_ssl').checked,
+        timeout: 30
+    };
+    
+    try {
+        const response = await fetch('/api/integrations/redcheck/settings', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(settings)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Настройки успешно сохранены!');
+            loadIntegrationInfo();
+        } else {
+            alert('Ошибка сохранения: ' + (result.message || 'Неизвестная ошибка'));
+        }
+    } catch (error) {
+        alert('Ошибка сохранения настроек: ' + error.message);
+    }
+});
+
+// Загрузка информации об интеграции
+async function loadIntegrationInfo() {
+    try {
+        const response = await fetch('/api/integrations/redcheck/info');
+        const info = await response.json();
+        
+        const statusDiv = document.getElementById('integration-status');
+        
+        if (info.enabled) {
+            statusDiv.innerHTML = `
+                <div class="text-center">
+                    <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+                    <h4 class="mt-3">Интеграция активна</h4>
+                    <p class="text-muted">Последняя синхронизация: ${info.last_sync || 'Никогда'}</p>
+                    <div class="row mt-4">
+                        <div class="col-6">
+                            <h3>${info.total_scans}</h3>
+                            <small class="text-muted">Сканирований</small>
+                        </div>
+                        <div class="col-6">
+                            <h3>${info.total_hosts}</h3>
+                            <small class="text-muted">Хостов</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            statusDiv.innerHTML = `
+                <div class="text-center py-4">
+                    <i class="bi bi-x-circle-fill text-danger" style="font-size: 3rem;"></i>
+                    <h4 class="mt-3">Интеграция не настроена</h4>
+                    <p class="text-muted">Настройте подключение для начала работы</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Ошибка загрузки информации:', error);
+    }
+}
+
+// Инициализация при загрузке страницы
+document.addEventListener('DOMContentLoaded', function() {
+    loadSettings();
+    loadIntegrationInfo();
+});
+</script>
+{% endblock %}

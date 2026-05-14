@@ -68,7 +68,10 @@ class AssetService:
                         elif field == 'device_role':
                             field_value = asset.get('device_type')
                         elif field == 'open_ports':
-                            field_value = asset.get('open_ports')
+                            # open_ports теперь вычисляемое свойство, объединяем rustscan и nmap порты
+                            rustscan_ports = asset.get('rustscan_ports', []) or []
+                            nmap_ports = asset.get('nmap_ports', []) or []
+                            field_value = sorted(list(set(rustscan_ports) | set(nmap_ports)))
                         elif field == 'status':
                             field_value = asset.get('status')
                         elif field == 'source':
@@ -322,15 +325,27 @@ class AssetService:
     
     async def delete(self, asset_id: int, username: Optional[str] = None) -> bool:
         """Удалить актив с записью в лог."""
-        # Сначала получаем данные для лога
-        asset_dict = await self.get_by_id(asset_id)
-        
-        query = delete(Asset).where(Asset.id == asset_id)
+        # Сначала получаем данные для лога - используем sync подход чтобы избежать greenlet_spawn ошибки
+        query = select(Asset).options(
+            selectinload(Asset.groups),
+            selectinload(Asset.services)
+        ).where(Asset.id == asset_id)
         result = await self.db.execute(query)
+        asset = result.scalar_one_or_none()
+        
+        if not asset:
+            return False
+        
+        # Конвертируем в dict пока сессия активна
+        asset_dict = self._asset_to_dict(asset)
+        
+        # Теперь удаляем
+        del_query = delete(Asset).where(Asset.id == asset_id)
+        del_result = await self.db.execute(del_query)
         await self.db.flush()
         
         # Записываем в лог если актив был удален
-        if result.rowcount > 0 and asset_dict:
+        if del_result.rowcount > 0 and asset_dict:
             stmt = insert(asset_change_logs_table).values(
                 asset_id=asset_id,
                 username=username,
@@ -341,7 +356,7 @@ class AssetService:
             await self.db.execute(stmt)
             await self.db.flush()
         
-        return result.rowcount > 0
+        return del_result.rowcount > 0
     
     async def delete_batch(self, asset_ids: List[int], username: Optional[str] = None) -> int:
         """Удалить несколько активов с записью в лог."""
