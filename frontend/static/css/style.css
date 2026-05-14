@@ -71,6 +71,15 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     min-width: 60px;
     max-width: 60px;
 }
+.sidebar.collapsed .sidebar-toggle-container {
+    padding: 0.5rem !important;
+}
+.sidebar.collapsed #sidebarToggleBtn {
+    padding: 0.25rem;
+}
+.sidebar.collapsed #sidebarToggleIcon {
+    transform: rotate(180deg);
+}
 .sidebar.collapsed .sidebar-text,
 .sidebar.collapsed .sidebar-section-title,
 .sidebar.collapsed .card-header h6,

@@ -50,13 +50,46 @@ class App {
       sidebar.classList.add('collapsed');
     }
     
+    // --- Логика кнопки сворачивания/разворачивания сайдбара ---
+    const toggleBtn = document.getElementById('sidebarToggleBtn');
+    const toggleIcon = document.getElementById('sidebarToggleIcon');
+    
+    if (toggleBtn && sidebar) {
+      toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        
+        // Обновляем иконку
+        if (toggleIcon) {
+          toggleIcon.classList.remove('bi-chevron-left', 'bi-chevron-right');
+          toggleIcon.classList.add(isCollapsed ? 'bi-chevron-right' : 'bi-chevron-left');
+        }
+        
+        // Сохраняем состояние
+        localStorage.setItem('sidebarCollapsed', isCollapsed ? 'true' : 'false');
+        
+        // Если разворачиваем, восстанавливаем ширину из localStorage или используем значение по умолчанию
+        if (!isCollapsed) {
+          const savedWidth = localStorage.getItem('sidebarWidth');
+          if (savedWidth) {
+            document.documentElement.style.setProperty('--sidebar-width', savedWidth);
+          } else {
+            document.documentElement.style.setProperty('--sidebar-width', '280px');
+          }
+        } else {
+          // При сворачивании устанавливаем минимальную ширину
+          document.documentElement.style.setProperty('--sidebar-width', '60px');
+        }
+      });
+    }
+    
     // --- Логика изменения размера сайдбара (resizer) ---
     const resizer = document.getElementById('sidebarResizer');
     
     if (resizer && sidebar) {
       // Восстановление ширины из localStorage
       const savedWidth = localStorage.getItem('sidebarWidth');
-      if (savedWidth) {
+      if (savedWidth && !wasCollapsed) {
         document.documentElement.style.setProperty('--sidebar-width', savedWidth);
       }
 
