@@ -89,12 +89,13 @@ async def get_redcheck_token(settings: RedCheckSettings) -> Optional[str]:
     async with httpx.AsyncClient(
         timeout=settings.timeout,
         verify=settings.verify_ssl,
-        follow_redirects=False  # Не следовать редиректам, чтобы детектировать проблемы аутентификации
+        follow_redirects=True  # Разрешить редиректы для корректной работы с API
     ) as client:
         try:
+            # RedCheck API требует поля userName и userPassword (camelCase)
             request_payload = {
-                "username": settings.username,
-                "password": settings.password
+                "userName": settings.username,
+                "userPassword": settings.password
             }
             logger.info(f"  Request payload: {request_payload}")
             
@@ -174,7 +175,7 @@ async def redcheck_request(
         timeout=settings.timeout,
         verify=settings.verify_ssl,
         headers=headers,
-        follow_redirects=False
+        follow_redirects=True  # Разрешить редиректы для корректной работы с API
     ) as client:
         try:
             if method.upper() == "GET":

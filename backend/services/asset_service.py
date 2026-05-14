@@ -115,7 +115,8 @@ class AssetService:
             
             return filtered
         
-        return assets
+        # Конвертируем все ORM-объекты в словари для предотвращения ошибок при ленивой загрузке
+        return [self._asset_to_dict(asset) for asset in assets]
     
     async def get_by_id(self, asset_id: int) -> Optional[dict]:
         """Получить актив по ID и вернуть как словарь с предзагруженными данными."""
