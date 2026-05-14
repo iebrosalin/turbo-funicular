@@ -42,8 +42,26 @@ class App {
   }
 
   #initUIComponents() {
-    // --- Логика изменения размера сайдбара ---
+    // --- Логика переключения сайдбара (кнопка) ---
+    const sidebarToggle = document.getElementById('sidebarToggle');
     const sidebar = document.getElementById('sidebar');
+    
+    if (sidebarToggle && sidebar) {
+      sidebarToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+        // Сохраняем состояние в localStorage
+        const isCollapsed = sidebar.classList.contains('collapsed');
+        localStorage.setItem('sidebarCollapsed', isCollapsed ? 'true' : 'false');
+      });
+      
+      // Восстанавливаем состояние при загрузке
+      const wasCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+      if (wasCollapsed) {
+        sidebar.classList.add('collapsed');
+      }
+    }
+
+    // --- Логика изменения размера сайдбара (resizer) ---
     const resizer = document.getElementById('sidebarResizer');
     
     if (resizer && sidebar) {
@@ -84,12 +102,6 @@ class App {
           const currentWidth = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim();
           localStorage.setItem('sidebarWidth', currentWidth);
         }
-      });
-
-      // Переключение сайдбара на мобильных
-      document.getElementById('sidebarCollapse')?.addEventListener('click', () => {
-        document.getElementById('sidebar')?.classList.toggle('active');
-        document.getElementById('content')?.classList.toggle('active');
       });
     }
 
