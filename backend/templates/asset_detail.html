@@ -113,7 +113,11 @@
                                 <tr><th width="40%">Последний Rustscan:</th>
                                     <td>
                                         {% if asset.last_rustscan %}
-                                            {{ asset.last_rustscan.strftime('%d.%m.%Y %H:%M') }}
+                                            {% if asset.last_rustscan is string %}
+                                                {{ asset.last_rustscan }}
+                                            {% else %}
+                                                {{ asset.last_rustscan.strftime('%d.%m.%Y %H:%M') }}
+                                            {% endif %}
                                             <span class="badge bg-warning">{{ (asset.rustscan_ports or [])|length }} портов</span>
                                         {% else %}
                                             <span class="text-muted">Не проводилось</span>
@@ -123,7 +127,11 @@
                                 <tr><th>Последний Nmap:</th>
                                     <td>
                                         {% if asset.last_nmap %}
-                                            {{ asset.last_nmap.strftime('%d.%m.%Y %H:%M') }}
+                                            {% if asset.last_nmap is string %}
+                                                {{ asset.last_nmap }}
+                                            {% else %}
+                                                {{ asset.last_nmap.strftime('%d.%m.%Y %H:%M') }}
+                                            {% endif %}
                                             <span class="badge bg-success">{{ (asset.nmap_ports or [])|length }} портов</span>
                                         {% else %}
                                             <span class="text-muted">Не проводилось</span>
@@ -133,7 +141,11 @@
                                 <tr><th>Последний DNS (Dig):</th>
                                     <td>
                                         {% if asset.last_dns_scan %}
-                                            {{ asset.last_dns_scan.strftime('%d.%m.%Y %H:%M') }}
+                                            {% if asset.last_dns_scan is string %}
+                                                {{ asset.last_dns_scan }}
+                                            {% else %}
+                                                {{ asset.last_dns_scan.strftime('%d.%m.%Y %H:%M') }}
+                                            {% endif %}
                                         {% else %}
                                             <span class="text-muted">Не проводилось</span>
                                         {% endif %}
