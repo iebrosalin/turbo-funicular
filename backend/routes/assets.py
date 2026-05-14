@@ -175,9 +175,10 @@ async def get_assets(
     if include_taxonomy:
         result = []
         for asset in assets:
-            # Конвертируем ORM-объект в словарь пока сессия активна
-            asset_dict = service._asset_to_dict(asset)
+            # Сначала генерируем таксономию пока asset ещё ORM-объект
             taxonomy = generate_asset_taxonomy(asset)
+            # Затем конвертируем ORM-объект в словарь
+            asset_dict = service._asset_to_dict(asset)
             asset_dict['taxonomy'] = taxonomy
             result.append(asset_dict)
         return result
