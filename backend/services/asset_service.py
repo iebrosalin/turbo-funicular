@@ -325,6 +325,9 @@ class AssetService:
     
     async def delete(self, asset_id: int, username: Optional[str] = None) -> bool:
         """Удалить актив с записью в лог."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # Сначала получаем данные для лога
         query = select(Asset).options(
             selectinload(Asset.groups),
@@ -334,19 +337,23 @@ class AssetService:
         asset = result.scalar_one_or_none()
         
         if not asset:
+            logger.warning(f"[DELETE] Актив {asset_id} не найден")
             return False
+        
+        logger.info(f"[DELETE] Найден актив {asset_id}: IP={asset.ip_address}, hostname={asset.hostname}")
         
         # Конвертируем в dict пока сессия активна
         asset_dict = self._asset_to_dict(asset)
+        logger.info(f"[DELETE] Актив {asset_id} конвертирован в dict, ключи: {asset_dict.keys()}")
         
         # Теперь удаляем
         del_query = delete(Asset).where(Asset.id == asset_id)
         del_result = await self.db.execute(del_query)
-        await self.db.commit()  # Используем commit вместо flush чтобы завершить транзакцию удаления
+        logger.info(f"[DELETE] DELETE выполнен, rowcount={del_result.rowcount}")
         
-        # Записываем в лог если актив был удален
+        # Записываем в лог если актив был удален (ДО commit!)
         if del_result.rowcount > 0 and asset_dict:
-            # Создаем новую транзакцию для записи лога
+            logger.info(f"[DELETE] Запись в asset_change_logs для актива {asset_id}")
             stmt = insert(asset_change_logs_table).values(
                 asset_id=asset_id,
                 username=username,
@@ -354,8 +361,15 @@ class AssetService:
                 changed_fields={'asset': asset_dict},
                 created_at=datetime.utcnow()
             )
-            await self.db.execute(stmt)
-            await self.db.commit()
+            log_result = await self.db.execute(stmt)
+            logger.info(f"[DELETE] Лог изменений вставлен, rowcount={log_result.rowcount}")
+        else:
+            logger.error(f"[DELETE] Не удалось записать лог: rowcount={del_result.rowcount}, asset_dict={bool(asset_dict)}")
+        
+        # Коммитим всё вместе: удаление и запись лога в одной транзакции
+        logger.info(f"[DELETE] Выполняем commit...")
+        await self.db.commit()
+        logger.info(f"[DELETE] Commit успешен для актива {asset_id}")
         
         return del_result.rowcount > 0
     
