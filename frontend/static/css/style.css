@@ -61,14 +61,15 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     background: var(--bg-sidebar);
     border-right: 1px solid var(--border-color);
     overflow: hidden;
+    position: relative;
 }
 .sidebar .card {
-    background: transparent;
-    border: none;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     box-shadow: none;
 }
 .sidebar .card-header {
-    background: transparent;
+    background: var(--bg-card);
     border-bottom: 1px solid var(--border-color);
 }
 .sidebar.collapsed {
@@ -78,8 +79,13 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 .sidebar.collapsed .sidebar-text,
 .sidebar.collapsed .sidebar-section-title,
 .sidebar.collapsed .card-header h6,
-.sidebar.collapsed #btn-add-group {
+.sidebar.collapsed #btn-add-group,
+.sidebar.collapsed .sidebar-toggle-btn span {
     display: none;
+}
+.sidebar.collapsed .sidebar-toggle-btn {
+    width: 100%;
+    justify-content: center;
 }
 .sidebar.collapsed .card-header {
     justify-content: center;

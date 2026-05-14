@@ -49,8 +49,19 @@ class App {
     if (sidebarToggle && sidebar) {
       sidebarToggle.addEventListener('click', () => {
         sidebar.classList.toggle('collapsed');
-        // Сохраняем состояние в localStorage
+        const icon = sidebarToggle.querySelector('i');
         const isCollapsed = sidebar.classList.contains('collapsed');
+        
+        // Меняем иконку стрелки
+        if (isCollapsed) {
+          icon.classList.remove('bi-chevron-left');
+          icon.classList.add('bi-chevron-right');
+        } else {
+          icon.classList.remove('bi-chevron-right');
+          icon.classList.add('bi-chevron-left');
+        }
+        
+        // Сохраняем состояние в localStorage
         localStorage.setItem('sidebarCollapsed', isCollapsed ? 'true' : 'false');
       });
       
@@ -58,6 +69,11 @@ class App {
       const wasCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
       if (wasCollapsed) {
         sidebar.classList.add('collapsed');
+        const icon = sidebarToggle.querySelector('i');
+        if (icon) {
+          icon.classList.remove('bi-chevron-left');
+          icon.classList.add('bi-chevron-right');
+        }
       }
     }
 

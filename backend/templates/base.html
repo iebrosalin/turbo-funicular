@@ -23,11 +23,6 @@
         <div class="container-fluid">
             <a class="navbar-brand" href="/"><h4 class="mb-0"><i class="bi bi-hdd-network me-2"></i>AssetMgr</h4></a>
             
-            <!-- Sidebar Toggle Button -->
-            <button class="sidebar-toggle-btn ms-3" id="sidebarToggle" title="Свернуть/Развернуть сайдбар">
-                <i class="bi bi-list"></i>
-            </button>
-            
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain" aria-controls="navbarMain" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -89,19 +84,24 @@
     <div class="d-flex w-100">
         <!-- LEFT SIDEBAR -->
         <div class="sidebar" id="sidebar">
-            <div class="d-flex flex-column align-items-center align-items-sm-start px-sm-2 pt-3 text-white min-vh-100">
+            <div class="d-flex flex-column align-items-sm-start px-2 pt-3 min-vh-100">
+                <!-- Кнопка сворачивания сайдбара внутри сайдбара -->
+                <button class="btn btn-sm btn-outline-secondary mb-3 align-self-start sidebar-toggle-btn" id="sidebarToggle" title="Свернуть/Развернуть сайдбар">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                
                 <!-- Сайдбар с группами активов -->
-                <div class="card shadow-sm border-0 mb-3 w-100 bg-dark text-white">
-                    <div class="card-header d-flex justify-content-between align-items-center bg-transparent border-bottom border-secondary pb-0">
+                <div class="card shadow-sm border-0 mb-3 w-100">
+                    <div class="card-header d-flex justify-content-between align-items-center border-bottom pb-0">
                         <h6 class="mb-0 small text-uppercase text-muted sidebar-text">Группы</h6>
-                        <button class="btn btn-sm btn-link p-0 text-white" id="btn-add-group" title="Добавить группу">
+                        <button class="btn btn-sm btn-link p-0" id="btn-add-group" title="Добавить группу">
                             <i class="bi bi-plus-circle"></i>
                         </button>
                     </div>
                     <div class="card-body p-2" id="sidebar-content">
                         <!-- Дерево групп будет загружено сюда через tree.js -->
                         <div class="text-center text-muted py-3">
-                            <div class="spinner-border spinner-border-sm text-light" role="status"></div>
+                            <div class="spinner-border spinner-border-sm" role="status"></div>
                             <small class="d-block mt-1">Загрузка...</small>
                         </div>
                     </div>
@@ -122,7 +122,7 @@
         </div>
 
         <!-- PAGE CONTENT -->
-        <div class="flex-grow-1 px-4 py-4 bg-dark bg-opacity-10" style="min-width: 0;">
+        <div class="flex-grow-1 px-4 py-4" style="min-width: 0;">
             <!-- Контейнер для уведомлений -->
             <div id="notifications-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1100;"></div>
             
