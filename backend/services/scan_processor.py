@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.models.asset import Asset
 from backend.models.group import Group
-from backend.models.scan import ScanJob
+from backend.models.scan import ScanJob, Scan
 from backend.models.service import ServiceInventory
 from backend.schemas.scan import ScanStatus
 

@@ -49,7 +49,7 @@ class Asset(Base):
     # Порты (разделение по источникам)
     rustscan_ports = Column(JSON, nullable=True, default=list)
     nmap_ports = Column(JSON, nullable=True, default=list)
-    # open_ports удалён из БД, но оставлен в модели для обратной совместимости (вычисляется)
+    open_ports = Column(JSON, nullable=True, default=list)  # Список всех открытых портов
 
     # Временные метки сканирований
     last_rustscan = Column(DateTime(timezone=True), nullable=True)
@@ -84,14 +84,15 @@ class Asset(Base):
                 self.nmap_ports = ports_data
             self.last_nmap = now
 
-        # Обновляем объединенный список (уникальные порты)
-        all_ports = set(self.rustscan_ports or []) | set(self.nmap_ports or [])
-        self.open_ports = sorted(list(all_ports))  # Вычисляемое поле, не сохраняется в БД
+        # Обновляем общий список открытых портов
+        all_source_ports = set(self.rustscan_ports or []) | set(self.nmap_ports or [])
+        self.open_ports = sorted(list(all_source_ports))
+        
         self.updated_at = now
 
     @property
-    def open_ports(self):
-        """Вычисляемое свойство для объединения портов из rustscan и nmap."""
+    def open_ports_property(self):
+        """Вычисляемое свойство для объединения портов из rustscan и nmap (резервное)."""
         all_ports = set(self.rustscan_ports or []) | set(self.nmap_ports or [])
         return sorted(list(all_ports))
 

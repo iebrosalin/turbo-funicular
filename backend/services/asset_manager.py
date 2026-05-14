@@ -95,10 +95,11 @@ async def upsert_asset(
             asset.os_version = os_version
             updated_fields.append(f"os_version={os_version}")
         
-        # Обновляем открытые порты если переданы
+        # Обновляем открытые порты если переданы (rustscan_ports и nmap_ports)
         if open_ports is not None:
-            asset.open_ports = open_ports
-            updated_fields.append(f"open_ports={len(open_ports)}")
+            # Сохраняем порты в rustscan_ports как основной источник
+            asset.rustscan_ports = open_ports
+            updated_fields.append(f"rustscan_ports={len(open_ports)}")
         
         # Обновляем статус актива на основе наличия открытых портов
         if has_open_ports:
@@ -290,15 +291,15 @@ def update_asset_ports(
     elif scanner_type == 'rustscan':
         asset.rustscan_ports = list(all_ports)
     else:
-        # Для неизвестного типа используем open_ports как fallback
-        asset.open_ports = list(all_ports)
+        # Для неизвестного типа используем nmap_ports как fallback
+        asset.nmap_ports = list(all_ports)
     
     # Обновляем объединенный список open_ports
     all_source_ports = set(asset.nmap_ports or []) | set(asset.rustscan_ports or [])
     asset.open_ports = sorted(list(all_source_ports))
     
     # Обновляем статус актива на основе наличия открытых портов
-    if len(asset.open_ports) > 0:
+    if len(all_source_ports) > 0:
         asset.status = 'active'
     else:
         asset.status = 'inactive'
