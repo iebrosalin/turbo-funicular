@@ -7,7 +7,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, func
 from pydantic import BaseModel, Field
 import httpx
 
@@ -576,7 +576,6 @@ async def get_hosts(
     hosts = result.scalars().all()
     
     # Получаем общее количество
-    from sqlalchemy import func
     count_query = select(func.count()).select_from(RedCheckHost)
     total_result = await db.execute(count_query)
     total = total_result.scalar()
@@ -652,7 +651,6 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
             "vulnerabilities_count": host.get("vulnerabilities_count", 0),
             "critical_vulnerabilities": host.get("critical_vulnerabilities", 0),
             "high_vulnerabilities": host.get("high_vulnerabilities", 0),
-            "open_ports": host.get("open_ports", []) or [],
             "open_ports_count": len(host.get("open_ports", []) or []),
             "compliance_score": host.get("compliance_score", 0)
         }

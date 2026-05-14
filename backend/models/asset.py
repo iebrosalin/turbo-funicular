@@ -49,7 +49,7 @@ class Asset(Base):
     # Порты (разделение по источникам)
     rustscan_ports = Column(JSON, nullable=True, default=list)
     nmap_ports = Column(JSON, nullable=True, default=list)
-    open_ports = Column(JSON, nullable=True, default=list)  # Объединенный список портов
+    # open_ports удалён из БД, но оставлен в модели для обратной совместимости (вычисляется)
 
     # Временные метки сканирований
     last_rustscan = Column(DateTime(timezone=True), nullable=True)
@@ -86,8 +86,14 @@ class Asset(Base):
 
         # Обновляем объединенный список (уникальные порты)
         all_ports = set(self.rustscan_ports or []) | set(self.nmap_ports or [])
-        self.open_ports = sorted(list(all_ports))
+        self.open_ports = sorted(list(all_ports))  # Вычисляемое поле, не сохраняется в БД
         self.updated_at = now
+
+    @property
+    def open_ports(self):
+        """Вычисляемое свойство для объединения портов из rustscan и nmap."""
+        all_ports = set(self.rustscan_ports or []) | set(self.nmap_ports or [])
+        return sorted(list(all_ports))
 
     def to_dict(self):
         return {
@@ -108,7 +114,7 @@ class Asset(Base):
             'fqdn': self.fqdn,
             'dns_records': self.dns_records,
             'tags': self.tags,
-            'open_ports': self.open_ports,
+            'open_ports': self.open_ports,  # Вычисляемое свойство
             'rustscan_ports': self.rustscan_ports,
             'nmap_ports': self.nmap_ports,
             'last_rustscan': self.last_rustscan.isoformat() if self.last_rustscan else None,
@@ -153,8 +159,7 @@ class RedCheckHost(Base):
     medium_vulnerabilities = Column(Integer, default=0)
     low_vulnerabilities = Column(Integer, default=0)
     
-    # Порты
-    open_ports = Column(JSON, nullable=True, default=list)  # Список открытых портов
+    # Порты (удалено по требованию - не нужно добавлять open_ports в redcheck_hosts)
     open_ports_count = Column(Integer, default=0)
     
     # Соответствие
@@ -192,7 +197,6 @@ class RedCheckHost(Base):
             "high_vulnerabilities": self.high_vulnerabilities,
             "medium_vulnerabilities": self.medium_vulnerabilities,
             "low_vulnerabilities": self.low_vulnerabilities,
-            "open_ports": self.open_ports or [],
             "open_ports_count": self.open_ports_count,
             "compliance_score": self.compliance_score,
             "last_compliance_check": self.last_compliance_check.isoformat() if self.last_compliance_check else None,
