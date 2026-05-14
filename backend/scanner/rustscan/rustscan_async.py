@@ -102,10 +102,21 @@ class RustscanScanner(BaseScanner):
             "ports": []
         }
         
+        # Очищаем ANSI-коды из вывода
+        ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+        clean_stdout = ansi_escape.sub('', stdout)
+        
+        logger.info(f"[RustscanScanner] Очистка ANSI-кодов: длина до={len(stdout)}, после={len(clean_stdout)}")
+        logger.debug(f"[RustscanScanner] Очищенный вывод (первые 500 симв): {clean_stdout[:500]}")
+        
         # Parse stdout for "Open IP:PORT" lines
         # Example: Open 1.1.1.1:53
         pattern = r"Open\s+([\d\.]+|[\w\.-]+):(\d+)"
-        matches = re.findall(pattern, stdout)
+        matches = re.findall(pattern, clean_stdout)
+        
+        logger.info(f"[RustscanScanner] Найдено совпадений портов: {len(matches)}")
+        if matches:
+            logger.debug(f"[RustscanScanner] Совпадения: {matches}")
         
         seen_ips = set()
         for ip, port in matches:

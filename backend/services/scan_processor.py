@@ -195,11 +195,22 @@ class ScanProcessor:
         # Парсим вывод напрямую из stdout
         import re
         
+        # Очищаем ANSI-коды из вывода
+        ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
+        clean_output = ansi_escape.sub('', raw_output)
+        
+        logger.info(f"[DEBUG _process_rustscan] Очистка ANSI-кодов: длина до={len(raw_output)}, после={len(clean_output)}")
+        logger.debug(f"[DEBUG _process_rustscan] Очищенный вывод (первые 500 симв): {clean_output[:500]}")
+        
         hosts_data = {}  # ip -> set of ports
         
-        # Парсим raw_output (stdout) - формат: "Open IP:PORT"
+        # Парсим clean_output (stdout) - формат: "Open IP:PORT"
         pattern = r"Open\s+([\d\.]+|[\w\.-]+):(\d+)"
-        matches = re.findall(pattern, raw_output)
+        matches = re.findall(pattern, clean_output)
+        
+        logger.info(f"[DEBUG _process_rustscan] Найдено совпадений портов: {len(matches)}")
+        if matches:
+            logger.debug(f"[DEBUG _process_rustscan] Совпадения: {matches}")
         
         for ip, port in matches:
             if ip not in hosts_data:
@@ -211,6 +222,7 @@ class ScanProcessor:
         
         hosts_count = 0
         for ip, ports in hosts_data.items():
+            logger.info(f"[DEBUG _process_rustscan] Обработка хоста {ip} с портами {ports}")
             # Создаем/обновляем актив
             await self._upsert_asset(ip, {
                 "open_ports": list(ports),
@@ -218,6 +230,19 @@ class ScanProcessor:
                 "scan_type": "rustscan"  # Передаем тип сканирования для обновления временных меток
             })
             hosts_count += 1
+        
+        # Если порты не найдены, логируем полный очищенный вывод для отладки
+        if not hosts_data:
+            logger.warning(f"[DEBUG _process_rustscan] Не найдено открытых портов. Очищенный вывод:\n{clean_output[:2000]}")
+            # Всё равно обновляем last_rustscan для целевого IP из параметров задачи
+            target_ip = job_params.get('ip') or job_params.get('target')
+            if target_ip:
+                logger.info(f"[DEBUG _process_rustscan] Обновление last_rustscan для целевого IP {target_ip} (порты не найдены)")
+                await self._upsert_asset(target_ip, {
+                    "open_ports": [],
+                    "group_id": job.scan.group_id,
+                    "scan_type": "rustscan"
+                })
         
         logger.info(f"Rustscan: Обработано {hosts_count} хостов.")
 
