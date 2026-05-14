@@ -382,8 +382,16 @@ async def test_connection(settings: RedCheckSettings, db: AsyncSession = Depends
         settings_id = None
         if existing_settings:
             settings_id = existing_settings.id
+            # Обновляем существующие настройки переданными значениями
+            existing_settings.api_url = settings.api_url
+            existing_settings.api_version = settings.api_version
+            existing_settings.username = settings.username
+            existing_settings.password = settings.password
+            existing_settings.auth_type = settings.auth_type
+            existing_settings.timeout = settings.timeout
+            existing_settings.verify_ssl = settings.verify_ssl
         else:
-            # Создаем временную запись для сохранения токена
+            # Создаем новую запись для сохранения токена
             new_settings = IntegrationSettings(
                 name="redcheck",
                 api_url=settings.api_url,
@@ -396,15 +404,17 @@ async def test_connection(settings: RedCheckSettings, db: AsyncSession = Depends
                 enabled=False  # Пока не включаем, только тестируем
             )
             db.add(new_settings)
-            await db.commit()
-            await db.refresh(new_settings)
+            await db.flush()  # Получаем ID но не делаем коммит
             settings_id = new_settings.id
         
         token = await get_redcheck_token(settings, db=db, settings_id=settings_id)
         if token:
             token_received = True
             logger.info("✅ Токен успешно получен и сохранён в БД")
+            # Делаем коммит только если токен получен успешно
+            await db.commit()
         else:
+            await db.rollback()
             return ConnectionTestResult(
                 success=False,
                 message="Не удалось получить токен аутентификации",

@@ -16,7 +16,6 @@ from sqlalchemy import text
 
 async def init_db():
     """Инициализация базы данных."""
-    # Импортируем все модели чтобы они зарегистрировались в metadata
     from backend.models import Asset, Group, Scan, ScanJob, ScanResult, ActivityLog, ServiceInventory, IntegrationSettings
     from backend.db.session import asset_change_logs_table
     
@@ -24,6 +23,10 @@ async def init_db():
         # Удаляем старую таблицу scan_results если она существует (для пересоздания с новыми колонками)
         await conn.execute(text("DROP TABLE IF EXISTS scan_results"))
         print("✓ Удалена старая таблица scan_results (будет пересоздана)")
+        
+        # Удаляем старую таблицу integration_settings для пересоздания с новыми колонками
+        await conn.execute(text("DROP TABLE IF EXISTS integration_settings"))
+        print("✓ Удалена старая таблица integration_settings (будет пересоздана)")
         
         # Создаем все таблицы ORM
         await conn.run_sync(
