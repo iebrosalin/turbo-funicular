@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Таксономия - {{ asset.ip_address }} | Asset Manager{% endblock %}
+{% block title %}Таксономия активов | Asset Manager{% endblock %}
 
 {% block extra_css %}
 <link href="/static/css/ui-kit-experiments.css" rel="stylesheet">
@@ -8,89 +8,24 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-    <div class="d-flex align-items-center">
-        <a href="{{ url_for('main.asset_detail', id=asset.id) }}" class="btn btn-outline-dark me-3">
-            <i class="bi bi-arrow-left"></i> Назад
-        </a>
-        <h2 class="mb-0"><i class="bi bi-diagram-3"></i> Таксономия: {{ asset.ip_address }}</h2>
-    </div>
+    <h2><i class="bi bi-diagram-3"></i> Таксономия активов</h2>
 </div>
 
 <!-- Info Card -->
 <div class="card mb-4">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span><i class="bi bi-info-circle"></i> Актив</span>
-        <span class="text-muted small">{{ asset.ip_address }} {% if asset.hostname %}({{ asset.hostname }}){% endif %}</span>
+    <div class="card-header">
+        <span><i class="bi bi-info-circle"></i> О таксономии</span>
     </div>
     <div class="card-body">
         <p class="mb-0 text-muted">
-            Автоматическая классификация актива на основе открытых портов, сервисов, ОС и результатов сканирований.
+            Автоматическая классификация активов на основе открытых портов, сервисов, ОС и результатов сканирований.
             Таксономия обновляется при каждом сканировании или получении данных от OSquery.
         </p>
     </div>
 </div>
 
-<!-- Taxonomy Cards -->
-<div class="row">
-            {% for node in taxonomy.nodes %}
-            <div class="col-lg-6 mb-4">
-                <div class="card taxon-card h-100 border-0 shadow-sm">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="taxon-icon taxon-icon.bg-{{ 'primary' if node.id == 'device' else 'info' if node.id == 'role' else 'success' if node.id == 'services' else 'warning' }}-soft me-3">
-                                <i class="bi {{ node.icon }}"></i>
-                            </div>
-                            <div>
-                                <small class="text-uppercase text-muted fw-bold">{{ node.title }}</small>
-                                <h5 class="mb-0 fw-semibold">{{ node.value }}</h5>
-                            </div>
-                        </div>
-                        
-                        {% if node.children %}
-                        <div class="taxon-children">
-                            {% for child in node.children %}
-                            <div class="taxon-child">
-                                <span class="taxon-child-label">{{ child.title }}</span>
-                                <span class="taxon-child-value">{{ child.value or '—' }}</span>
-                            </div>
-                            {% endfor %}
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        <!-- Text Tree View -->
-        <div class="card mt-3">
-            <div class="card-header"><i class="bi bi-git"></i> Дерево таксономии</div>
-            <div class="card-body">
-                <ul class="list-unstyled ps-3 mb-0 tree-view">
-                    {% for node in taxonomy.nodes %}
-                    <li class="{% if not loop.first %}mt-2{% endif %} tree-node">
-                        <i class="bi {{ node.icon }} text-{{ 'primary' if node.id == 'device' else 'info' if node.id == 'role' else 'success' if node.id == 'services' else 'warning' }} me-2"></i>
-                        <strong>{{ node.title }}:</strong> {{ node.value }}
-                        {% if node.children %}
-                        <ul class="list-unstyled ps-3 mt-1">
-                            {% for child in node.children %}
-                            <li><i class="bi bi-arrow-right-short me-1"></i>{{ child.title }}: <code>{{ child.value or '—' }}</code></li>
-                            {% endfor %}
-                        </ul>
-                        {% endif %}
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-
-        <!-- Debug Info (only in debug mode) -->
-        {% if config.DEBUG %}
-        <div class="card mt-3 border-warning">
-            <div class="card-header bg-warning"><i class="bi bi-bug"></i> Отладочная информация</div>
-            <div class="card-body small">
-                <pre class="mb-0">{{ taxonomy | tojson(indent=2) }}</pre>
-            </div>
-        </div>
-        {% endif %}
+<div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>
+    Выберите актив из списка для просмотра его таксономии.
+</div>
 {% endblock %}
