@@ -59,7 +59,7 @@ class RedCheckEndpoint(BaseModel):
 # Вспомогательные функции
 # ============================================================================
 
-async def get_redcheck_token(settings: RedCheckSettings) -> Optional[str]:
+async def get_redcheck_token(settings: RedCheckSettings, db: Optional[AsyncSession] = None, settings_id: Optional[int] = None) -> Optional[str]:
     """
     Получение JWT токена для доступа к RedCheck API
     
@@ -109,15 +109,45 @@ async def get_redcheck_token(settings: RedCheckSettings) -> Optional[str]:
             logger.info(f"  Response headers: {dict(response.headers)}")
             logger.info(f"  Response body: {response.text[:500] if response.text else 'empty'}")
             
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"  Response JSON: {data}")
-                # Токен может быть в разных полях в зависимости от версии API
-                token = data.get("token") or data.get("access_token") or data.get("result", {}).get("token")
-                if token:
-                    logger.info(f"  ✅ Токен получен успешно (длина: {len(token)})")
-                else:
-                    logger.warning(f"  ⚠️ Токен не найден в ответе. Доступные ключи: {list(data.keys())}")
+            # RedCheck API может возвращать токен как plain text (status 201) или как JSON (status 200)
+            if response.status_code in [200, 201]:
+                # Пробуем распарсить как JSON, если не получится - берём как текст
+                token = None
+                try:
+                    data = response.json()
+                    logger.info(f"  Response JSON: {data}")
+                    # Токен может быть в разных полях в зависимости от версии API
+                    token = data.get("token") or data.get("access_token") or data.get("result", {}).get("token")
+                    if token:
+                        logger.info(f"  ✅ Токен получен успешно из JSON (длина: {len(token)})")
+                    else:
+                        logger.warning(f"  ⚠️ Токен не найден в JSON ответе. Доступные ключи: {list(data.keys())}")
+                except Exception:
+                    # Если не JSON, берём тело ответа как есть (plain text токен)
+                    token = response.text.strip()
+                    if token:
+                        logger.info(f"  ✅ Токен получен успешно как plain text (длина: {len(token)})")
+                    else:
+                        logger.warning(f"  ⚠️ Пустой ответ")
+                
+                # Сохраняем токен в БД, если предоставлена сессия
+                if token and db and settings_id:
+                    from sqlalchemy import select
+                    from backend.models.integration_settings import IntegrationSettings
+                    from datetime import datetime, timedelta
+                    
+                    query = select(IntegrationSettings).where(IntegrationSettings.id == settings_id)
+                    result = await db.execute(query)
+                    settings_record = result.scalar_one_or_none()
+                    
+                    if settings_record:
+                        settings_record.token = token
+                        # Устанавливаем время истечения токена (по умолчанию 24 часа)
+                        settings_record.token_expires_at = datetime.utcnow() + timedelta(hours=24)
+                        await db.commit()
+                        await db.refresh(settings_record)
+                        logger.info(f"[DEBUG] Токен сохранён в БД для интеграции id={settings_id}, длина токена: {len(token)}")
+                
                 return token
             elif response.status_code == 302:
                 location = response.headers.get("Location", "unknown")
@@ -330,7 +360,7 @@ async def get_endpoints():
 
 
 @router.post("/test-connection", response_model=ConnectionTestResult)
-async def test_connection(settings: RedCheckSettings):
+async def test_connection(settings: RedCheckSettings, db: AsyncSession = Depends(get_db)):
     """
     Проверка подключения к RedCheck API
     """
@@ -341,10 +371,39 @@ async def test_connection(settings: RedCheckSettings):
     token_received = False
     
     if settings.auth_type == "basic" and settings.username and settings.password:
-        token = await get_redcheck_token(settings)
+        # Получаем ID существующих настроек или создаем новые
+        from sqlalchemy import select
+        from backend.models.integration_settings import IntegrationSettings
+        
+        query = select(IntegrationSettings).where(IntegrationSettings.name == "redcheck")
+        result = await db.execute(query)
+        existing_settings = result.scalar_one_or_none()
+        
+        settings_id = None
+        if existing_settings:
+            settings_id = existing_settings.id
+        else:
+            # Создаем временную запись для сохранения токена
+            new_settings = IntegrationSettings(
+                name="redcheck",
+                api_url=settings.api_url,
+                api_version=settings.api_version,
+                username=settings.username,
+                password=settings.password,
+                auth_type=settings.auth_type,
+                timeout=settings.timeout,
+                verify_ssl=settings.verify_ssl,
+                enabled=False  # Пока не включаем, только тестируем
+            )
+            db.add(new_settings)
+            await db.commit()
+            await db.refresh(new_settings)
+            settings_id = new_settings.id
+        
+        token = await get_redcheck_token(settings, db=db, settings_id=settings_id)
         if token:
             token_received = True
-            logger.info("✅ Токен успешно получен")
+            logger.info("✅ Токен успешно получен и сохранён в БД")
         else:
             return ConnectionTestResult(
                 success=False,
@@ -404,6 +463,7 @@ async def save_settings(settings: RedCheckSettings, request: Request, db: AsyncS
         existing_settings.verify_ssl = settings.verify_ssl
         existing_settings.enabled = True
         logger.info(f"[DEBUG] Настройки RedCheck обновлены в БД (id={existing_settings.id})")
+        saved_settings = existing_settings
     else:
         # Создаем новые настройки
         new_settings = IntegrationSettings(
@@ -419,12 +479,11 @@ async def save_settings(settings: RedCheckSettings, request: Request, db: AsyncS
         )
         db.add(new_settings)
         logger.info(f"[DEBUG] Настройки RedCheck созданы в БД")
+        saved_settings = new_settings
     
     await db.commit()
-    await db.refresh(existing_settings if existing_settings else new_settings)
+    await db.refresh(saved_settings)
     logger.info(f"[DEBUG] Настройки RedCheck закоммичены в БД")
-    
-    saved_settings = existing_settings if existing_settings else new_settings
     
     return {
         "success": True,
@@ -463,7 +522,9 @@ async def get_current_settings(db: AsyncSession = Depends(get_db)):
             "auth_type": settings_record.auth_type or "basic",
             "timeout": settings_record.timeout or 30,
             "verify_ssl": settings_record.verify_ssl if settings_record.verify_ssl is not None else True,
-            "enabled": settings_record.enabled if settings_record.enabled is not None else False
+            "enabled": settings_record.enabled if settings_record.enabled is not None else False,
+            "token_saved": bool(settings_record.token),
+            "token_expires_at": settings_record.token_expires_at.isoformat() if settings_record.token_expires_at else None
         }
     else:
         logger.info(f"[DEBUG] Настройки RedCheck не найдены в БД")
@@ -492,9 +553,13 @@ async def get_integration_info(db: AsyncSession = Depends(get_db)):
     
     enabled = False
     last_sync = None
+    token_saved = False
+    token_expires_at = None
     if settings_record:
         enabled = settings_record.enabled if settings_record.enabled is not None else False
         # В будущем можно добавить поле last_sync в модель IntegrationSettings
+        token_saved = bool(settings_record.token)
+        token_expires_at = settings_record.token_expires_at.isoformat() if settings_record.token_expires_at else None
     
     return {
         "enabled": enabled,
@@ -502,7 +567,9 @@ async def get_integration_info(db: AsyncSession = Depends(get_db)):
         "total_scans": 0,  # В будущем можно получить из БД
         "total_hosts": 0,  # В будущем можно получить из БД
         "status": "configured" if enabled else "not_configured",
-        "api_url": settings_record.api_url if settings_record else None
+        "api_url": settings_record.api_url if settings_record else None,
+        "token_saved": token_saved,
+        "token_expires_at": token_expires_at
     }
 
 
@@ -570,19 +637,30 @@ async def sync_scans(db: AsyncSession = Depends(get_db)):
     """
     Синхронизация сканирований из RedCheck API
     """
-    # TODO: Получить настройки из БД
-    # settings = await get_stored_settings(db)
+    # Получаем настройки из БД
+    from sqlalchemy import select
+    from backend.models.integration_settings import IntegrationSettings
     
-    # Для примера используем заглушку
+    query = select(IntegrationSettings).where(IntegrationSettings.name == "redcheck")
+    result = await db.execute(query)
+    settings_record = result.scalar_one_or_none()
+    
+    if not settings_record or not settings_record.api_url:
+        raise HTTPException(status_code=400, detail="Настройки RedCheck не найдены")
+    
+    # Создаём объект настроек из записи БД
     settings = RedCheckSettings(
-        api_url="http://localhost:8080",
-        api_version="v1.0",
-        username="admin",
-        password="password"
+        api_url=settings_record.api_url,
+        api_version=settings_record.api_version or "v1.0",
+        username=settings_record.username,
+        password=settings_record.password,
+        auth_type=settings_record.auth_type or "basic",
+        timeout=settings_record.timeout or 30,
+        verify_ssl=settings_record.verify_ssl if settings_record.verify_ssl is not None else True
     )
     
-    # Получаем токен
-    token = await get_redcheck_token(settings)
+    # Получаем токен (с передачей db и settings_id для сохранения)
+    token = await get_redcheck_token(settings, db=db, settings_id=settings_record.id)
     if not token:
         raise HTTPException(status_code=401, detail="Не удалось получить токен")
     
@@ -747,16 +825,30 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
     """
     Синхронизация хостов из RedCheck API
     """
-    # TODO: Получить настройки из БД
+    # Получаем настройки из БД
+    from sqlalchemy import select
+    from backend.models.integration_settings import IntegrationSettings
+    
+    query = select(IntegrationSettings).where(IntegrationSettings.name == "redcheck")
+    result = await db.execute(query)
+    settings_record = result.scalar_one_or_none()
+    
+    if not settings_record or not settings_record.api_url:
+        raise HTTPException(status_code=400, detail="Настройки RedCheck не найдены")
+    
+    # Создаём объект настроек из записи БД
     settings = RedCheckSettings(
-        api_url="http://localhost:8080",
-        api_version="v1.0",
-        username="admin",
-        password="password"
+        api_url=settings_record.api_url,
+        api_version=settings_record.api_version or "v1.0",
+        username=settings_record.username,
+        password=settings_record.password,
+        auth_type=settings_record.auth_type or "basic",
+        timeout=settings_record.timeout or 30,
+        verify_ssl=settings_record.verify_ssl if settings_record.verify_ssl is not None else True
     )
     
-    # Получаем токен
-    token = await get_redcheck_token(settings)
+    # Получаем токен (с передачей db и settings_id для сохранения)
+    token = await get_redcheck_token(settings, db=db, settings_id=settings_record.id)
     if not token:
         raise HTTPException(status_code=401, detail="Не удалось получить токен")
     

@@ -48,6 +48,8 @@ class AssetService:
         if rules:
             filtered = []
             for asset in assets:
+                # Конвертируем ORM-объект в словарь один раз
+                asset_dict = self._asset_to_dict(asset)
                 match = True
                 for rule in rules:
                     field = rule.get('field', '')
@@ -55,30 +57,30 @@ class AssetService:
                     value = str(rule.get('value', '')).lower()
                     
                     # Получаем значение поля из актива (asset теперь dict)
-                    field_value = AssetService.get_nested_value(asset, field)
+                    field_value = AssetService.get_nested_value(asset_dict, field)
                     
                     # Маппинг альтернативных имен полей
                     if field_value is None:
                         if field == 'ip_address':
-                            field_value = asset.get('ip_address')
+                            field_value = asset_dict.get('ip_address')
                         elif field == 'hostname':
-                            field_value = asset.get('hostname')
+                            field_value = asset_dict.get('hostname')
                         elif field == 'os_family':
-                            field_value = asset.get('os_family')
+                            field_value = asset_dict.get('os_family')
                         elif field == 'device_role':
-                            field_value = asset.get('device_type')
+                            field_value = asset_dict.get('device_type')
                         elif field == 'open_ports':
                             # open_ports теперь вычисляемое свойство, объединяем rustscan и nmap порты
-                            rustscan_ports = asset.get('rustscan_ports', []) or []
-                            nmap_ports = asset.get('nmap_ports', []) or []
+                            rustscan_ports = asset_dict.get('rustscan_ports', []) or []
+                            nmap_ports = asset_dict.get('nmap_ports', []) or []
                             field_value = sorted(list(set(rustscan_ports) | set(nmap_ports)))
                         elif field == 'status':
-                            field_value = asset.get('status')
+                            field_value = asset_dict.get('status')
                         elif field == 'source':
-                            field_value = asset.get('source')
+                            field_value = asset_dict.get('source')
                         elif field == 'group_name':
                             # Для группы берем имя первой группы
-                            groups = asset.get('groups', [])
+                            groups = asset_dict.get('groups', [])
                             if groups and len(groups) > 0:
                                 field_value = groups[0].get('name', '')
                             else:
@@ -111,7 +113,7 @@ class AssetService:
                         break
                 
                 if match:
-                    filtered.append(asset)
+                    filtered.append(asset_dict)
             
             return filtered
         

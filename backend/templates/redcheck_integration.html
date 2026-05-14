@@ -122,6 +122,17 @@ async function loadSettings() {
         document.getElementById('api_version').value = settings.api_version || 'v1.0';
         document.getElementById('auth_type').value = settings.auth_type || 'basic';
         document.getElementById('verify_ssl').checked = settings.verify_ssl !== false;
+        
+        // Загружаем учётные данные, если они есть
+        if (settings.username) {
+            document.getElementById('username').value = settings.username;
+        }
+        // Пароль не загружаем из соображений безопасности (оставляем пустым)
+        // Но показываем индикатор, что пароль сохранён
+        if (settings.password) {
+            const passwordField = document.getElementById('password');
+            passwordField.placeholder = '•••••••• (пароль сохранён)';
+        }
     } catch (error) {
         console.error('Ошибка загрузки настроек:', error);
     }
@@ -238,6 +249,8 @@ async function loadIntegrationInfo() {
                             <small class="text-muted">Хостов</small>
                         </div>
                     </div>
+                    ${info.token_saved ? '<hr><p class="text-success"><i class="bi bi-key me-1"></i>Токен сохранён</p>' : ''}
+                    ${info.token_expires_at ? `<p class="text-muted"><small>Истекает: ${new Date(info.token_expires_at).toLocaleString()}</small></p>` : ''}
                 </div>
             `;
         } else {
