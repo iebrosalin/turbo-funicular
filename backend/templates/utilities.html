@@ -3,19 +3,12 @@
 {% block title %}Утилиты{% endblock %}
 
 {% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-tools"></i> Утилиты</h2>
+    <a href="{{ url_for('main.index') }}" class="btn btn-outline-dark"><i class="bi bi-arrow-left"></i> На главную</a>
+</div>
+
 <div class="row">
-    <div class="col-md-3 col-lg-2 sidebar p-3 d-none d-md-block">
-        <h5 class="mb-3"><i class="bi bi-folder-tree"></i> Группы</h5>
-        <div id="group-tree">{% include 'components/group_tree.html' %}</div>
-    </div>
-    <div class="col-md-9 col-lg-10 p-4">
-        <nav class="navbar navbar-light mb-4 px-3">
-            <span class="navbar-brand mb-0 h1"><i class="bi bi-tools"></i> Утилиты</span>
-            <div class="d-flex align-items-center">
-                <a href="{{ url_for('main.index') }}" class="btn btn-outline-dark"><i class="bi bi-arrow-left"></i> На главную</a>
-            </div>
-        </nav>
-        <div class="row">
             <div class="col-md-6 col-lg-4 mb-4">
                 <div class="card h-100" data-bs-toggle="modal" data-bs-target="#nmapRustscanModal" style="cursor: pointer;">
                     <div class="card-body text-center p-4">
@@ -36,7 +29,6 @@
             </div>
         </div>
     </div>
-</div>
 
 <!-- Modals -->
 <div class="modal fade" id="nmapRustscanModal" tabindex="-1">

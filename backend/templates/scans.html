@@ -3,11 +3,12 @@
 {% block title %}Сканирования{% endblock %}
 
 {% block content %}
-<div class="col-12">
-    <h2 class="mb-4"><i class="bi bi-wifi"></i> Управление сканированиями</h2>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-wifi"></i> Управление сканированиями</h2>
+</div>
 
-    <!-- Статус очередей сканирований -->
-    <div id="queue-status-container" class="row mb-4">
+<!-- Статус очередей сканирований -->
+<div id="queue-status-container" class="row mb-4">
                 <div class="col-md-4 mb-3">
                     <div class="card h-100 border-primary">
                         <div class="card-header bg-primary text-white">
@@ -266,7 +267,6 @@
             </div>
         </div>
     </div>
-</div>
 
 <!-- Модальное окно логов (Real-time) -->
 <div class="modal fade" id="scanLogsModal" tabindex="-1">

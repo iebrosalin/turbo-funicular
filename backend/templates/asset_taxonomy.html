@@ -7,43 +7,31 @@
 {% endblock %}
 
 {% block content %}
-<div class="row">
-    <!-- Sidebar -->
-    <div class="col-md-3 col-lg-2 sidebar p-3 d-none d-md-block">
-        <h5 class="mb-3"><i class="bi bi-folder-tree"></i> Группы</h5>
-        {% include 'components/group_tree.html' %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex align-items-center">
+        <a href="{{ url_for('main.asset_detail', id=asset.id) }}" class="btn btn-outline-dark me-3">
+            <i class="bi bi-arrow-left"></i> Назад
+        </a>
+        <h2 class="mb-0"><i class="bi bi-diagram-3"></i> Таксономия: {{ asset.ip_address }}</h2>
     </div>
+</div>
 
-    <!-- Main Content -->
-    <div class="col-md-9 col-lg-10 p-4">
-        <!-- Navigation -->
-        <nav class="navbar navbar-light mb-4 px-3">
-            <div class="d-flex align-items-center">
-                <a href="{{ url_for('main.asset_detail', id=asset.id) }}" class="btn btn-outline-dark me-3">
-                    <i class="bi bi-arrow-left"></i> Назад
-                </a>
-                <span class="navbar-brand mb-0 h1">
-                    <i class="bi bi-diagram-3"></i> Таксономия: {{ asset.ip_address }}
-                </span>
-            </div>
-        </nav>
+<!-- Info Card -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-info-circle"></i> Актив</span>
+        <span class="text-muted small">{{ asset.ip_address }} {% if asset.hostname %}({{ asset.hostname }}){% endif %}</span>
+    </div>
+    <div class="card-body">
+        <p class="mb-0 text-muted">
+            Автоматическая классификация актива на основе открытых портов, сервисов, ОС и результатов сканирований.
+            Таксономия обновляется при каждом сканировании или получении данных от OSquery.
+        </p>
+    </div>
+</div>
 
-        <!-- Info Card -->
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span><i class="bi bi-info-circle"></i> Актив</span>
-                <span class="text-muted small">{{ asset.ip_address }} {% if asset.hostname %}({{ asset.hostname }}){% endif %}</span>
-            </div>
-            <div class="card-body">
-                <p class="mb-0 text-muted">
-                    Автоматическая классификация актива на основе открытых портов, сервисов, ОС и результатов сканирований.
-                    Таксономия обновляется при каждом сканировании или получении данных от OSquery.
-                </p>
-            </div>
-        </div>
-
-        <!-- Taxonomy Cards -->
-        <div class="row">
+<!-- Taxonomy Cards -->
+<div class="row">
             {% for node in taxonomy.nodes %}
             <div class="col-lg-6 mb-4">
                 <div class="card taxon-card h-100 border-0 shadow-sm">
@@ -105,6 +93,4 @@
             </div>
         </div>
         {% endif %}
-    </div>
-</div>
 {% endblock %}
