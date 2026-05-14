@@ -38,7 +38,7 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     position: relative;
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 56px);
+    height: 100%;
 }
 .sidebar .card {
     background: var(--bg-card);
