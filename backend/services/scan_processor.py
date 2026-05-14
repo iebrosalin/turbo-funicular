@@ -325,6 +325,7 @@ class ScanProcessor:
         # Применяем обновления
         for key, value in updates.items():
             if value is not None and key != 'group_id' and key != 'scan_type':  # group_id и scan_type обрабатываются отдельно
+                old_value = getattr(asset, key, None)
                 # Для списков (порты, сервисы) можно решать: заменять или дополнять.
                 # Здесь заменяем данными последнего сканирования для простоты, 
                 # либо можно реализовать мерж.
@@ -336,37 +337,50 @@ class ScanProcessor:
                     if len(new_ports) > len(old_ports):
                         logger.debug(f"  - Добавлено портов: {len(new_ports) - len(old_ports)}")
                     asset.open_ports = new_ports
+                    logger.info(f"[DEBUG _upsert_asset] {ip}: open_ports изменён с {old_value} на {asset.open_ports}")
                 elif key == 'services':
                      # Заменяем полностью услуги для этого хоста (упрощенно)
                      # В идеале нужно мерджить по порту
                      asset.services = value
                      logger.debug(f"  - Обновлено сервисов: {len(value)}")
+                     logger.info(f"[DEBUG _upsert_asset] {ip}: services обновлён, кол-во={len(value)}")
                 elif key == 'dns_records':
                     old_dns = asset.dns_records or []
                     # Простой аппенд без глубокой проверки дублей
                     asset.dns_records = old_dns + value
                     logger.debug(f"  - Добавлено DNS записей: {len(value)}")
+                    logger.info(f"[DEBUG _upsert_asset] {ip}: dns_records добавлено {len(value)} записей")
                 elif key == 'hostname' and value:
                     if not asset.hostname:
                         asset.hostname = value
                         logger.debug(f"  - Установлен hostname: {value}")
+                        logger.info(f"[DEBUG _upsert_asset] {ip}: hostname установлен в '{value}'")
                 else:
                     setattr(asset, key, value)
+                    logger.info(f"[DEBUG _upsert_asset] {ip}: поле '{key}' изменено с {old_value} на {value}")
         
         # Обновляем временные метки сканирований в зависимости от типа
         now = datetime.utcnow()
+        old_status = asset.status
+        old_last_rustscan = asset.last_rustscan
+        old_last_nmap = asset.last_nmap
+        old_last_dns_scan = asset.last_dns_scan
+        
         if scan_type == 'rustscan':
             asset.last_rustscan = now
             # Обновляем rustscan_ports
             if new_open_ports:
                 asset.rustscan_ports = new_open_ports
+                logger.info(f"[DEBUG _upsert_asset] {ip}: last_rustscan установлен в {now}, rustscan_ports={new_open_ports}")
         elif scan_type == 'nmap':
             asset.last_nmap = now
             # Обновляем nmap_ports
             if new_open_ports:
                 asset.nmap_ports = new_open_ports
+                logger.info(f"[DEBUG _upsert_asset] {ip}: last_nmap установлен в {now}, nmap_ports={new_open_ports}")
         elif scan_type == 'dig':
             asset.last_dns_scan = now
+            logger.info(f"[DEBUG _upsert_asset] {ip}: last_dns_scan установлен в {now}")
         
         # Обновляем last_seen для любого типа сканирования
         asset.last_seen = now
@@ -384,6 +398,9 @@ class ScanProcessor:
                 if asset.status != 'inactive':
                     logger.debug(f"  - Статус изменён на 'inactive' (нет открытых портов)")
                 asset.status = 'inactive'
+        
+        # Логируем итоговые изменения статуса и временных меток
+        logger.info(f"[DEBUG _upsert_asset] {ip}: status изменён с '{old_status}' на '{asset.status}', last_rustscan={asset.last_rustscan}, last_nmap={asset.last_nmap}, last_dns_scan={asset.last_dns_scan}")
         
         # Обновляем группу для существующего актива
         if group_id and asset.id:  # Только для существующих активов (у новых уже добавлено выше)
@@ -403,9 +420,10 @@ class ScanProcessor:
                     logger.debug(f"  - Обновлена группа на {group.name} для актива {ip}")
                 else:
                     logger.warning(f"  - Группа с ID {group_id} не найдена для актива {ip}")
-            
+        
         asset.updated_at = now
         
+        # Коммитим изменения
         await self.db.commit()
         logger.info(f"[SCAN_PROCESS] Изменения закоммичены для актива {ip}")
 

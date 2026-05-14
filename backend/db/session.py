@@ -21,7 +21,7 @@ async_session_maker = async_sessionmaker(
     class_=AsyncSession,
     expire_on_commit=False,
     autocommit=False,
-    autoflush=False,
+    autoflush=True,  # Включаем autoflush для автоматической отправки изменений перед запросами
 )
 
 # Синхронная сессия для использования в сканерах
