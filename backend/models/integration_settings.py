@@ -20,6 +20,8 @@ class IntegrationSettings(Base):
     timeout = Column(Integer, nullable=True, default=30, comment="Таймаут запросов в секундах")
     verify_ssl = Column(Boolean, nullable=True, default=True, comment="Проверка SSL сертификата")
     enabled = Column(Boolean, nullable=True, default=False, comment="Включена ли интеграция")
+    token = Column(Text, nullable=True, comment="JWT токен аутентификации")
+    token_expires_at = Column(DateTime, nullable=True, comment="Время истечения токена")
     extra_config = Column(Text, nullable=True, comment="Дополнительные настройки в JSON формате")
     created_at = Column(DateTime, server_default=func.now(), comment="Дата создания")
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), comment="Дата обновления")
