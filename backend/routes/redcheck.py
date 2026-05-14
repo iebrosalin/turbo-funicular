@@ -421,18 +421,22 @@ async def save_settings(settings: RedCheckSettings, request: Request, db: AsyncS
         logger.info(f"[DEBUG] Настройки RedCheck созданы в БД")
     
     await db.commit()
+    await db.refresh(existing_settings if existing_settings else new_settings)
     logger.info(f"[DEBUG] Настройки RedCheck закоммичены в БД")
+    
+    saved_settings = existing_settings if existing_settings else new_settings
     
     return {
         "success": True,
         "message": "Настройки успешно сохранены",
         "settings": {
-            "api_url": settings.api_url,
-            "api_version": settings.api_version,
-            "auth_type": settings.auth_type,
-            "timeout": settings.timeout,
-            "verify_ssl": settings.verify_ssl,
-            "enabled": True
+            "api_url": saved_settings.api_url or "",
+            "api_version": saved_settings.api_version or "v1.0",
+            "username": saved_settings.username or "",
+            "auth_type": saved_settings.auth_type or "basic",
+            "timeout": saved_settings.timeout or 30,
+            "verify_ssl": saved_settings.verify_ssl if saved_settings.verify_ssl is not None else True,
+            "enabled": saved_settings.enabled if saved_settings.enabled is not None else False
         }
     }
 

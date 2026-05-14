@@ -340,12 +340,10 @@ class ScanProcessor:
             now = datetime.utcnow()
             if scan_type == 'rustscan':
                 asset.last_rustscan = now
-                if new_open_ports:
-                    asset.rustscan_ports = new_open_ports
+                asset.rustscan_ports = new_open_ports
             elif scan_type == 'nmap':
                 asset.last_nmap = now
-                if new_open_ports:
-                    asset.nmap_ports = new_open_ports
+                asset.nmap_ports = new_open_ports
             elif scan_type == 'dig':
                 asset.last_dns_scan = now
             

@@ -352,12 +352,7 @@ class AssetService:
         del_result = await self.db.execute(del_query)
         logger.info(f"[DELETE] DELETE выполнен, rowcount={del_result.rowcount}")
         
-        # Коммитим удаление
-        logger.info(f"[DELETE] Выполняем commit удаления...")
-        await self.db.commit()
-        logger.info(f"[DELETE] Commit удаления успешен для актива {asset_id}")
-        
-        # Записываем в лог ПОСЛЕ коммита удаления - это отдельная транзакция
+        # Записываем в лог ДО коммита удаления в той же транзакции
         if del_result.rowcount > 0 and asset_dict:
             logger.info(f"[DELETE] Запись в asset_change_logs для актива {asset_id}")
             stmt = insert(asset_change_logs_table).values(
@@ -369,12 +364,11 @@ class AssetService:
             )
             log_result = await self.db.execute(stmt)
             logger.info(f"[DELETE] Лог изменений вставлен, rowcount={log_result.rowcount}")
-            
-            # Коммитим лог
-            await self.db.commit()
-            logger.info(f"[DELETE] Commit лога успешен")
-        else:
-            logger.error(f"[DELETE] Не удалось записать лог: rowcount={del_result.rowcount}, asset_dict={bool(asset_dict)}")
+        
+        # Коммитим всё вместе (удаление + лог)
+        logger.info(f"[DELETE] Выполняем commit...")
+        await self.db.commit()
+        logger.info(f"[DELETE] Commit успешен для актива {asset_id}")
         
         return del_result.rowcount > 0
     
