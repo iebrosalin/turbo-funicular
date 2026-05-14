@@ -325,7 +325,7 @@ class AssetService:
     
     async def delete(self, asset_id: int, username: Optional[str] = None) -> bool:
         """Удалить актив с записью в лог."""
-        # Сначала получаем данные для лога - используем sync подход чтобы избежать greenlet_spawn ошибки
+        # Сначала получаем данные для лога
         query = select(Asset).options(
             selectinload(Asset.groups),
             selectinload(Asset.services)
@@ -342,19 +342,20 @@ class AssetService:
         # Теперь удаляем
         del_query = delete(Asset).where(Asset.id == asset_id)
         del_result = await self.db.execute(del_query)
-        await self.db.flush()
+        await self.db.commit()  # Используем commit вместо flush чтобы завершить транзакцию удаления
         
         # Записываем в лог если актив был удален
         if del_result.rowcount > 0 and asset_dict:
+            # Создаем новую транзакцию для записи лога
             stmt = insert(asset_change_logs_table).values(
                 asset_id=asset_id,
                 username=username,
                 action='delete',
                 changed_fields={'asset': asset_dict},
-                created_at=datetime.now()
+                created_at=datetime.utcnow()
             )
             await self.db.execute(stmt)
-            await self.db.flush()
+            await self.db.commit()
         
         return del_result.rowcount > 0
     
@@ -370,7 +371,7 @@ class AssetService:
         
         query = delete(Asset).where(Asset.id.in_(asset_ids))
         result = await self.db.execute(query)
-        await self.db.flush()
+        await self.db.commit()  # Завершаем транзакцию удаления
         
         # Записываем в лог каждый удаленный актив
         for asset_dict in assets_data:
@@ -379,10 +380,10 @@ class AssetService:
                 username=username,
                 action='delete',
                 changed_fields={'asset': asset_dict},
-                created_at=datetime.now()
+                created_at=datetime.utcnow()
             )
             await self.db.execute(stmt)
-        await self.db.flush()
+        await self.db.commit()
         
         return result.rowcount
     

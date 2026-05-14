@@ -62,36 +62,82 @@ class RedCheckEndpoint(BaseModel):
 async def get_redcheck_token(settings: RedCheckSettings) -> Optional[str]:
     """
     Получение JWT токена для доступа к RedCheck API
+    
+    Формат данных для настройки интеграции:
+    {
+        "api_url": "https://10.250.95.14:444",  // URL сервера RedCheck
+        "api_version": "v1.0",                   // Версия API (обычно v1.0)
+        "username": "your_username",             // Имя пользователя
+        "password": "your_password",             // Пароль
+        "auth_type": "basic",                    // Тип аутентификации (basic)
+        "timeout": 30,                           // Таймаут запросов в секундах
+        "verify_ssl": false                      // Проверка SSL сертификата (false для самоподписанных)
+    }
     """
     if settings.auth_type != "basic" or not settings.username or not settings.password:
         return None
     
     token_url = f"{settings.api_url}/api/{settings.api_version}/accounts/token"
     
+    logger.info(f"[DEBUG] Получение токена RedCheck:")
+    logger.info(f"  URL: {token_url}")
+    logger.info(f"  Username: {settings.username}")
+    logger.info(f"  Password: {'*' * len(settings.password)}")
+    logger.info(f"  Timeout: {settings.timeout}s")
+    logger.info(f"  Verify SSL: {settings.verify_ssl}")
+    
     async with httpx.AsyncClient(
         timeout=settings.timeout,
-        verify=settings.verify_ssl
+        verify=settings.verify_ssl,
+        follow_redirects=False  # Не следовать редиректам, чтобы детектировать проблемы аутентификации
     ) as client:
         try:
+            request_payload = {
+                "username": settings.username,
+                "password": settings.password
+            }
+            logger.info(f"  Request payload: {request_payload}")
+            
             response = await client.post(
                 token_url,
-                json={
-                    "username": settings.username,
-                    "password": settings.password
-                }
+                json=request_payload,
+                headers={"Content-Type": "application/json"}
             )
+            
+            logger.info(f"  Response status: {response.status_code}")
+            logger.info(f"  Response headers: {dict(response.headers)}")
+            logger.info(f"  Response body: {response.text[:500] if response.text else 'empty'}")
             
             if response.status_code == 200:
                 data = response.json()
+                logger.info(f"  Response JSON: {data}")
                 # Токен может быть в разных полях в зависимости от версии API
                 token = data.get("token") or data.get("access_token") or data.get("result", {}).get("token")
+                if token:
+                    logger.info(f"  ✅ Токен получен успешно (длина: {len(token)})")
+                else:
+                    logger.warning(f"  ⚠️ Токен не найден в ответе. Доступные ключи: {list(data.keys())}")
                 return token
+            elif response.status_code == 302:
+                location = response.headers.get("Location", "unknown")
+                logger.error(f"  ❌ Ошибка получения токена: 302 - Перенаправление на {location}")
+                logger.error(f"  Возможная причина: Неверный URL API или требуется другая аутентификация")
+                return None
+            elif response.status_code == 400:
+                logger.error(f"  ❌ Ошибка получения токена: 400 - Bad Request")
+                logger.error(f"  Возможная причина: Неверный формат запроса или учётных данных")
+                logger.error(f"  Ответ сервера: {response.text}")
+                return None
+            elif response.status_code == 401:
+                logger.error(f"  ❌ Ошибка получения токена: 401 - Unauthorized")
+                logger.error(f"  Возможная причина: Неверное имя пользователя или пароль")
+                return None
             else:
-                logger.error(f"Ошибка получения токена: {response.status_code} - {response.text}")
+                logger.error(f"  ❌ Ошибка получения токена: {response.status_code} - {response.text}")
                 return None
                 
         except httpx.RequestError as e:
-            logger.error(f"Ошибка запроса к RedCheck API: {e}")
+            logger.error(f"  ❌ Ошибка запроса к RedCheck API: {type(e).__name__}: {e}")
             return None
     
     return None
@@ -115,10 +161,20 @@ async def redcheck_request(
         headers["Authorization"] = f"Bearer {token}"
     headers["Content-Type"] = "application/json"
     
+    logger.info(f"[DEBUG] Запрос к RedCheck API:")
+    logger.info(f"  Method: {method.upper()}")
+    logger.info(f"  URL: {url}")
+    logger.info(f"  Headers: {headers}")
+    if json_data:
+        logger.info(f"  JSON data: {json_data}")
+    if params:
+        logger.info(f"  Params: {params}")
+    
     async with httpx.AsyncClient(
         timeout=settings.timeout,
         verify=settings.verify_ssl,
-        headers=headers
+        headers=headers,
+        follow_redirects=False
     ) as client:
         try:
             if method.upper() == "GET":
@@ -132,14 +188,37 @@ async def redcheck_request(
             else:
                 raise ValueError(f"Неподдерживаемый метод: {method}")
             
+            logger.info(f"  Response status: {response.status_code}")
+            logger.info(f"  Response headers: {dict(response.headers)}")
+            logger.info(f"  Response body: {response.text[:500] if response.text else 'empty'}")
+            
             if response.status_code == 200:
-                return response.json()
+                result = response.json()
+                logger.info(f"  ✅ Успешный ответ: {result}")
+                return result
+            elif response.status_code == 302:
+                location = response.headers.get("Location", "unknown")
+                logger.error(f"  ❌ Ошибка RedCheck API ({method} {endpoint}): 302 - Перенаправление на {location}")
+                logger.error(f"  Возможная причина: Требуется аутентификация или неверный URL")
+                return None
+            elif response.status_code == 401:
+                logger.error(f"  ❌ Ошибка RedCheck API ({method} {endpoint}): 401 - Неавторизовано")
+                logger.error(f"  Возможная причина: Неверный или истёкший токен")
+                return None
+            elif response.status_code == 403:
+                logger.error(f"  ❌ Ошибка RedCheck API ({method} {endpoint}): 403 - Доступ запрещён")
+                logger.error(f"  Возможная причина: Недостаточно прав доступа")
+                return None
+            elif response.status_code == 404:
+                logger.error(f"  ❌ Ошибка RedCheck API ({method} {endpoint}): 404 - Ресурс не найден")
+                logger.error(f"  Возможная причина: Неверный эндпоинт или ресурс не существует")
+                return None
             else:
-                logger.error(f"Ошибка RedCheck API ({method} {endpoint}): {response.status_code} - {response.text}")
+                logger.error(f"  ❌ Ошибка RedCheck API ({method} {endpoint}): {response.status_code} - {response.text}")
                 return None
                 
         except httpx.RequestError as e:
-            logger.error(f"Ошибка запроса к RedCheck API: {e}")
+            logger.error(f"  ❌ Ошибка запроса к RedCheck API: {type(e).__name__}: {e}")
             return None
     
     return None
