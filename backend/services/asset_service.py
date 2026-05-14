@@ -48,7 +48,7 @@ class AssetService:
         if rules:
             filtered = []
             for asset in assets:
-                # Конвертируем ORM-объект в словарь один раз
+                # Конвертируем ORM-объект в словарь для фильтрации
                 asset_dict = self._asset_to_dict(asset)
                 match = True
                 for rule in rules:
@@ -56,7 +56,7 @@ class AssetService:
                     operation = rule.get('operation', '')
                     value = str(rule.get('value', '')).lower()
                     
-                    # Получаем значение поля из актива (asset теперь dict)
+                    # Получаем значение поля из актива (asset_dict теперь dict)
                     field_value = AssetService.get_nested_value(asset_dict, field)
                     
                     # Маппинг альтернативных имен полей
@@ -113,12 +113,13 @@ class AssetService:
                         break
                 
                 if match:
-                    filtered.append(asset_dict)
+                    # Возвращаем ORM-объект, а не словарь, чтобы caller мог работать с ним как с ORM
+                    filtered.append(asset)
             
             return filtered
         
-        # Конвертируем все ORM-объекты в словари для предотвращения ошибок при ленивой загрузке
-        return [self._asset_to_dict(asset) for asset in assets]
+        # Возвращаем ORM-объекты, конвертация будет выполнена вызывающим кодом
+        return assets
     
     async def get_by_id(self, asset_id: int) -> Optional[dict]:
         """Получить актив по ID и вернуть как словарь с предзагруженными данными."""
