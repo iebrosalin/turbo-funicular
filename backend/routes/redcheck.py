@@ -454,6 +454,7 @@ async def get_current_settings(db: AsyncSession = Depends(get_db)):
             "api_url": settings_record.api_url or "",
             "api_version": settings_record.api_version or "v1.0",
             "username": settings_record.username or "",
+            "password": settings_record.password or "",
             "auth_type": settings_record.auth_type or "basic",
             "timeout": settings_record.timeout or 30,
             "verify_ssl": settings_record.verify_ssl if settings_record.verify_ssl is not None else True,
