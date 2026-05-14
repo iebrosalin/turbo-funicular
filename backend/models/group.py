@@ -45,6 +45,7 @@ class Group(Base):
             'filter_rules': self.filter_rules,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'assets_count': getattr(self, 'assets_count', 0),
         }
         
         if hasattr(self, '_children_list') and self._children_list:

@@ -202,7 +202,7 @@ async def create_group(
     existing_group = existing_result.scalar_one_or_none()
     
     if existing_group:
-        logger.warning(f"Попытка создания группы с дублирующимся именем: '{group_data.name}'. Существующий ID: {existing_group.id}")
+        logger.info(f"Отказ в создании группы: имя '{group_data.name}' уже существует (ID: {existing_group.id}). Запрос отклонён с кодом 400.")
         raise HTTPException(status_code=400, detail=f"Группа с именем '{group_data.name}' уже существует в базе данных")
 
     try:
@@ -236,7 +236,7 @@ async def create_group(
             existing_result_retry = await db.execute(existing_query_retry)
             existing_group_retry = existing_result_retry.scalar_one_or_none()
             if existing_group_retry:
-                logger.warning(f"Группа '{group_data.name}' была создана конкурентным запросом. ID: {existing_group_retry.id}")
+                logger.info(f"Отказ в создании группы (конкурентный запрос): имя '{group_data.name}' уже существует (ID: {existing_group_retry.id}). Запрос отклонён с кодом 400.")
                 raise HTTPException(status_code=400, detail=f"Группа с именем '{group_data.name}' уже существует в базе данных")
         
         logger.error(f"IntegrityError при создании группы '{group_data.name}': {e}")
@@ -260,7 +260,7 @@ async def update_group(
         existing = await service.get_all()
         duplicate = next((g for g in existing if g.name == group_data.name and g.id != group_id), None)
         if duplicate:
-            logger.warning(f"Попытка обновления группы с дублирующимся именем: '{group_data.name}'. ID группы: {group_id}, существующий дубликат ID: {duplicate.id}")
+            logger.info(f"Отказ в обновлении группы: имя '{group_data.name}' уже существует у группы ID {duplicate.id}. Запрос отклонён с кодом 400.")
             raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
     
     try:
@@ -378,6 +378,7 @@ async def rename_root_group(
         )
         existing_result = await db.execute(existing_query)
         if existing_result.scalar_one_or_none():
+            logger.info(f"Отказ в переименовании корневой группы: имя '{name}' уже существует. Запрос отклонён с кодом 400.")
             raise HTTPException(status_code=400, detail="Группа с таким именем уже существует")
         
         root_group.name = name
