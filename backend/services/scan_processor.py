@@ -89,11 +89,13 @@ class ScanProcessor:
             status_elem = host.find('status')
             # Если status отсутствует, считаем хост активным (для обратной совместимости)
             if status_elem is not None and status_elem.get('state') != 'up':
+                logger.debug(f"[ScanProcessor] Пропущен хост со статусом: {status_elem.get('state')}")
                 continue
 
             # Извлечение IP
             addr_elem = host.find('address')
             if addr_elem is None:
+                logger.debug(f"[ScanProcessor] Пропущен хост без адреса")
                 continue
             ip_addr = addr_elem.get('addr')
             
@@ -333,7 +335,20 @@ class ScanProcessor:
             status = 'active' if has_open_ports else 'inactive'
             asset = Asset(ip_address=ip, status=status)
             self.db.add(asset)
-            logger.info(f"[SCAN_PROCESS] СОЗДАН НОВЫЙ АКТИВ: IP={ip}, Группа={group_id}, Статус={status}, Портов={len(new_open_ports)}")
+            
+            # Для нового актива сразу устанавливаем временную метку текущего сканирования
+            now = datetime.utcnow()
+            if scan_type == 'rustscan':
+                asset.last_rustscan = now
+                asset.rustscan_ports = new_open_ports
+            elif scan_type == 'nmap':
+                asset.last_nmap = now
+                asset.nmap_ports = new_open_ports
+            elif scan_type == 'dig':
+                asset.last_dns_scan = now
+            
+            asset.last_seen = now
+            logger.info(f"[SCAN_PROCESS] СОЗДАН НОВЫЙ АКТИВ: IP={ip}, Группа={group_id}, Статус={status}, Портов={len(new_open_ports)}, scan_type={scan_type}")
             
             # Если указана группа, добавляем связь для нового актива
             if group_id:
@@ -393,16 +408,14 @@ class ScanProcessor:
         
         if scan_type == 'rustscan':
             asset.last_rustscan = now
-            # Обновляем rustscan_ports
-            if new_open_ports:
-                asset.rustscan_ports = new_open_ports
-                logger.info(f"[DEBUG _upsert_asset] {ip}: last_rustscan установлен в {now}, rustscan_ports={new_open_ports}")
+            # Обновляем rustscan_ports всегда (даже если пустой список)
+            asset.rustscan_ports = new_open_ports
+            logger.info(f"[DEBUG _upsert_asset] {ip}: last_rustscan установлен в {now}, rustscan_ports={new_open_ports}")
         elif scan_type == 'nmap':
             asset.last_nmap = now
-            # Обновляем nmap_ports
-            if new_open_ports:
-                asset.nmap_ports = new_open_ports
-                logger.info(f"[DEBUG _upsert_asset] {ip}: last_nmap установлен в {now}, nmap_ports={new_open_ports}")
+            # Обновляем nmap_ports всегда (даже если пустой список)
+            asset.nmap_ports = new_open_ports
+            logger.info(f"[DEBUG _upsert_asset] {ip}: last_nmap установлен в {now}, nmap_ports={new_open_ports}")
         elif scan_type == 'dig':
             asset.last_dns_scan = now
             logger.info(f"[DEBUG _upsert_asset] {ip}: last_dns_scan установлен в {now}")

@@ -67,9 +67,18 @@ async def upsert_asset(
             os_family=os_family,
             os_version=os_version,
             status=asset_status,
-            open_ports=open_ports or []
+            open_ports=open_ports or [],
+            rustscan_ports=open_ports if scanner_name.lower() == 'rustscan' else [],
+            nmap_ports=open_ports if scanner_name.lower() == 'nmap' else []
         )
         asset.last_seen = now
+        # Устанавливаем временную метку для соответствующего сканера
+        if scanner_name.lower() == 'rustscan':
+            asset.last_rustscan = now
+        elif scanner_name.lower() == 'nmap':
+            asset.last_nmap = now
+        elif scanner_name.lower() == 'dig':
+            asset.last_dns_scan = now
         db.add(asset)
         logger.info(f"[{scanner_name}] Актив {ip_address} создан со статусом {asset_status}")
     else:
@@ -97,9 +106,20 @@ async def upsert_asset(
         
         # Обновляем открытые порты если переданы (rustscan_ports и nmap_ports)
         if open_ports is not None:
-            # Сохраняем порты в rustscan_ports как основной источник
-            asset.rustscan_ports = open_ports
-            updated_fields.append(f"rustscan_ports={len(open_ports)}")
+            # Определяем какой тип портов обновлять на основе имени сканера
+            if scanner_name.lower() == 'rustscan':
+                asset.rustscan_ports = open_ports
+                asset.last_rustscan = now
+                updated_fields.append(f"rustscan_ports={len(open_ports)}")
+                updated_fields.append(f"last_rustscan={now}")
+            elif scanner_name.lower() == 'nmap':
+                asset.nmap_ports = open_ports
+                asset.last_nmap = now
+                updated_fields.append(f"nmap_ports={len(open_ports)}")
+                updated_fields.append(f"last_nmap={now}")
+            elif scanner_name.lower() == 'dig':
+                asset.last_dns_scan = now
+                updated_fields.append(f"last_dns_scan={now}")
         
         # Обновляем статус актива на основе наличия открытых портов
         if has_open_ports:
