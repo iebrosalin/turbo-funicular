@@ -23,9 +23,87 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 /* ═══════════════════════════════════════════════════════════════
    LAYOUT & NAVBAR
    ═══════════════════════════════════════════════════════════════ */
-.wrapper { display: flex; flex-direction: column; width: 100%; align-items: stretch; position: relative; }
+.wrapper { display: flex; width: 100%; position: relative; overflow-x: hidden; }
 .navbar { background: var(--bg-card) !important; border-bottom: 1px solid var(--border-color); box-shadow: var(--shadow-sm); }
 .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 0.5rem; box-shadow: var(--shadow-sm); transition: all 0.3s ease; }
+
+/* Sidebar Toggle Button */
+.sidebar-toggle-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    border-radius: 0.25rem;
+    transition: background 0.2s;
+}
+.sidebar-toggle-btn:hover {
+    background: var(--bg-hover);
+}
+
+/* Sidebar Resizer */
+.sidebar-resizer {
+    width: 5px;
+    cursor: col-resize;
+    background: transparent;
+    transition: background 0.2s;
+    z-index: 10;
+}
+.sidebar-resizer:hover, .sidebar-resizer.resizing {
+    background: var(--bs-primary);
+}
+
+/* Sidebar Styles */
+.sidebar {
+    min-width: var(--sidebar-width);
+    max-width: var(--sidebar-width);
+    transition: all 0.3s ease;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border-color);
+    overflow: hidden;
+}
+.sidebar .card {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+.sidebar .card-header {
+    background: transparent;
+    border-bottom: 1px solid var(--border-color);
+}
+.sidebar.collapsed {
+    min-width: 60px;
+    max-width: 60px;
+}
+.sidebar.collapsed .sidebar-text,
+.sidebar.collapsed .sidebar-section-title,
+.sidebar.collapsed .card-header h6,
+.sidebar.collapsed #btn-add-group {
+    display: none;
+}
+.sidebar.collapsed .card-header {
+    justify-content: center;
+    padding: 0.5rem;
+}
+.sidebar.collapsed .card-body {
+    padding: 0.5rem;
+}
+.sidebar.collapsed .tree-node {
+    justify-content: center;
+    padding: 0.5rem;
+}
+.sidebar.collapsed .tree-node .folder-icon,
+.sidebar.collapsed .tree-node .toggle-icon,
+.sidebar.collapsed .tree-node .caret,
+.sidebar.collapsed .tree-node .badge {
+    margin: 0;
+}
+.sidebar.collapsed .scan-list-item {
+    text-align: center;
+}
+.sidebar.collapsed .scan-list-item span:not(.scan-status-dot) {
+    display: none;
+}
 .table { color: var(--text-primary); } 
 .table thead th { 
     background-color: var(--bg-body); 
