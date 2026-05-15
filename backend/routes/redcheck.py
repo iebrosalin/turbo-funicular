@@ -430,10 +430,11 @@ async def get_endpoints():
 async def test_connection(settings: RedCheckSettings, db: AsyncSession = Depends(get_db)):
     """
     Проверка подключения к RedCheck API
+    При проверке подключения всегда запрашиваем новый токен, игнорируя сохранённый
     """
     logger.info(f"Проверка подключения к RedCheck: {settings.api_url}")
     
-    # Сначала пробуем использовать сохранённый токен (если есть)
+    # При проверке подключения всегда запрашиваем новый токен
     token = None
     token_received = False
     
@@ -455,23 +456,6 @@ async def test_connection(settings: RedCheckSettings, db: AsyncSession = Depends
         existing_settings.auth_type = settings.auth_type
         existing_settings.timeout = settings.timeout
         existing_settings.verify_ssl = settings.verify_ssl
-        
-        # Проверяем, есть ли сохранённый токен и не истёк ли он
-        if existing_settings.token and existing_settings.token_expires_at:
-            from datetime import datetime, timedelta
-            # Добавляем буфер 5 минут для безопасного обновления
-            effective_expiry = existing_settings.token_expires_at - timedelta(minutes=5)
-            if datetime.utcnow() < effective_expiry:
-                token = existing_settings.token
-                logger.info(f"✅ Используем сохранённый токен (истекает: {existing_settings.token_expires_at})")
-                token_received = True
-            else:
-                logger.info(f"⚠️ Токен истёк или истекает скоро (истекает: {existing_settings.token_expires_at}), запрашиваем новый")
-        elif existing_settings.token:
-            # Если нет времени истечения, считаем токен действующим
-            token = existing_settings.token
-            logger.info(f"✅ Используем сохранённый токен (время истечения не установлено)")
-            token_received = True
     else:
         # Создаем новую запись для сохранения токена
         new_settings = IntegrationSettings(
@@ -489,9 +473,8 @@ async def test_connection(settings: RedCheckSettings, db: AsyncSession = Depends
         await db.flush()  # Получаем ID но не делаем коммит
         settings_id = new_settings.id
     
-    # Если токена нет или он истёк, пытаемся получить новый (только если есть учётные данные)
-    if not token and settings.auth_type == "basic" and settings.username and settings.password:
-        # При тестировании подключения запрашиваем новый токен только если нет действующего сохранённого
+    # При тестировании подключения всегда запрашиваем новый токен (force_refresh=True)
+    if settings.auth_type == "basic" and settings.username and settings.password:
         token = await get_redcheck_token(settings, db=db, settings_id=settings_id, force_refresh=True)
         if token:
             token_received = True
