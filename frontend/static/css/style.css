@@ -123,6 +123,17 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     display: none !important;
 }
 
+/* Гарантированный отступ между свернутым сайдбаром и контентом */
+#sidebar-container.collapsed + .main-content-col,
+.row > #sidebar-container.collapsed + [class*="col-"] {
+    padding-left: 1rem !important;
+}
+
+/* Отступ справа у контейнера свернутого сайдбара */
+#sidebar-container.collapsed {
+    padding-right: 0.5rem !important;
+}
+
 /* Скрываем текст и элементы в свернутом состоянии */
 .sidebar.collapsed .sidebar-text,
 .sidebar.collapsed .sidebar-section-title,
