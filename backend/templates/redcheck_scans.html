@@ -130,6 +130,30 @@
     </div>
 </div>
 
+<!-- Модальное окно просмотра сканирования -->
+<div class="modal fade" id="scanDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-shield-check me-2"></i>Детали сканирования <span id="scanDetailTitle"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="scanDetailContent">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Загрузка...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 .status-badge {
     font-size: 0.75rem;
@@ -442,13 +466,121 @@ function clearFilters() {
     loadScans();
 }
 
-function viewScan(id) {
-    alert('Просмотр сканирования ID: ' + id);
-    // TODO: Реализовать просмотр деталей
+async function viewScan(scanId) {
+    const modal = new bootstrap.Modal(document.getElementById('scanDetailModal'));
+    document.getElementById('scanDetailTitle').textContent = '#' + scanId;
+    document.getElementById('scanDetailContent').innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+        </div>
+    `;
+    modal.show();
+    
+    try {
+        const response = await fetch(`/api/integrations/redcheck/scans/${scanId}`);
+        if (!response.ok) {
+            throw new Error('Сканирование не найдено');
+        }
+        const scan = await response.json();
+        renderScanDetail(scan);
+    } catch (error) {
+        console.error('Ошибка загрузки деталей:', error);
+        document.getElementById('scanDetailContent').innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                Ошибка загрузки данных: ${error.message}
+            </div>
+        `;
+    }
+}
+
+function renderScanDetail(scan) {
+    const content = document.getElementById('scanDetailContent');
+    
+    // Формируем таблицу соответствия полей RedCheck -> Scan
+    const fieldMapping = [
+        { label: 'ID в RedCheck', key: 'external_id', icon: 'bi-hash' },
+        { label: 'Название', key: 'name', icon: 'bi-shield-check' },
+        { label: 'Описание', key: 'description', icon: 'bi-file-text',
+          formatter: v => v ? escapeHtml(v.substring(0, 200)) + (v.length > 200 ? '...' : '') : '<span class="text-muted">-</span>' },
+        { label: 'Тип сканирования', key: 'scan_type', icon: 'bi-bullseye',
+          formatter: v => getScanTypeLabel(v) },
+        { label: 'Статус', key: 'status', icon: 'bi-activity',
+          formatter: v => `<span class="status-badge status-${v || 'unknown'}">${getStatusLabel(v)}</span>` },
+        { label: 'Прогресс', key: 'progress', icon: 'bi-graph-up',
+          formatter: v => `
+            <div class="d-flex align-items-center">
+                <div class="progress flex-grow-1 me-2" style="width: 150px;">
+                    <div class="progress-bar" role="progressbar" style="width: ${v}%"></div>
+                </div>
+                <span>${v}%</span>
+            </div>
+          ` },
+        { label: 'Профиль', key: 'profile_name', icon: 'bi-person-badge' },
+        { label: 'ID профиля', key: 'profile_id', icon: 'bi-hash' },
+        { label: 'Цель', key: 'target_name', icon: 'bi-pc-display' },
+        { label: 'ID цели', key: 'target_id', icon: 'bi-hash' },
+        { label: 'Создано', key: 'created_at', icon: 'bi-calendar-plus',
+          formatter: formatDate },
+        { label: 'Начато', key: 'started_at', icon: 'bi-play-circle',
+          formatter: formatDate },
+        { label: 'Завершено', key: 'completed_at', icon: 'bi-check-circle',
+          formatter: formatDate },
+        { label: 'Критические уязв.', key: 'vulnerabilities_critical', icon: 'bi-exclamation-octagon',
+          formatter: v => `<span class="critical-badge">${v || 0}</span>` },
+        { label: 'Высокие уязв.', key: 'vulnerabilities_high', icon: 'bi-exclamation-triangle',
+          formatter: v => `<span class="high-badge">${v || 0}</span>` },
+        { label: 'Средние уязв.', key: 'vulnerabilities_medium', icon: 'bi-dash-circle',
+          formatter: v => `<span class="badge bg-info text-dark">${v || 0}</span>` },
+        { label: 'Низкие уязв.', key: 'vulnerabilities_low', icon: 'bi-dash-circle-fill',
+          formatter: v => `<span class="badge bg-light text-dark border">${v || 0}</span>` },
+        { label: 'Всего уязв.', key: 'vulnerabilities_total', icon: 'bi-bug',
+          formatter: v => `<span class="badge ${v > 0 ? 'bg-warning text-dark' : 'bg-secondary'}">${v || 0}</span>` },
+        { label: 'Есть отчёт', key: 'has_report', icon: 'bi-file-earmark-check',
+          formatter: v => v ? '<span class="text-success"><i class="bi bi-check-lg"></i> Да</span>' : '<span class="text-muted"><i class="bi bi-x-lg"></i> Нет</span>' },
+        { label: 'ID отчёта', key: 'report_id', icon: 'bi-hash' },
+        { label: 'Формат отчёта', key: 'report_format', icon: 'bi-filetype-pdf' },
+        { label: 'Синхронизировано', key: 'synced_at', icon: 'bi-arrow-clockwise',
+          formatter: formatDate },
+        { label: 'Обновлено', key: 'updated_at', icon: 'bi-pencil-square',
+          formatter: formatDate }
+    ];
+    
+    let html = '<div class="table-responsive"><table class="table table-sm table-bordered">';
+    html += '<thead class="table-light"><tr><th style="width: 40%;">Поле RedCheck</th><th>Значение</th></tr></thead>';
+    html += '<tbody>';
+    
+    fieldMapping.forEach(field => {
+        let value = scan[field.key];
+        if (field.formatter) {
+            value = field.formatter(value);
+        } else if (value === null || value === undefined || value === '') {
+            value = '<span class="text-muted">-</span>';
+        }
+        html += `<tr>
+            <td><i class="bi ${field.icon} me-2 text-primary"></i>${field.label}</td>
+            <td>${value}</td>
+        </tr>`;
+    });
+    
+    html += '</tbody></table></div>';
+    
+    // Добавляем секцию с raw_data если есть
+    if (scan.raw_data) {
+        html += '<div class="mt-3">';
+        html += '<h6><i class="bi bi-code-square me-2"></i>Исходные данные (raw_data)</h6>';
+        html += '<pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: auto;"><code>' + 
+            escapeHtml(JSON.stringify(scan.raw_data, null, 2)) + '</code></pre>';
+        html += '</div>';
+    }
+    
+    content.innerHTML = html;
 }
 
 function downloadReport(id) {
-    alert('Скачивание отчёта для сканирования ID: ' + id);
+    showAlert('Скачивание отчёта для сканирования ID: ' + id + ' (в разработке)', 'info');
     // TODO: Реализовать скачивание отчёта
 }
 
