@@ -62,13 +62,16 @@ class Asset(Base):
 
     # Связи
     # secondary=asset_groups связывает с Group через таблицу многие-ко-многим
-    groups = relationship('Group', secondary=asset_groups, back_populates='assets', cascade='all, delete')
+    # CASCADE удаляется через foreign key в таблице asset_groups (ondelete='CASCADE')
+    groups = relationship('Group', secondary=asset_groups, back_populates='assets')
 
-    # Прямые связи один-ко-многим с каскадным удалением
-    services = relationship('ServiceInventory', back_populates='asset', cascade='all, delete-orphan')
-    scan_results = relationship('ScanResult', back_populates='asset', cascade='all, delete-orphan')
-    activity_logs = relationship('ActivityLog', back_populates='asset', cascade='all, delete-orphan')
-    change_logs = relationship('AssetChangeLog', back_populates='asset', cascade='all, delete-orphan')
+    # Прямые связи один-ко-многим
+    # Каскадное удаление настроено на уровне БД через ondelete='CASCADE' в связанных моделях
+    # SQLAlchemy автоматически использует CASCADE базы данных, поэтому cascade='all, delete-orphan' не нужен
+    services = relationship('ServiceInventory', back_populates='asset')
+    scan_results = relationship('ScanResult', back_populates='asset')
+    activity_logs = relationship('ActivityLog', back_populates='asset')
+    change_logs = relationship('AssetChangeLog', back_populates='asset')
 
     def update_ports(self, source, ports_data):
         """Обновление портов из указанного источника"""

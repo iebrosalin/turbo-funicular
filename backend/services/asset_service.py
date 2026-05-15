@@ -377,6 +377,9 @@ class AssetService:
     
     async def delete_batch(self, asset_ids: List[int], username: Optional[str] = None) -> int:
         """Удалить несколько активов с записью в лог."""
+        if not asset_ids:
+            return 0
+        
         # Получаем данные для лога перед удалением
         assets_data = []
         for aid in asset_ids:
@@ -385,20 +388,25 @@ class AssetService:
                 # get_by_id уже возвращает словарь, используем его напрямую
                 assets_data.append(asset_dict)
         
+        # Удаляем все активы одним запросом
         query = delete(Asset).where(Asset.id.in_(asset_ids))
         result = await self.db.execute(query)
-        await self.db.commit()  # Завершаем транзакцию удаления
         
-        # Записываем в лог каждый удаленный актив
-        for asset_dict in assets_data:
-            stmt = insert(asset_change_logs_table).values(
-                asset_id=asset_dict['id'],
-                username=username,
-                action='delete',
-                changed_fields={'asset': asset_dict},
-                created_at=datetime.utcnow()
-            )
+        # Записываем в лог все удаленные активы одним bulk-запросом
+        if assets_data:
+            log_entries = [
+                {
+                    'asset_id': asset_dict['id'],
+                    'username': username,
+                    'action': 'delete',
+                    'changed_fields': {'asset': asset_dict},
+                    'created_at': datetime.utcnow()
+                }
+                for asset_dict in assets_data
+            ]
+            stmt = insert(asset_change_logs_table).values(log_entries)
             await self.db.execute(stmt)
+        
         await self.db.commit()
         
         return result.rowcount
