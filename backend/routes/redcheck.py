@@ -77,6 +77,31 @@ async def get_redcheck_token(settings: RedCheckSettings, db: Optional[AsyncSessi
     if settings.auth_type != "basic" or not settings.username or not settings.password:
         return None
     
+    # Проверяем, есть ли сохранённый токен в БД и не истёк ли он
+    if db and settings_id:
+        from sqlalchemy import select
+        from backend.models.integration_settings import IntegrationSettings
+        from datetime import datetime, timedelta
+        
+        query = select(IntegrationSettings).where(IntegrationSettings.id == settings_id)
+        result = await db.execute(query)
+        settings_record = result.scalar_one_or_none()
+        
+        if settings_record and settings_record.token:
+            # Проверяем, не истёк ли токен
+            if settings_record.token_expires_at:
+                # Добавляем буфер 5 минут для безопасного обновления
+                effective_expiry = settings_record.token_expires_at - timedelta(minutes=5)
+                if datetime.utcnow() < effective_expiry:
+                    logger.info(f"[DEBUG] Используем сохранённый токен (истекает: {settings_record.token_expires_at})")
+                    return settings_record.token
+                else:
+                    logger.info(f"[DEBUG] Токен истёк или истекает скоро (истекает: {settings_record.token_expires_at}), запрашиваем новый")
+            else:
+                # Если нет времени истечения, считаем токен действующим
+                logger.info(f"[DEBUG] Используем сохранённый токен (время истечения не установлено)")
+                return settings_record.token
+    
     token_url = f"{settings.api_url}/api/{settings.api_version}/accounts/token"
     
     logger.info(f"[DEBUG] Получение токена RedCheck:")
@@ -161,7 +186,8 @@ async def get_redcheck_token(settings: RedCheckSettings, db: Optional[AsyncSessi
                 return None
             elif response.status_code == 401:
                 logger.error(f"  ❌ Ошибка получения токена: 401 - Unauthorized")
-                logger.error(f"  Возможная причина: Неверное имя пользователя или пароль")
+                logger.error(f"  Возможная причина: Неверное имя пользователя или пароль, либо сервер требует Negotiate-аутентификацию")
+                logger.error(f"  Заголовок WWW-Authenticate: {response.headers.get('www-authenticate', 'не указан')}")
                 return None
             else:
                 logger.error(f"  ❌ Ошибка получения токена: {response.status_code} - {response.text}")
@@ -180,10 +206,12 @@ async def redcheck_request(
     settings: RedCheckSettings,
     token: Optional[str] = None,
     json_data: Optional[Dict] = None,
-    params: Optional[Dict] = None
+    params: Optional[Dict] = None,
+    db: Optional[AsyncSession] = None,
+    settings_id: Optional[int] = None
 ) -> Optional[Dict]:
     """
-    Выполнение запроса к RedCheck API
+    Выполнение запроса к RedCheck API с автоматическим обновлением токена при 401 ошибке
     """
     url = f"{settings.api_url}/api/{settings.api_version}/{endpoint.lstrip('/')}"
     
@@ -223,6 +251,35 @@ async def redcheck_request(
             logger.info(f"  Response headers: {dict(response.headers)}")
             logger.info(f"  Response body: {response.text[:500] if response.text else 'empty'}")
             
+            # Если получили 401 и есть возможность обновить токен
+            if response.status_code == 401 and db and settings_id:
+                logger.info(f"[DEBUG] Получена 401 ошибка, пытаемся обновить токен...")
+                new_token = await get_redcheck_token(settings, db=db, settings_id=settings_id)
+                
+                if new_token and new_token != token:
+                    logger.info(f"[DEBUG] Токен обновлён, повторяем запрос...")
+                    # Повторяем запрос с новым токеном
+                    headers["Authorization"] = f"Bearer {new_token}"
+                    
+                    async with httpx.AsyncClient(
+                        timeout=settings.timeout,
+                        verify=settings.verify_ssl,
+                        headers=headers,
+                        follow_redirects=True
+                    ) as retry_client:
+                        if method.upper() == "GET":
+                            response = await retry_client.get(url, params=params)
+                        elif method.upper() == "POST":
+                            response = await retry_client.post(url, json=json_data, params=params)
+                        elif method.upper() == "PUT":
+                            response = await retry_client.put(url, json=json_data, params=params)
+                        elif method.upper() == "DELETE":
+                            response = await retry_client.delete(url, params=params)
+                        
+                        logger.info(f"  Retry response status: {response.status_code}")
+                        logger.info(f"  Retry response headers: {dict(response.headers)}")
+                        logger.info(f"  Retry response body: {response.text[:500] if response.text else 'empty'}")
+            
             if response.status_code == 200:
                 result = response.json()
                 logger.info(f"  ✅ Успешный ответ: {result}")
@@ -235,6 +292,7 @@ async def redcheck_request(
             elif response.status_code == 401:
                 logger.error(f"  ❌ Ошибка RedCheck API ({method} {endpoint}): 401 - Неавторизовано")
                 logger.error(f"  Возможная причина: Неверный или истёкший токен")
+                logger.error(f"  Заголовок WWW-Authenticate: {response.headers.get('www-authenticate', 'не указан')}")
                 return None
             elif response.status_code == 403:
                 logger.error(f"  ❌ Ошибка RedCheck API ({method} {endpoint}): 403 - Доступ запрещён")
@@ -429,7 +487,9 @@ async def test_connection(settings: RedCheckSettings, db: AsyncSession = Depends
         method="GET",
         endpoint=test_endpoint,
         settings=settings,
-        token=token
+        token=token,
+        db=db,
+        settings_id=settings_id if 'settings_id' in locals() else None
     )
     
     if result is not None:
@@ -645,7 +705,7 @@ async def get_scans(
 @router.post("/scans/sync")
 async def sync_scans(db: AsyncSession = Depends(get_db)):
     """
-    Синхронизация сканирований из RedCheck API
+    Синхронизация сканирований из RedCheck API (все страницы)
     """
     # Получаем настройки из БД
     from sqlalchemy import select
@@ -674,27 +734,46 @@ async def sync_scans(db: AsyncSession = Depends(get_db)):
     if not token:
         raise HTTPException(status_code=401, detail="Не удалось получить токен")
     
-    # Получаем список задач (jobs) из RedCheck
-    jobs_data = await redcheck_request(
-        method="GET",
-        endpoint="jobs",
-        settings=settings,
-        token=token,
-        params={"per_page": 100}
-    )
+    # Получаем все сканирования из RedCheck (проходим по всем страницам)
+    all_jobs = []
+    page = 1
+    per_page = 100
     
-    if not jobs_data:
-        raise HTTPException(status_code=500, detail="Ошибка получения данных из RedCheck")
+    while True:
+        jobs_data = await redcheck_request(
+            method="GET",
+            endpoint="jobs",
+            settings=settings,
+            token=token,
+            params={"page": page, "per_page": per_page},
+            db=db,
+            settings_id=settings_record.id
+        )
+        
+        if not jobs_data:
+            raise HTTPException(status_code=500, detail="Ошибка получения данных из RedCheck")
+        
+        # Извлекаем задания из разных возможных форматов ответа
+        jobs = jobs_data.get("items", []) or jobs_data.get("result", {}).get("items", []) or []
+        all_jobs.extend(jobs)
+        
+        logger.info(f"[DEBUG] Страница {page}: получено {len(jobs)} сканирований")
+        
+        # Если получили меньше чем per_page или пустой список - это последняя страница
+        if len(jobs) < per_page:
+            break
+        
+        page += 1
+    
+    logger.info(f"[DEBUG] Всего получено {len(all_jobs)} сканирований из RedCheck")
     
     # Обрабатываем данные
-    jobs = jobs_data.get("items", []) or jobs_data.get("result", {}).get("items", [])
-    
     added_count = 0
     updated_count = 0
     
     from backend.models.scan import RedCheckScan
     
-    for job in jobs:
+    for job in all_jobs:
         job_id = job.get("id")
         if not job_id:
             continue
@@ -705,24 +784,26 @@ async def sync_scans(db: AsyncSession = Depends(get_db)):
         )
         scan = existing.scalar_one_or_none()
         
+        # Парсим поля с учётом различных форматов ответа RedCheck
+        vuln_info = job.get("vulnerabilities", {}) or job.get("vulns", {}) or {}
         scan_data = {
             "external_id": str(job_id),
-            "name": job.get("name", "Unknown"),
-            "description": job.get("description", ""),
-            "scan_type": map_scan_type(job.get("type")),
-            "status": map_scan_status(job.get("status")),
-            "profile_name": job.get("profile_name", ""),
-            "target_name": job.get("target_name", ""),
-            "progress": job.get("progress", 0),
-            "created_at": parse_datetime(job.get("created_at")),
-            "started_at": parse_datetime(job.get("started_at")),
-            "completed_at": parse_datetime(job.get("completed_at")),
-            "vulnerabilities_critical": job.get("vulnerabilities", {}).get("critical", 0),
-            "vulnerabilities_high": job.get("vulnerabilities", {}).get("high", 0),
-            "vulnerabilities_medium": job.get("vulnerabilities", {}).get("medium", 0),
-            "vulnerabilities_low": job.get("vulnerabilities", {}).get("low", 0),
-            "has_report": job.get("report_id") is not None,
-            "report_id": job.get("report_id")
+            "name": job.get("name", "") or job.get("title", "Unknown"),
+            "description": job.get("description", "") or job.get("desc", ""),
+            "scan_type": map_scan_type(job.get("type") or job.get("scan_type")),
+            "status": map_scan_status(job.get("status") or job.get("state")),
+            "profile_name": job.get("profile_name", "") or job.get("profile", "") or job.get("policy_name", ""),
+            "target_name": job.get("target_name", "") or job.get("target", "") or job.get("host_name", ""),
+            "progress": job.get("progress", 0) or job.get("percent", 0) or 0,
+            "created_at": parse_datetime(job.get("created_at") or job.get("createdAt") or job.get("create_time")),
+            "started_at": parse_datetime(job.get("started_at") or job.get("startedAt") or job.get("start_time")),
+            "completed_at": parse_datetime(job.get("completed_at") or job.get("completedAt") or job.get("end_time") or job.get("finish_time")),
+            "vulnerabilities_critical": vuln_info.get("critical", 0) or vuln_info.get("Critical", 0) or 0,
+            "vulnerabilities_high": vuln_info.get("high", 0) or vuln_info.get("High", 0) or 0,
+            "vulnerabilities_medium": vuln_info.get("medium", 0) or vuln_info.get("Medium", 0) or 0,
+            "vulnerabilities_low": vuln_info.get("low", 0) or vuln_info.get("Low", 0) or 0,
+            "has_report": job.get("report_id") is not None or job.get("reportId") is not None or job.get("has_report", False),
+            "report_id": job.get("report_id") or job.get("reportId")
         }
         
         if scan:
@@ -743,7 +824,8 @@ async def sync_scans(db: AsyncSession = Depends(get_db)):
         "message": f"Синхронизация завершена",
         "added": added_count,
         "updated": updated_count,
-        "total": added_count + updated_count
+        "total": added_count + updated_count,
+        "pages_processed": page
     }
 
 
@@ -833,7 +915,7 @@ async def get_hosts(
 @router.post("/hosts/sync")
 async def sync_hosts(db: AsyncSession = Depends(get_db)):
     """
-    Синхронизация хостов из RedCheck API
+    Синхронизация хостов из RedCheck API (все страницы)
     """
     # Получаем настройки из БД
     from sqlalchemy import select
@@ -862,27 +944,46 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
     if not token:
         raise HTTPException(status_code=401, detail="Не удалось получить токен")
     
-    # Получаем список хостов из RedCheck
-    hosts_data = await redcheck_request(
-        method="GET",
-        endpoint="targets/hosts",
-        settings=settings,
-        token=token,
-        params={"per_page": 100}
-    )
+    # Получаем все хосты из RedCheck (проходим по всем страницам)
+    all_hosts = []
+    page = 1
+    per_page = 100
     
-    if not hosts_data:
-        raise HTTPException(status_code=500, detail="Ошибка получения данных из RedCheck")
+    while True:
+        hosts_data = await redcheck_request(
+            method="GET",
+            endpoint="targets/hosts",
+            settings=settings,
+            token=token,
+            params={"page": page, "per_page": per_page},
+            db=db,
+            settings_id=settings_record.id
+        )
+        
+        if not hosts_data:
+            raise HTTPException(status_code=500, detail="Ошибка получения данных из RedCheck")
+        
+        # Извлекаем хосты из разных возможных форматов ответа
+        hosts = hosts_data.get("items", []) or hosts_data.get("result", {}).get("items", []) or []
+        all_hosts.extend(hosts)
+        
+        logger.info(f"[DEBUG] Страница {page}: получено {len(hosts)} хостов")
+        
+        # Если получили меньше чем per_page или пустой список - это последняя страница
+        if len(hosts) < per_page:
+            break
+        
+        page += 1
+    
+    logger.info(f"[DEBUG] Всего получено {len(all_hosts)} хостов из RedCheck")
     
     # Обрабатываем данные
-    hosts = hosts_data.get("items", []) or hosts_data.get("result", {}).get("items", [])
-    
     added_count = 0
     updated_count = 0
     
     from backend.models.asset import RedCheckHost
     
-    for host in hosts:
+    for host in all_hosts:
         host_id = host.get("id")
         if not host_id:
             continue
@@ -893,21 +994,22 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
         )
         db_host = existing.scalar_one_or_none()
         
+        # Парсим поля с учётом различных форматов ответа RedCheck
         host_data = {
             "external_id": str(host_id),
-            "hostname": host.get("hostname", ""),
-            "ip_address": host.get("ip", "") or host.get("ip_address", ""),
-            "os_type": host.get("os", "") or host.get("os_type", ""),
-            "os_version": host.get("os_version", ""),
+            "hostname": host.get("hostname", "") or host.get("name", ""),
+            "ip_address": host.get("ip", "") or host.get("ip_address", "") or host.get("address", ""),
+            "os_type": host.get("os", "") or host.get("os_type", "") or host.get("platform", ""),
+            "os_version": host.get("os_version", "") or host.get("osver", "") or "",
             "status": "active" if host.get("is_active", True) else "inactive",
-            "groups": ",".join(host.get("groups", [])) if isinstance(host.get("groups"), list) else host.get("groups", ""),
-            "mac_address": host.get("mac", ""),
-            "last_seen": parse_datetime(host.get("last_seen")),
-            "vulnerabilities_count": host.get("vulnerabilities_count", 0),
-            "critical_vulnerabilities": host.get("critical_vulnerabilities", 0),
-            "high_vulnerabilities": host.get("high_vulnerabilities", 0),
-            "open_ports_count": len(host.get("open_ports", []) or []),
-            "compliance_score": host.get("compliance_score", 0)
+            "groups": ",".join(host.get("groups", []) or []) if isinstance(host.get("groups"), list) else str(host.get("groups", "")),
+            "mac_address": host.get("mac", "") or host.get("mac_address", "") or "",
+            "last_seen": parse_datetime(host.get("last_seen") or host.get("lastSeen") or host.get("last_update")),
+            "vulnerabilities_count": host.get("vulnerabilities_count", 0) or host.get("vuln_count", 0) or 0,
+            "critical_vulnerabilities": host.get("critical_vulnerabilities", 0) or host.get("critical", 0) or 0,
+            "high_vulnerabilities": host.get("high_vulnerabilities", 0) or host.get("high", 0) or 0,
+            "open_ports_count": len(host.get("open_ports", []) or host.get("ports", []) or []),
+            "compliance_score": host.get("compliance_score", 0) or host.get("compliance", 0) or 0
         }
         
         # Если нет открытых портов, помечаем как неактивный
@@ -933,7 +1035,8 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
         "message": f"Синхронизация хостов завершена",
         "added": added_count,
         "updated": updated_count,
-        "total": added_count + updated_count
+        "total": added_count + updated_count,
+        "pages_processed": page
     }
 
 
@@ -961,6 +1064,24 @@ async def get_host_columns():
     return {"columns": columns}
 
 
+@router.get("/hosts/{host_id}")
+async def get_host(host_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Получить информацию о хосте по ID
+    """
+    from backend.models.asset import RedCheckHost
+    
+    result = await db.execute(
+        select(RedCheckHost).where(RedCheckHost.id == host_id)
+    )
+    host = result.scalar_one_or_none()
+    
+    if not host:
+        raise HTTPException(status_code=404, detail="Хост не найден")
+    
+    return host.to_dict()
+
+
 @router.delete("/hosts/{host_id}")
 async def delete_host(host_id: int, db: AsyncSession = Depends(get_db)):
     """
@@ -974,6 +1095,24 @@ async def delete_host(host_id: int, db: AsyncSession = Depends(get_db)):
     await db.commit()
     
     return {"success": True, "message": "Хост удалён"}
+
+
+@router.get("/scans/{scan_id}")
+async def get_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Получить информацию о сканировании по ID
+    """
+    from backend.models.scan import RedCheckScan
+    
+    result = await db.execute(
+        select(RedCheckScan).where(RedCheckScan.id == scan_id)
+    )
+    scan = result.scalar_one_or_none()
+    
+    if not scan:
+        raise HTTPException(status_code=404, detail="Сканирование не найдено")
+    
+    return scan.to_dict()
 
 
 @router.delete("/scans/{scan_id}")
