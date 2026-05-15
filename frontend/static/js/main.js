@@ -59,7 +59,6 @@ class App {
     // --- Логика кнопки сворачивания/разворачивания сайдбара ---
     const toggleBtn = document.getElementById('sidebarToggleBtn');
     const toggleIcon = document.getElementById('sidebarToggleIcon');
-    const sidebarContainer = document.getElementById('sidebar-container');
     
     if (toggleBtn && sidebar) {
       toggleBtn.addEventListener('click', () => {
@@ -121,7 +120,6 @@ class App {
     
     // --- Логика изменения размера сайдбара (resizer) ---
     const resizer = document.getElementById('sidebarResizer');
-    const sidebarContainer = document.getElementById('sidebar-container');
     
     if (resizer && sidebar && sidebarContainer) {
       resizer.addEventListener('mousedown', (e) => {
