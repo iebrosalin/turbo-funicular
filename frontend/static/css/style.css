@@ -35,6 +35,7 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     max-width: 600px;
     transition: flex-basis 0.1s ease, width 0.1s ease;
     position: relative;
+    padding-right: 0.5rem; /* Отступ справа для разделителя */
 }
 
 /* Sidebar Styles */
@@ -48,6 +49,7 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     position: relative;
     display: flex;
     flex-direction: column;
+    padding-left: 0.5rem; /* Отступ слева */
 }
 .sidebar .card {
     background: var(--bg-card);
@@ -87,16 +89,20 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 #sidebar-container.collapsed {
     flex: 0 0 60px !important;
 }
+
+/* Скрываем весь текст и элементы кроме кнопки разворачивания в свернутом состоянии */
 .sidebar.collapsed .sidebar-toggle-container {
     padding: 0.5rem !important;
 }
 .sidebar.collapsed #sidebarToggleBtn {
     padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .sidebar.collapsed #sidebarToggleIcon {
     transform: rotate(180deg);
 }
-/* Скрываем весь текст и элементы кроме иконок в свернутом состоянии */
 .sidebar.collapsed .sidebar-text,
 .sidebar.collapsed .sidebar-section-title,
 .sidebar.collapsed .card-header h6,
@@ -107,12 +113,20 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 .sidebar.collapsed .sidebar-section-title {
     display: none !important;
 }
+/* В свернутом состоянии скрываем весь контент кроме кнопки */
+.sidebar.collapsed .sidebar-content-wrapper {
+    display: none !important;
+}
 .sidebar.collapsed .card-header {
     justify-content: center;
     padding: 0.5rem;
 }
 .sidebar.collapsed .card-body {
     padding: 0.5rem;
+}
+/* В свернутом состоянии показываем только кнопку разворачивания */
+.sidebar.collapsed .sidebar-toggle-container {
+    display: flex !important;
 }
 .sidebar.collapsed .tree-node {
     justify-content: center;
