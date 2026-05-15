@@ -12,8 +12,11 @@
         <button class="btn btn-outline-primary me-2" id="syncBtn" onclick="syncHosts()">
             <i class="bi bi-arrow-clockwise me-1"></i>Синхронизировать
         </button>
-        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#columnsModal">
+        <button class="btn btn-outline-secondary me-2" data-bs-toggle="modal" data-bs-target="#columnsModal">
             <i class="bi bi-table me-1"></i>Колонки
+        </button>
+        <button class="btn btn-outline-info" onclick="showFieldMappingModal()">
+            <i class="bi bi-arrow-left-right me-1"></i>Соответствие полей
         </button>
     </div>
 </div>
@@ -148,6 +151,39 @@
     </div>
 </div>
 
+<!-- Модальное окно маппинга полей RedCheck -> Asset -->
+<div class="modal fade" id="fieldMappingModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-arrow-left-right me-2"></i>Соответствие полей RedCheck и Активов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">В таблице показано, как поля из системы RedCheck соответствуют полям в системе управления активами.</p>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-hover" id="fieldMappingTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 25%;">Поле RedCheck</th>
+                                <th style="width: 25%;">Описание</th>
+                                <th style="width: 25%;">Поле в Активе</th>
+                                <th style="width: 25%;">Тип преобразования</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fieldMappingTableBody">
+                            <!-- Данные будут загружены через JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 .status-badge {
     font-size: 0.75rem;
@@ -196,28 +232,42 @@ document.addEventListener('DOMContentLoaded', function() {
     loadHosts();
 });
 
-// Загрузка хостов
+// Загрузка хостов - загружаем ВСЕ хосты без пагинации
 async function loadHosts() {
     const tbody = document.getElementById('hostsTableBody');
     tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4"><i class="bi bi-hourglass-spin me-2"></i>Загрузка...</td></tr>';
     
+    // Собираем параметры фильтров (без page и per_page для получения всех данных)
     const params = new URLSearchParams({
-        page: currentPage,
-        per_page: perPage,
         status: document.getElementById('statusFilter').value,
-        os: document.getElementById('osFilter').value,
+        os_type: document.getElementById('osFilter').value,
         group: document.getElementById('groupFilter').value,
-        critical: document.getElementById('criticalFilter').value,
         search: document.getElementById('searchFilter').value
     });
+    
+    // Добавляем фильтр по критическим уязвимостям если выбран
+    const criticalFilter = document.getElementById('criticalFilter').value;
+    if (criticalFilter === 'has_critical') {
+        // Фильтр будет применён на клиенте после загрузки
+    }
     
     try {
         const response = await fetch(`/api/integrations/redcheck/hosts?${params}`);
         const data = await response.json();
         
-        if (data.hosts && data.hosts.length > 0) {
-            renderHosts(data.hosts);
-            renderPagination(data.total, data.page, data.pages);
+        let hosts = data.hosts || [];
+        
+        // Применяем фильтр по критическим уязвимостям на клиенте
+        if (criticalFilter === 'has_critical') {
+            hosts = hosts.filter(h => h.critical_vulnerabilities > 0);
+        } else if (criticalFilter === 'no_critical') {
+            hosts = hosts.filter(h => !h.critical_vulnerabilities || h.critical_vulnerabilities === 0);
+        }
+        
+        if (hosts.length > 0) {
+            renderHosts(hosts);
+            // Пагинацию не показываем так как загружаем все данные
+            document.getElementById('pagination').innerHTML = '';
         } else {
             tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">Нет данных</td></tr>';
         }
@@ -589,6 +639,43 @@ function clearFilters() {
     document.getElementById('groupFilter').value = '';
     document.getElementById('criticalFilter').value = '';
     loadHosts();
+}
+
+// Функция для отображения модального окна маппинга полей
+function showFieldMappingModal() {
+    const modal = new bootstrap.Modal(document.getElementById('fieldMappingModal'));
+    
+    const fieldMappings = [
+        { rcField: 'id', rcDesc: 'Уникальный идентификатор хоста в RedCheck', assetField: 'external_id', transform: 'Прямое копирование' },
+        { rcField: 'ip', rcDesc: 'IP адрес хоста', assetField: 'ip_address', transform: 'Прямое копирование' },
+        { rcField: 'hostname', rcDesc: 'Имя хоста', assetField: 'hostname', transform: 'Прямое копирование' },
+        { rcField: 'mac', rcDesc: 'MAC адрес сетевого интерфейса', assetField: 'mac_address', transform: 'Прямое копирование' },
+        { rcField: 'os', rcDesc: 'Тип операционной системы', assetField: 'os_type', transform: 'Прямое копирование' },
+        { rcField: 'os_version', rcDesc: 'Версия операционной системы', assetField: 'os_version', transform: 'Прямое копирование' },
+        { rcField: 'is_active', rcDesc: 'Флаг активности хоста', assetField: 'status', transform: 'true → "active", false → "inactive"' },
+        { rcField: 'groups', rcDesc: 'Список групп, к которым принадлежит хост', assetField: 'groups', transform: 'Массив → строка через запятую' },
+        { rcField: 'vulnerabilities_count', rcDesc: 'Общее количество уязвимостей', assetField: 'vulnerabilities_count', transform: 'Прямое копирование' },
+        { rcField: 'critical_vulnerabilities', rcDesc: 'Количество критических уязвимостей', assetField: 'critical_vulnerabilities', transform: 'Прямое копирование' },
+        { rcField: 'high_vulnerabilities', rcDesc: 'Количество уязвимостей высокого уровня', assetField: 'high_vulnerabilities', transform: 'Прямое копирование' },
+        { rcField: 'medium_vulnerabilities', rcDesc: 'Количество уязвимостей среднего уровня', assetField: 'medium_vulnerabilities', transform: 'Прямое копирование' },
+        { rcField: 'low_vulnerabilities', rcDesc: 'Количество уязвимостей низкого уровня', assetField: 'low_vulnerabilities', transform: 'Прямое копирование' },
+        { rcField: 'open_ports', rcDesc: 'Список открытых портов', assetField: 'open_ports_count', transform: 'Массив → длина массива (count)' },
+        { rcField: 'compliance_score', rcDesc: 'Оценка соответствия требованиям', assetField: 'compliance_score', transform: 'Прямое копирование' },
+        { rcField: 'last_seen', rcDesc: 'Дата последнего обнаружения', assetField: 'last_seen', transform: 'Парсинг даты' },
+        { rcField: 'last_update', rcDesc: 'Дата последнего обновления', assetField: 'last_synced', transform: 'Парсинг даты' }
+    ];
+    
+    const tbody = document.getElementById('fieldMappingTableBody');
+    tbody.innerHTML = fieldMappings.map(m => `
+        <tr>
+            <td><code class="text-primary">${m.rcField}</code></td>
+            <td>${m.rcDesc}</td>
+            <td><code class="text-success">${m.assetField}</code></td>
+            <td><small class="text-muted">${m.transform}</small></td>
+        </tr>
+    `).join('');
+    
+    modal.show();
 }
 </script>
 {% endblock %}

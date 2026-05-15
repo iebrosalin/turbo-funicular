@@ -863,8 +863,8 @@ async def get_scan_columns():
 
 @router.get("/hosts")
 async def get_hosts(
-    page: int = 1,
-    per_page: int = 50,
+    page: Optional[int] = None,
+    per_page: Optional[int] = None,
     status: Optional[str] = None,
     os_type: Optional[str] = None,
     group: Optional[str] = None,
@@ -873,6 +873,8 @@ async def get_hosts(
 ):
     """
     Получить список хостов (активов) из RedCheck
+    
+    Если page и per_page не указаны - возвращаются ВСЕ хосты без пагинации.
     """
     from backend.models.asset import RedCheckHost
     
@@ -891,25 +893,50 @@ async def get_hosts(
             (RedCheckHost.ip_address.contains(search))
         )
     
-    # Пагинация
-    offset = (page - 1) * per_page
-    query = query.offset(offset).limit(per_page)
-    
-    result = await db.execute(query)
-    hosts = result.scalars().all()
-    
-    # Получаем общее количество
-    count_query = select(func.count()).select_from(RedCheckHost)
-    total_result = await db.execute(count_query)
-    total = total_result.scalar()
-    
-    return {
-        "hosts": [host.to_dict() for host in hosts],
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-        "pages": (total + per_page - 1) // per_page
-    }
+    # Пагинация только если указаны параметры
+    if page is not None and per_page is not None:
+        offset = (page - 1) * per_page
+        query = query.offset(offset).limit(per_page)
+        
+        # Получаем общее количество для пагинации
+        count_query = select(func.count()).select_from(RedCheckHost)
+        # Применяем те же фильтры к count запросу
+        if status:
+            count_query = count_query.where(RedCheckHost.status == status)
+        if os_type:
+            count_query = count_query.where(RedCheckHost.os_type.contains(os_type))
+        if group:
+            count_query = count_query.where(RedCheckHost.groups.contains(group))
+        if search:
+            count_query = count_query.where(
+                (RedCheckHost.hostname.contains(search)) |
+                (RedCheckHost.ip_address.contains(search))
+            )
+        total_result = await db.execute(count_query)
+        total = total_result.scalar()
+        
+        result = await db.execute(query)
+        hosts = result.scalars().all()
+        
+        return {
+            "hosts": [host.to_dict() for host in hosts],
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": (total + per_page - 1) // per_page
+        }
+    else:
+        # Возвращаем все хосты без пагинации
+        result = await db.execute(query)
+        hosts = result.scalars().all()
+        
+        return {
+            "hosts": [host.to_dict() for host in hosts],
+            "total": len(hosts),
+            "page": 1,
+            "per_page": len(hosts),
+            "pages": 1
+        }
 
 
 @router.post("/hosts/sync")
