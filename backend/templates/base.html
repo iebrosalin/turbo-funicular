@@ -79,66 +79,70 @@
     </div>
 </nav>
 
-<!-- MAIN LAYOUT - Bootstrap Grid -->
-<div class="container-fluid py-3">
-    <div class="row g-3 flex-nowrap">
-        <!-- LEFT SIDEBAR -->
-        <aside id="sidebar-container" style="flex: 0 0 var(--sidebar-width); min-width: 60px; max-width: 600px;">
-            <div class="sidebar h-100 w-100" id="sidebar" style="position: relative;">
-                <!-- Resizer handle for resizing sidebar -->
-                <div class="sidebar-resizer" id="sidebarResizer"></div>
-                
-                <div class="d-flex flex-column h-100">
-                    <!-- Кнопка сворачивания/разворачивания -->
-                    <div class="sidebar-toggle-container p-2 border-bottom">
-                        <button class="btn btn-sm btn-outline-secondary w-100" id="sidebarToggleBtn" title="Свернуть/Развернуть сайдбар">
-                            <i class="bi bi-chevron-left" id="sidebarToggleIcon"></i>
-                        </button>
-                    </div>
+<!-- MAIN LAYOUT - Bootstrap Grid with Sticky Footer -->
+<div class="d-flex flex-column min-vh-100">
+    <!-- Main content area with sidebar -->
+    <div class="container-fluid py-3 flex-grow-1">
+        <div class="row g-3 flex-nowrap" style="overflow-x: hidden;">
+            <!-- LEFT SIDEBAR -->
+            <aside id="sidebar-container" style="flex: 0 0 var(--sidebar-width); min-width: 60px; max-width: 600px;">
+                <div class="sidebar h-100 w-100" id="sidebar" style="position: relative;">
+                    <!-- Resizer handle for resizing sidebar -->
+                    <div class="sidebar-resizer" id="sidebarResizer"></div>
                     
-                    <!-- Сайдбар с группами активов (иконки в свернутом состоянии) -->
-                    <div class="card shadow-sm border-0 mb-3">
-                        <div class="card-header d-flex justify-content-between align-items-center border-bottom pb-0">
-                            <h6 class="mb-0 small text-uppercase text-muted sidebar-text">Группы</h6>
-                            <button class="btn btn-sm btn-link p-0 sidebar-text" id="btn-add-group" title="Добавить группу">
-                                <i class="bi bi-plus-circle"></i>
+                    <div class="d-flex flex-column h-100">
+                        <!-- Кнопка сворачивания/разворачивания -->
+                        <div class="sidebar-toggle-container p-2 border-bottom">
+                            <button class="btn btn-sm btn-outline-secondary w-100" id="sidebarToggleBtn" title="Свернуть/Развернуть сайдбар">
+                                <i class="bi bi-chevron-left" id="sidebarToggleIcon"></i>
                             </button>
                         </div>
-                        <div class="card-body p-2" id="sidebar-content">
-                            <!-- Дерево групп будет загружено сюда через tree.js -->
-                            <div class="text-center text-muted py-3">
-                                <div class="spinner-border spinner-border-sm" role="status"></div>
-                                <small class="d-block mt-1 sidebar-text">Загрузка...</small>
+                        
+                        <!-- Сайдбар с группами активов (иконки в свернутом состоянии) -->
+                        <div class="card shadow-sm border-0 mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center border-bottom pb-0">
+                                <h6 class="mb-0 small text-uppercase text-muted sidebar-text">Группы</h6>
+                                <button class="btn btn-sm btn-link p-0 sidebar-text" id="btn-add-group" title="Добавить группу">
+                                    <i class="bi bi-plus-circle"></i>
+                                </button>
+                            </div>
+                            <div class="card-body p-2" id="sidebar-content">
+                                <!-- Дерево групп будет загружено сюда через tree.js -->
+                                <div class="text-center text-muted py-3">
+                                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                                    <small class="d-block mt-1 sidebar-text">Загрузка...</small>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <!-- Блок активных задач -->
-                    <div id="sidebar-tasks-container" class="mb-3">
-                        <div class="sidebar-section">
-                            <div class="sidebar-section-title small text-uppercase text-muted mb-2 sidebar-text">Активные задачи</div>
-                            <div id="active-scans-list">
-                                <div class="text-center text-muted small py-3 sidebar-text">Нет активных задач</div>
+                        
+                        <!-- Блок активных задач -->
+                        <div id="sidebar-tasks-container" class="mb-3">
+                            <div class="sidebar-section">
+                                <div class="sidebar-section-title small text-uppercase text-muted mb-2 sidebar-text">Активные задачи</div>
+                                <div id="active-scans-list">
+                                    <div class="text-center text-muted small py-3 sidebar-text">Нет активных задач</div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        </aside>
+            </aside>
 
-        <!-- PAGE CONTENT -->
-        <main class="col" style="min-width: 0; overflow-x: hidden;">
-            <!-- Контейнер для уведомлений -->
-            <div id="notifications-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1100;"></div>
-            
-            <!-- Основной контент страницы -->
-            {% block content %}{% endblock %}
-            
-            <footer class="mt-4 pt-3 border-top text-center text-muted small">
-                &copy; 2026 Asset Management System. Version 2.0
-            </footer>
-        </main>
+            <!-- PAGE CONTENT -->
+            <main class="col" style="min-width: 0; overflow-x: hidden; flex: 1 1 auto;">
+                <!-- Контейнер для уведомлений -->
+                <div id="notifications-container" class="position-fixed top-0 end-0 p-3" style="z-index: 1100;"></div>
+                
+                <!-- Основной контент страницы -->
+                {% block content %}{% endblock %}
+            </main>
+        </div>
     </div>
+    
+    <!-- FOOTER -->
+    <footer class="py-3 border-top text-center text-muted small bg-body">
+        &copy; 2026 Asset Management System. Version 2.0
+    </footer>
 </div>
 
 <!-- Модальные окна -->
