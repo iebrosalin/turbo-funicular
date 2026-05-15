@@ -57,6 +57,8 @@ class ScanProcessor:
                 await self._process_rustscan(job, job_params)
             elif job.job_type == 'dig':
                 await self._process_dig(job, job_params)
+            elif job.job_type == 'fping':
+                await self._process_fping(job, job_params)
             
             job.status = ScanStatus.COMPLETED.value
             job.completed_at = datetime.utcnow()
@@ -310,6 +312,46 @@ class ScanProcessor:
         await self.db.commit()
         logger.info(f"Dig: Обработано {len(dns_records)} записей.")
 
+    async def _process_fping(self, job: ScanJob, job_params: Dict[str, Any]):
+        """Обработка результатов fping из данных задачи.
+        
+        Критерий активности: хост считается живым, если получен хотя бы один ICMP-ответ.
+        """
+        alive_hosts = job_params.get('alive_hosts', [])
+        
+        if not alive_hosts:
+            logger.warning(f"fping: Не найдено живых хостов для задачи {job.id}")
+            # Всё равно обновляем last_fping для целевого IP если он указан
+            target_ip = job_params.get('ip') or job_params.get('target')
+            if target_ip and isinstance(target_ip, str) and '.' in target_ip:
+                # Обновляем last_fping даже если хост не ответил (чтобы фиксировать факт сканирования)
+                await self._upsert_asset(target_ip, {
+                    "group_id": job.scan.group_id,
+                    "scan_type": "fping",
+                    "is_alive": False  # Хост не ответил на ping
+                })
+            return
+        
+        hosts_count = 0
+        for host_data in alive_hosts:
+            ip = host_data.get('ip', '')
+            hostname = host_data.get('hostname', '')
+            
+            if not ip:
+                logger.warning(f"fping: Пропущен хост без IP: {host_data}")
+                continue
+            
+            # Создаем/обновляем актив с флагом активности
+            await self._upsert_asset(ip, {
+                "hostname": hostname if hostname else None,
+                "group_id": job.scan.group_id,
+                "scan_type": "fping",
+                "is_alive": True  # Хост ответил на ping
+            })
+            hosts_count += 1
+        
+        logger.info(f"fping: Обработано {hosts_count} живых хостов.")
+
     async def _upsert_asset(self, ip: str, updates: Dict[str, Any]):
         """Создает или обновляет актив."""
         # Явно загружаем актив со всеми связями чтобы избежать ленивой загрузки
@@ -346,6 +388,8 @@ class ScanProcessor:
                 asset.nmap_ports = new_open_ports
             elif scan_type == 'dig':
                 asset.last_dns_scan = now
+            elif scan_type == 'fping':
+                asset.last_fping = now
             
             asset.last_seen = now
             logger.info(f"[SCAN_PROCESS] СОЗДАН НОВЫЙ АКТИВ: IP={ip}, Группа={group_id}, Статус={status}, Портов={len(new_open_ports)}, scan_type={scan_type}")
@@ -419,6 +463,9 @@ class ScanProcessor:
         elif scan_type == 'dig':
             asset.last_dns_scan = now
             logger.info(f"[DEBUG _upsert_asset] {ip}: last_dns_scan установлен в {now}")
+        elif scan_type == 'fping':
+            asset.last_fping = now
+            logger.info(f"[DEBUG _upsert_asset] {ip}: last_fping установлен в {now}")
         
         # Обновляем last_seen для любого типа сканирования
         asset.last_seen = now
@@ -426,7 +473,18 @@ class ScanProcessor:
         # Обновляем статус актива на основе наличия открытых портов
         # Только активы с открытыми портами считаются active
         # При сканировании dig не обновляем статус, т.к. оно только обновляет DNS/PTR
-        if scan_type != 'dig':
+        # При сканировании fping обновляем статус на основе факта ответа на ping
+        if scan_type == 'fping':
+            is_alive = updates.get('is_alive', False)
+            if is_alive:
+                if asset.status != 'active':
+                    logger.debug(f"  - Статус изменён на 'active' (хост ответил на ping)")
+                asset.status = 'active'
+            else:
+                if asset.status != 'inactive':
+                    logger.debug(f"  - Статус изменён на 'inactive' (хост не ответил на ping)")
+                asset.status = 'inactive'
+        elif scan_type != 'dig':
             current_open_ports = asset.open_ports or []
             if len(current_open_ports) > 0:
                 if asset.status != 'active':
@@ -438,7 +496,7 @@ class ScanProcessor:
                 asset.status = 'inactive'
         
         # Логируем итоговые изменения статуса и временных меток
-        logger.info(f"[DEBUG _upsert_asset] {ip}: status изменён с '{old_status}' на '{asset.status}', last_rustscan={asset.last_rustscan}, last_nmap={asset.last_nmap}, last_dns_scan={asset.last_dns_scan}")
+        logger.info(f"[DEBUG _upsert_asset] {ip}: status изменён с '{old_status}' на '{asset.status}', last_rustscan={asset.last_rustscan}, last_nmap={asset.last_nmap}, last_dns_scan={asset.last_dns_scan}, last_fping={asset.last_fping}")
         
         # Обновляем группу для существующего актива
         if group_id and asset.id:  # Только для существующих активов (у новых уже добавлено выше)
