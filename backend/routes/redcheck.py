@@ -1010,6 +1010,7 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
     per_page = 100
     
     while True:
+        logger.info(f"[DEBUG] Запрос страницы {page}...")
         hosts_data = await redcheck_request(
             method="GET",
             endpoint="targets/hosts",
@@ -1021,21 +1022,26 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
         )
         
         if not hosts_data:
+            logger.error(f"[DEBUG] Не удалось получить данные для страницы {page}")
             raise HTTPException(status_code=500, detail="Ошибка получения данных из RedCheck")
+        
+        # Логируем полную структуру ответа для отладки
+        logger.info(f"[DEBUG] Ответ API для страницы {page}: {list(hosts_data.keys())}")
         
         # Извлекаем хосты из разных возможных форматов ответа
         hosts = hosts_data.get("items", []) or hosts_data.get("result", {}).get("items", []) or []
         all_hosts.extend(hosts)
         
-        logger.info(f"[DEBUG] Страница {page}: получено {len(hosts)} хостов")
+        logger.info(f"[DEBUG] Страница {page}: получено {len(hosts)} хостов (всего: {len(all_hosts)})")
         
         # Если получили меньше чем per_page или пустой список - это последняя страница
         if len(hosts) < per_page:
+            logger.info(f"[DEBUG] Последняя страница {page}, выход из цикла")
             break
         
         page += 1
     
-    logger.info(f"[DEBUG] Всего получено {len(all_hosts)} хостов из RedCheck")
+    logger.info(f"[DEBUG] Всего получено {len(all_hosts)} хостов из RedCheck за {page} страниц(ы)")
     
     # Обрабатываем данные
     added_count = 0
