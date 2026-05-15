@@ -123,7 +123,7 @@ async def count_assets_by_filter(
     return {"count": len(filtered)}
 
 
-@router.get("", response_model=List[AssetResponse])
+@router.get("", response_model=dict)
 async def get_assets(
     db: AsyncSession = Depends(get_db),
     group_id: Optional[str] = Query(None, alias="group_id"),
@@ -131,9 +131,11 @@ async def get_assets(
     ungrouped: Optional[bool] = Query(None),
     source: Optional[str] = Query(None),
     rules: Optional[str] = Query(None),  # JSON строка с правилами фильтрации
-    include_taxonomy: Optional[bool] = Query(False)  # Включить таксономию в ответ
+    include_taxonomy: Optional[bool] = Query(False),  # Включить таксономию в ответ
+    page: Optional[int] = Query(1, ge=1),  # Номер страницы
+    size: Optional[int] = Query(50, ge=1, le=500)  # Размер страницы
 ):
-    """Получить список активов с фильтрацией."""
+    """Получить список активов с фильтрацией и пагинацией."""
     service = AssetService(db)
     
     # Преобразуем group_id в int или None
@@ -162,7 +164,8 @@ async def get_assets(
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Некорректный формат правил фильтрации")
     
-    assets = await service.get_all(
+    # Получаем все активы (фильтрация на уровне сервиса)
+    all_assets = await service.get_all(
         group_id=group_id_int, 
         search=search, 
         ungrouped=ungrouped, 
@@ -171,20 +174,39 @@ async def get_assets(
         include_services=include_taxonomy  # Загружаем сервисы если нужна таксономия
     )
     
+    # Применяем пагинацию
+    total = len(all_assets)
+    start_idx = (page - 1) * size
+    end_idx = start_idx + size
+    paginated_assets = all_assets[start_idx:end_idx]
+    
     # Если запрошена таксономия, добавляем её к каждому активу
     if include_taxonomy:
         result = []
-        for asset in assets:
+        for asset in paginated_assets:
             # Сначала генерируем таксономию пока asset ещё ORM-объект
             taxonomy = generate_asset_taxonomy(asset)
             # Затем конвертируем ORM-объект в словарь
             asset_dict = service._asset_to_dict(asset)
             asset_dict['taxonomy'] = taxonomy
             result.append(asset_dict)
-        return result
+        
+        return {
+            "items": result,
+            "total": total,
+            "page": page,
+            "size": size,
+            "pages": (total + size - 1) // size if size > 0 else 1
+        }
     
     # Конвертируем все активы в словари пока сессия активна
-    return [service._asset_to_dict(asset) for asset in assets]
+    return {
+        "items": [service._asset_to_dict(asset) for asset in paginated_assets],
+        "total": total,
+        "page": page,
+        "size": size,
+        "pages": (total + size - 1) // size if size > 0 else 1
+    }
 
 
 @router.get("/{asset_id}", response_model=AssetResponse)

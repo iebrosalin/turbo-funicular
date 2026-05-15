@@ -813,14 +813,14 @@ async def sync_scans(db: AsyncSession = Depends(get_db)):
         
         # Проверяем существует ли запись
         existing = await db.execute(
-            select(RedCheckScan).where(RedCheckScan.external_id == str(job_id))
+            select(RedCheckScan).where(RedCheckScan.redcheck_guid == str(job_id))
         )
         scan = existing.scalar_one_or_none()
         
         # Парсим поля с учётом различных форматов ответа RedCheck
         vuln_info = job.get("vulnerabilities", {}) or job.get("vulns", {}) or {}
         scan_data = {
-            "external_id": str(job_id),
+            "redcheck_guid": str(job_id),
             "name": job.get("name", "") or job.get("title", "Unknown"),
             "description": job.get("description", "") or job.get("desc", ""),
             "scan_type": map_scan_type(job.get("type") or job.get("scan_type")),
@@ -884,7 +884,7 @@ async def get_scan_columns():
         {"key": "vulnerabilities_low", "label": "Низкие", "default": False},
         {"key": "has_report", "label": "Отчёт", "default": True},
         {"key": "description", "label": "Описание", "default": False},
-        {"key": "external_id", "label": "Внешний ID", "default": False},
+        {"key": "redcheck_guid", "label": "Внешний ID", "default": False},
         {"key": "actions", "label": "Действия", "default": True}
     ]
     return {"columns": columns}
@@ -900,7 +900,7 @@ async def get_hosts(
     per_page: Optional[int] = None,
     status: Optional[str] = None,
     os_type: Optional[str] = None,
-    group: Optional[str] = None,
+    group_id: Optional[int] = None,  # ID группы для фильтрации
     search: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
@@ -909,17 +909,19 @@ async def get_hosts(
     
     Если page и per_page не указаны - возвращаются ВСЕ хосты без пагинации.
     """
+    from sqlalchemy.orm import selectinload
     from backend.models.asset import RedCheckHost
     
-    query = select(RedCheckHost)
+    query = select(RedCheckHost).options(selectinload(RedCheckHost.groups))
     
     # Применяем фильтры
     if status:
         query = query.where(RedCheckHost.status == status)
     if os_type:
         query = query.where(RedCheckHost.os_type.contains(os_type))
-    if group:
-        query = query.where(RedCheckHost.groups.contains(group))
+    if group_id is not None:
+        # Фильтрация по many-to-many связи с группами
+        query = query.where(RedCheckHost.groups.any(id=group_id))
     if search:
         query = query.where(
             (RedCheckHost.hostname.contains(search)) |
@@ -938,8 +940,8 @@ async def get_hosts(
             count_query = count_query.where(RedCheckHost.status == status)
         if os_type:
             count_query = count_query.where(RedCheckHost.os_type.contains(os_type))
-        if group:
-            count_query = count_query.where(RedCheckHost.groups.contains(group))
+        if group_id is not None:
+            count_query = count_query.where(RedCheckHost.groups.any(id=group_id))
         if search:
             count_query = count_query.where(
                 (RedCheckHost.hostname.contains(search)) |
@@ -1075,6 +1077,7 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
     updated_count = 0
     
     from backend.models.asset import RedCheckHost
+    from backend.models.group import Group
     
     for host in all_hosts:
         host_id = host.get("id")
@@ -1083,43 +1086,95 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
         
         # Проверяем существует ли запись
         existing = await db.execute(
-            select(RedCheckHost).where(RedCheckHost.external_id == str(host_id))
+            select(RedCheckHost).where(RedCheckHost.redcheck_guid == str(host_id))
         )
         db_host = existing.scalar_one_or_none()
         
         # Парсим поля с учётом различных форматов ответа RedCheck
-        host_data = {
-            "external_id": str(host_id),
-            "hostname": host.get("hostname", "") or host.get("name", ""),
-            "ip_address": host.get("ip", "") or host.get("ip_address", "") or host.get("address", ""),
-            "os_type": host.get("os", "") or host.get("os_type", "") or host.get("platform", ""),
-            "os_version": host.get("os_version", "") or host.get("osver", "") or "",
-            "status": "active" if host.get("is_active", True) else "inactive",
-            "groups": ",".join(host.get("groups", []) or []) if isinstance(host.get("groups"), list) else str(host.get("groups", "")),
-            "mac_address": host.get("mac", "") or host.get("mac_address", "") or "",
-            "last_seen": parse_datetime(host.get("last_seen") or host.get("lastSeen") or host.get("last_update")),
-            "vulnerabilities_count": host.get("vulnerabilities_count", 0) or host.get("vuln_count", 0) or 0,
-            "critical_vulnerabilities": host.get("critical_vulnerabilities", 0) or host.get("critical", 0) or 0,
-            "high_vulnerabilities": host.get("high_vulnerabilities", 0) or host.get("high", 0) or 0,
-            "open_ports_count": len(host.get("open_ports", []) or host.get("ports", []) or []),
-            "compliance_score": host.get("compliance_score", 0) or host.get("compliance", 0) or 0
-        }
+        hostname_val = host.get("hostname", "") or host.get("name", "")
+        ip_address_val = host.get("ip", "") or host.get("ip_address", "") or host.get("address", "")
+        os_type_val = host.get("os", "") or host.get("os_type", "") or host.get("platform", "")
+        os_version_val = host.get("os_version", "") or host.get("osver", "") or ""
+        is_active_val = host.get("is_active", True)
+        groups_from_api = host.get("groups", []) or []
+        mac_address_val = host.get("mac", "") or host.get("mac_address", "") or ""
+        last_seen_val = parse_datetime(host.get("last_seen") or host.get("lastSeen") or host.get("last_update"))
+        vuln_count_val = host.get("vulnerabilities_count", 0) or host.get("vuln_count", 0) or 0
+        critical_vuln_val = host.get("critical_vulnerabilities", 0) or host.get("critical", 0) or 0
+        high_vuln_val = host.get("high_vulnerabilities", 0) or host.get("high", 0) or 0
+        open_ports_val = len(host.get("open_ports", []) or host.get("ports", []) or [])
+        compliance_val = host.get("compliance_score", 0) or host.get("compliance", 0) or 0
         
         # Если нет открытых портов, помечаем как неактивный
-        if host_data["open_ports_count"] == 0:
-            host_data["status"] = "inactive"
-            host_data["is_active"] = False
+        status_val = "active" if is_active_val and open_ports_val > 0 else "inactive"
+        is_active_final = is_active_val and open_ports_val > 0
         
         if db_host:
             # Обновляем существующую запись
-            for key, value in host_data.items():
-                setattr(db_host, key, value)
+            db_host.hostname = hostname_val
+            db_host.ip_address = ip_address_val
+            db_host.os_type = os_type_val
+            db_host.os_version = os_version_val
+            db_host.status = status_val
+            db_host.is_active = is_active_final
+            db_host.mac_address = mac_address_val
+            db_host.last_seen = last_seen_val
+            db_host.vulnerabilities_count = vuln_count_val
+            db_host.critical_vulnerabilities = critical_vuln_val
+            db_host.high_vulnerabilities = high_vuln_val
+            db_host.open_ports_count = open_ports_val
+            db_host.compliance_score = compliance_val
             updated_count += 1
         else:
             # Создаём новую запись
-            db_host = RedCheckHost(**host_data)
+            db_host = RedCheckHost(
+                redcheck_guid=str(host_id),
+                hostname=hostname_val,
+                ip_address=ip_address_val,
+                os_type=os_type_val,
+                os_version=os_version_val,
+                status=status_val,
+                is_active=is_active_final,
+                mac_address=mac_address_val,
+                last_seen=last_seen_val,
+                vulnerabilities_count=vuln_count_val,
+                critical_vulnerabilities=critical_vuln_val,
+                high_vulnerabilities=high_vuln_val,
+                open_ports_count=open_ports_val,
+                compliance_score=compliance_val
+            )
             db.add(db_host)
             added_count += 1
+        
+        # Обрабатываем группы из API RedCheck
+        # Группы могут быть списком имен или списком объектов
+        if isinstance(groups_from_api, list) and groups_from_api:
+            group_names = []
+            for g in groups_from_api:
+                if isinstance(g, dict):
+                    group_names.append(g.get("name", g.get("id", "")))
+                else:
+                    group_names.append(str(g))
+            
+            # Находим или создаем группы в БД и связываем с хостом
+            for group_name in group_names:
+                if not group_name:
+                    continue
+                    
+                # Ищем группу по имени
+                group_query = select(Group).where(Group.name == group_name)
+                group_result = await db.execute(group_query)
+                group = group_result.scalar_one_or_none()
+                
+                # Если группа не найдена, создаем её
+                if not group:
+                    group = Group(name=group_name, description=f"Группа из RedCheck: {group_name}")
+                    db.add(group)
+                    await db.flush()  # Получаем ID группы
+                
+                # Добавляем связь many-to-many если её ещё нет
+                if group not in db_host.groups:
+                    db_host.groups.append(group)
     
     await db.commit()
     
@@ -1151,7 +1206,7 @@ async def get_host_columns():
         {"key": "vulnerabilities_count", "label": "Уязвимости", "default": True},
         {"key": "critical_vulnerabilities", "label": "Критические", "default": True},
         {"key": "compliance_score", "label": "Соответствие", "default": False},
-        {"key": "external_id", "label": "Внешний ID", "default": False},
+        {"key": "redcheck_guid", "label": "Внешний ID", "default": False},
         {"key": "actions", "label": "Действия", "default": True}
     ]
     return {"columns": columns}

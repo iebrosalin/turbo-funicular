@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}Активы (Таблица){% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2><i class="bi bi-table me-2"></i>Активы (Таблица)</h2>
+                <div class="d-flex gap-2">
+                    <input type="text" id="searchInput" class="form-control" placeholder="Поиск по IP или имени..." style="width: 250px;">
+                    <select id="groupFilterTable" class="form-select" style="width: 200px;">
+                        <option value="">Все группы</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="loadAssetsTable()">
+                        <i class="bi bi-arrow-clockwise"></i> Обновить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Фильтры и действия -->
+    <div class="card mb-4">
+        <div class="card-body py-2">
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">Действия:</span>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteSelected()" disabled id="btnDeleteSelected">
+                    <i class="bi bi-trash"></i> Удалить выбранные
+                </button>
+                <span class="text-muted small ms-3" id="selectedCount"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Таблица -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" id="assetsTable">
+                    <thead class="bg-light">
+                        <tr>
+                            <th width="40"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+                            <th>Статус</th>
+                            <th>IP Адрес</th>
+                            <th>Имя хоста</th>
+                            <th>Группы</th>
+                            <th>RedCheck GUID</th>
+                            <th>Последнее сканирование</th>
+                            <th width="100">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="assetsTableBody">
+                        <tr>
+                            <td colspan="8" class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно редактирования -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Редактировать актив</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editAssetId">
+                <div class="mb-3">
+                    <label class="form-label">IP Адрес</label>
+                    <input type="text" class="form-control" id="editIp" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Имя хоста</label>
+                    <input type="text" class="form-control" id="editHostname">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Группы</label>
+                    <select class="form-select" id="editGroups" multiple style="height: 150px;"></select>
+                    <small class="text-muted">Ctrl+Click для выбора нескольких</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="saveAssetChanges()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let allAssets = [];
+let allGroups = [];
+let selectedAssets = new Set();
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadGroupsForFilters();
+    loadAssetsTable();
+    
+    document.getElementById('searchInput').addEventListener('input', filterTable);
+    document.getElementById('groupFilterTable').addEventListener('change', filterTable);
+});
+
+async function loadGroupsForFilters() {
+    try {
+        const res = await fetch('/api/groups');
+        allGroups = await res.json();
+        
+        // Заполняем фильтр в шапке
+        const select = document.getElementById('groupFilterTable');
+        allGroups.forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g.id;
+            opt.textContent = g.name;
+            select.appendChild(opt);
+        });
+    } catch (e) { console.error(e); }
+}
+
+async function loadAssetsTable() {
+    try {
+        const res = await fetch('/api/assets?full=true');
+        allAssets = await res.json();
+        renderTable(allAssets);
+    } catch (e) { console.error('Ошибка загрузки', e); }
+}
+
+function renderTable(assets) {
+    const tbody = document.getElementById('assetsTableBody');
+    tbody.innerHTML = '';
+    
+    let filtered = assets;
+    
+    // Поиск
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    if (search) {
+        filtered = filtered.filter(a => 
+            (a.ip && a.ip.includes(search)) || 
+            (a.hostname && a.hostname.toLowerCase().includes(search))
+        );
+    }
+    
+    // Группа
+    const groupId = document.getElementById('groupFilterTable').value;
+    if (groupId) {
+        filtered = filtered.filter(a => a.groups && a.groups.some(g => g.id == groupId));
+    }
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">Ничего не найдено</td></tr>';
+        return;
+    }
+
+    filtered.forEach(asset => {
+        const tr = document.createElement('tr');
+        const isSelected = selectedAssets.has(asset.id);
+        
+        const groupsHtml = (asset.groups || []).map(g => `<span class="badge bg-info me-1">${g.name}</span>`).join('') || '<span class="text-muted">-</span>';
+        const statusBadge = asset.status === 'online' 
+            ? '<span class="badge bg-success">Онлайн</span>' 
+            : '<span class="badge bg-danger">Офлайн</span>';
+        
+        tr.innerHTML = `
+            <td><input type="checkbox" class="asset-checkbox" value="${asset.id}" ${isSelected ? 'checked' : ''} onchange="toggleSelection(${asset.id})"></td>
+            <td>${statusBadge}</td>
+            <td><code>${asset.ip}</code></td>
+            <td>${asset.hostname || '-'}</td>
+            <td>${groupsHtml}</td>
+            <td><small>${asset.redcheck_guid ? asset.redcheck_guid.substring(0, 8) + '...' : '-'}</small></td>
+            <td>${formatDate(asset.last_seen)}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="openEditModal(${asset.id})"><i class="bi bi-pencil"></i></button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    updateSelectedCount();
+}
+
+function filterTable() {
+    renderTable(allAssets);
+}
+
+function toggleSelection(id) {
+    if (selectedAssets.has(id)) selectedAssets.delete(id);
+    else selectedAssets.add(id);
+    updateSelectedCount();
+}
+
+function toggleSelectAll() {
+    const checkbox = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.asset-checkbox');
+    const currentViewIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    
+    if (checkbox.checked) {
+        currentViewIds.forEach(id => selectedAssets.add(id));
+    } else {
+        currentViewIds.forEach(id => selectedAssets.delete(id));
+    }
+    updateSelectedCount();
+    // Перерисовка чекбоксов без полной перерисовки таблицы (упрощенно)
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+}
+
+function updateSelectedCount() {
+    const count = selectedAssets.size;
+    document.getElementById('selectedCount').textContent = count > 0 ? `Выбрано: ${count}` : '';
+    document.getElementById('btnDeleteSelected').disabled = count === 0;
+    document.getElementById('selectAll').checked = false; // Сброс главного чекбокса при частичном выборе
+}
+
+async function deleteSelected() {
+    if (!confirm(`Удалить ${selectedAssets.size} активов?`)) return;
+    
+    try {
+        await fetch('/api/assets/delete-batch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ ids: Array.from(selectedAssets) })
+        });
+        selectedAssets.clear();
+        updateSelectedCount();
+        loadAssetsTable();
+    } catch (e) { alert('Ошибка удаления'); }
+}
+
+async function openEditModal(id) {
+    const asset = allAssets.find(a => a.id === id);
+    if (!asset) return;
+    
+    document.getElementById('editAssetId').value = asset.id;
+    document.getElementById('editIp').value = asset.ip;
+    document.getElementById('editHostname').value = asset.hostname || '';
+    
+    const select = document.getElementById('editGroups');
+    select.innerHTML = '';
+    allGroups.forEach(g => {
+        const opt = document.createElement('option');
+        opt.value = g.id;
+        opt.textContent = g.name;
+        if (asset.groups && asset.groups.some(gr => gr.id === g.id)) {
+            opt.selected = true;
+        }
+        select.appendChild(opt);
+    });
+    
+    new bootstrap.Modal(document.getElementById('editModal')).show();
+}
+
+async function saveAssetChanges() {
+    const id = document.getElementById('editAssetId').value;
+    const hostname = document.getElementById('editHostname').value;
+    const groupIds = Array.from(document.getElementById('editGroups').selectedOptions).map(o => o.value);
+    
+    try {
+        await fetch(`/api/assets/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ hostname, group_ids: groupIds })
+        });
+        bootstrap.Modal.getInstance(document.getElementById('editModal')).hide();
+        loadAssetsTable();
+    } catch (e) { alert('Ошибка сохранения'); }
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+}
+</script>
+{% endblock %}

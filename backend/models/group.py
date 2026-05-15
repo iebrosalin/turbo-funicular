@@ -26,6 +26,8 @@ class Group(Base):
     parent = relationship("Group", remote_side=[id], backref="children", lazy="joined")
     # Many-to-many связь с активами через таблицу asset_groups
     assets = relationship("Asset", secondary="asset_groups", back_populates="groups")
+    # Many-to-many связь с RedCheck хостами через таблицу redcheck_host_groups
+    redcheck_hosts = relationship("RedCheckHost", secondary="redcheck_host_groups", back_populates="groups")
     scans = relationship("Scan", back_populates="group", cascade="all, delete-orphan")
     
     def to_dict(self):

@@ -14,6 +14,14 @@ asset_groups = Table(
     Column('group_id', Integer, ForeignKey('groups.id', ondelete='CASCADE'), primary_key=True)
 )
 
+# Таблица связи many-to-many между RedCheck хостами и группами
+redcheck_host_groups = Table(
+    'redcheck_host_groups',
+    Base.metadata,
+    Column('redcheck_host_id', Integer, ForeignKey('redcheck_hosts.id', ondelete='CASCADE'), primary_key=True),
+    Column('group_id', Integer, ForeignKey('groups.id', ondelete='CASCADE'), primary_key=True)
+)
+
 
 class Asset(Base):
     """Сетевой актив (хост, сервер, устройство)"""
@@ -137,7 +145,7 @@ class RedCheckHost(Base):
     __tablename__ = "redcheck_hosts"
     
     id = Column(Integer, primary_key=True, index=True)
-    external_id = Column(String(100), unique=True, nullable=False, index=True)  # ID в RedCheck
+    redcheck_guid = Column(String(100), unique=True, nullable=False, index=True)  # GUID в RedCheck
     
     # Основная информация
     hostname = Column(String(255), nullable=True)
@@ -153,8 +161,8 @@ class RedCheckHost(Base):
     status = Column(String(50), default="active")  # active, inactive, unknown
     is_active = Column(Boolean, default=True)
     
-    # Группы
-    groups = Column(Text, nullable=True)  # Список групп через запятую
+    # Группы (many-to-many связь)
+    groups = relationship('Group', secondary=redcheck_host_groups, back_populates='redcheck_hosts')
     
     # Уязвимости
     vulnerabilities_count = Column(Integer, default=0)
@@ -186,7 +194,7 @@ class RedCheckHost(Base):
         """Преобразование в словарь."""
         return {
             "id": self.id,
-            "external_id": self.external_id,
+            "redcheck_guid": self.redcheck_guid,
             "hostname": self.hostname,
             "ip_address": self.ip_address,
             "mac_address": self.mac_address,
@@ -195,7 +203,7 @@ class RedCheckHost(Base):
             "os_architecture": self.os_architecture,
             "status": self.status,
             "is_active": self.is_active,
-            "groups": self.groups,
+            "groups": [g.name for g in self.groups] if self.groups else [],
             "vulnerabilities_count": self.vulnerabilities_count,
             "critical_vulnerabilities": self.critical_vulnerabilities,
             "high_vulnerabilities": self.high_vulnerabilities,
