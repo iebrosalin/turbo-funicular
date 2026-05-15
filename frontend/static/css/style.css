@@ -30,9 +30,11 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 /* Sidebar Container - управляет шириной через flex */
 #sidebar-container {
     flex: 0 0 var(--sidebar-width);
+    width: var(--sidebar-width);
     min-width: 60px;
     max-width: 600px;
-    transition: flex-basis 0.3s ease;
+    transition: flex-basis 0.1s ease, width 0.1s ease;
+    position: relative;
 }
 
 /* Sidebar Styles */
