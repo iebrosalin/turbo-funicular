@@ -14,7 +14,7 @@ class Scan(Base):
     uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
     name = Column(String(255), nullable=False)
     target = Column(String(500), nullable=False)  # IP, диапазон или список
-    scan_type = Column(String(50), default="nmap")  # nmap, rustscan, ping
+    scan_type = Column(String(50), default="nmap")  # nmap, rustscan, ping, fping
     status = Column(String(50), default="pending")  # pending, running, completed, failed
     progress = Column(Integer, default=0)  # 0-100%
     result = Column(Text, nullable=True)  # JSON результат сканирования
@@ -36,7 +36,7 @@ class ScanJob(Base):
     id = Column(Integer, primary_key=True, index=True)
     uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
     scan_id = Column(Integer, ForeignKey("scans.id", ondelete="CASCADE"), nullable=False)
-    job_type = Column(String(50), nullable=False)  # nmap, rustscan, dig
+    job_type = Column(String(50), nullable=False)  # nmap, rustscan, dig, fping
     status = Column(String(50), default="pending")  # pending, running, completed, failed
     priority = Column(Integer, default=0)  # Приоритет задачи
     worker_id = Column(String(100), nullable=True)  # ID воркера

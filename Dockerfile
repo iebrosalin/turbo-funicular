@@ -13,6 +13,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nmap \
     dnsutils \
+    fping \
     build-essential \
     libpq-dev \
     curl \
