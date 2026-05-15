@@ -163,26 +163,17 @@ class App {
         const onMouseMove = (moveEvent) => {
           if (!this.isResizing) return;
           
+          // СТРОГО: Если сайдбар свернут, игнорируем движение мыши
+          if (sidebar.classList.contains('collapsed')) {
+            return;
+          }
+          
           // Вычисляем новую ширину относительно контейнера aside
           const rect = sidebarContainer.getBoundingClientRect();
           let newWidth = moveEvent.clientX - rect.left;
           
           // Ограничиваем минимальной и максимальной шириной
           newWidth = Math.max(this.sidebarMinWidth, Math.min(newWidth, this.sidebarMaxWidth));
-          
-          // Если ширина меньше порога сворачивания (80px), сворачиваем сайдбар через кнопку
-          if (newWidth < 80) {
-            // Останавливаем ресайз
-            this._stopResizing(resizer);
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-            
-            // Имитируем клик по кнопке сворачивания
-            if (toggleBtn) {
-              toggleBtn.click();
-            }
-            return;
-          }
           
           // Обновляем CSS переменную и сохраняем ширину
           document.documentElement.style.setProperty('--sidebar-width', `${newWidth}px`);
