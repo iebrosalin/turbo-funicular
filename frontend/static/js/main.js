@@ -9,6 +9,13 @@ class App {
     this.sidebarMinWidth = 60;
     this.sidebarMaxWidth = 600;
   }
+  
+  _stopResizing(resizer) {
+    this.isResizing = false;
+    if (resizer) resizer.classList.remove('resizing');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }
 
   async init() {
     try {
@@ -122,9 +129,31 @@ class App {
     const resizer = document.getElementById('sidebarResizer');
     
     if (resizer && sidebar && sidebarContainer) {
+      // Скрываем ресайзер визуально, когда сайдбар свернут
+      const updateResizerVisibility = () => {
+        if (sidebar.classList.contains('collapsed')) {
+          resizer.style.display = 'none';
+          resizer.style.pointerEvents = 'none';
+        } else {
+          resizer.style.display = 'block';
+          resizer.style.pointerEvents = 'auto';
+        }
+      };
+      
+      // Вызываем при инициализации и при изменении состояния
+      updateResizerVisibility();
+      
+      // Наблюдаем за изменениями класса collapsed
+      const observer = new MutationObserver(updateResizerVisibility);
+      observer.observe(sidebar, { attributes: true, attributeFilter: ['class'] });
+      
       resizer.addEventListener('mousedown', (e) => {
-        // Не разрешаем ресайз, если сайдбар свернут
-        if (sidebar.classList.contains('collapsed')) return;
+        // СТРОГО: Не разрешаем ресайз, если сайдбар свернут
+        if (sidebar.classList.contains('collapsed')) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         
         this.isResizing = true;
         resizer.classList.add('resizing');
@@ -141,46 +170,27 @@ class App {
           // Ограничиваем минимальной и максимальной шириной
           newWidth = Math.max(this.sidebarMinWidth, Math.min(newWidth, this.sidebarMaxWidth));
           
-          // Если ширина меньше порога сворачивания (80px), сворачиваем сайдбар
+          // Если ширина меньше порога сворачивания (80px), сворачиваем сайдбар через кнопку
           if (newWidth < 80) {
-            sidebar.classList.add('collapsed');
-            sidebarContainer.classList.add('collapsed');
-            document.documentElement.style.setProperty('--sidebar-width', '60px');
-            localStorage.setItem('sidebarCollapsed', 'true');
-            if (toggleIcon) {
-              toggleIcon.classList.remove('bi-chevron-left');
-              toggleIcon.classList.add('bi-chevron-right');
-            }
-            this.isResizing = false;
-            resizer.classList.remove('resizing');
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
+            // Останавливаем ресайз
+            this._stopResizing(resizer);
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
+            
+            // Имитируем клик по кнопке сворачивания
+            if (toggleBtn) {
+              toggleBtn.click();
+            }
             return;
           }
           
-          // Если сайдбар был свернут и мы расширили его больше порога, разворачиваем
-          if (sidebar.classList.contains('collapsed') && newWidth >= 80) {
-            sidebar.classList.remove('collapsed');
-            sidebarContainer.classList.remove('collapsed');
-            localStorage.setItem('sidebarCollapsed', 'false');
-            if (toggleIcon) {
-              toggleIcon.classList.remove('bi-chevron-right');
-              toggleIcon.classList.add('bi-chevron-left');
-            }
-          }
-          
-          // Обновляем CSS переменную
+          // Обновляем CSS переменную и сохраняем ширину
           document.documentElement.style.setProperty('--sidebar-width', `${newWidth}px`);
           localStorage.setItem('sidebarWidth', `${newWidth}px`);
         };
         
         const onMouseUp = () => {
-          this.isResizing = false;
-          resizer.classList.remove('resizing');
-          document.body.style.cursor = '';
-          document.body.style.userSelect = '';
+          this._stopResizing(resizer);
           document.removeEventListener('mousemove', onMouseMove);
           document.removeEventListener('mouseup', onMouseUp);
         };
