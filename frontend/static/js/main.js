@@ -141,6 +141,36 @@ class App {
           // Ограничиваем минимальной и максимальной шириной
           newWidth = Math.max(this.sidebarMinWidth, Math.min(newWidth, this.sidebarMaxWidth));
           
+          // Если ширина меньше порога сворачивания (80px), сворачиваем сайдбар
+          if (newWidth < 80) {
+            sidebar.classList.add('collapsed');
+            sidebarContainer.classList.add('collapsed');
+            document.documentElement.style.setProperty('--sidebar-width', '60px');
+            localStorage.setItem('sidebarCollapsed', 'true');
+            if (toggleIcon) {
+              toggleIcon.classList.remove('bi-chevron-left');
+              toggleIcon.classList.add('bi-chevron-right');
+            }
+            this.isResizing = false;
+            resizer.classList.remove('resizing');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            return;
+          }
+          
+          // Если сайдбар был свернут и мы расширили его больше порога, разворачиваем
+          if (sidebar.classList.contains('collapsed') && newWidth >= 80) {
+            sidebar.classList.remove('collapsed');
+            sidebarContainer.classList.remove('collapsed');
+            localStorage.setItem('sidebarCollapsed', 'false');
+            if (toggleIcon) {
+              toggleIcon.classList.remove('bi-chevron-right');
+              toggleIcon.classList.add('bi-chevron-left');
+            }
+          }
+          
           // Обновляем CSS переменную
           document.documentElement.style.setProperty('--sidebar-width', `${newWidth}px`);
           localStorage.setItem('sidebarWidth', `${newWidth}px`);
