@@ -6,6 +6,8 @@ import { Utils } from './modules/utils.js';
 class App {
   constructor() {
     this.isResizing = false;
+    this.sidebarMinWidth = 60;
+    this.sidebarMaxWidth = 600;
   }
 
   async init() {
@@ -43,20 +45,28 @@ class App {
 
   #initUIComponents() {
     const sidebar = document.getElementById('sidebar');
+    const sidebarContainer = document.getElementById('sidebar-container');
     
     // Восстанавливаем состояние сворачивания при загрузке
     const wasCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
     if (wasCollapsed && sidebar) {
       sidebar.classList.add('collapsed');
+      if (sidebarContainer) {
+        sidebarContainer.classList.add('collapsed');
+      }
     }
     
     // --- Логика кнопки сворачивания/разворачивания сайдбара ---
     const toggleBtn = document.getElementById('sidebarToggleBtn');
     const toggleIcon = document.getElementById('sidebarToggleIcon');
+    const sidebarContainer = document.getElementById('sidebar-container');
     
     if (toggleBtn && sidebar) {
       toggleBtn.addEventListener('click', () => {
         sidebar.classList.toggle('collapsed');
+        if (sidebarContainer) {
+          sidebarContainer.classList.toggle('collapsed');
+        }
         const isCollapsed = sidebar.classList.contains('collapsed');
         
         // Обновляем иконку
@@ -83,55 +93,72 @@ class App {
       });
     }
     
+    // --- Горячие клавиши для раскрытия сайдбара ---
+    document.addEventListener('keydown', (e) => {
+      if (sidebar && sidebar.classList.contains('collapsed')) {
+        // Любая клавиша раскрывает сайдбар (кроме специальных комбинаций)
+        if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+          sidebar.classList.remove('collapsed');
+          if (sidebarContainer) {
+            sidebarContainer.classList.remove('collapsed');
+          }
+          const savedWidth = localStorage.getItem('sidebarWidth');
+          if (savedWidth) {
+            document.documentElement.style.setProperty('--sidebar-width', savedWidth);
+          } else {
+            document.documentElement.style.setProperty('--sidebar-width', '280px');
+          }
+          localStorage.setItem('sidebarCollapsed', 'false');
+          if (toggleIcon) {
+            toggleIcon.classList.remove('bi-chevron-right');
+            toggleIcon.classList.add('bi-chevron-left');
+          }
+        }
+      }
+    });
+    
+    // Убран обработчик resizer - изменение размера отключено
+    
     // --- Логика изменения размера сайдбара (resizer) ---
     const resizer = document.getElementById('sidebarResizer');
+    const sidebarContainer = document.getElementById('sidebar-container');
     
-    if (resizer && sidebar) {
-      // Восстановление ширины из localStorage
-      const savedWidth = localStorage.getItem('sidebarWidth');
-      if (savedWidth && !wasCollapsed) {
-        document.documentElement.style.setProperty('--sidebar-width', savedWidth);
-      }
-
+    if (resizer && sidebar && sidebarContainer) {
       resizer.addEventListener('mousedown', (e) => {
+        // Не разрешаем ресайз, если сайдбар свернут
+        if (sidebar.classList.contains('collapsed')) return;
+        
         this.isResizing = true;
         resizer.classList.add('resizing');
         document.body.style.cursor = 'col-resize';
         document.body.style.userSelect = 'none';
-        e.preventDefault();
-      });
-
-      document.addEventListener('mousemove', (e) => {
-        if (!this.isResizing) return;
-
-        let newWidth = e.clientX;
-        const minWidth = 60;
-        const maxWidth = 600;
         
-        // Если ширина меньше порога сворачивания, сворачиваем
-        if (newWidth < 100) {
-          sidebar.classList.add('collapsed');
-          newWidth = 60;
-        } else {
-          sidebar.classList.remove('collapsed');
-        }
+        const onMouseMove = (moveEvent) => {
+          if (!this.isResizing) return;
+          
+          // Вычисляем новую ширину относительно контейнера aside
+          const rect = sidebarContainer.getBoundingClientRect();
+          let newWidth = moveEvent.clientX - rect.left;
+          
+          // Ограничиваем минимальной и максимальной шириной
+          newWidth = Math.max(this.sidebarMinWidth, Math.min(newWidth, this.sidebarMaxWidth));
+          
+          // Обновляем CSS переменную
+          document.documentElement.style.setProperty('--sidebar-width', `${newWidth}px`);
+          localStorage.setItem('sidebarWidth', `${newWidth}px`);
+        };
         
-        if (newWidth > maxWidth) newWidth = maxWidth;
-
-        document.documentElement.style.setProperty('--sidebar-width', `${newWidth}px`);
-      });
-
-      document.addEventListener('mouseup', () => {
-        if (this.isResizing) {
+        const onMouseUp = () => {
           this.isResizing = false;
           resizer.classList.remove('resizing');
           document.body.style.cursor = '';
           document.body.style.userSelect = '';
-          
-          const currentWidth = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width').trim();
-          localStorage.setItem('sidebarWidth', currentWidth);
-          localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed') ? 'true' : 'false');
-        }
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+        };
+        
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
       });
     }
 
