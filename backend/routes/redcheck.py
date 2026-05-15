@@ -1008,6 +1008,7 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
     all_hosts = []
     page = 1
     per_page = 100
+    total_count = None
     
     while True:
         logger.info(f"[DEBUG] Запрос страницы {page}...")
@@ -1032,11 +1033,29 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
         hosts = hosts_data.get("items", []) or hosts_data.get("result", {}).get("items", []) or []
         all_hosts.extend(hosts)
         
+        # Получаем общее количество записей (если есть в ответе)
+        if total_count is None:
+            total_count = hosts_data.get("count", hosts_data.get("total", None))
+            if total_count:
+                logger.info(f"[DEBUG] Общее количество записей: {total_count}")
+        
         logger.info(f"[DEBUG] Страница {page}: получено {len(hosts)} хостов (всего: {len(all_hosts)})")
         
-        # Если получили меньше чем per_page или пустой список - это последняя страница
+        # Проверяем, достигли ли конца пагинации
+        # Выходим, если:
+        # 1. Получили меньше записей чем запросили (последняя страница неполная)
+        # 2. Или получили все записи согласно total_count
+        # 3. Или пустой список записей
+        if len(hosts) == 0:
+            logger.info(f"[DEBUG] Пустая страница {page}, выход из цикла")
+            break
+        
+        if total_count and len(all_hosts) >= total_count:
+            logger.info(f"[DEBUG] Получены все {total_count} записей, выход из цикла")
+            break
+        
         if len(hosts) < per_page:
-            logger.info(f"[DEBUG] Последняя страница {page}, выход из цикла")
+            logger.info(f"[DEBUG] Последняя страница {page} (получено {len(hosts)} < {per_page}), выход из цикла")
             break
         
         page += 1
