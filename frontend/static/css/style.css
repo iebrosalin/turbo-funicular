@@ -35,7 +35,12 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     max-width: 600px;
     transition: flex-basis 0.1s ease, width 0.1s ease;
     position: relative;
-    padding-right: 0.5rem; /* Отступ справа для разделителя */
+}
+#sidebar-container:not(.collapsed) {
+    padding-right: 0.5rem; /* Отступ справа для разделителя в развернутом состоянии */
+}
+#sidebar-container.collapsed {
+    padding-right: 0.5rem !important; /* Отступ справа в свернутом состоянии */
 }
 
 /* Sidebar Styles */
@@ -49,7 +54,12 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
     position: relative;
     display: flex;
     flex-direction: column;
-    padding-left: 0.5rem; /* Отступ слева */
+}
+#sidebar-container:not(.collapsed) .sidebar {
+    padding-left: 0.5rem; /* Отступ слева только в развернутом состоянии */
+}
+#sidebar-container.collapsed .sidebar {
+    padding-left: 0 !important; /* Убираем отступ слева в свернутом состоянии */
 }
 .sidebar .card {
     background: var(--bg-card);
@@ -127,6 +137,11 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 /* В свернутом состоянии показываем только кнопку разворачивания */
 .sidebar.collapsed .sidebar-toggle-container {
     display: flex !important;
+    padding: 0.5rem !important;
+}
+/* Добавляем отступ справа для кнопки в свернутом состоянии */
+.sidebar.collapsed .sidebar-toggle-container .btn {
+    margin-right: 0;
 }
 .sidebar.collapsed .tree-node {
     justify-content: center;
