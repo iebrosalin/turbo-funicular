@@ -451,8 +451,12 @@ async def test_connection(settings: RedCheckSettings, db: AsyncSession = Depends
         # Обновляем существующие настройки переданными значениями
         existing_settings.api_url = settings.api_url
         existing_settings.api_version = settings.api_version
-        existing_settings.username = settings.username
-        existing_settings.password = settings.password
+        # Если пароль не передан (пустой), используем сохранённый
+        if settings.password:
+            existing_settings.password = settings.password
+        # Если username не передан, используем сохранённый
+        if settings.username:
+            existing_settings.username = settings.username
         existing_settings.auth_type = settings.auth_type
         existing_settings.timeout = settings.timeout
         existing_settings.verify_ssl = settings.verify_ssl
@@ -473,9 +477,28 @@ async def test_connection(settings: RedCheckSettings, db: AsyncSession = Depends
         await db.flush()  # Получаем ID но не делаем коммит
         settings_id = new_settings.id
     
+    # Получаем актуальные учётные данные (с учётом сохранённого пароля если не передан)
+    if existing_settings and not settings.password:
+        # Используем сохранённый пароль
+        effective_password = existing_settings.password
+        effective_username = existing_settings.username
+    else:
+        effective_password = settings.password
+        effective_username = settings.username
+    
     # При тестировании подключения всегда запрашиваем новый токен (force_refresh=True)
-    if settings.auth_type == "basic" and settings.username and settings.password:
-        token = await get_redcheck_token(settings, db=db, settings_id=settings_id, force_refresh=True)
+    if settings.auth_type == "basic" and effective_username and effective_password:
+        # Создаём временный объект настроек с актуальными данными
+        temp_settings = RedCheckSettings(
+            api_url=settings.api_url,
+            api_version=settings.api_version,
+            username=effective_username,
+            password=effective_password,
+            auth_type=settings.auth_type,
+            timeout=settings.timeout,
+            verify_ssl=settings.verify_ssl
+        )
+        token = await get_redcheck_token(temp_settings, db=db, settings_id=settings_id, force_refresh=True)
         if token:
             token_received = True
             logger.info("✅ Токен успешно получен и сохранён в БД")
