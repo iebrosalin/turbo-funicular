@@ -361,3 +361,25 @@ async def redcheck_scans_page(request: Request):
 async def redcheck_hosts_page(request: Request):
     """Страница хостов (активов) RedCheck."""
     return templates.TemplateResponse("redcheck_hosts.html", {"request": request})
+
+
+@app.get("/assets-manager")
+async def assets_manager_page(request: Request):
+    """Единая страница управления активами и группами."""
+    return templates.TemplateResponse("assets.html", {"request": request})
+
+# Альтернативные представления активов
+@app.get("/assets-cards")
+async def assets_cards_page(request: Request):
+    """Представление активов в виде карточек."""
+    return templates.TemplateResponse("assets_cards.html", {"request": request})
+
+@app.get("/assets-table")
+async def assets_table_page(request: Request):
+    """Представление активов в виде таблицы."""
+    return templates.TemplateResponse("assets_table.html", {"request": request})
+
+@app.get("/groups-manager")
+async def groups_manager_page(request: Request):
+    """Страница управления группами."""
+    return templates.TemplateResponse("groups_manager.html", {"request": request})

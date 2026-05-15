@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+
+{% block title %}Активы (Карточки){% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2><i class="bi bi-grid-3x3-gap-fill me-2"></i>Активы (Карточки)</h2>
+                <div class="d-flex gap-2">
+                    <select id="groupFilterCards" class="form-select" style="width: 200px;">
+                        <option value="">Все группы</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="refreshAssets('cards')">
+                        <i class="bi bi-arrow-clockwise"></i> Обновить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Статистика -->
+    <div class="row mb-4" id="statsCards">
+        <!-- Заполняется JS -->
+    </div>
+
+    <!-- Сетка карточек -->
+    <div class="row g-4" id="assetsGrid">
+        <div class="col-12 text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Загрузка...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно деталей -->
+<div class="modal fade" id="assetModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="assetModalTitle">Детали актива</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="assetModalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-primary" id="saveAssetBtn">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .asset-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+        border-left: 4px solid #ccc;
+        cursor: pointer;
+    }
+    .asset-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .status-online { border-left-color: #198754; }
+    .status-offline { border-left-color: #dc3545; }
+    .status-unknown { border-left-color: #6c757d; }
+    
+    .card-icon {
+        font-size: 2rem;
+        color: #6c757d;
+    }
+    .badge-group {
+        font-size: 0.75rem;
+        margin-right: 2px;
+        margin-bottom: 2px;
+    }
+</style>
+
+<script>
+let allAssets = [];
+let allGroups = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadGroups();
+    loadAssets('cards');
+});
+
+async function loadGroups() {
+    try {
+        const res = await fetch('/api/groups');
+        allGroups = await res.json();
+        const select = document.getElementById('groupFilterCards');
+        allGroups.forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g.id;
+            opt.textContent = g.name;
+            select.appendChild(opt);
+        });
+        select.addEventListener('change', () => renderAssetsGrid(allAssets, select.value));
+    } catch (e) { console.error('Ошибка загрузки групп', e); }
+}
+
+async function loadAssets(viewType) {
+    try {
+        const res = await fetch('/api/assets?full=true');
+        allAssets = await res.json();
+        if (viewType === 'cards') {
+            renderStats(allAssets);
+            renderAssetsGrid(allAssets, document.getElementById('groupFilterCards').value);
+        }
+    } catch (e) { console.error('Ошибка загрузки активов', e); }
+}
+
+function refreshAssets(viewType) {
+    loadAssets(viewType);
+}
+
+function renderStats(assets) {
+    const total = assets.length;
+    const online = assets.filter(a => a.status === 'online').length;
+    const offline = assets.filter(a => a.status === 'offline').length;
+    
+    document.getElementById('statsCards').innerHTML = `
+        <div class="col-md-4">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <h3>${total}</h3>
+                    <small class="text-muted">Всего активов</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-success bg-opacity-10">
+                <div class="card-body text-center">
+                    <h3 class="text-success">${online}</h3>
+                    <small class="text-muted">Онлайн</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card bg-danger bg-opacity-10">
+                <div class="card-body text-center">
+                    <h3 class="text-danger">${offline}</h3>
+                    <small class="text-muted">Офлайн</small>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function renderAssetsGrid(assets, groupId) {
+    const grid = document.getElementById('assetsGrid');
+    grid.innerHTML = '';
+    
+    const filtered = groupId 
+        ? assets.filter(a => a.groups && a.groups.some(g => g.id == groupId))
+        : assets;
+
+    if (filtered.length === 0) {
+        grid.innerHTML = '<div class="col-12 text-center text-muted">Активы не найдены</div>';
+        return;
+    }
+
+    filtered.forEach(asset => {
+        const statusClass = asset.status === 'online' ? 'status-online' : (asset.status === 'offline' ? 'status-offline' : 'status-unknown');
+        const groupsHtml = (asset.groups || []).map(g => `<span class="badge bg-info badge-group">${g.name}</span>`).join('');
+        
+        const col = document.createElement('div');
+        col.className = 'col-md-6 col-lg-4 col-xl-3';
+        col.innerHTML = `
+            <div class="card asset-card ${statusClass}" onclick="showAssetDetails(${asset.id})">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <h6 class="card-title mb-1 text-truncate" title="${asset.hostname || asset.ip}">${asset.hostname || asset.ip}</h6>
+                            <small class="text-muted">${asset.ip}</small>
+                        </div>
+                        <i class="bi bi-pc-display card-icon"></i>
+                    </div>
+                    <div class="mb-2">
+                        ${groupsHtml || '<span class="badge bg-secondary badge-group">Без группы</span>'}
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mt-3">
+                        <span class="badge ${asset.status === 'online' ? 'bg-success' : 'bg-danger'}">
+                            ${asset.status === 'online' ? 'Онлайн' : 'Офлайн'}
+                        </span>
+                        <small class="text-muted" title="${asset.last_seen}">
+                            <i class="bi bi-clock"></i> ${formatDate(asset.last_seen)}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        `;
+        grid.appendChild(col);
+    });
+}
+
+async function showAssetDetails(id) {
+    const asset = allAssets.find(a => a.id === id);
+    if (!asset) return;
+
+    document.getElementById('assetModalTitle').textContent = asset.hostname || asset.ip;
+    document.getElementById('assetModalBody').innerHTML = `
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label text-muted">IP Адрес</label>
+                <div class="fs-5">${asset.ip}</div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label text-muted">Статус</label>
+                <div><span class="badge ${asset.status === 'online' ? 'bg-success' : 'bg-danger'}">${asset.status}</span></div>
+            </div>
+            <div class="col-12 mb-3">
+                <label class="form-label text-muted">Группы</label>
+                <div>${(asset.groups || []).map(g => `<span class="badge bg-info me-1">${g.name}</span>`).join('') || 'Нет'}</div>
+            </div>
+            <div class="col-12 mb-3">
+                <label class="form-label text-muted">Последнее сканирование</label>
+                <div>${asset.last_seen || 'Никогда'}</div>
+            </div>
+             ${asset.redcheck_guid ? `
+            <div class="col-12 mb-3">
+                <label class="form-label text-muted">RedCheck GUID</label>
+                <code>${asset.redcheck_guid}</code>
+            </div>` : ''}
+        </div>
+    `;
+    
+    new bootstrap.Modal(document.getElementById('assetModal')).show();
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+}
+</script>
+{% endblock %}

@@ -411,3 +411,115 @@ async def get_root_group(db: AsyncSession = Depends(get_db)):
         await db.refresh(root_group)
     
     return root_group
+
+
+# ============================================================================
+# Управление активами в группах (Many-to-Many)
+# ============================================================================
+
+class AddAssetsToGroupRequest(BaseModel):
+    """Запрос на добавление активов в группу"""
+    asset_ids: List[int]
+
+
+@router.post("/{group_id}/assets", status_code=status.HTTP_200_OK)
+async def add_assets_to_group(
+    group_id: int,
+    request: AddAssetsToGroupRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Добавить активы в группу по ID.
+    Работает как с обычными активами (Asset), так и с RedCheck хостами.
+    """
+    from backend.models.asset import Asset, RedCheckHost, asset_groups
+    from sqlalchemy import insert
+    
+    # Проверяем существование группы
+    group_query = select(AssetGroup).where(AssetGroup.id == group_id)
+    group_result = await db.execute(group_query)
+    group = group_result.scalar_one_or_none()
+    
+    if not group:
+        raise HTTPException(status_code=404, detail="Группа не найдена")
+    
+    added_count = 0
+    
+    # Добавляем каждый актив в группу
+    for asset_id in request.asset_ids:
+        # Пробуем найти в обычных активах
+        asset_query = select(Asset).where(Asset.id == asset_id)
+        asset_result = await db.execute(asset_query)
+        asset = asset_result.scalar_one_or_none()
+        
+        if asset:
+            # Проверяем, нет ли уже связи
+            existing_query = select(asset_groups.c.asset_id).where(
+                (asset_groups.c.asset_id == asset_id) &
+                (asset_groups.c.group_id == group_id)
+            )
+            existing_result = await db.execute(existing_query)
+            if not existing_result.scalar():
+                # Добавляем связь
+                stmt = insert(asset_groups).values(asset_id=asset_id, group_id=group_id)
+                try:
+                    await db.execute(stmt)
+                    added_count += 1
+                except Exception as e:
+                    logger.warning(f"Не удалось добавить актив {asset_id} в группу {group_id}: {e}")
+            continue
+        
+        # Если не нашли в обычных активах, пробуем в RedCheck хостах
+        redcheck_query = select(RedCheckHost).where(RedCheckHost.id == asset_id)
+        redcheck_result = await db.execute(redcheck_query)
+        redcheck_host = redcheck_result.scalar_one_or_none()
+        
+        if redcheck_host:
+            # Для RedCheck хостов используем отдельную таблицу связей (если она есть)
+            # или добавляем в общую таблицу asset_groups
+            # В данной реализации считаем что RedCheckHost тоже может быть в asset_groups
+            existing_query = select(asset_groups.c.asset_id).where(
+                (asset_groups.c.asset_id == asset_id) &
+                (asset_groups.c.group_id == group_id)
+            )
+            existing_result = await db.execute(existing_query)
+            if not existing_result.scalar():
+                stmt = insert(asset_groups).values(asset_id=asset_id, group_id=group_id)
+                try:
+                    await db.execute(stmt)
+                    added_count += 1
+                except Exception as e:
+                    logger.warning(f"Не удалось добавить RedCheck хост {asset_id} в группу {group_id}: {e}")
+    
+    await db.commit()
+    
+    return {
+        "message": f"Добавлено активов: {added_count}",
+        "count": added_count,
+        "group_id": group_id,
+        "group_name": group.name
+    }
+
+
+@router.delete("/{group_id}/assets/{asset_id}", status_code=status.HTTP_200_OK)
+async def remove_asset_from_group(
+    group_id: int,
+    asset_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Удалить актив из группы."""
+    from backend.models.asset import asset_groups
+    from sqlalchemy import delete
+    
+    stmt = delete(asset_groups).where(
+        (asset_groups.c.asset_id == asset_id) &
+        (asset_groups.c.group_id == group_id)
+    )
+    
+    result = await db.execute(stmt)
+    await db.commit()
+    
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Связь не найдена")
+    
+    return {"message": "Актив удален из группы", "asset_id": asset_id, "group_id": group_id}

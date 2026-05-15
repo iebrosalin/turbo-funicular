@@ -140,17 +140,31 @@
 - **FilterBuilder:** Единый класс для сложных запросов (SQL-like синтаксис).
 - **E2E Тесты:** Playwright тесты для UI и сканеров.
 - **UI/UX:** Темная тема по умолчанию, страница настроек.
+- **RedCheck Интеграция:**
+  - Синхронизация активов через API RedCheck.
+  - Сохранение только `redcheck_guid`, `ip` и `last_seen` в таблице `redcheck_hosts`.
+  - Динамическое получение полных данных об активах при запросе.
+  - Связь активов RedCheck с основными активами по IP-адресу.
+  - Поддержка групп для активов RedCheck (назначение, фильтрация).
+- **Управление активами:**
+  - Единый интерфейс для работы с обычными активами и активами из RedCheck.
+  - Несколько представлений: таблица, карточки, менеджер групп.
+  - Фильтрация, поиск, массовые операции.
+  - Назначение активов в группы прямо из списка.
 
 ---
 
 ## 4. 🔗 Карта связей: UI ↔ JS ↔ Backend
 
-| Функционал | JS Модуль | API Endpoint |
-| :--- | :--- | :--- |
-| **Сканеры (E2E)** | `test_scanners_e2e.py` | `POST /api/scans/start/*` |
-| **Фильтры** | `FilterBuilder` | `GET /api/assets?rules=...` |
-| **Схема полей** | `Utils.getAssetSchema()` | `GET /api/assets/schema` |
-| **Дерево групп** | `TreeManager` | `GET /api/groups/tree` |
+| Функционал | JS Модуль | API Endpoint | Страница |
+| :--- | :--- | :--- | :--- |
+| **Сканеры (E2E)** | `test_scanners_e2e.py` | `POST /api/scans/start/*` | `/scans` |
+| **Фильтры** | `FilterBuilder` | `GET /api/assets?rules=...` | `/assets-table`, `/assets-cards` |
+| **Схема полей** | `Utils.getAssetSchema()` | `GET /api/assets/schema` | Все страницы активов |
+| **Дерево групп** | `TreeManager` | `GET /api/groups/tree` | `/groups-manager` |
+| **RedCheck Sync** | `redcheck-page.js` | `POST /api/redcheck/sync` | `/redcheck` |
+| **RedCheck Hosts** | `redcheck-hosts.js` | `GET /api/redcheck/hosts` | `/redcheck` |
+| **Управление активами** | `assets-manager.js` | `GET /api/assets-manager` | `/assets-manager` |
 
 ---
 
@@ -166,9 +180,56 @@ docker compose --profile e2e run --rm e2e-tests
 rm instance/app.db && docker compose up -d
 ```
 
+### Применение миграций RedCheck
+```bash
+# Переименование external_id → redcheck_guid
+docker-compose exec app python backend/migrate_external_id.py
+
+# Добавление поддержки групп для RedCheck
+docker-compose exec app python backend/migrate_redcheck_groups.py
+
+# Инициализация БД (если нужно)
+docker-compose exec app python backend/init_db.py
+```
+
+### Перезапуск приложения
+```bash
+docker-compose restart app
+```
+
 ---
 
-## 6. 📋 ПРОТОКОЛ РАБОТЫ (STRICT MODE)
+## 6. 📁 Структура страниц управления активами
+
+| Страница | URL | Описание |
+| :--- | :--- | :--- |
+| **Таблица активов** | `/assets-table` | Классическое табличное представление всех активов |
+| **Карточки активов** | `/assets-cards` | Визуальное представление активов в виде карточек |
+| **Менеджер групп** | `/groups-manager` | Управление группами и назначение активов |
+| **RedCheck хосты** | `/redcheck` | Просмотр и синхронизация активов из RedCheck |
+| **Универсальный менеджер** | `/assets-manager` | Единый интерфейс для всех типов активов |
+
+---
+
+## 7. 🗄️ Модель данных RedCheck
+
+### Таблица `redcheck_hosts`
+| Поле | Тип | Описание |
+| :--- | :--- | :--- |
+| `id` | Integer | Первичный ключ |
+| `redcheck_guid` | String | Уникальный идентификатор из RedCheck (UUID) |
+| `ip` | String | IP-адрес хоста (из `connectionAddress`) |
+| `last_seen` | DateTime | Дата последнего сканирования (из `modificationDate`) |
+| `group_id` | Integer | Внешний ключ на таблицу групп (опционально) |
+
+**Принцип работы:**
+- При синхронизации сохраняются только `redcheck_guid`, `ip` и `last_seen`.
+- Полные данные (CPE, описание, UUID и т.д.) запрашиваются у API RedCheck динамически при отображении деталей.
+- Связь с основными активами (`assets`) осуществляется по IP-адресу.
+
+---
+
+## 8. 📋 ПРОТОКОЛ РАБОТЫ (STRICT MODE)
 
 ### ⚡ ГЛАВНОЕ ПРАВИЛО: "BASH FIRST"
 **Любое изменение файла ДОЛЖНО начинаться с выполнения команды записи через `bash`.**
