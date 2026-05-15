@@ -59,7 +59,7 @@ class RedCheckEndpoint(BaseModel):
 # Вспомогательные функции
 # ============================================================================
 
-async def get_redcheck_token(settings: RedCheckSettings, db: Optional[AsyncSession] = None, settings_id: Optional[int] = None) -> Optional[str]:
+async def get_redcheck_token(settings: RedCheckSettings, db: Optional[AsyncSession] = None, settings_id: Optional[int] = None, force_refresh: bool = False) -> Optional[str]:
     """
     Получение JWT токена для доступа к RedCheck API
     
@@ -73,12 +73,15 @@ async def get_redcheck_token(settings: RedCheckSettings, db: Optional[AsyncSessi
         "timeout": 30,                           // Таймаут запросов в секундах
         "verify_ssl": false                      // Проверка SSL сертификата (false для самоподписанных)
     }
+    
+    Args:
+        force_refresh: Если True, игнорируем сохранённый токен и запрашиваем новый
     """
     if settings.auth_type != "basic" or not settings.username or not settings.password:
         return None
     
-    # Проверяем, есть ли сохранённый токен в БД и не истёк ли он
-    if db and settings_id:
+    # Проверяем, есть ли сохранённый токен в БД и не истёк ли он (только если не force_refresh)
+    if db and settings_id and not force_refresh:
         from sqlalchemy import select
         from backend.models.integration_settings import IntegrationSettings
         from datetime import datetime, timedelta
@@ -101,6 +104,10 @@ async def get_redcheck_token(settings: RedCheckSettings, db: Optional[AsyncSessi
                 # Если нет времени истечения, считаем токен действующим
                 logger.info(f"[DEBUG] Используем сохранённый токен (время истечения не установлено)")
                 return settings_record.token
+    
+    # Если force_refresh=True, пропускаем проверку БД и сразу запрашиваем новый токен
+    if force_refresh:
+        logger.info("[DEBUG] Принудительное обновление токена (force_refresh=True)")
     
     token_url = f"{settings.api_url}/api/{settings.api_version}/accounts/token"
     
@@ -167,11 +174,12 @@ async def get_redcheck_token(settings: RedCheckSettings, db: Optional[AsyncSessi
                     
                     if settings_record:
                         settings_record.token = token
-                        # Устанавливаем время истечения токена (по умолчанию 24 часа)
-                        settings_record.token_expires_at = datetime.utcnow() + timedelta(hours=24)
+                        # Устанавливаем время истечения токена (по умолчанию 1 час)
+                        # Сервер RedCheck может иметь своё время истечения, поэтому используем меньший срок
+                        settings_record.token_expires_at = datetime.utcnow() + timedelta(hours=1)
                         await db.commit()
                         await db.refresh(settings_record)
-                        logger.info(f"[DEBUG] Токен сохранён в БД для интеграции id={settings_id}, длина токена: {len(token)}")
+                        logger.info(f"[DEBUG] Токен сохранён в БД для интеграции id={settings_id}, длина токена: {len(token)}, истекает: {settings_record.token_expires_at}")
                 
                 return token
             elif response.status_code == 302:
@@ -254,9 +262,10 @@ async def redcheck_request(
             # Если получили 401 и есть возможность обновить токен
             if response.status_code == 401 and db and settings_id:
                 logger.info(f"[DEBUG] Получена 401 ошибка, пытаемся обновить токен...")
-                new_token = await get_redcheck_token(settings, db=db, settings_id=settings_id)
+                # При 401 ошибке всегда запрашиваем новый токен, игнорируя сохранённый
+                new_token = await get_redcheck_token(settings, db=db, settings_id=settings_id, force_refresh=True)
                 
-                if new_token and new_token != token:
+                if new_token:
                     logger.info(f"[DEBUG] Токен обновлён, повторяем запрос...")
                     # Повторяем запрос с новым токеном
                     headers["Authorization"] = f"Bearer {new_token}"
@@ -424,48 +433,66 @@ async def test_connection(settings: RedCheckSettings, db: AsyncSession = Depends
     """
     logger.info(f"Проверка подключения к RedCheck: {settings.api_url}")
     
-    # Сначала пробуем получить токен
+    # Сначала пробуем использовать сохранённый токен (если есть)
     token = None
     token_received = False
     
-    if settings.auth_type == "basic" and settings.username and settings.password:
-        # Получаем ID существующих настроек или создаем новые
-        from sqlalchemy import select
-        from backend.models.integration_settings import IntegrationSettings
+    from sqlalchemy import select
+    from backend.models.integration_settings import IntegrationSettings
+    
+    query = select(IntegrationSettings).where(IntegrationSettings.name == "redcheck")
+    result = await db.execute(query)
+    existing_settings = result.scalar_one_or_none()
+    
+    settings_id = None
+    if existing_settings:
+        settings_id = existing_settings.id
+        # Обновляем существующие настройки переданными значениями
+        existing_settings.api_url = settings.api_url
+        existing_settings.api_version = settings.api_version
+        existing_settings.username = settings.username
+        existing_settings.password = settings.password
+        existing_settings.auth_type = settings.auth_type
+        existing_settings.timeout = settings.timeout
+        existing_settings.verify_ssl = settings.verify_ssl
         
-        query = select(IntegrationSettings).where(IntegrationSettings.name == "redcheck")
-        result = await db.execute(query)
-        existing_settings = result.scalar_one_or_none()
-        
-        settings_id = None
-        if existing_settings:
-            settings_id = existing_settings.id
-            # Обновляем существующие настройки переданными значениями
-            existing_settings.api_url = settings.api_url
-            existing_settings.api_version = settings.api_version
-            existing_settings.username = settings.username
-            existing_settings.password = settings.password
-            existing_settings.auth_type = settings.auth_type
-            existing_settings.timeout = settings.timeout
-            existing_settings.verify_ssl = settings.verify_ssl
-        else:
-            # Создаем новую запись для сохранения токена
-            new_settings = IntegrationSettings(
-                name="redcheck",
-                api_url=settings.api_url,
-                api_version=settings.api_version,
-                username=settings.username,
-                password=settings.password,
-                auth_type=settings.auth_type,
-                timeout=settings.timeout,
-                verify_ssl=settings.verify_ssl,
-                enabled=False  # Пока не включаем, только тестируем
-            )
-            db.add(new_settings)
-            await db.flush()  # Получаем ID но не делаем коммит
-            settings_id = new_settings.id
-        
-        token = await get_redcheck_token(settings, db=db, settings_id=settings_id)
+        # Проверяем, есть ли сохранённый токен и не истёк ли он
+        if existing_settings.token and existing_settings.token_expires_at:
+            from datetime import datetime, timedelta
+            # Добавляем буфер 5 минут для безопасного обновления
+            effective_expiry = existing_settings.token_expires_at - timedelta(minutes=5)
+            if datetime.utcnow() < effective_expiry:
+                token = existing_settings.token
+                logger.info(f"✅ Используем сохранённый токен (истекает: {existing_settings.token_expires_at})")
+                token_received = True
+            else:
+                logger.info(f"⚠️ Токен истёк или истекает скоро (истекает: {existing_settings.token_expires_at}), запрашиваем новый")
+        elif existing_settings.token:
+            # Если нет времени истечения, считаем токен действующим
+            token = existing_settings.token
+            logger.info(f"✅ Используем сохранённый токен (время истечения не установлено)")
+            token_received = True
+    else:
+        # Создаем новую запись для сохранения токена
+        new_settings = IntegrationSettings(
+            name="redcheck",
+            api_url=settings.api_url,
+            api_version=settings.api_version,
+            username=settings.username,
+            password=settings.password,
+            auth_type=settings.auth_type,
+            timeout=settings.timeout,
+            verify_ssl=settings.verify_ssl,
+            enabled=False  # Пока не включаем, только тестируем
+        )
+        db.add(new_settings)
+        await db.flush()  # Получаем ID но не делаем коммит
+        settings_id = new_settings.id
+    
+    # Если токена нет или он истёк, пытаемся получить новый (только если есть учётные данные)
+    if not token and settings.auth_type == "basic" and settings.username and settings.password:
+        # При тестировании подключения запрашиваем новый токен только если нет действующего сохранённого
+        token = await get_redcheck_token(settings, db=db, settings_id=settings_id, force_refresh=True)
         if token:
             token_received = True
             logger.info("✅ Токен успешно получен и сохранён в БД")
