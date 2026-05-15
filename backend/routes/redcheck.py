@@ -1007,8 +1007,9 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
     # Получаем все хосты из RedCheck (проходим по всем страницам)
     all_hosts = []
     page = 1
-    per_page = 100
+    per_page = 100  # Запрашиваем по 100 записей за раз
     total_count = None
+    actual_page_size = None  # Реальный размер страницы из ответа API
     
     while True:
         logger.info(f"[DEBUG] Запрос страницы {page}...")
@@ -1031,6 +1032,12 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
         
         # Извлекаем хосты из разных возможных форматов ответа
         hosts = hosts_data.get("items", []) or hosts_data.get("result", {}).get("items", []) or []
+        
+        # Получаем реальный размер страницы из ответа API
+        if actual_page_size is None:
+            actual_page_size = hosts_data.get("size", len(hosts))
+            logger.info(f"[DEBUG] Размер страницы из ответа API: {actual_page_size}")
+        
         all_hosts.extend(hosts)
         
         # Получаем общее количество записей (если есть в ответе)
@@ -1054,8 +1061,9 @@ async def sync_hosts(db: AsyncSession = Depends(get_db)):
             logger.info(f"[DEBUG] Получены все {total_count} записей, выход из цикла")
             break
         
-        if len(hosts) < per_page:
-            logger.info(f"[DEBUG] Последняя страница {page} (получено {len(hosts)} < {per_page}), выход из цикла")
+        # Используем реальный размер страницы из ответа API для проверки последней страницы
+        if len(hosts) < actual_page_size:
+            logger.info(f"[DEBUG] Последняя страница {page} (получено {len(hosts)} < {actual_page_size}), выход из цикла")
             break
         
         page += 1
