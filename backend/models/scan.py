@@ -158,7 +158,3 @@ class RedCheckScan(Base):
             "synced_at": self.synced_at.isoformat() if self.synced_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None
         }
-
-
-# Добавим обратные связи
-Scan.results = relationship("ScanResult", back_populates="scan", cascade="all, delete-orphan")

@@ -119,7 +119,8 @@ body { background-color: var(--bg-body); color: var(--text-primary); font-family
 }
 
 /* В свернутом состоянии скрываем весь контент кроме кнопки */
-.sidebar.collapsed .sidebar-content-wrapper {
+.sidebar.collapsed .sidebar-content-wrapper,
+#sidebar-container.collapsed .sidebar-content-wrapper {
     display: none !important;
 }
 
