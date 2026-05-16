@@ -243,7 +243,7 @@ async def get_asset_page(request: Request, asset_id: int, db: AsyncSession = Dep
     service = AssetService(db)
     change_logs = await service.get_change_logs(asset_id, limit=50)
     
-    return templates.TemplateResponse("asset_detail.html", {
+    return templates.TemplateResponse("assets/asset_detail.html", {
         "request": request,
         "asset": asset,
         "change_logs": change_logs

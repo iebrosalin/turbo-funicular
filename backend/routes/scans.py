@@ -111,7 +111,7 @@ class XmlImportRequest(BaseModel):
 @router.get("/utilities-check")
 async def utilities_check_page(request: Request):
     """Страница проверки установки утилит."""
-    return templates.TemplateResponse("utilities_check.html", {"request": request})
+    return templates.TemplateResponse("scans/utilities_check.html", {"request": request})
 
 
 @router.get("/check-utilities")
@@ -1753,7 +1753,7 @@ async def delete_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
 @router.get("/history", response_class=HTMLResponse)
 async def scan_history_page(request: Request):
     """Страница истории сканирований."""
-    return templates.TemplateResponse("scan_history.html", {"request": request})
+    return templates.TemplateResponse("scans/scan_history.html", {"request": request})
 
 
 # ==========================================
