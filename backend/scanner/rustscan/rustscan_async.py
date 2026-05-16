@@ -1,32 +1,51 @@
 import asyncio
 import logging
 import os
-import tempfile
-import shutil
 import re
-import json
-from typing import Dict, Any, List, Optional
-from ..base import BaseScanner
+from typing import Dict, Any, List, Optional, Union
+from ..base import BaseScanner, ScanResult
+from backend.models.target import Target
 
 logger = logging.getLogger(__name__)
 
 class RustscanScanner(BaseScanner):
-    def __init__(self, job_id: int, target: str, ports: Optional[str] = None, 
-                 nmap_scripts: Optional[str] = None, output_dir: Optional[str] = None):
-        # Используем переменную окружения или значение по умолчанию
-        if output_dir is None:
-            output_dir = os.getenv('SCANNER_OUTPUT_DIR', '/app/scanner_output')
-        super().__init__(job_id, output_dir)
-        self.target = target
+    """Сканер на основе rustscan для быстрого сканирования портов"""
+    
+    SCANNER_NAME = "rustscan"
+    SUPPORTS_MULTIPLE_TARGETS = False  # Только один target за раз
+    DEFAULT_TIMEOUT = 300
+    
+    def __init__(
+        self, 
+        job_id: int, 
+        target: Union[str, Target], 
+        ports: Optional[str] = None,
+        nmap_scripts: Optional[str] = None, 
+        output_dir: Optional[str] = None
+    ):
+        """
+        Инициализация сканера Rustscan.
+        
+        Args:
+            job_id: ID задачи сканирования
+            target: Цель сканирования (IP или домен)
+            ports: Порты для сканирования
+            nmap_scripts: NSE скрипты для выполнения после сканирования
+            output_dir: Директория для временных файлов
+        """
+        super().__init__(job_id, target, output_dir)
         self.ports = ports
         self.nmap_scripts = nmap_scripts
-        # Создаем временную директорию для файлов результатов
-        self.temp_dir = None
 
-    async def scan(self) -> Dict[str, Any]:
-        # Создаем временную директорию для хранения файлов результатов
-        self.temp_dir = tempfile.mkdtemp(prefix=f"rustscan_job_{self.job_id}_")
-        logger.info(f"[RustscanScanner] Создана временная директория: {self.temp_dir}")
+    async def scan(self) -> ScanResult:
+        """
+        Выполняет сканирование Rustscan.
+        
+        Returns:
+            ScanResult: Результаты сканирования с открытыми портами
+        """
+        # Создаем временную директорию через базовый класс
+        self._create_temp_dir(prefix=f"rustscan_job_{self.job_id}_")
         
         # Пути к временным файлам
         stdout_file = os.path.join(self.temp_dir, "stdout.txt")
@@ -43,7 +62,7 @@ class RustscanScanner(BaseScanner):
             # Run without nmap if no scripts specified to avoid auto-triggering
             cmd.extend(["--", "--no-nmap"])
             
-        logger.info(f"[RustscanScanner] Запуск команды: {' '.join(cmd)}")
+        logger.info(f"[{self.__class__.__name__}] Запуск команды: {' '.join(cmd)}")
         
         # Открываем файл для записи stdout
         with open(stdout_file, 'w', encoding='utf-8') as stdout_f:
@@ -53,7 +72,7 @@ class RustscanScanner(BaseScanner):
                 stderr=asyncio.subprocess.PIPE
             )
         
-        logger.info(f"[RustscanScanner] Запущен процесс Rustscan для задачи {self.job_id}, PID: {process.pid}")
+        logger.info(f"[{self.__class__.__name__}] Запущен процесс Rustscan для задачи {self.job_id}, PID: {process.pid}")
         
         stderr = await process.stderr.read()
         stderr_str = stderr.decode('utf-8', errors='ignore') if stderr else ""
@@ -62,41 +81,40 @@ class RustscanScanner(BaseScanner):
             for line in stderr_str.splitlines():
                 logger.debug(f"[Rustscan] {line}")
                 
-        logger.info(f"[RustscanScanner] Процесс Rustscan завершен с кодом {process.returncode}")
+        logger.info(f"[{self.__class__.__name__}] Процесс Rustscan завершен с кодом {process.returncode}")
         
         if process.returncode != 0:
-            logger.error(f"[RustscanScanner] Rustscan вернул код ошибки {process.returncode}. stderr: {stderr_str}")
+            logger.error(f"[{self.__class__.__name__}] Rustscan вернул код ошибки {process.returncode}. stderr: {stderr_str}")
         
-        # Читаем stdout из временного файла
-        stdout_str = ""
-        try:
-            if os.path.exists(stdout_file):
-                with open(stdout_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    stdout_str = f.read()
-                logger.info(f"[RustscanScanner] Прочитан stdout файл, размер: {len(stdout_str)} байт")
-        except Exception as e:
-            logger.error(f"[RustscanScanner] Ошибка чтения stdout файла: {e}", exc_info=True)
+        # Читаем stdout из временного файла через базовый класс
+        stdout_str = self._read_file_content(stdout_file, "stdout")
         
         # Парсим вывод для извлечения данных
         result = self._parse_output(stdout_str, stderr_str)
         
         # Очищаем временную директорию
-        try:
-            shutil.rmtree(self.temp_dir)
-            logger.info(f"[RustscanScanner] Временная директория удалена: {self.temp_dir}")
-        except Exception as e:
-            logger.warning(f"[RustscanScanner] Не удалось удалить временную директорию: {e}")
+        self._cleanup_temp_dir()
         
         # Формируем результат
         return {
             "hostname": result.get("hostname", self.target),
             "ip": result.get("ip", self.target),
             "ports": result.get("ports", []),
-            "raw_output": stdout_str + "\n" + stderr_str  # raw из временного файла
+            "raw_output": stdout_str + "\n" + stderr_str
         }
 
-    def _parse_output(self, stdout: str, stderr: str) -> Dict[str, Any]:
-        result = {
+    def _parse_output(self, stdout: str, stderr: str) -> ScanResult:
+        """
+        Парсит вывод Rustscan.
+        
+        Args:
+            stdout: Вывод stdout утилиты
+            stderr: Вывод stderr утилиты
+            
+        Returns:
+            ScanResult: Распарсенные данные (hostname, ip, ports)
+        """
+        result: ScanResult = {
             "hostname": "",
             "ip": "",
             "ports": []

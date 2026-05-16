@@ -1,34 +1,57 @@
 import asyncio
 import logging
 import os
-import tempfile
-import shutil
 import xml.etree.ElementTree as ET
-from typing import Dict, Any, List, Optional
-from ..base import BaseScanner
+from typing import Dict, Any, List, Optional, Union
+from ..base import BaseScanner, ScanResult
+from backend.models.target import Target
 
 logger = logging.getLogger(__name__)
 
 class NmapScanner(BaseScanner):
-    def __init__(self, job_id: int, target: str, ports: Optional[str] = None, 
-                 scripts: Optional[str] = None, version_detect: bool = True, 
-                 os_detect: bool = True, output_dir: Optional[str] = None):
-        # Используем переменную окружения или значение по умолчанию
-        if output_dir is None:
-            output_dir = os.getenv('SCANNER_OUTPUT_DIR', '/app/scanner_output')
-        super().__init__(job_id, output_dir)
-        self.target = target
+    """Сканер на основе nmap для детального сканирования портов и сервисов"""
+    
+    SCANNER_NAME = "nmap"
+    SUPPORTS_MULTIPLE_TARGETS = True  # Поддерживает списки через -iL
+    DEFAULT_TIMEOUT = 600
+    
+    def __init__(
+        self, 
+        job_id: int, 
+        target: Union[str, Target], 
+        ports: Optional[str] = None,
+        scripts: Optional[str] = None, 
+        version_detect: bool = True,
+        os_detect: bool = True, 
+        output_dir: Optional[str] = None
+    ):
+        """
+        Инициализация сканера Nmap.
+        
+        Args:
+            job_id: ID задачи сканирования
+            target: Цель сканирования (IP, домен или сеть)
+            ports: Порты для сканирования (например, "80,443" или "1-1000")
+            scripts: NSE скрипты для выполнения
+            version_detect: Определять версии сервисов (-sV)
+            os_detect: Определять ОС (-O)
+            output_dir: Директория для временных файлов
+        """
+        super().__init__(job_id, target, output_dir)
         self.ports = ports
         self.scripts = scripts
         self.version_detect = version_detect
         self.os_detect = os_detect
-        # Создаем временную директорию для файлов результатов
-        self.temp_dir = None
 
-    async def scan(self) -> Dict[str, Any]:
-        # Создаем временную директорию для хранения файлов результатов
-        self.temp_dir = tempfile.mkdtemp(prefix=f"nmap_job_{self.job_id}_")
-        logger.info(f"[NmapScanner] Создана временная директория: {self.temp_dir}")
+    async def scan(self) -> ScanResult:
+        """
+        Выполняет сканирование Nmap.
+        
+        Returns:
+            ScanResult: Результаты сканирования с портами, сервисами и ОС
+        """
+        # Создаем временную директорию через базовый класс
+        self._create_temp_dir(prefix=f"nmap_job_{self.job_id}_")
         
         # Пути к временным файлам
         xml_file = os.path.join(self.temp_dir, "output.xml")
@@ -57,7 +80,7 @@ class NmapScanner(BaseScanner):
         
         cmd.append(self.target)
         
-        logger.info(f"[NmapScanner] Запуск команды: {' '.join(cmd)}")
+        logger.info(f"[{self.__class__.__name__}] Запуск команды: {' '.join(cmd)}")
         
         # Открываем файл для записи stdout
         with open(stdout_file, 'w', encoding='utf-8') as stdout_f:
@@ -67,7 +90,7 @@ class NmapScanner(BaseScanner):
                 stderr=asyncio.subprocess.PIPE
             )
         
-        logger.info(f"[NmapScanner] Запущен процесс Nmap для задачи {self.job_id}, PID: {process.pid}")
+        logger.info(f"[{self.__class__.__name__}] Запущен процесс Nmap для задачи {self.job_id}, PID: {process.pid}")
         
         stderr = await process.stderr.read()
         stderr_str = stderr.decode('utf-8', errors='ignore') if stderr else ""
@@ -76,76 +99,44 @@ class NmapScanner(BaseScanner):
             for line in stderr_str.splitlines():
                 logger.debug(f"[Nmap] {line}")
                 
-        logger.info(f"[NmapScanner] Процесс Nmap завершен с кодом {process.returncode}")
+        logger.info(f"[{self.__class__.__name__}] Процесс Nmap завершен с кодом {process.returncode}")
         
         if process.returncode != 0:
-            logger.error(f"[NmapScanner] Nmap вернул код ошибки {process.returncode}. stderr: {stderr_str}")
+            logger.error(f"[{self.__class__.__name__}] Nmap вернул код ошибки {process.returncode}. stderr: {stderr_str}")
         
-        # Читаем результаты из временных файлов
-        xml_output = ""
-        gnmap_output = ""
-        normal_output = ""
-        stdout_output = ""
-        
-        # Проверяем существование и размер файлов
-        for f_path, f_name in [(xml_file, "XML"), (gnmap_file, "Grepable"), (normal_file, "Normal"), (stdout_file, "Stdout")]:
-            if os.path.exists(f_path):
-                file_size = os.path.getsize(f_path)
-                logger.info(f"[NmapScanner] Файл {f_name} существует, размер: {file_size} байт")
-                if file_size == 0:
-                    logger.warning(f"[NmapScanner] Файл {f_name} пустой!")
-            else:
-                logger.error(f"[NmapScanner] Файл {f_name} не найден по пути {f_path}")
-        
-        try:
-            if os.path.exists(xml_file):
-                with open(xml_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    xml_output = f.read()
-                logger.info(f"[NmapScanner] Прочитан XML файл, размер: {len(xml_output)} байт")
-                if not xml_output.strip():
-                    logger.error("[NmapScanner] XML файл прочитан, но содержимое пустое!")
-            
-            if os.path.exists(gnmap_file):
-                with open(gnmap_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    gnmap_output = f.read()
-                    logger.info(f"[NmapScanner] Прочитан Grepable файл, размер: {len(gnmap_output)} байт")
-                    
-            if os.path.exists(normal_file):
-                with open(normal_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    normal_output = f.read()
-                    logger.info(f"[NmapScanner] Прочитан Normal файл, размер: {len(normal_output)} байт")
-            
-            if os.path.exists(stdout_file):
-                with open(stdout_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    stdout_output = f.read()
-                    logger.info(f"[NmapScanner] Прочитан Stdout файл, размер: {len(stdout_output)} байт")
-        except Exception as e:
-            logger.error(f"[NmapScanner] Ошибка чтения файлов результатов: {e}", exc_info=True)
-            raise
+        # Читаем результаты из временных файлов через базовый класс
+        xml_output = self._read_file_content(xml_file, "XML")
+        gnmap_output = self._read_file_content(gnmap_file, "Grepable")
+        normal_output = self._read_file_content(normal_file, "Normal")
         
         # Парсим XML для извлечения данных
         result = self._parse_output(xml_output)
         
         # Очищаем временную директорию
-        try:
-            shutil.rmtree(self.temp_dir)
-            logger.info(f"[NmapScanner] Временная директория удалена: {self.temp_dir}")
-        except Exception as e:
-            logger.warning(f"[NmapScanner] Не удалось удалить временную директорию: {e}")
+        self._cleanup_temp_dir()
         
         return {
             "hostname": result.get("hostname", self.target),
             "ip": result.get("ip", self.target),
             "ports": result.get("ports", []),
             "os": result.get("os", ""),
-            "raw_output": normal_output,  # raw = normal format из файла
+            "raw_output": normal_output,
             "output_xml": xml_output,
             "output_gnmap": gnmap_output,
             "output_normal": normal_output
         }
 
-    def _parse_output(self, xml_str: str) -> Dict[str, Any]:
-        result = {
+    def _parse_output(self, xml_str: str) -> ScanResult:
+        """
+        Парсит XML вывод Nmap.
+        
+        Args:
+            xml_str: XML строка с результатами сканирования
+            
+        Returns:
+            ScanResult: Распарсенные данные (hostname, ip, ports, os)
+        """
+        result: ScanResult = {
             "hostname": "",
             "ip": "",
             "ports": [],
