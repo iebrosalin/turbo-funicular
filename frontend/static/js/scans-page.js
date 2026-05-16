@@ -850,6 +850,61 @@ export class ScanResultsController {
     }
   }
 
+  async #submitFpingScan(form) {
+    
+    const targetsInput = document.getElementById('fpingTarget');
+    let targetsText = targetsInput ? targetsInput.value.trim() : '';
+    const fileInput = document.getElementById('fpingFile');
+
+    
+    
+    if (fileInput?.files?.length > 0) {
+      try {
+        const fileContent = await this.#readFileAsText(fileInput.files[0]);
+        const fileTargets = fileContent.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+        if (targetsText) {
+          fileTargets.push(...targetsText.split('\n').map(l => l.trim()).filter(l => l));
+        }
+        targetsText = fileTargets.join('\n');
+        
+      } catch (error) { 
+        // Utils.showNotification('Ошибка чтения файла: ' + error.message, 'danger'); 
+        return; 
+      }
+    }
+
+    if (!targetsText) { 
+      // Utils.showNotification('Введите цели для fping', 'warning'); 
+      return; 
+    }
+
+    try {
+      
+      await Utils.apiRequest('/api/scans/fping', {
+        method: 'POST',
+        body: JSON.stringify({
+          target: targetsText,
+          cli_args: document.getElementById('fpingCustomArgs')?.value || '',
+          count: parseInt(document.getElementById('fpingCount')?.value) || 3,
+          interval: parseInt(document.getElementById('fpingPeriod')?.value) || 100,
+          timeout: parseInt(document.getElementById('fpingTimeout')?.value) || 500,
+          save_assets: document.getElementById('fpingSaveAssets')?.checked ?? true,
+          group_ids: Array.from(document.getElementById('fpingGroups')?.selectedOptions || []).map(opt => opt.value)
+        })
+      });
+      
+      // Utils.showNotification('Сканирование Fping запущено', 'success');
+      
+      // Сбрасываем форму и обновляем списки
+      form.reset();
+      
+      await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
+    } catch (error) {
+      console.error('[ScanResultsController] Fping scan error:', error);
+      // Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
+    }
+  }
+
   #getDownloadLinks(job) {
     const base = `/api/scan-job/${job.id}/download`;
     // Используем job_id как основной идентификатор, scan_id может быть undefined
