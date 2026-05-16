@@ -74,6 +74,9 @@ class FpingScanRequest(BaseModel):
     target: str
     args: Optional[str] = None
     custom_args: Optional[str] = None
+    count: int = 3
+    interval: int = 100
+    timeout: int = 500
     save_assets: bool = True
     group_ids: Optional[List[int]] = None
 
@@ -843,6 +846,9 @@ async def run_fping_scan(
     target = request_data.target
     args = request_data.args
     custom_args = request_data.custom_args
+    count = request_data.count
+    interval = request_data.interval
+    timeout = request_data.timeout
     save_assets = request_data.save_assets
     group_ids = request_data.group_ids
     
@@ -856,6 +862,9 @@ async def run_fping_scan(
     logger.info(f"  - target: {target}")
     logger.info(f"  - args: {args}")
     logger.info(f"  - custom_args: {custom_args}")
+    logger.info(f"  - count: {count}")
+    logger.info(f"  - interval: {interval}")
+    logger.info(f"  - timeout: {timeout}")
     logger.info(f"  - save_assets: {save_assets}")
     logger.info(f"  - group_ids: {group_ids}")
     
@@ -896,6 +905,9 @@ async def run_fping_scan(
         parameters = {
             "args": args,
             "custom_args": custom_args,
+            "count": count,
+            "interval": interval,
+            "timeout": timeout,
             "save_assets": save_assets,
             "group_ids": group_ids,
             "target": target

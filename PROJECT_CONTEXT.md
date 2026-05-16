@@ -151,6 +151,12 @@
   - Несколько представлений: таблица, карточки, менеджер групп.
   - Фильтрация, поиск, массовые операции.
   - Назначение активов в группы прямо из списка.
+- **Сканеры (Полная реализация):**
+  - **Nmap:** Форма с поддержкой CSV (drag-and-drop + textarea), мульти-выбор групп, опции known_ports_only/save_assets.
+  - **Rustscan:** Форма с мульти-выбором групп, опциями known_ports_only/save_assets/run_nmap_after/nmap_args/nmap_scripts.
+  - **Dig:** Форма с загрузкой файлов (.txt/.csv), опцией save_assets, мульти-выбор групп.
+  - **Fping:** Форма с настройками count/timeout/interval/broadcast/ping_all, мульти-выбор групп, опция save_assets.
+  - **Общее:** Real-time обновление статуса очередей, история сканирований, модальные окна импорта.
 
 ---
 
@@ -158,13 +164,16 @@
 
 | Функционал | JS Модуль | API Endpoint | Страница |
 | :--- | :--- | :--- | :--- |
-| **Сканеры (E2E)** | `test_scanners_e2e.py` | `POST /api/scans/start/*` | `/scans` |
+| **Сканеры (E2E)** | `test_scanners_e2e.py`, `scans-page.js` | `POST /api/scans/start/{nmap,rustscan,dig,fping}` | `/scans` |
 | **Фильтры** | `FilterBuilder` | `GET /api/assets?rules=...` | `/assets-table`, `/assets-cards` |
 | **Схема полей** | `Utils.getAssetSchema()` | `GET /api/assets/schema` | Все страницы активов |
 | **Дерево групп** | `TreeManager` | `GET /api/groups/tree` | `/groups-manager` |
 | **RedCheck Sync** | `redcheck-page.js` | `POST /api/redcheck/sync` | `/redcheck` |
 | **RedCheck Hosts** | `redcheck-hosts.js` | `GET /api/redcheck/hosts` | `/redcheck` |
 | **Управление активами** | `assets-manager.js` | `GET /api/assets-manager` | `/assets-manager` |
+| **Группы в сканерах** | `scans-page.js` (#loadGroupsForForms) | `GET /api/groups` | `/scans` |
+| **Статус очередей** | `scans-page.js` (#updateQueueStatuses) | `GET /api/scans/queue/status` | `/scans` |
+| **CSV обработка** | `scans-page.js` (#initCsvHandling, #validateCsv) | N/A (client-side) | `/scans` |
 
 ---
 

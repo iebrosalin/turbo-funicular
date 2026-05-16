@@ -344,6 +344,12 @@
                             <div class="form-text">Поддерживаются списки IP через запятую, диапазоны и CIDR.</div>
                         </div>
                         <div class="col-md-4">
+                            <label for="fpingFile" class="form-label">Или загрузить файл со списком целей</label>
+                            <input type="file" class="form-control" id="fpingFile" accept=".txt,.csv">
+                            <div class="form-text">Файл должен содержать по одному IP/хосту на строку</div>
+                        </div>
+
+                        <div class="col-md-4">
                             <label for="fpingCount" class="form-label">Количество пингов</label>
                             <input type="number" class="form-control" id="fpingCount" value="3" min="1" max="10">
                             <div class="form-text">Сколько раз пинговать каждый хост</div>
