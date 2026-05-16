@@ -184,7 +184,7 @@ class CSVParser:
             if cell_lower in cls.TARGET_COLUMNS:
                 return True
         
-        # Если все ячейки выглядят как заголовки (не IP и не числа)
+        # Если все ячейки выглядят как заголовки (не IP и не домены)
         all_headers = True
         for cell in row:
             cell = cell.strip()
@@ -204,9 +204,12 @@ class CSVParser:
             if col.lower().strip() in cls.TARGET_COLUMNS:
                 indices.append(idx)
         
-        # Если не нашли, возвращаем первую колонку
+        # Если не нашли, возвращаем первую колонку только если это не заголовок
         if not indices and header:
-            indices = [0]
+            # Проверяем, не является ли первая колонка заголовком типа "ip" или "hostname"
+            first_col = header[0].lower().strip()
+            if first_col not in cls.TARGET_COLUMNS:
+                indices = [0]
         
         return indices
     
