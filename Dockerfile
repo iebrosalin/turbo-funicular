@@ -1,76 +1,37 @@
-FROM ubuntu:22.04
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    python3-pip \
-    python3-venv \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Установка системных зависимостей для nmap, playwright, компиляции Rust и других утилит
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    nmap \
-    dnsutils \
-    fping \
-    build-essential \
-    libpq-dev \
+# Install system dependencies including git
+RUN apt-get update && apt-get install -y \
+    git \
     curl \
-    wget \
-    ca-certificates \
-    unzip \
-    # Playwright dependencies
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libpango-1.0-0 \
-    libcairo2 \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# Установка Rust и Cargo
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
 
-# Установка RustScan через cargo install
-RUN cargo install rustscan
+# Copy backend requirements and install Python dependencies
+COPY app/backend/requirements.txt /app/backend/
+RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 
-# Копирование файлов зависимостей
-COPY requirements.txt .
+# Copy frontend files and install dependencies
+COPY app/frontend/package*.json /app/frontend/
+WORKDIR /app/frontend
+RUN npm install
 
-# Установка Python зависимостей
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy application code
+WORKDIR /app
+COPY app/ /app/
 
-# Установка браузеров для Playwright (закомментировано для ускорения сборки)
-# ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-# RUN playwright install chromium && \
-#     playwright install firefox && \
-#     playwright install webkit
+# Create data directory
+RUN mkdir -p /app/data/projects
 
-# Создание директории для базы данных (если используется SQLite)
-RUN mkdir -p /app/instance
+# Expose ports
+EXPOSE 5000 3000
 
-# Переменные окружения
-ENV FLASK_APP=app.py
-ENV PYTHONUNBUFFERED=1
-ENV FLASK_DEBUG=1
-
-# Порт приложения
-EXPOSE 5000
-
-# Команда запуска: для разработки используем flask run с автоперезагрузкой
-# Для production замените на gunicorn
-CMD ["flask", "run", "--host=0.0.0.0", "--port=5000", "--reload"]
+# Start both services
+CMD ["sh", "-c", "cd /app/backend && python app.py & cd /app/frontend && npm run dev"]
