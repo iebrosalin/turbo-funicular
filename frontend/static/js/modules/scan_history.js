@@ -263,10 +263,10 @@ class ScanHistoryManager {
                 const err = await response.json();
                 throw new Error(err.detail || 'Ошибка повтора');
             }
-            Utils.showNotification('Задача повтора создана', 'success');
+            // Utils.showNotification('Задача повтора создана', 'success');
             this.loadHistory();
         } catch (error) {
-            Utils.showNotification(`Ошибка: ${error.message}`, 'danger');
+            // Utils.showNotification(`Ошибка: ${error.message}`, 'danger');
         }
     }
 
@@ -279,10 +279,10 @@ class ScanHistoryManager {
         try {
             const response = await fetch(`/api/scans/${scanId}/cancel`, { method: 'POST' });
             if (!response.ok) throw new Error('Ошибка отмены');
-            Utils.showNotification('Отправка команды отмены...', 'info');
+            // Utils.showNotification('Отправка команды отмены...', 'info');
             this.loadHistory();
         } catch (error) {
-            Utils.showNotification(`Ошибка: ${error.message}`, 'danger');
+            // Utils.showNotification(`Ошибка: ${error.message}`, 'danger');
         }
     }
 
@@ -295,10 +295,10 @@ class ScanHistoryManager {
         try {
             const response = await fetch(`/api/scans/${scanId}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Ошибка удаления');
-            Utils.showNotification('Запись удалена', 'success');
+            // Utils.showNotification('Запись удалена', 'success');
             this.loadHistory();
         } catch (error) {
-            Utils.showNotification(`Ошибка: ${error.message}`, 'danger');
+            // Utils.showNotification(`Ошибка: ${error.message}`, 'danger');
         }
     }
 
@@ -311,10 +311,10 @@ class ScanHistoryManager {
         try {
             const response = await fetch(`/api/scans/${scanId}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Ошибка удаления');
-            Utils.showNotification('Задача удалена', 'success');
+            // Utils.showNotification('Задача удалена', 'success');
             this.loadHistory();
         } catch (error) {
-            Utils.showNotification(`Ошибка: ${error.message}`, 'danger');
+            // Utils.showNotification(`Ошибка: ${error.message}`, 'danger');
         }
     }
 

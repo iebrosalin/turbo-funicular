@@ -19,6 +19,7 @@ export class DashboardController {
     this.visibleColumns = ['ip_address', 'hostname', 'os_name', 'status', 'device_type', 'open_ports', 'source'];
     this.searchQuery = '';
     this.dashboardFilterBuilder = null;
+    this.filterRules = [];
     
     this.assetManager = new AssetManager('table-body');
     this.filterAutocomplete = new FilterAutocompleteManager();
@@ -30,6 +31,9 @@ export class DashboardController {
   async #init() {
     this.#loadStateFromURL();
     this.#setupEventListeners();
+    
+    // Инициализация конструктора фильтров ДО загрузки дерева
+    await this.#initFilterBuilder();
     
     // Инициализация дерева групп и загрузка данных
     await refreshGroupTree();
@@ -54,7 +58,7 @@ export class DashboardController {
         this.applyFilters();
       } catch (error) {
         console.error('Failed to load assets:', error);
-        Utils.showNotification('Не удалось загрузить активы', 'danger');
+        // Utils.showNotification('Не удалось загрузить активы', 'danger');
       }
     } else {
       // Если активы уже есть в store, инициализируем их
@@ -401,7 +405,7 @@ export class DashboardController {
     
     try {
       await Utils.apiRequest(`/api/assets/${id}`, { method: 'DELETE' });
-      Utils.showNotification('Актив удален', 'success');
+      // Utils.showNotification('Актив удален', 'success');
       
       // Полная перезагрузка данных с сервера для синхронизации
       await this.#reloadData();
@@ -410,7 +414,7 @@ export class DashboardController {
       this.applyFilters();
     } catch (err) {
       console.error('Delete failed:', err);
-      Utils.showNotification('Ошибка удаления: ' + (err.message), 'danger');
+      // Utils.showNotification('Ошибка удаления: ' + (err.message), 'danger');
     }
   }
 
@@ -425,14 +429,14 @@ export class DashboardController {
       this.applyFilters();
     } catch (error) {
       console.error('Failed to reload data:', error);
-      Utils.showNotification('Не удалось обновить данные', 'danger');
+      // // Utils.showNotification('Не удалось обновить данные', 'danger');
     }
   }
 
   async #confirmBulkMove() {
     const ids = store.getSelectedAssets();
     if (!ids.length) {
-      Utils.showNotification('Выберите активы для перемещения', 'warning');
+      // Utils.showNotification('Выберите активы для перемещения', 'warning');
       return;
     }
     
@@ -489,7 +493,7 @@ export class DashboardController {
       moveBtn.dataset.assetIds = JSON.stringify(ids);
       
     } catch (err) {
-      Utils.showNotification('Ошибка загрузки групп: ' + err.message, 'danger');
+      // Utils.showNotification('Ошибка загрузки групп: ' + err.message, 'danger');
     }
   }
   
@@ -550,7 +554,7 @@ export class DashboardController {
       moveBtn.dataset.assetIds = JSON.stringify([assetId]);
       
     } catch (err) {
-      Utils.showNotification('Ошибка загрузки групп: ' + err.message, 'danger');
+      // Utils.showNotification('Ошибка загрузки групп: ' + err.message, 'danger');
     }
   }
   
@@ -563,7 +567,7 @@ export class DashboardController {
           group_id: targetGroupId === '' ? null : parseInt(targetGroupId)
         })
       });
-      Utils.showNotification('Активы перемещены', 'success');
+      // Utils.showNotification('Активы перемещены', 'success');
       store.clearSelectedAssets();
       
       // Закрываем модальное окно
@@ -577,14 +581,14 @@ export class DashboardController {
       // Принудительно обновляем отображение
       this.applyFilters();
     } catch (err) {
-      Utils.showNotification('Ошибка массового перемещения: ' + err.message, 'danger');
+      // Utils.showNotification('Ошибка массового перемещения: ' + err.message, 'danger');
     }
   }
 
   #confirmBulkDelete() {
     const ids = store.getSelectedAssets();
     if (!ids.length) {
-      Utils.showNotification('Выберите активы для удаления', 'warning');
+      // Utils.showNotification('Выберите активы для удаления', 'warning');
       return;
     }
     
@@ -616,7 +620,7 @@ export class DashboardController {
         method: 'POST',
         body: JSON.stringify({ ids })
       });
-      Utils.showNotification('Активы удалены', 'success');
+      // Utils.showNotification('Активы удалены', 'success');
       store.clearSelectedAssets();
       
       // Закрываем модальное окно
@@ -630,7 +634,7 @@ export class DashboardController {
       // Принудительно обновляем отображение
       this.applyFilters();
     } catch (err) {
-      Utils.showNotification('Ошибка массового удаления: ' + err.message, 'danger');
+      // Utils.showNotification('Ошибка массового удаления: ' + err.message, 'danger');
     }
   }
 
@@ -672,7 +676,7 @@ export class DashboardController {
     const dataToExport = filteredOnly ? this.filteredAssets : this.allAssets;
     
     if (!dataToExport || dataToExport.length === 0) {
-      Utils.showNotification('Нет данных для экспорта', 'warning');
+      // Utils.showNotification('Нет данных для экспорта', 'warning');
       return;
     }
 
@@ -771,7 +775,7 @@ export class DashboardController {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
-    Utils.showNotification(`Экспорт выполнен: ${dataToExport.length} записей`, 'success');
+    // Utils.showNotification(`Экспорт выполнен: ${dataToExport.length} записей`, 'success');
   }
 }
 

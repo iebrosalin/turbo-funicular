@@ -553,10 +553,10 @@ export class ScanResultsController {
     if (!confirm('Удалить задачу из очереди?')) return;
     try {
       const res = await Utils.apiRequest(`/api/scans/scan-queue/${id}`, { method: 'DELETE' });
-      Utils.showNotification(res.message || 'Задача удалена', 'success');
+      // Utils.showNotification(res.message || 'Задача удалена', 'success');
       await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch(e) { 
-      Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
+      // Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
     }
   }
 
@@ -564,10 +564,10 @@ export class ScanResultsController {
     if (!confirm('Остановить задачу?')) return;
     try {
       const res = await Utils.apiRequest(`/api/scans/scan-job/${id}/stop`, { method: 'POST' });
-      Utils.showNotification(res.message || 'Задача остановлена', 'success');
+      // Utils.showNotification(res.message || 'Задача остановлена', 'success');
       await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch(e) { 
-      Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
+      // Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
     }
   }
 
@@ -575,10 +575,10 @@ export class ScanResultsController {
     if (!confirm('Повторить задачу?')) return;
     try {
       const res = await Utils.apiRequest(`/api/scans/scan-job/${id}/retry`, { method: 'POST' });
-      Utils.showNotification(res.message || 'Задача перезапущена', 'success');
+      // Utils.showNotification(res.message || 'Задача перезапущена', 'success');
       await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch(e) { 
-      Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
+      // Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
     }
   }
 
@@ -586,10 +586,10 @@ export class ScanResultsController {
     if (!confirm('Удалить из истории?')) return;
     try {
       const res = await Utils.apiRequest(`/api/scans/scan-job/${id}`, { method: 'DELETE' });
-      Utils.showNotification(res.message || 'Задача удалена из истории', 'success');
+      // Utils.showNotification(res.message || 'Задача удалена из истории', 'success');
       await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch(e) { 
-      Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
+      // Utils.showNotification('Ошибка: ' + e.message, 'danger'); 
     }
   }
 
@@ -619,11 +619,11 @@ export class ScanResultsController {
     const groupIds = groupSelect ? Array.from(groupSelect.selectedOptions).map(opt => opt.value) : [];
 
     if (!target && !knownOnly) { 
-      Utils.showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
+      // Utils.showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
       return; 
     }
     if (knownOnly && groupIds.length === 0) { 
-      Utils.showNotification('Выберите хотя бы одну группу', 'warning'); 
+      // Utils.showNotification('Выберите хотя бы одну группу', 'warning'); 
       return; 
     }
 
@@ -649,7 +649,7 @@ export class ScanResultsController {
         })
       });
       
-      Utils.showNotification('Сканирование Nmap запущено', 'success');
+      // Utils.showNotification('Сканирование Nmap запущено', 'success');
       
       // Закрываем модальное окно без перезагрузки страницы
       const modal = bootstrap.Modal.getInstance(document.getElementById('nmapModal'));
@@ -658,7 +658,7 @@ export class ScanResultsController {
       await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch (error) {
       console.error('[ScanResultsController] Nmap scan error:', error);
-      Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
+      // Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
     }
   }
 
@@ -674,11 +674,11 @@ export class ScanResultsController {
     const groupIds = groupSelect ? Array.from(groupSelect.selectedOptions).map(opt => opt.value) : [];
 
     if (!target && !knownOnly) { 
-      Utils.showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
+      // Utils.showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
       return; 
     }
     if (knownOnly && groupIds.length === 0) { 
-      Utils.showNotification('Выберите хотя бы одну группу', 'warning'); 
+      // Utils.showNotification('Выберите хотя бы одну группу', 'warning'); 
       return; 
     }
 
@@ -699,7 +699,7 @@ export class ScanResultsController {
         })
       });
       
-      Utils.showNotification('Сканирование Rustscan запущено', 'success');
+      // Utils.showNotification('Сканирование Rustscan запущено', 'success');
       
       // Закрываем модальное окно без перезагрузки страницы
       const modal = bootstrap.Modal.getInstance(document.getElementById('rustscanModal'));
@@ -708,7 +708,7 @@ export class ScanResultsController {
       await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch (error) {
       console.error('[ScanResultsController] Rustscan scan error:', error);
-      Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
+      // Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
     }
   }
 
@@ -731,13 +731,13 @@ export class ScanResultsController {
         targetsText = fileTargets.join('\n');
         
       } catch (error) { 
-        Utils.showNotification('Ошибка чтения файла: ' + error.message, 'danger'); 
+        // Utils.showNotification('Ошибка чтения файла: ' + error.message, 'danger'); 
         return; 
       }
     }
 
     if (!targetsText) { 
-      Utils.showNotification('Введите домен или загрузите файл', 'warning'); 
+      // Utils.showNotification('Введите домен или загрузите файл', 'warning'); 
       return; 
     }
 
@@ -760,7 +760,7 @@ export class ScanResultsController {
         })
       });
       
-      Utils.showNotification('Сканирование Dig запущено', 'success');
+      // Utils.showNotification('Сканирование Dig запущено', 'success');
       
       // Закрываем модальное окно без перезагрузки страницы
       const modal = bootstrap.Modal.getInstance(document.getElementById('digModal'));
@@ -769,7 +769,7 @@ export class ScanResultsController {
       await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
     } catch (error) {
       console.error('[ScanResultsController] Dig scan error:', error);
-      Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
+      // Utils.showNotification('Ошибка запуска сканирования: ' + error.message, 'danger');
     }
   }
 

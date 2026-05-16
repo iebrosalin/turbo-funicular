@@ -786,6 +786,31 @@ export class TreeManager {
       console.error('[ERROR tree.js] Ошибка обновления дерева:', err);
     }
   }
+  
+  /**
+   * Обновление дерева и счетчиков без полной перерисовки
+   * Используется после CRUD операций с группами
+   */
+  async updateGroupCounts() {
+    try {
+      const data = await Utils.apiRequest('/api/groups/tree');
+      let counts = {};
+      
+      if (data.flat && Array.isArray(data.flat)) {
+        data.flat.forEach(g => {
+          counts[g.id] = g.direct_count ?? g.count ?? g.asset_count ?? 0;
+        });
+        counts.ungrouped = data.ungrouped_count ?? 0;
+      } else if (data.counts) {
+        counts = data.counts;
+      }
+      
+      // Обновляем только бейджи со счетчиками
+      this.#updateCounts(counts);
+    } catch (err) {
+      console.error('[updateGroupCounts] Ошибка:', err);
+    }
+  }
   /**
    * Применение пользовательских фильтров
    * @param {Array} rules - Массив правил фильтрации
@@ -929,6 +954,7 @@ export const treeManager = new TreeManager();
 export const filterByGroup = (groupId, sourceFilter = null) => treeManager.filterByGroup(groupId, sourceFilter);
 export const loadAssets = (groupId = null, isUngrouped = false, sourceFilter = null) => treeManager.loadAssets(groupId, isUngrouped, sourceFilter);
 export const refreshGroupTree = () => treeManager.refresh();
+export const updateGroupCounts = () => treeManager.updateGroupCounts();
 
 // Обработчик кнопки импорта сканирования
 document.addEventListener('DOMContentLoaded', function() {

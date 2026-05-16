@@ -1,30 +1,11 @@
 import { Utils } from './utils.js';
-import { refreshGroupTree, loadAssets, filterByGroup, treeManager } from './tree.js';
+import { refreshGroupTree, loadAssets, filterByGroup, treeManager, updateGroupCounts } from './tree.js';
 import { store } from '../store.js';
 import { FilterBuilder } from '../filter-builder.js';
 
 export class GroupManager {
   constructor() {
-    this.FILTER_FIELDS = [
-      { value: 'ip_address', text: 'IP Адрес' }, 
-      { value: 'hostname', text: 'Hostname' },
-      { value: 'os_name', text: 'ОС (Название)' },
-      { value: 'os_family', text: 'ОС (Семейство)' },
-      { value: 'os_version', text: 'ОС (Версия)' }, 
-      { value: 'device_role', text: 'Роль устройства' },
-      { value: 'open_ports', text: 'Открытые порты' }, 
-      { value: 'status', text: 'Статус' },
-      { value: 'description', text: 'Описание' },
-      { value: 'tags', text: 'Теги' },
-      { value: 'notes', text: 'Заметки' }, 
-      { value: 'scanners_used', text: 'Сканеры (JSON)' }
-    ];
-    this.FILTER_OPS = [
-      { value: 'eq', text: '=' }, 
-      { value: 'ne', text: '≠' }, 
-      { value: 'like', text: 'содержит' }, 
-      { value: 'in', text: 'в списке' }
-    ];
+    // FILTER_FIELDS и FILTER_OPS больше не используются, так как FilterBuilder загружает схему из API
     this.scansPollingInterval = null;
     this.currentGroupId = null;
     
@@ -63,7 +44,28 @@ export class GroupManager {
     // Делегирование событий для динамических правил
     document.getElementById('group-filter-root')?.addEventListener('click', (e) => {
       if (e.target.classList.contains('btn-remove-rule')) {
-        e.target.closest('.filter-condition')?.remove();
+        e.target.closest('.filter-rule-row')?.remove();
+        if (this.dynamicFilterBuilder) {
+          this.dynamicFilterBuilder.updateRulesFromDOM();
+        }
+      }
+    });
+    
+    // Обработчик кнопки "Проверить" правила
+    document.getElementById('btn-check-rules')?.addEventListener('click', async () => {
+      if (this.dynamicFilterBuilder) {
+        const rules = this.dynamicFilterBuilder.getRules();
+        console.log('[btn-check-rules] Проверка правил:', rules);
+        if (this.dynamicFilterBuilder.options.onCheck) {
+          await this.dynamicFilterBuilder.options.onCheck(rules);
+        }
+      }
+    });
+    
+    // Обработчик кнопки "Сбросить" правила
+    document.getElementById('btn-reset-rules')?.addEventListener('click', () => {
+      if (this.dynamicFilterBuilder) {
+        this.dynamicFilterBuilder.reset();
       }
     });
 
@@ -107,6 +109,23 @@ export class GroupManager {
           mode: 'modal',
           onApply: (rules) => {
             // Правила сохраняются в форму при отправке через getRules()
+            console.log('[FilterBuilder.onApply] Правила применены:', rules);
+          },
+          onCheck: async (rules) => {
+            // Проверка количества активов по правилам
+            try {
+              const params = new URLSearchParams();
+              if (rules && rules.length > 0) {
+                params.set('rules', JSON.stringify(rules));
+              }
+              const res = await fetch(`/api/assets?${params.toString()}&size=1`);
+              const data = await res.json();
+              const count = data.total || 0;
+              Utils.showFlashMessage('info', `Найдено активов: ${count}`);
+            } catch (e) {
+              console.error('[FilterBuilder.onCheck] Ошибка:', e);
+              Utils.showFlashMessage('danger', 'Ошибка проверки правил');
+            }
           },
           initialRules: []
         });
@@ -115,20 +134,11 @@ export class GroupManager {
   }
 
   addDynamicRule(field = '', op = 'eq', value = '') {
-    const container = document.getElementById('group-filter-root');
-    if (!container) return;
-    
-    const div = document.createElement('div');
-    div.className = 'filter-condition mb-2';
-    div.innerHTML = `
-      <div class="input-group input-group-sm">
-        <select class="form-select rule-field">${this.FILTER_FIELDS.map(f => `<option value="${f.value}" ${f.value===field?'selected':''}>${f.text}</option>`).join('')}</select>
-        <select class="form-select rule-op" style="max-width:100px">${this.FILTER_OPS.map(o => `<option value="${o.value}" ${o.value===op?'selected':''}>${o.text}</option>`).join('')}</select>
-        <input type="text" class="form-control rule-val" value="${value}" placeholder="Значение">
-        <button class="btn btn-outline-danger btn-remove-rule" type="button">×</button>
-      </div>
-    `;
-    container.appendChild(div);
+    // Этот метод больше не используется, так как FilterBuilder сам управляет правилами
+    // Оставляем для обратной совместимости, но перенаправляем на FilterBuilder
+    if (this.dynamicFilterBuilder) {
+      this.dynamicFilterBuilder.addRuleRow({ field, operation: op, value });
+    }
   }
 
   async showCreateGroupModal(parentId = null) {
@@ -249,23 +259,28 @@ export class GroupManager {
       this.dynamicFilterBuilder = null;
     }
     
+    // Сначала переключаем режим, чтобы создался FilterBuilder
     this.toggleGroupMode();
 
     // Инициализируем FilterBuilder с правилами из группы
     if (groupData.is_dynamic && groupData.filter_rules && groupData.filter_rules.length > 0) {
-      // Ждем пока toggleGroupMode создаст экземпляр, затем загружаем правила
+      // Ждем пока DOM обновится и FilterBuilder будет готов
       setTimeout(() => {
-        if (this.dynamicFilterBuilder) {
-          // Очищаем и добавляем правила через новый метод
+        if (this.dynamicFilterBuilder && this.dynamicFilterBuilder.rulesContainer) {
+          // Очищаем контейнер перед добавлением правил
+          this.dynamicFilterBuilder.rulesContainer.innerHTML = '';
+          this.dynamicFilterBuilder.rules = [];
+          
+          // Добавляем правила через addRuleRow с правильным маппингом полей
           groupData.filter_rules.forEach(rule => {
             this.dynamicFilterBuilder.addRuleRow({
               field: rule.field,
-              operation: rule.op,
+              op: rule.op || rule.operation,
               value: rule.value
             });
           });
         }
-      }, 100);
+      }, 150);
     }
 
     const modal = new bootstrap.Modal(modalEl, { backdrop: 'static' });
@@ -306,8 +321,8 @@ export class GroupManager {
 
         Utils.closeModalById('groupEditModal');
         
-        // Обновляем только дерево групп
-        await refreshGroupTree();
+        // Обновляем только счетчики групп без полной перерисовки дерева
+        await updateGroupCounts();
         
         console.log('[saveGroup] Корневая группа успешно переименована');
         return;
@@ -372,8 +387,8 @@ export class GroupManager {
         this.dynamicFilterBuilder = null;
       }
       
-      // Обновляем только дерево групп, без полной перезагрузки активов
-      await refreshGroupTree();
+      // Обновляем только счетчики групп без полной перерисовки дерева
+      await updateGroupCounts();
       
       // Если мы создали/обновили динамическую группу и находимся в режиме просмотра "all",
       // можно обновить активы, но только если это необходимо
@@ -430,7 +445,8 @@ export class GroupManager {
       console.log('[confirmDeleteGroup] Ответ сервера:', response.status);
       
       if (response.ok) {
-        await refreshGroupTree();
+        // Обновляем только счетчики групп без полной перерисовки
+        await updateGroupCounts();
         const currentGroupId = store.getState('currentGroupId');
         // Только если удалили текущую группу, перезагружаем активы
         if (currentGroupId == groupId) {
@@ -495,8 +511,8 @@ export class GroupManager {
 
       Utils.closeModalById('groupMoveModal');
       
-      // Обновляем только дерево групп
-      await refreshGroupTree();
+      // Обновляем только счетчики групп без полной перерисовки
+      await updateGroupCounts();
       
       console.log('[moveGroup] Группа успешно перемещена');
     } catch (e) {

@@ -33,7 +33,7 @@ export class ScanModalManager {
     const submitBtn = form.querySelector('button[type="submit"]');
 
     if (!fileInput?.files.length) {
-      Utils.showNotification('Пожалуйста, выберите файл.', 'warning');
+      // Utils.showNotification('Пожалуйста, выберите файл.', 'warning');
       return;
     }
 
@@ -71,7 +71,7 @@ export class ScanModalManager {
 
       if (response.ok) {
         this.modalManager.close('scanImportModal');
-        Utils.showNotification(`Импорт успешно завершен! Обработано активов: ${result.count || 0}`, 'success');
+        // Utils.showNotification(`Импорт успешно завершен! Обработано активов: ${result.count || 0}`, 'success');
         // Обновляем данные без перезагрузки страницы
         if (typeof window.scanController !== 'undefined' && window.scanController) {
           window.scanController.loadJobs();

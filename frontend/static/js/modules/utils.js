@@ -216,10 +216,19 @@ export class Utils {
 
   /**
    * Показ уведомлений (алиас для showFlashMessage)
+   * Проверяет настройку пользователя в localStorage
    * @param {string} message 
    * @param {string} type 
    */
   static showNotification(message, type = 'info') {
+    // Проверяем, включены ли уведомления в настройках пользователя
+    const notificationsEnabled = localStorage.getItem('notifications_enabled');
+    if (notificationsEnabled === 'false') {
+      // Уведомления отключены пользователем, выводим только в консоль
+      console.log(`[NOTIFICATION DISABLED] [${type}] ${message}`);
+      return;
+    }
+    
     const container = document.getElementById('notifications-container') || document.body;
     
     const alert = document.createElement('div');

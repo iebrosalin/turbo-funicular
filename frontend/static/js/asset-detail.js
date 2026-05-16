@@ -162,6 +162,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showNotification(type, message) {
+        // Уведомления временно отключены для отладки
+        console.log(`[AssetDetail NOTIFICATION DISABLED] [${type}] ${message}`);
+        return;
+        
         const container = document.getElementById('notificationContainer') || document.body;
         const alert = document.createElement('div');
         alert.className = `alert alert-${type} alert-dismissible fade show position-fixed`;

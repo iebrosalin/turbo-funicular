@@ -53,7 +53,8 @@ class AssetService:
                 match = True
                 for rule in rules:
                     field = rule.get('field', '')
-                    operation = rule.get('operation', '')
+                    # Поддерживаем оба формата: 'operation' (фронтенд) и 'op' (бэкенд)
+                    operation = rule.get('operation') or rule.get('op', '')
                     value = str(rule.get('value', '')).lower()
                     
                     # Получаем значение поля из актива (asset_dict теперь dict)
@@ -61,15 +62,15 @@ class AssetService:
                     
                     # Маппинг альтернативных имен полей
                     if field_value is None:
-                        if field == 'ip_address':
+                        if field == 'ip_address' or field == 'ip':
                             field_value = asset_dict.get('ip_address')
                         elif field == 'hostname':
                             field_value = asset_dict.get('hostname')
-                        elif field == 'os_family':
-                            field_value = asset_dict.get('os_family')
-                        elif field == 'device_role':
+                        elif field == 'os_family' or field == 'os':
+                            field_value = asset_dict.get('os_info') or asset_dict.get('os_name')
+                        elif field == 'device_role' or field == 'role':
                             field_value = asset_dict.get('device_type')
-                        elif field == 'open_ports':
+                        elif field == 'open_ports' or field == 'ports':
                             # open_ports теперь вычисляемое свойство, объединяем rustscan и nmap порты
                             rustscan_ports = asset_dict.get('rustscan_ports', []) or []
                             nmap_ports = asset_dict.get('nmap_ports', []) or []
@@ -78,13 +79,22 @@ class AssetService:
                             field_value = asset_dict.get('status')
                         elif field == 'source':
                             field_value = asset_dict.get('source')
-                        elif field == 'group_name':
+                        elif field == 'group_name' or field == 'group':
                             # Для группы берем имя первой группы
                             groups = asset_dict.get('groups', [])
                             if groups and len(groups) > 0:
                                 field_value = groups[0].get('name', '')
                             else:
                                 field_value = ''
+                        elif field == 'notes' or field == 'description':
+                            field_value = asset_dict.get('notes') or asset_dict.get('description')
+                        elif field == 'tags':
+                            tags = asset_dict.get('tags', [])
+                            field_value = ','.join(tags) if tags else ''
+                        elif field == 'mac_address' or field == 'mac':
+                            field_value = asset_dict.get('mac_address')
+                        elif field == 'vendor':
+                            field_value = asset_dict.get('vendor')
                     
                     if field_value is None:
                         field_value = ''
