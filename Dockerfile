@@ -10,11 +10,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy backend requirements and install Python dependencies
-COPY backend/requirements.txt /workspace/backend/
+COPY app/backend/requirements.txt /workspace/backend/
 RUN pip install --no-cache-dir -r /workspace/backend/requirements.txt
 
 # Copy application code
-COPY backend/ /workspace/backend/
+COPY app/backend/ /workspace/backend/
 COPY templates/ /workspace/templates/
 COPY static/ /workspace/static/
 COPY frontend/ /workspace/frontend/
