@@ -7,6 +7,7 @@ from backend.models.group import Group
 from backend.db.base import asset_change_logs_table
 from backend.schemas.asset import AssetCreate, AssetUpdate
 from datetime import datetime
+import logging
 
 
 class AssetService:
@@ -485,3 +486,26 @@ class AssetService:
             }
             for row in rows
         ]
+
+    async def get_assets_from_groups(self, group_ids: List[int]) -> List[Asset]:
+        """
+        Получить все активы из указанных групп.
+        
+        Args:
+            group_ids: Список ID групп
+            
+        Returns:
+            Список активов из всех указанных групп
+        """
+        if not group_ids:
+            return []
+        
+        # Получаем активы, которые состоят в указанных группах
+        query = select(Asset).join(Asset.groups).where(Group.id.in_(group_ids))
+        result = await self.db.execute(query)
+        assets = list(result.scalars().unique().all())
+        
+        logger = logging.getLogger(__name__)
+        logger.info(f"Получено {len(assets)} активов из {len(group_ids)} групп")
+        
+        return assets
