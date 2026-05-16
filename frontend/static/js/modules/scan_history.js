@@ -149,13 +149,13 @@ class ScanHistoryManager {
             actions += `<button class="btn btn-sm btn-outline-info btn-view-results" data-scan-id="${scan.id}"><i class="bi bi-eye"></i></button> `;
         }
         if (scan.status === 'completed') {
-            let downloadLinks = `<li><a class="dropdown-item" href="/api/scans/${scan.id}/download/raw">Raw</a></li>`;
+            let downloadLinks = `<li><a class="dropdown-item" href="#" onclick="event.preventDefault(); window.scanHistoryManager.downloadResult(${scan.id}, 'raw')">Raw</a></li>`;
             if (scan.scan_type === 'nmap') {
-                downloadLinks += `<li><a class="dropdown-item" href="/api/scans/${scan.id}/download/xml">XML</a></li>`;
-                downloadLinks += `<li><a class="dropdown-item" href="/api/scans/${scan.id}/download/gnmap">Grepable</a></li>`;
-                downloadLinks += `<li><a class="dropdown-item" href="/api/scans/${scan.id}/download/normal">Normal</a></li>`;
+                downloadLinks += `<li><a class="dropdown-item" href="#" onclick="event.preventDefault(); window.scanHistoryManager.downloadResult(${scan.id}, 'xml')">XML</a></li>`;
+                downloadLinks += `<li><a class="dropdown-item" href="#" onclick="event.preventDefault(); window.scanHistoryManager.downloadResult(${scan.id}, 'gnmap')">Grepable</a></li>`;
+                downloadLinks += `<li><a class="dropdown-item" href="#" onclick="event.preventDefault(); window.scanHistoryManager.downloadResult(${scan.id}, 'normal')">Normal</a></li>`;
             }
-            downloadLinks += `<li><a class="dropdown-item" href="/api/scans/${scan.id}/download/json">JSON</a></li>`;
+            downloadLinks += `<li><a class="dropdown-item" href="#" onclick="event.preventDefault(); window.scanHistoryManager.downloadResult(${scan.id}, 'json')">JSON</a></li>`;
             actions += `<div class="btn-group btn-group-sm"><button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">⬇️</button><ul class="dropdown-menu">${downloadLinks}</ul></div>`;
         }
         if (!['pending', 'queued', 'running'].includes(scan.status)) {
@@ -254,6 +254,34 @@ class ScanHistoryManager {
 
         } catch (error) {
             document.getElementById('scanResultContent').innerHTML = `<div class="alert alert-danger">Ошибка загрузки результатов: ${error.message}</div>`;
+        }
+    }
+
+    /**
+     * Скачивание результатов сканирования
+     */
+    async downloadResult(scanId, format) {
+        try {
+            // Используем маршрут для job_id, так как в истории передаются job_id
+            const response = await fetch(`/api/scans/scan-job/${scanId}/download/${format}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Ошибка скачивания: ${response.status} - ${errorText || 'Неизвестная ошибка'}`);
+            }
+            
+            // Получаем blob и создаем ссылку для скачивания
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `scan_${scanId}.${format}`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Ошибка при скачивании:', error);
+            alert(`Не удалось скачать результат: ${error.message}`);
         }
     }
 

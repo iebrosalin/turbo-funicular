@@ -1376,7 +1376,7 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
         
         logger.info(f"[DOWNLOAD] Тип сканирования: {scan_type}, запрошенный формат: {format}")
         logger.info(f"[DOWNLOAD] Форматируем результат...")
-    
+
         if format == "raw":
             # Сырой вывод всех результатов (используем output_normal для nmap или raw_output)
             raw_output = ""
@@ -1390,7 +1390,7 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
                     raw_output += f"# Host: {result.ip_address}\n"
                     raw_output += result.raw_output
                     raw_output += "\n\n"
-            
+
             if not raw_output:
                 # Если нет raw_output, возвращаем JSON в виде текста
                 raw_output = json.dumps([
@@ -1403,7 +1403,7 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
                     }
                     for r in results
                 ], indent=2)
-            
+
             return StreamingResponse(
                 iter([raw_output.encode('utf-8')]),
                 media_type="text/plain",
@@ -1411,100 +1411,96 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
                     "Content-Disposition": f'attachment; filename="scan_{job_id}_raw.txt"'
                 }
             )
-        
+
         elif format == "xml":
             # XML формат (только для nmap)
             xml_content = ""
             for result in results:
-                if result.output_xml:
-                    xml_content += result.output_xml + "\n"
-            
-            if not xml_content:
-                raise HTTPException(status_code=404, detail="XML формат недоступен для этого сканирования")
-            
-            return StreamingResponse(
-                iter([xml_content.encode('utf-8')]),
-                media_type="application/xml",
-                headers={
-                    "Content-Disposition": f'attachment; filename="scan_{job_id}.xml"'
-                }
-            )
+            if result.output_xml:
+                xml_content += result.output_xml + "\n"
         
-        elif format == "gnmap":
+            if not xml_content:
+            raise HTTPException(status_code=404, detail="XML формат недоступен для этого сканирования")
+        
+            return StreamingResponse(
+            iter([xml_content.encode('utf-8')]),
+            media_type="application/xml",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{job_id}.xml"'
+            }
+            )
+    
+            elif format == "gnmap":
             # Grepable/Nmap формат (только для nmap)
             gnmap_content = ""
             for result in results:
-                if result.output_gnmap:
-                    gnmap_content += result.output_gnmap + "\n"
-            
+            if result.output_gnmap:
+                gnmap_content += result.output_gnmap + "\n"
+        
             if not gnmap_content:
-                raise HTTPException(status_code=404, detail="Grepable формат недоступен для этого сканирования")
-            
-            return StreamingResponse(
-                iter([gnmap_content.encode('utf-8')]),
-                media_type="text/plain",
-                headers={
-                    "Content-Disposition": f'attachment; filename="scan_{job_id}.gnmap"'
-                }
-            )
+            raise HTTPException(status_code=404, detail="Grepable формат недоступен для этого сканирования")
         
-        elif format == "normal":
-            # Normal формат (только для nmap)
-            normal_content = ""
-            for result in results:
-                if result.output_normal:
-                    normal_content += result.output_normal + "\n"
-            
-            if not normal_content:
-                raise HTTPException(status_code=404, detail="Normal формат недоступен для этого сканирования")
-            
-            return StreamingResponse(
-                iter([normal_content.encode('utf-8')]),
-                media_type="text/plain",
-                headers={
-                    "Content-Disposition": f'attachment; filename="scan_{job_id}.nmap"'
-                }
-            )
-        
-        elif format == "json":
-            # JSON формат - поддержка множества IP/DNS
-            data = []
-            for r in results:
-                # Для rustscan и dig используем raw_output если есть
-                if r.raw_output:
-                    data.append({
-                        "ip_address": r.ip_address,
-                        "hostname": r.hostname,
-                        "ports": r.ports,
-                        "services": r.services,
-                        "os_info": r.os_info,
-                        "status": r.status,
-                        "raw_output": r.raw_output
-                    })
-                else:
-                    data.append({
-                        "ip_address": r.ip_address,
-                        "hostname": r.hostname,
-                        "ports": r.ports,
-                        "services": r.services,
-                        "os_info": r.os_info,
-                        "status": r.status
-                    })
-            return StreamingResponse(
-                iter([json.dumps(data, indent=2).encode('utf-8')]),
-                media_type="application/json",
-                headers={
-                    "Content-Disposition": f'attachment; filename="scan_{job_id}.json"'
-                }
-            )
-        
-        else:
-            logger.error(f"[DOWNLOAD] Неподдерживаемый формат: {format}")
-            raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, xml, gnmap, normal, json")
+        return StreamingResponse(
+            iter([gnmap_content.encode('utf-8')]),
+            media_type="text/plain",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{job_id}.gnmap"'
+            }
+        )
     
-    except Exception as e:
-        logger.exception(f"[DOWNLOAD] Ошибка при скачивании результатов: {e}")
-        raise
+    elif format == "normal":
+        # Normal формат (только для nmap)
+        normal_content = ""
+        for result in results:
+            if result.output_normal:
+                normal_content += result.output_normal + "\n"
+        
+        if not normal_content:
+            raise HTTPException(status_code=404, detail="Normal формат недоступен для этого сканирования")
+        
+        return StreamingResponse(
+            iter([normal_content.encode('utf-8')]),
+            media_type="text/plain",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{job_id}.nmap"'
+            }
+        )
+    
+    elif format == "json":
+        # JSON формат - поддержка множества IP/DNS
+        data = []
+        for r in results:
+            # Для rustscan и dig используем raw_output если есть
+            if r.raw_output:
+                data.append({
+                    "ip_address": r.ip_address,
+                    "hostname": r.hostname,
+                    "ports": r.ports,
+                    "services": r.services,
+                    "os_info": r.os_info,
+                    "status": r.status,
+                    "raw_output": r.raw_output
+                })
+            else:
+                data.append({
+                    "ip_address": r.ip_address,
+                    "hostname": r.hostname,
+                    "ports": r.ports,
+                    "services": r.services,
+                    "os_info": r.os_info,
+                    "status": r.status
+                })
+        return StreamingResponse(
+            iter([json.dumps(data, indent=2).encode('utf-8')]),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{job_id}.json"'
+            }
+        )
+    
+    else:
+        logger.error(f"[DOWNLOAD] Неподдерживаемый формат: {format}")
+        raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, xml, gnmap, normal, json")
 
 
 @router.get("/scan/{scan_id}/download/{format}")
@@ -1548,134 +1544,130 @@ async def download_scan_result(scan_id: int, format: str, db: AsyncSession = Dep
         logger.info(f"[DOWNLOAD] Тип сканирования: {scan.scan_type}, запрошенный формат: {format}")
         logger.info(f"[DOWNLOAD] Форматируем результат...")
     
-        # Форматируем результат в зависимости от запрошенного формата
+    # Форматируем результат в зависимости от запрошенного формата
     
-        if format == "raw":
-            # Сырой вывод всех результатов (используем output_normal для nmap или raw_output)
-            raw_output = ""
-            for result in results:
-                if result.output_normal:
-                    raw_output += f"# Host: {result.ip_address}\n"
-                    raw_output += result.output_normal
-                    raw_output += "\n\n"
-                elif result.raw_output:
-                    raw_output += f"# Host: {result.ip_address}\n"
-                    raw_output += result.raw_output
-                    raw_output += "\n\n"
-            
-            if not raw_output:
-                raw_output = json.dumps([
-                    {
-                        "ip_address": r.ip_address,
-                        "ports": r.ports,
-                        "services": r.services,
-                        "hostname": r.hostname,
-                        "os_info": r.os_info
-                    }
-                    for r in results
-                ], indent=2)
-            
-            return StreamingResponse(
-                iter([raw_output.encode('utf-8')]),
-                media_type="text/plain",
-                headers={
-                    "Content-Disposition": f'attachment; filename="scan_{scan_id}_raw.txt"'
-                }
-            )
+    if format == "raw":
+        # Сырой вывод всех результатов (используем output_normal для nmap или raw_output)
+        raw_output = ""
+        for result in results:
+            if result.output_normal:
+                raw_output += f"# Host: {result.ip_address}\n"
+                raw_output += result.output_normal
+                raw_output += "\n\n"
+            elif result.raw_output:
+                raw_output += f"# Host: {result.ip_address}\n"
+                raw_output += result.raw_output
+                raw_output += "\n\n"
         
-        elif format == "xml":
-            # XML формат (только для nmap)
-            xml_content = ""
-            for result in results:
-                if result.output_xml:
-                    xml_content += result.output_xml + "\n"
-            
-            if not xml_content:
-                raise HTTPException(status_code=404, detail="XML формат недоступен для этого сканирования")
-            
-            return StreamingResponse(
-                iter([xml_content.encode('utf-8')]),
-                media_type="application/xml",
-                headers={
-                    "Content-Disposition": f'attachment; filename="scan_{scan_id}.xml"'
+        if not raw_output:
+            raw_output = json.dumps([
+                {
+                    "ip_address": r.ip_address,
+                    "ports": r.ports,
+                    "services": r.services,
+                    "hostname": r.hostname,
+                    "os_info": r.os_info
                 }
-            )
+                for r in results
+            ], indent=2)
         
-        elif format == "gnmap":
-            # Grepable/Nmap формат (только для nmap)
-            gnmap_content = ""
-            for result in results:
-                if result.output_gnmap:
-                    gnmap_content += result.output_gnmap + "\n"
-            
-            if not gnmap_content:
-                raise HTTPException(status_code=404, detail="Grepable формат недоступен для этого сканирования")
-            
-            return StreamingResponse(
-                iter([gnmap_content.encode('utf-8')]),
-                media_type="text/plain",
-                headers={
-                    "Content-Disposition": f'attachment; filename="scan_{scan_id}.gnmap"'
-                }
-            )
-        
-        elif format == "normal":
-            # Normal формат (только для nmap)
-            normal_content = ""
-            for result in results:
-                if result.output_normal:
-                    normal_content += result.output_normal + "\n"
-            
-            if not normal_content:
-                raise HTTPException(status_code=404, detail="Normal формат недоступен для этого сканирования")
-            
-            return StreamingResponse(
-                iter([normal_content.encode('utf-8')]),
-                media_type="text/plain",
-                headers={
-                    "Content-Disposition": f'attachment; filename="scan_{scan_id}.nmap"'
-                }
-            )
-        
-        elif format == "json":
-            # JSON формат - поддержка множества IP/DNS
-            data = []
-            for r in results:
-                # Для rustscan и dig используем raw_output если есть
-                if r.raw_output:
-                    data.append({
-                        "ip_address": r.ip_address,
-                        "hostname": r.hostname,
-                        "ports": r.ports,
-                        "services": r.services,
-                        "os_info": r.os_info,
-                        "status": r.status,
-                        "raw_output": r.raw_output
-                    })
-                else:
-                    data.append({
-                        "ip_address": r.ip_address,
-                        "hostname": r.hostname,
-                        "ports": r.ports,
-                        "services": r.services,
-                        "os_info": r.os_info,
-                        "status": r.status
-                    })
-            return StreamingResponse(
-                iter([json.dumps(data, indent=2).encode('utf-8')]),
-                media_type="application/json",
-                headers={
-                    "Content-Disposition": f'attachment; filename="scan_{scan_id}.json"'
-                }
-            )
-        
-        else:
-            logger.error(f"[DOWNLOAD] Неподдерживаемый формат: {format}")
-            raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, xml, gnmap, normal, json")
+        return StreamingResponse(
+            iter([raw_output.encode('utf-8')]),
+            media_type="text/plain",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{scan_id}_raw.txt"'
+            }
+        )
     
-    except Exception as e:
-        logger.exception(f"[DOWNLOAD] Ошибка при скачивании результатов: {e}")
-        raise
+    elif format == "xml":
+        # XML формат (только для nmap)
+        xml_content = ""
+        for result in results:
+            if result.output_xml:
+                xml_content += result.output_xml + "\n"
+        
+        if not xml_content:
+            raise HTTPException(status_code=404, detail="XML формат недоступен для этого сканирования")
+        
+        return StreamingResponse(
+            iter([xml_content.encode('utf-8')]),
+            media_type="application/xml",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{scan_id}.xml"'
+            }
+        )
+    
+    elif format == "gnmap":
+        # Grepable/Nmap формат (только для nmap)
+        gnmap_content = ""
+        for result in results:
+            if result.output_gnmap:
+                gnmap_content += result.output_gnmap + "\n"
+        
+        if not gnmap_content:
+            raise HTTPException(status_code=404, detail="Grepable формат недоступен для этого сканирования")
+        
+        return StreamingResponse(
+            iter([gnmap_content.encode('utf-8')]),
+            media_type="text/plain",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{scan_id}.gnmap"'
+            }
+        )
+    
+    elif format == "normal":
+        # Normal формат (только для nmap)
+        normal_content = ""
+        for result in results:
+            if result.output_normal:
+                normal_content += result.output_normal + "\n"
+        
+        if not normal_content:
+            raise HTTPException(status_code=404, detail="Normal формат недоступен для этого сканирования")
+        
+        return StreamingResponse(
+            iter([normal_content.encode('utf-8')]),
+            media_type="text/plain",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{scan_id}.nmap"'
+            }
+        )
+    
+    elif format == "json":
+        # JSON формат - поддержка множества IP/DNS
+        data = []
+        for r in results:
+            # Для rustscan и dig используем raw_output если есть
+            if r.raw_output:
+                data.append({
+                    "ip_address": r.ip_address,
+                    "hostname": r.hostname,
+                    "ports": r.ports,
+                    "services": r.services,
+                    "os_info": r.os_info,
+                    "status": r.status,
+                    "raw_output": r.raw_output
+                })
+            else:
+                data.append({
+                    "ip_address": r.ip_address,
+                    "hostname": r.hostname,
+                    "ports": r.ports,
+                    "services": r.services,
+                    "os_info": r.os_info,
+                    "status": r.status
+                })
+        return StreamingResponse(
+            iter([json.dumps(data, indent=2).encode('utf-8')]),
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f'attachment; filename="scan_{scan_id}.json"'
+            }
+        )
+    
+    else:
+        logger.error(f"[DOWNLOAD] Неподдерживаемый формат: {format}")
+        raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, xml, gnmap, normal, json")
 
 
 # ==========================================
