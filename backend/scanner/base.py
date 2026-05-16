@@ -4,7 +4,7 @@ import os
 import tempfile
 import shutil
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, Union, List, Literal
+from typing import Dict, Any, Optional, Union, List, Literal, Protocol, runtime_checkable
 from backend.models.target import Target
 
 logger = logging.getLogger(__name__)
@@ -13,6 +13,89 @@ logger = logging.getLogger(__name__)
 class ScanResult(Dict[str, Any]):
     """Типизированный словарь результатов сканирования"""
     pass
+
+
+@runtime_checkable
+class SingleTargetScanner(Protocol):
+    """
+    Протокол для сканеров, работающих с одиночными целями.
+    
+    Атрибуты:
+        SUPPORTS_MULTIPLE_TARGETS: Должен быть False
+    """
+    SCANNER_NAME: str
+    SUPPORTS_MULTIPLE_TARGETS: bool  # Проверка значения делается вручную
+    DEFAULT_TIMEOUT: int
+    
+    async def scan(self) -> ScanResult:
+        """Выполняет сканирование одиночной цели"""
+        ...
+    
+    def _parse_output(self, stdout: str, stderr: str = "") -> ScanResult:
+        """Парсит вывод утилиты сканирования"""
+        ...
+
+
+@runtime_checkable
+class MultiTargetScanner(Protocol):
+    """
+    Протокол для сканеров, работающих с множественными целями.
+    
+    Атрибуты:
+        SUPPORTS_MULTIPLE_TARGETS: Должен быть True
+    """
+    SCANNER_NAME: str
+    SUPPORTS_MULTIPLE_TARGETS: bool  # Проверка значения делается вручную
+    DEFAULT_TIMEOUT: int
+    
+    async def scan(self, targets: Optional[List[Union[str, Target]]] = None) -> ScanResult:
+        """
+        Выполняет сканирование множества целей.
+        
+        Args:
+            targets: Список целей для сканирования. Если None, используется цель из конструктора.
+        """
+        ...
+    
+    def _parse_output(self, stdout: str, stderr: str = "") -> ScanResult:
+        """Парсит вывод утилиты сканирования"""
+        ...
+
+
+def is_single_target_scanner(scanner) -> bool:
+    """
+    Проверяет, является ли сканер одиночным (SingleTarget).
+    
+    Args:
+        scanner: Экземпляр сканера
+        
+    Returns:
+        bool: True если сканер работает с одиночными целями
+    """
+    return (
+        isinstance(scanner, BaseScanner) and
+        not scanner.SUPPORTS_MULTIPLE_TARGETS and
+        hasattr(scanner, 'scan') and
+        hasattr(scanner, '_parse_output')
+    )
+
+
+def is_multi_target_scanner(scanner) -> bool:
+    """
+    Проверяет, является ли сканер множественным (MultiTarget).
+    
+    Args:
+        scanner: Экземпляр сканера
+        
+    Returns:
+        bool: True если сканер работает с множественными целями
+    """
+    return (
+        isinstance(scanner, BaseScanner) and
+        scanner.SUPPORTS_MULTIPLE_TARGETS and
+        hasattr(scanner, 'scan') and
+        hasattr(scanner, '_parse_output')
+    )
 
 
 class BaseScanner(ABC):
@@ -24,9 +107,15 @@ class BaseScanner(ABC):
     - Управления временными файлами
     - Логирования
     - Парсинга результатов
+    
+    Подклассы должны реализовать:
+    - SCANNER_NAME: str - имя сканера
+    - SUPPORTS_MULTIPLE_TARGETS: bool - поддержка множественных целей
+    - scan() - метод выполнения сканирования
+    - _parse_output() - метод парсинга вывода
     """
     
-    # Конфигурация сканера
+    # Конфигурация сканера (должна быть переопределена в подклассах)
     SCANNER_NAME: str = "base"
     SUPPORTS_MULTIPLE_TARGETS: bool = False
     DEFAULT_TIMEOUT: int = 300
@@ -159,7 +248,8 @@ class BaseScanner(ABC):
             "name": self.SCANNER_NAME,
             "class": self.__class__.__name__,
             "supports_multiple_targets": self.SUPPORTS_MULTIPLE_TARGETS,
-            "default_timeout": self.DEFAULT_TIMEOUT
+            "default_timeout": self.DEFAULT_TIMEOUT,
+            "protocol": "MultiTargetScanner" if self.SUPPORTS_MULTIPLE_TARGETS else "SingleTargetScanner"
         }
     
     async def __aenter__(self):
@@ -170,3 +260,31 @@ class BaseScanner(ABC):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Контекстный менеджер: выход с очисткой"""
         self._cleanup_temp_dir()
+
+
+def create_scanner_from_protocol(scanner_instance: BaseScanner):
+    """
+    Фабричная функция для определения типа сканера и приведения к протоколу.
+    
+    Args:
+        scanner_instance: Экземпляр сканера
+        
+    Returns:
+        Union[SingleTargetScanner, MultiTargetScanner]: Приведенный экземпляр
+        
+    Raises:
+        TypeError: Если сканер не соответствует ни одному протоколу
+    """
+    if isinstance(scanner_instance, BaseScanner):
+        if scanner_instance.SUPPORTS_MULTIPLE_TARGETS:
+            # Проверяем соответствие протоколу MultiTargetScanner
+            if hasattr(scanner_instance, 'scan') and hasattr(scanner_instance, '_parse_output'):
+                return scanner_instance  # type: ignore
+            raise TypeError(f"Сканер {scanner_instance.SCANNER_NAME} объявлен как MultiTarget, но не имеет необходимых методов")
+        else:
+            # Проверяем соответствие протоколу SingleTargetScanner
+            if hasattr(scanner_instance, 'scan') and hasattr(scanner_instance, '_parse_output'):
+                return scanner_instance  # type: ignore
+            raise TypeError(f"Сканер {scanner_instance.SCANNER_NAME} объявлен как SingleTarget, но не имеет необходимых методов")
+    
+    raise TypeError(f"Неизвестный тип сканера: {type(scanner_instance)}")
