@@ -569,14 +569,7 @@ export class TreeManager {
       return;
     }
 
-    // Обновляем данные в Store для синхронизации с dashboard-page.js
-    try {
-      const assets = await Utils.apiRequest('/api/assets');
-      store.setState('assets', assets);
-    } catch (error) {
-      console.error('[TreeManager] Failed to update store:', error);
-    }
-    
+    // Показываем индикатор загрузки
     tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Загрузка...</p></td></tr>';
 
     const params = new URLSearchParams();
@@ -594,13 +587,8 @@ export class TreeManager {
 
     const queryString = params.toString();
     const url = `/api/assets${queryString ? '?' + queryString : ''}`;
-    
-    
-
     try {
       const response = await Utils.apiRequest(url);
-      
-      
       const data = response;
       const assets = Array.isArray(data) ? data : (data.assets || []);
 
@@ -791,6 +779,9 @@ export class TreeManager {
       this.renderTree(groups, counts);
       console.log('[DEBUG tree.js] renderTree() завершен');
       
+      // НЕ обновляем активы автоматически - это вызывает дублирование запросов
+      // Активы обновляются только при явном вызове filterByGroup или loadAssets
+      
     } catch (err) {
       console.error('[ERROR tree.js] Ошибка обновления дерева:', err);
     }
@@ -800,9 +791,125 @@ export class TreeManager {
    * @param {Array} rules - Массив правил фильтрации
    */
   applyCustomFilters(rules) {
+    const tbody = document.getElementById('assets-body');
+    if (!tbody) return;
     
-    // Фильтрация происходит на стороне клиента в main.js
-    // Этот метод может быть использован для дополнительной логики
+    // Получаем ВСЕ активы с сервера для корректной фильтрации
+    // Если уже загружены - используем их, иначе загружаем
+    let allAssets = store.getState('assets') || [];
+    
+    // Если активы пустые, загружаем их для текущей группы
+    if (allAssets.length === 0 && this.currentGroupId !== undefined) {
+      this.loadAssets(this.currentGroupId, this.currentGroupId === 'ungrouped').then(() => {
+        allAssets = store.getState('assets') || [];
+        this.#applyFilterRules(rules, allAssets);
+      });
+      return;
+    }
+    
+    this.#applyFilterRules(rules, allAssets);
+  }
+  
+  /**
+   * Внутренний метод применения правил фильтрации
+   * @private
+   * @param {Array} rules - Массив правил
+   * @param {Array} allAssets - Все активы для фильтрации
+   */
+  #applyFilterRules(rules, allAssets) {
+    if (!rules || rules.length === 0) {
+      // Если правил нет, показываем все активы
+      this.renderAssetTable(allAssets);
+      return;
+    }
+    
+    // Фильтруем активы на стороне клиента
+    const filtered = allAssets.filter(asset => {
+      return rules.every(rule => {
+        // Маппинг полей формы в поля API
+        const fieldMap = {
+          'ip_address': ['ip_address', 'ip'],
+          'hostname': ['hostname'],
+          'os_name': ['os_info', 'os_name', 'os'],
+          'os_family': ['os_info', 'os'],
+          'device_role': ['device_role', 'role'],
+          'open_ports': ['open_ports', 'ports'],
+          'status': ['status'],
+          'description': ['description', 'notes'],
+          'tags': ['tags'],
+          'notes': ['notes'],
+          'scanners_used': ['scanners_used']
+        };
+        
+        // Ищем значение актива по возможным именам полей
+        let assetValue = null;
+        const possibleFields = fieldMap[rule.field] || [rule.field];
+        
+        for (const fieldName of possibleFields) {
+          if (asset.hasOwnProperty(fieldName)) {
+            assetValue = asset[fieldName];
+            break;
+          }
+        }
+        
+        // Обработка отсутствующих значений
+        if (assetValue === null || assetValue === undefined) return false;
+        
+        // Преобразование в строку для сравнения
+        const strValue = Array.isArray(assetValue) ? assetValue.join(' ') : String(assetValue);
+        const searchValue = String(rule.value);
+        
+        switch (rule.operation) {
+          case 'eq': 
+          case '=':
+            return strValue.toLowerCase() === searchValue.toLowerCase();
+          case 'neq': 
+          case 'ne':
+          case '≠':
+            return strValue.toLowerCase() !== searchValue.toLowerCase();
+          case 'contains': 
+          case 'like':
+            return strValue.toLowerCase().includes(searchValue.toLowerCase());
+          case 'in': {
+            const values = searchValue.split(',').map(v => v.trim().toLowerCase());
+            return values.some(v => strValue.toLowerCase().includes(v));
+          }
+          default: return true;
+        }
+      });
+    });
+    
+    this.renderAssetTable(filtered);
+  }
+  
+  /**
+   * Отрисовка таблицы активов
+   * @param {Array} assets - Массив активов для отображения
+   */
+  renderAssetTable(assets) {
+    const tbody = document.getElementById('assets-body');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    if (assets.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Активы не найдены</td></tr>';
+      store.setCurrentAssets([]);
+      return;
+    }
+    
+    assets.forEach(asset => {
+      const tr = this.#createAssetRow(asset);
+      tbody.appendChild(tr);
+    });
+    
+    store.setCurrentAssets(assets);
+    
+    // Синхронизация с dashboardController
+    if (typeof window.dashboardController !== 'undefined') {
+      window.dashboardController.allAssets = assets;
+      window.dashboardController.applyFilters();
+    }
   }
 
   /**

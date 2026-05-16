@@ -7,6 +7,7 @@ export class FilterBuilder {
             mode: options.mode || 'dashboard',
             onApply: options.onApply || (() => {}),
             onCheck: options.onCheck || (() => {}),
+            initialRules: options.initialRules || [],
             ...options
         };
         this.schema = [];
@@ -15,14 +16,23 @@ export class FilterBuilder {
         this.errorElement = null;
         this.selectedSuggestionIndex = -1;
         this.suggestions = [];
+        this.rules = []; // Для режима визуальных правил
         
         this.init();
     }
-
+    
     async init() {
         await this.loadSchema();
         this.render();
         this.attachEvents();
+        
+        // Если есть начальные правила, загружаем их
+        if (this.options.initialRules && this.options.initialRules.length > 0) {
+            this.rules = this.options.initialRules;
+            if (this.options.mode === 'modal') {
+                this.renderRules();
+            }
+        }
     }
 
     async loadSchema() {
@@ -56,54 +66,221 @@ export class FilterBuilder {
     }
 
     render() {
-        this.container.innerHTML = `
-            <div class="query-builder-wrapper position-relative">
-                <label class="form-label small fw-bold text-muted mb-1">
-                    <i class="bi bi-terminal-fill me-1"></i>Конструктор запросов (SQL-like)
-                </label>
-                <div class="input-group has-validation">
-                    <span class="input-group-text bg-body-tertiary border-end-0">
-                        <i class="bi bi-braces-asterisk text-primary"></i>
-                    </span>
-                    <input type="text" 
-                           id="qb-input" 
-                           class="form-control border-start-0 font-monospace shadow-none" 
-                           placeholder='Пример: (ip = "192.168.1.1" OR hostname LIKE "%web%") AND ports IN [80, 443]'
-                           autocomplete="off" 
-                           spellcheck="false"
-                           aria-describedby="qb-error">
+        if (this.options.mode === 'modal') {
+            // Режим для модального окна группы - визуальный конструктор правил
+            this.container.innerHTML = `
+                <div class="filter-rules-container">
+                    <div class="filter-rules mb-3" id="filter-rules-list"></div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn-add-rule">
+                        <i class="bi bi-plus-lg me-1"></i>Добавить правило
+                    </button>
                 </div>
-                <div id="qb-suggestions" class="position-absolute bg-white border shadow-sm rounded mt-1 d-none" 
-                     style="z-index: 1055; max-height: 250px; overflow-y: auto; width: 100%; font-size: 0.9rem;"></div>
-                <div id="qb-error" class="invalid-feedback d-block mt-1 small" style="display: none;"></div>
-                <div class="form-text small mt-2">
-                    <span class="badge bg-light text-dark border me-1">AND</span>
-                    <span class="badge bg-light text-dark border me-1">OR</span>
-                    <span class="badge bg-light text-dark border me-1">()</span>
-                    Операторы: <code>=</code>, <code>!=</code>, <code>LIKE</code>, <code>IN [...]</code>, <code>REG_MATCH</code>
+            `;
+            this.rulesContainer = this.container.querySelector('#filter-rules-list');
+            this.btnAddRule = this.container.querySelector('#btn-add-rule');
+        } else {
+            // Режим dashboard - текстовый конструктор запросов
+            this.container.innerHTML = `
+                <div class="query-builder-wrapper position-relative">
+                    <label class="form-label small fw-bold text-muted mb-1">
+                        <i class="bi bi-terminal-fill me-1"></i>Конструктор запросов (SQL-like)
+                    </label>
+                    <div class="input-group has-validation">
+                        <span class="input-group-text bg-body-tertiary border-end-0">
+                            <i class="bi bi-braces-asterisk text-primary"></i>
+                        </span>
+                        <input type="text" 
+                               id="qb-input" 
+                               class="form-control border-start-0 font-monospace shadow-none" 
+                               placeholder='Пример: (ip = "192.168.1.1" OR hostname LIKE "%web%") AND ports IN [80, 443]'
+                               autocomplete="off" 
+                               spellcheck="false"
+                               aria-describedby="qb-error">
+                    </div>
+                    <div id="qb-suggestions" class="position-absolute bg-white border shadow-sm rounded mt-1 d-none" 
+                         style="z-index: 1055; max-height: 250px; overflow-y: auto; width: 100%; font-size: 0.9rem;"></div>
+                    <div id="qb-error" class="invalid-feedback d-block mt-1 small" style="display: none;"></div>
+                    <div class="form-text small mt-2">
+                        <span class="badge bg-light text-dark border me-1">AND</span>
+                        <span class="badge bg-light text-dark border me-1">OR</span>
+                        <span class="badge bg-light text-dark border me-1">()</span>
+                        Операторы: <code>=</code>, <code>!=</code>, <code>LIKE</code>, <code>IN [...]</code>, <code>REG_MATCH</code>
+                    </div>
                 </div>
-            </div>
-        `;
-
-        this.inputElement = this.container.querySelector('#qb-input');
-        this.suggestionsBox = this.container.querySelector('#qb-suggestions');
-        this.errorElement = this.container.querySelector('#qb-error');
+            `;
+            this.inputElement = this.container.querySelector('#qb-input');
+            this.suggestionsBox = this.container.querySelector('#qb-suggestions');
+            this.errorElement = this.container.querySelector('#qb-error');
+        }
     }
 
     attachEvents() {
-        this.inputElement.addEventListener('input', (e) => this.handleInput(e));
-        this.inputElement.addEventListener('keydown', (e) => this.handleKeydown(e));
-        this.inputElement.addEventListener('click', () => this.handleInput({ target: this.inputElement }));
-        this.inputElement.addEventListener('blur', () => setTimeout(() => this.hideSuggestions(), 200));
+        if (this.options.mode === 'modal') {
+            // Обработчик для режима модального окна (визуальные правила)
+            if (this.btnAddRule) {
+                this.btnAddRule.addEventListener('click', () => this.addRuleRow());
+            }
+            
+            // Делегирование событий для кнопок удаления правил
+            if (this.rulesContainer) {
+                this.rulesContainer.addEventListener('click', (e) => {
+                    const btnRemove = e.target.closest('.btn-remove-rule');
+                    if (btnRemove) {
+                        const ruleRow = btnRemove.closest('.filter-rule-row');
+                        if (ruleRow) {
+                            ruleRow.remove();
+                            this.updateRulesFromDOM();
+                        }
+                    }
+                });
+                
+                // Обработчики изменений в полях правил
+                this.rulesContainer.addEventListener('change', (e) => {
+                    if (e.target.classList.contains('rule-field') || 
+                        e.target.classList.contains('rule-op') || 
+                        e.target.classList.contains('rule-value')) {
+                        this.updateRulesFromDOM();
+                    }
+                });
+            }
+        } else {
+            // Обработчик для режима dashboard (текстовый запрос)
+            if (!this.inputElement) return;
+            
+            this.inputElement.addEventListener('input', (e) => this.handleInput(e));
+            this.inputElement.addEventListener('keydown', (e) => this.handleKeydown(e));
+            this.inputElement.addEventListener('click', () => this.handleInput({ target: this.inputElement }));
+            this.inputElement.addEventListener('blur', () => setTimeout(() => this.hideSuggestions(), 200));
 
-        // Обработка кликов по подсказкам (mousedown чтобы сработал до blur)
-        this.suggestionsBox.addEventListener('mousedown', (e) => {
-            const item = e.target.closest('.suggestion-item');
-            if (item) {
-                e.preventDefault();
-                this.selectSuggestion(item.dataset.value);
+            // Обработка кликов по подсказкам (mousedown чтобы сработал до blur)
+            if (this.suggestionsBox) {
+                this.suggestionsBox.addEventListener('mousedown', (e) => {
+                    const item = e.target.closest('.suggestion-item');
+                    if (item) {
+                        e.preventDefault();
+                        this.selectSuggestion(item.dataset.value);
+                    }
+                });
+            }
+        }
+    }
+    
+    /**
+     * Добавить строку правила в визуальном конструкторе
+     */
+    addRuleRow(ruleData = {}) {
+        if (!this.rulesContainer) return;
+        
+        const field = ruleData.field || '';
+        const op = ruleData.operation || ruleData.op || 'eq';
+        const value = ruleData.value || '';
+        
+        const row = document.createElement('div');
+        row.className = 'filter-rule-row mb-2 d-flex align-items-center gap-2';
+        row.innerHTML = `
+            <select class="form-select form-select-sm rule-field" style="max-width: 180px;">
+                ${this.schema.map(s => `<option value="${s.field}" ${s.field === field ? 'selected' : ''}>${s.label || s.field}</option>`).join('')}
+            </select>
+            <select class="form-select form-select-sm rule-op" style="max-width: 120px;">
+                <option value="eq" ${op === 'eq' ? 'selected' : ''}>=</option>
+                <option value="neq" ${op === 'neq' ? 'selected' : ''}>≠</option>
+                <option value="contains" ${op === 'contains' ? 'selected' : ''}>содержит</option>
+                <option value="in" ${op === 'in' ? 'selected' : ''}>в списке</option>
+            </select>
+            <input type="text" class="form-control form-control-sm rule-value flex-grow-1" value="${value}" placeholder="Значение">
+            <button type="button" class="btn btn-outline-danger btn-sm btn-remove-rule">×</button>
+        `;
+        
+        this.rulesContainer.appendChild(row);
+        this.updateRulesFromDOM();
+    }
+    
+    /**
+     * Отрисовать все правила из массива rules
+     */
+    renderRules() {
+        if (!this.rulesContainer) return;
+        this.rulesContainer.innerHTML = '';
+        this.rules.forEach(rule => this.addRuleRow(rule));
+    }
+    
+    /**
+     * Обновить массив rules на основе DOM элементов
+     */
+    updateRulesFromDOM() {
+        if (!this.rulesContainer) return;
+        
+        this.rules = [];
+        this.rulesContainer.querySelectorAll('.filter-rule-row').forEach(row => {
+            const field = row.querySelector('.rule-field')?.value || '';
+            const op = row.querySelector('.rule-op')?.value || 'eq';
+            const value = row.querySelector('.rule-value')?.value || '';
+            
+            if (field && value) {
+                this.rules.push({ field, operation: op, value });
             }
         });
+    }
+    
+    /**
+     * Получить текущие правила
+     */
+    getRules() {
+        if (this.options.mode === 'modal') {
+            this.updateRulesFromDOM();
+            return this.rules;
+        } else {
+            // Для текстового режима парсим запрос
+            const query = this.getQuery();
+            return query ? this.parseQuery(query) : [];
+        }
+    }
+    
+    /**
+     * Применить фильтр (вызывает onApply callback)
+     */
+    apply() {
+        if (this.options.mode === 'modal') {
+            this.updateRulesFromDOM();
+            this.options.onApply(this.rules);
+        } else {
+            const query = this.getQuery();
+            if (this.validateSyntax(query)) {
+                const rules = this.parseQuery(query);
+                this.options.onApply(rules);
+            }
+        }
+    }
+    
+    /**
+     * Сбросить фильтр
+     */
+    reset() {
+        if (this.options.mode === 'modal') {
+            this.rules = [];
+            this.renderRules();
+            this.options.onApply([]);
+        } else {
+            this.setQuery('');
+            this.options.onApply([]);
+        }
+    }
+    
+    /**
+     * Парсинг текстового запроса в правила (упрощенная реализация)
+     */
+    parseQuery(query) {
+        // Упрощенный парсер для базовых случаев
+        const rules = [];
+        if (!query) return rules;
+        
+        // Пример парсинга: ip = "192.168.1.1"
+        const simpleMatch = query.match(/([a-z_]+)\s*=\s*"([^"]+)"/i);
+        if (simpleMatch) {
+            rules.push({ field: simpleMatch[1], operation: 'eq', value: simpleMatch[2] });
+        }
+        
+        return rules;
     }
 
     handleInput(e) {
@@ -313,10 +490,5 @@ export class FilterBuilder {
     setQuery(query) {
         this.inputElement.value = query;
         this.validateSyntax(query);
-    }
-    
-    reset() {
-        this.setQuery('');
-        this.hideSuggestions();
     }
 }

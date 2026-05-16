@@ -334,7 +334,6 @@ class App {
       onApply: (rules) => {
         this.filterRules = rules;
         
-        
         // Применяем фильтры через treeManager
         if (treeManager && typeof treeManager.applyCustomFilters === 'function') {
           treeManager.applyCustomFilters(rules);
@@ -365,6 +364,23 @@ class App {
       },
       initialRules: []
     });
+    
+    // Явные обработчики для кнопок Apply и Reset
+    if (btnApply) {
+      btnApply.addEventListener('click', () => {
+        if (this.dashboardFilterBuilder) {
+          this.dashboardFilterBuilder.apply();
+        }
+      });
+    }
+    
+    if (btnReset) {
+      btnReset.addEventListener('click', () => {
+        if (this.dashboardFilterBuilder) {
+          this.dashboardFilterBuilder.reset();
+        }
+      });
+    }
   }
 }
 
