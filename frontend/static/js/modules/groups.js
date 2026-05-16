@@ -1,5 +1,5 @@
 import { Utils } from './utils.js';
-import { refreshGroupTree, loadAssets, filterByGroup } from './tree.js';
+import { refreshGroupTree, loadAssets, filterByGroup, treeManager } from './tree.js';
 import { store } from '../store.js';
 import { FilterBuilder } from '../filter-builder.js';
 
@@ -106,8 +106,7 @@ export class GroupManager {
         this.dynamicFilterBuilder = new FilterBuilder('group-filter-root', {
           mode: 'modal',
           onApply: (rules) => {
-            
-            // Правила сохраняются в форму при отправке
+            // Правила сохраняются в форму при отправке через getRules()
           },
           initialRules: []
         });
@@ -257,8 +256,7 @@ export class GroupManager {
       // Ждем пока toggleGroupMode создаст экземпляр, затем загружаем правила
       setTimeout(() => {
         if (this.dynamicFilterBuilder) {
-          // Очищаем и добавляем правила
-          this.dynamicFilterBuilder.container.querySelector('.filter-rules').innerHTML = '';
+          // Очищаем и добавляем правила через новый метод
           groupData.filter_rules.forEach(rule => {
             this.dynamicFilterBuilder.addRuleRow({
               field: rule.field,
@@ -308,9 +306,8 @@ export class GroupManager {
 
         Utils.closeModalById('groupEditModal');
         
-        // Обновляем дерево и список активов
+        // Обновляем только дерево групп
         await refreshGroupTree();
-        await loadAssets();
         
         console.log('[saveGroup] Корневая группа успешно переименована');
         return;
@@ -375,9 +372,16 @@ export class GroupManager {
         this.dynamicFilterBuilder = null;
       }
       
-      // Обновляем дерево и список активов
+      // Обновляем только дерево групп, без полной перезагрузки активов
       await refreshGroupTree();
-      await loadAssets();
+      
+      // Если мы создали/обновили динамическую группу и находимся в режиме просмотра "all",
+      // можно обновить активы, но только если это необходимо
+      const currentGroupId = store.getState('currentGroupId') || 'all';
+      if (currentGroupId === 'all' && mode === 'dynamic') {
+        // Опционально: обновить активы для отображения изменений
+        // loadAssets('all', false);
+      }
       
       console.log('[saveGroup] Группа успешно сохранена');
     } catch (e) {
@@ -428,9 +432,10 @@ export class GroupManager {
       if (response.ok) {
         await refreshGroupTree();
         const currentGroupId = store.getState('currentGroupId');
+        // Только если удалили текущую группу, перезагружаем активы
         if (currentGroupId == groupId) {
-          store.setState('currentGroupId', null);
-          loadAssets(); 
+          store.setState('currentGroupId', 'all');
+          treeManager.filterByGroup('all');
         }
       } else {
         const errData = await response.json().catch(() => ({}));
@@ -490,9 +495,8 @@ export class GroupManager {
 
       Utils.closeModalById('groupMoveModal');
       
-      // Обновляем дерево и список активов
+      // Обновляем только дерево групп
       await refreshGroupTree();
-      await loadAssets();
       
       console.log('[moveGroup] Группа успешно перемещена');
     } catch (e) {

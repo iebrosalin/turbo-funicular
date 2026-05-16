@@ -5,6 +5,7 @@ import { AssetManager } from './modules/assets.js';
 import { FilterAutocompleteManager } from './filter-helpers.js';
 import { treeManager, refreshGroupTree } from './modules/tree.js';
 import { GroupManager } from './modules/groups.js';
+import { FilterBuilder } from './filter-builder.js';
 
 /**
  * Контроллер страницы дашборда.
@@ -17,6 +18,7 @@ export class DashboardController {
     this.currentGrouping = 'none';
     this.visibleColumns = ['ip_address', 'hostname', 'os_name', 'status', 'device_type', 'open_ports', 'source'];
     this.searchQuery = '';
+    this.dashboardFilterBuilder = null;
     
     this.assetManager = new AssetManager('table-body');
     this.filterAutocomplete = new FilterAutocompleteManager();
@@ -118,9 +120,17 @@ export class DashboardController {
       this.applyFilters();
     });
 
-    // Кнопки фильтров
-    document.getElementById('btn-apply-filters')?.addEventListener('click', () => this.applyFilters());
-    document.getElementById('btn-reset-filters')?.addEventListener('click', () => this.resetFilters());
+    // Кнопки фильтров - используем методы FilterBuilder
+    const btnApply = document.getElementById('btn-apply-filters');
+    const btnReset = document.getElementById('btn-reset-filters');
+    
+    if (btnApply && this.dashboardFilterBuilder) {
+      btnApply.addEventListener('click', () => this.dashboardFilterBuilder.apply());
+    }
+    
+    if (btnReset && this.dashboardFilterBuilder) {
+      btnReset.addEventListener('click', () => this.dashboardFilterBuilder.reset());
+    }
 
     // Toolbar кнопки
     document.getElementById('btn-clear-selection')?.addEventListener('click', () => store.clearSelectedAssets());
@@ -408,10 +418,11 @@ export class DashboardController {
     try {
       const assets = await Utils.apiRequest('/api/assets');
       store.setState('assets', assets);
-      // Обновление дерева групп
+      // Обновление дерева групп (без автоматической перезагрузки активов)
       await refreshGroupTree();
       // Явно вызываем applyFilters после обновления данных
       this.allAssets = assets;
+      this.applyFilters();
     } catch (error) {
       console.error('Failed to reload data:', error);
       Utils.showNotification('Не удалось обновить данные', 'danger');
