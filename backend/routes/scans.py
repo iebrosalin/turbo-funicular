@@ -826,6 +826,120 @@ async def run_dig_scan(
         raise HTTPException(status_code=500, detail=f"Ошибка запуска сканирования: {str(e)}")
 
 
+@router.post("/fping")
+async def run_fping_scan(
+    request_data: FpingScanRequest,
+    background_tasks: BackgroundTasks = None,
+    db: AsyncSession = Depends(get_db)
+):
+    """Запустить ICMP сканирование (fping) (принимает JSON)."""
+    from backend.models.scan import Scan, ScanJob
+    from backend.services.scan_queue_manager import scan_queue_manager
+    from datetime import datetime, timezone
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    target = request_data.target
+    args = request_data.args
+    custom_args = request_data.custom_args
+    save_assets = request_data.save_assets
+    group_ids = request_data.group_ids
+    
+    if not target:
+        raise HTTPException(status_code=400, detail="Параметр 'target' обязателен")
+    
+    logger.info("=" * 60)
+    logger.info("=== ПОЛУЧЕН ЗАПРОС НА FPING СКАНИРОВАНИЕ (JSON) ===")
+    logger.info("=" * 60)
+    logger.info(f"Входящие данные запроса:")
+    logger.info(f"  - target: {target}")
+    logger.info(f"  - args: {args}")
+    logger.info(f"  - custom_args: {custom_args}")
+    logger.info(f"  - save_assets: {save_assets}")
+    logger.info(f"  - group_ids: {group_ids}")
+    
+    try:
+        # Создаём запись сканирования
+        logger.info(f"\n[Шаг 1/4] Создание записи сканирования в БД...")
+        new_scan = Scan(
+            name=f"Fping scan: {target[:50]}",
+            target=target,
+            scan_type="fping",
+            status="queued",
+            progress=0,
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_scan)
+        await db.commit()
+        await db.refresh(new_scan)
+        logger.info(f"✓ Запись сканирования создана: ID={new_scan.id}, target={new_scan.target}")
+        
+        # Создаём задачу сканирования
+        logger.info(f"\n[Шаг 2/4] Создание задачи сканирования (ScanJob)...")
+        new_job = ScanJob(
+            scan_id=new_scan.id,
+            job_type="fping",
+            status="queued",
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_job)
+        await db.commit()
+        await db.refresh(new_job)
+        logger.info(f"✓ Задача сканирования создана: ID={new_job.id}, scan_id={new_job.scan_id}")
+        
+        # Добавляем задачу в очередь выполнения
+        logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
+        targets_list = [target.strip()] if target.strip() else []
+        parameters = {
+            "args": args,
+            "custom_args": custom_args,
+            "save_assets": save_assets,
+            "group_ids": group_ids,
+            "target": target
+        }
+        logger.info(f"  - targets_list: {targets_list}")
+        logger.info(f"  - parameters: {parameters}")
+        
+        logger.info(f"\n[Шаг 4/4] Добавление задачи в ScanQueueManager...")
+        await scan_queue_manager.add_scan(
+            db=db,
+            scan_job_id=new_job.id,
+            scan_type="fping",
+            targets=targets_list,
+            parameters=parameters
+        )
+        logger.info(f"✓ Задача {new_job.id} успешно добавлена в очередь ScanQueueManager")
+        
+        logger.info("\n" + "=" * 60)
+        logger.info("=== FPING СКАНИРОВАНИЕ УСПЕШНО ЗАПУЩЕНО ===")
+        logger.info(f"Job ID: {new_job.id}")
+        logger.info(f"Scan ID: {new_scan.id}")
+        logger.info("=" * 60)
+        
+        return {"message": f"Fping сканирование запущено для {target}", "status": "queued", "job_id": new_job.id, "scan_id": new_scan.id, "id": new_job.id}
+    
+    except Exception as e:
+        logger.error(f"\n❌ КРИТИЧЕСКАЯ ОШИБКА при запуске сканирования: {e}", exc_info=True)
+        logger.error(f"Тип ошибки: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
+        
+        # Попытка откатить состояние в БД если возможно
+        try:
+            if 'new_job' in locals():
+                new_job.status = "failed"
+                new_job.error_message = str(e)
+                await db.commit()
+                logger.info(f"Статус задачи {new_job.id} обновлен на 'failed'")
+        except Exception as rollback_error:
+            logger.error(f"Ошибка при обновлении статуса задачи: {rollback_error}")
+        
+        raise HTTPException(status_code=500, detail=f"Ошибка запуска сканирования: {str(e)}")
+
+
 # ==========================================
 # Маршруты очереди сканирований (scan-queue)
 # ==========================================

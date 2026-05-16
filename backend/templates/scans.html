@@ -71,7 +71,7 @@
                             <i class="bi bi-globe"></i> Другие очереди
                         </div>
                         <div class="card-body">
-                            <div class="row text-center">
+                            <div class="row text-center mb-3">
                                 <div class="col-6">
                                     <h6 class="text-muted">Dig (DNS)</h6>
                                     <h3 id="dig-queue-count">0</h3>
@@ -79,6 +79,16 @@
                                 <div class="col-6">
                                     <h6 class="text-muted">Статус</h6>
                                     <span id="dig-queue-status" class="badge bg-secondary">Ожидание</span>
+                                </div>
+                            </div>
+                            <div class="row text-center">
+                                <div class="col-6">
+                                    <h6 class="text-muted">Fping (ICMP)</h6>
+                                    <h3 id="fping-queue-count">0</h3>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-muted">Статус</h6>
+                                    <span id="fping-queue-status" class="badge bg-secondary">Ожидание</span>
                                 </div>
                             </div>
                             <hr>
@@ -101,6 +111,9 @@
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="dig-tab" data-bs-toggle="tab" data-bs-target="#dig-pane" type="button" role="tab">Dig (DNS)</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="fping-tab" data-bs-toggle="tab" data-bs-target="#fping-pane" type="button" role="tab">Fping (ICMP)</button>
                 </li>
             </ul>
 
@@ -153,6 +166,44 @@
                             </div>
                         </div>
 
+                        <!-- Выбор групп -->
+                        <div class="col-md-6" id="nmapGroupsContainer">
+                            <label for="nmapGroups" class="form-label">Группы активов</label>
+                            <select class="form-select" id="nmapGroups" multiple size="4">
+                                <option value="">Загрузка групп...</option>
+                            </select>
+                            <div class="form-text">Удерживайте Ctrl/Cmd для выбора нескольких групп</div>
+                        </div>
+
+                        <!-- Опции сканирования -->
+                        <div class="col-md-6">
+                            <label class="form-label d-block">Опции</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="nmapKnownOnly">
+                                <label class="form-check-label" for="nmapKnownOnly">Только известные порты</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="nmapSaveAssets" checked>
+                                <label class="form-check-label" for="nmapSaveAssets">Сохранять найденные активы</label>
+                            </div>
+                        </div>
+
+                        <!-- CSV импорт для Nmap -->
+                        <div class="col-12">
+                            <label class="form-label">Импорт из CSV (опционально)</label>
+                            <div class="border rounded p-3 bg-white" id="nmapCsvDropZone" style="min-height: 150px;">
+                                <div class="text-center text-muted mb-2">
+                                    <i class="bi bi-cloud-arrow-up fs-3"></i>
+                                    <p>Перетащите CSV файл сюда или нажмите для выбора</p>
+                                </div>
+                                <input type="file" id="nmapCsvFile" accept=".csv,.txt" class="d-none">
+                                <textarea class="form-control font-monospace" id="nmapCsvTextarea" rows="4" placeholder="Или вставьте CSV данные здесь&#10;Формат: ip,port,protocol&#10;Пример: 192.168.1.1,80,tcp&#10;192.168.1.2,443,tcp"></textarea>
+                                <div class="form-text mt-2">Поддерживается формат: IP,порт,протокол (заголовок необязателен)</div>
+                                <div id="nmapCsvPreview" class="mt-2 small text-success d-none"></div>
+                                <div id="nmapCsvError" class="mt-2 small text-danger d-none"></div>
+                            </div>
+                        </div>
+
                         <div class="col-12">
                             <button type="submit" class="btn btn-primary" id="nmapSubmitBtn"><i class="bi bi-play-fill"></i> Запустить Nmap</button>
                         </div>
@@ -186,6 +237,42 @@
                             <label for="rustscanCustomArgs" class="form-label">Доп. аргументы</label>
                             <input type="text" class="form-control" id="rustscanCustomArgs" placeholder="-u 5000 -t 2500">
                             <div class="form-text">Например: -u (ултра) или -t (таймаут).</div>
+                        </div>
+
+                        <!-- Выбор групп -->
+                        <div class="col-md-6" id="rustscanGroupsContainer">
+                            <label for="rustscanGroups" class="form-label">Группы активов</label>
+                            <select class="form-select" id="rustscanGroups" multiple size="4">
+                                <option value="">Загрузка групп...</option>
+                            </select>
+                            <div class="form-text">Удерживайте Ctrl/Cmd для выбора нескольких групп</div>
+                        </div>
+
+                        <!-- Опции сканирования -->
+                        <div class="col-md-6">
+                            <label class="form-label d-block">Опции</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="rustscanKnownOnly">
+                                <label class="form-check-label" for="rustscanKnownOnly">Только известные порты</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="rustscanSaveAssets" checked>
+                                <label class="form-check-label" for="rustscanSaveAssets">Сохранять найденные активы</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="rustscanRunNmap">
+                                <label class="form-check-label" for="rustscanRunNmap">Запустить Nmap после</label>
+                            </div>
+                        </div>
+
+                        <!-- Дополнительные опции Nmap -->
+                        <div class="col-md-6 d-none" id="rustscanNmapArgsContainer">
+                            <label for="rustscanNmapArgs" class="form-label">Аргументы Nmap</label>
+                            <input type="text" class="form-control" id="rustscanNmapArgs" placeholder="-sV -sC">
+                        </div>
+                        <div class="col-md-6 d-none" id="rustscanNmapScriptsContainer">
+                            <label for="rustscanNmapScripts" class="form-label">Скрипты Nmap</label>
+                            <input type="text" class="form-control" id="rustscanNmapScripts" placeholder="default, safe">
                         </div>
 
                         <div class="col-12">
@@ -226,8 +313,78 @@
                             <input type="text" class="form-control" id="digCustomArgs" placeholder="+short +trace">
                         </div>
 
+                        <!-- Загрузка файла для массового DNS запроса -->
+                        <div class="col-md-6">
+                            <label for="digFile" class="form-label">Файл доменов (опционально)</label>
+                            <input type="file" class="form-control" id="digFile" accept=".txt,.csv">
+                            <div class="form-text">Загрузите файл со списком доменов (по одному в строке)</div>
+                        </div>
+
+                        <!-- Опции сканирования -->
+                        <div class="col-md-6">
+                            <label class="form-label d-block">Опции</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="digSaveAssets" checked>
+                                <label class="form-check-label" for="digSaveAssets">Сохранять найденные активы</label>
+                            </div>
+                        </div>
+
                         <div class="col-12">
                             <button type="submit" class="btn btn-info text-white" id="digSubmitBtn"><i class="bi bi-play-fill"></i> Запустить Dig</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Fping Form -->
+                <div class="tab-pane fade" id="fping-pane" role="tabpanel">
+                    <form id="fping-form" class="row g-3">
+                        <div class="col-md-8">
+                            <label for="fpingTarget" class="form-label">Цель (IP, диапазон или хост)</label>
+                            <input type="text" class="form-control" id="fpingTarget" required placeholder="192.168.1.0/24 или example.com">
+                            <div class="form-text">Поддерживаются списки IP через запятую, диапазоны и CIDR.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="fpingCount" class="form-label">Количество пингов</label>
+                            <input type="number" class="form-control" id="fpingCount" value="3" min="1" max="10">
+                            <div class="form-text">Сколько раз пинговать каждый хост</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label for="fpingTimeout" class="form-label">Таймаут (мс)</label>
+                            <input type="number" class="form-control" id="fpingTimeout" value="500" min="100" max="5000" step="100">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="fpingPeriod" class="form-label">Интервал между пингами (мс)</label>
+                            <input type="number" class="form-control" id="fpingPeriod" value="100" min="10" max="1000" step="10">
+                        </div>
+
+                        <!-- Дополнительные аргументы -->
+                        <div class="col-md-6">
+                            <label for="fpingCustomArgs" class="form-label">Доп. аргументы fping</label>
+                            <input type="text" class="form-control" id="fpingCustomArgs" placeholder="-q -e">
+                            <div class="form-text">Например: -q (тихо), -e (показывать время ответа)</div>
+                        </div>
+
+                        <!-- Выбор групп -->
+                        <div class="col-md-6" id="fpingGroupsContainer">
+                            <label for="fpingGroups" class="form-label">Группы активов</label>
+                            <select class="form-select" id="fpingGroups" multiple size="4">
+                                <option value="">Загрузка групп...</option>
+                            </select>
+                            <div class="form-text">Удерживайте Ctrl/Cmd для выбора нескольких групп</div>
+                        </div>
+
+                        <!-- Опции сканирования -->
+                        <div class="col-md-6">
+                            <label class="form-label d-block">Опции</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="fpingSaveAssets" checked>
+                                <label class="form-check-label" for="fpingSaveAssets">Сохранять найденные активы</label>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-warning text-dark" id="fpingSubmitBtn"><i class="bi bi-play-fill"></i> Запустить Fping</button>
                         </div>
                     </form>
                 </div>

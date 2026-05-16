@@ -64,6 +64,7 @@ export class ScanResultsController {
 
       const nmapSelect = document.getElementById('nmapGroups');
       const rustscanSelect = document.getElementById('rustscanGroups');
+      const fpingSelect = document.getElementById('fpingGroups');
       
       const fillSelect = (select) => {
         if (!select) return;
@@ -78,6 +79,7 @@ export class ScanResultsController {
       
       fillSelect(nmapSelect);
       fillSelect(rustscanSelect);
+      fillSelect(fpingSelect);
     } catch (error) {
       console.error('Ошибка загрузки групп:', error);
     }
@@ -293,6 +295,26 @@ export class ScanResultsController {
         }
         if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
       }
+
+      // Очередь Dig
+      const digQ = data?.queues?.dig;
+      if (digQ) {
+        const elCount = document.getElementById('dig-queue-count');
+        const elStatus = document.getElementById('dig-queue-status');
+        
+        if (elCount) elCount.textContent = digQ.queue_length || 0;
+        if (elStatus) elStatus.textContent = digQ.is_running ? 'Выполняется' : 'Ожидание';
+      }
+
+      // Очередь Fping
+      const fpingQ = data?.queues?.fping;
+      if (fpingQ) {
+        const elCount = document.getElementById('fping-queue-count');
+        const elStatus = document.getElementById('fping-queue-status');
+        
+        if (elCount) elCount.textContent = fpingQ.queue_length || 0;
+        if (elStatus) elStatus.textContent = fpingQ.is_running ? 'Выполняется' : 'Ожидание';
+      }
     } catch (e) {
       console.error('Update queue status error:', e);
     }
@@ -362,6 +384,8 @@ export class ScanResultsController {
     // Логика чекбокса "Только известные порты" для Rustscan
     const rustscanKnownPortsCheckbox = document.getElementById('rustscanKnownOnly');
     const rustscanGroupsContainer = document.getElementById('rustscanGroupsContainer');
+    const rustscanNmapArgsContainer = document.getElementById('rustscanNmapArgsContainer');
+    const rustscanNmapScriptsContainer = document.getElementById('rustscanNmapScriptsContainer');
     
     rustscanKnownPortsCheckbox?.addEventListener('change', function() {
       if (this.checked) {
@@ -370,6 +394,21 @@ export class ScanResultsController {
         rustscanGroupsContainer?.classList.add('d-none');
       }
     });
+
+    // Показ дополнительных полей Nmap при запуске после Rustscan
+    const rustscanRunNmapCheckbox = document.getElementById('rustscanRunNmap');
+    rustscanRunNmapCheckbox?.addEventListener('change', function() {
+      if (this.checked) {
+        rustscanNmapArgsContainer?.classList.remove('d-none');
+        rustscanNmapScriptsContainer?.classList.remove('d-none');
+      } else {
+        rustscanNmapArgsContainer?.classList.add('d-none');
+        rustscanNmapScriptsContainer?.classList.add('d-none');
+      }
+    });
+
+    // CSV Drag-and-drop и обработка для Nmap
+    this.#initCsvHandling('nmap');
 
     // Обработчик формы Nmap
     const nmapForm = document.getElementById('nmap-form');
@@ -399,6 +438,16 @@ export class ScanResultsController {
       e.preventDefault();
       
       await this.#submitDigScan(e.target);
+    });
+
+    // Обработчик формы Fping
+    const fpingForm = document.getElementById('fping-form');
+    
+    fpingForm?.addEventListener('submit', async (e) => {
+      
+      e.preventDefault();
+      
+      await this.#submitFpingScan(e.target);
     });
 
     // Кнопки "Новое сканирование" и "Импорт Nmap XML"
@@ -618,7 +667,29 @@ export class ScanResultsController {
     const groupSelect = document.getElementById('nmapGroups');
     const groupIds = groupSelect ? Array.from(groupSelect.selectedOptions).map(opt => opt.value) : [];
 
-    if (!target && !knownOnly) { 
+    // Обработка CSV данных
+    const csvTextarea = document.getElementById('nmapCsvTextarea');
+    const csvData = csvTextarea?.value.trim() || '';
+    let csvTargets = [];
+    
+    if (csvData) {
+      try {
+        csvTargets = this.#parseCsvData(csvData);
+        if (csvTargets.length === 0) {
+          console.warn('CSV не содержит валидных данных');
+        }
+      } catch (error) {
+        console.error('Ошибка парсинга CSV:', error);
+        const errorDiv = document.getElementById('nmapCsvError');
+        if (errorDiv) {
+          errorDiv.textContent = 'Ошибка формата CSV: ' + error.message;
+          errorDiv.classList.remove('d-none');
+        }
+        return;
+      }
+    }
+
+    if (!target && !knownOnly && csvTargets.length === 0) { 
       // Utils.showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
       return; 
     }
@@ -635,11 +706,17 @@ export class ScanResultsController {
     const scriptsStr = scripts.join(',') || '';
 
     try {
+      // Объединяем цели из разных источников
+      let finalTarget = target;
+      if (csvTargets.length > 0) {
+        const csvTargetStr = csvTargets.map(t => t.ip).join(',');
+        finalTarget = finalTarget ? `${finalTarget},${csvTargetStr}` : csvTargetStr;
+      }
       
       await Utils.apiRequest('/api/scans/nmap', {
         method: 'POST',
         body: JSON.stringify({
-          target, 
+          target: finalTarget, 
           ports: document.getElementById('nmapPorts')?.value || '', 
           scripts: scriptsStr,
           custom_args: document.getElementById('nmapCustomArgs')?.value || '', 
@@ -1065,6 +1142,158 @@ export class ScanResultsController {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  /**
+   * Инициализация обработки CSV (drag-and-drop, textarea, валидация)
+   */
+  #initCsvHandling(scanType) {
+    const dropZone = document.getElementById(`${scanType}CsvDropZone`);
+    const fileInput = document.getElementById(`${scanType}CsvFile`);
+    const textarea = document.getElementById(`${scanType}CsvTextarea`);
+    const previewDiv = document.getElementById(`${scanType}CsvPreview`);
+    const errorDiv = document.getElementById(`${scanType}CsvError`);
+
+    if (!dropZone || !fileInput || !textarea) return;
+
+    // Клик по зоне открывает выбор файла
+    dropZone.addEventListener('click', (e) => {
+      if (e.target !== textarea && e.target !== fileInput) {
+        fileInput.click();
+      }
+    });
+
+    // Обработка выбора файла
+    fileInput.addEventListener('change', async (e) => {
+      if (e.target.files.length > 0) {
+        await this.#handleCsvFile(e.target.files[0], textarea, previewDiv, errorDiv);
+      }
+    });
+
+    // Drag-and-drop события
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('bg-light');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('bg-light');
+    });
+
+    dropZone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('bg-light');
+      if (e.dataTransfer.files.length > 0) {
+        await this.#handleCsvFile(e.dataTransfer.files[0], textarea, previewDiv, errorDiv);
+      }
+    });
+
+    // Валидация при вводе в textarea
+    textarea.addEventListener('input', () => {
+      this.#validateCsv(textarea.value, previewDiv, errorDiv);
+    });
+  }
+
+  /**
+   * Обработка загруженного CSV файла
+   */
+  async #handleCsvFile(file, textarea, previewDiv, errorDiv) {
+    try {
+      const content = await this.#readFileAsText(file);
+      textarea.value = content;
+      this.#validateCsv(content, previewDiv, errorDiv);
+    } catch (error) {
+      console.error('Ошибка чтения файла:', error);
+      if (errorDiv) {
+        errorDiv.textContent = 'Ошибка чтения файла: ' + error.message;
+        errorDiv.classList.remove('d-none');
+      }
+      if (previewDiv) {
+        previewDiv.classList.add('d-none');
+      }
+    }
+  }
+
+  /**
+   * Валидация CSV данных
+   */
+  #validateCsv(data, previewDiv, errorDiv) {
+    if (!previewDiv || !errorDiv) return;
+
+    if (!data.trim()) {
+      previewDiv.classList.add('d-none');
+      errorDiv.classList.add('d-none');
+      return;
+    }
+
+    try {
+      const targets = this.#parseCsvData(data);
+      if (targets.length > 0) {
+        previewDiv.textContent = `✓ Найдено ${targets.length} хостов: ${targets.slice(0, 3).map(t => t.ip).join(', ')}${targets.length > 3 ? '...' : ''}`;
+        previewDiv.classList.remove('d-none');
+        errorDiv.classList.add('d-none');
+      } else {
+        previewDiv.classList.add('d-none');
+        errorDiv.textContent = 'CSV не содержит валидных данных';
+        errorDiv.classList.remove('d-none');
+      }
+    } catch (error) {
+      previewDiv.classList.add('d-none');
+      errorDiv.textContent = 'Ошибка формата: ' + error.message;
+      errorDiv.classList.remove('d-none');
+    }
+  }
+
+  /**
+   * Парсинг CSV данных в массив объектов {ip, port?, protocol?}
+   */
+  #parseCsvData(csvText) {
+    const lines = csvText.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+    const targets = [];
+
+    for (const line of lines) {
+      const parts = line.split(/[,\t;]/).map(p => p.trim()).filter(p => p);
+      if (parts.length === 0) continue;
+
+      // Определяем IP/хост (первый элемент или ищем по формату)
+      let ip = parts[0];
+      let port = parts[1] || null;
+      let protocol = parts[2] || 'tcp';
+
+      // Пропускаем строку заголовка
+      if (ip.toLowerCase() === 'ip' || ip.toLowerCase() === 'host') continue;
+      if (port && port.toLowerCase() === 'port') continue;
+
+      // Базовая валидация IP или hostname
+      if (!this.#isValidIpOrHost(ip)) {
+        throw new Error(`Неверный формат IP/хоста: ${ip}`);
+      }
+
+      targets.push({ ip, port, protocol });
+    }
+
+    return targets;
+  }
+
+  /**
+   * Проверка на валидный IP или hostname
+   */
+  #isValidIpOrHost(str) {
+    if (!str) return false;
+    
+    // IPv4
+    const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+    if (ipv4Regex.test(str)) {
+      const parts = str.split('.').map(Number);
+      return parts.every(p => p >= 0 && p <= 255);
+    }
+    
+    // IPv6 (упрощенно)
+    if (str.includes(':')) return true;
+    
+    // Hostname
+    const hostRegex = /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/;
+    return hostRegex.test(str);
   }
 }
 
