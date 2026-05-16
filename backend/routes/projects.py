@@ -12,13 +12,15 @@ from datetime import datetime, timezone
 
 from backend.db.session import get_db
 from backend.db.project_db_manager import project_db_manager, get_project_db
-from backend.models.project import Project, ProjectReport, ProjectArtifact, ProjectScanSession, project_groups
+from backend.models.project import Project, ProjectReport, ProjectArtifact, ProjectScanSession, CTFMachine, ProjectGitSync, project_groups
 from backend.models.group import Group
 from backend.schemas.project import (
     ProjectCreate, ProjectUpdate, ProjectResponse,
     ProjectReportCreate, ProjectReportUpdate, ProjectReportResponse,
     ProjectArtifactCreate, ProjectArtifactUpdate, ProjectArtifactResponse,
-    ProjectScanSessionCreate, ProjectScanSessionUpdate, ProjectScanSessionResponse
+    ProjectScanSessionCreate, ProjectScanSessionUpdate, ProjectScanSessionResponse,
+    CTFMachineCreate, CTFMachineUpdate, CTFMachineResponse,
+    ProjectGitSyncCreate, ProjectGitSyncUpdate, ProjectGitSyncResponse
 )
 
 logger = logging.getLogger(__name__)

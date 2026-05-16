@@ -131,7 +131,7 @@ class ProjectDatabaseManager:
     async def create_project_database(self, project_id: int):
         """Создать базу данных для проекта."""
         from backend.db.base import Base
-        from backend.models.project import ProjectReport, ProjectArtifact, ProjectScanSession
+        from backend.models.project import ProjectReport, ProjectArtifact, ProjectScanSession, CTFMachine, ProjectGitSync
         
         sync_engine = self.get_project_sync_engine(project_id)
         

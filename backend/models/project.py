@@ -231,5 +231,147 @@ class ProjectScanSession(Base):
         }
 
 
+class CTFMachine(Base):
+    """Модель для хранения информации о прохождении CTF машин."""
+    
+    __tablename__ = "ctf_machines"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    
+    # Информация о машине
+    name = Column(String(255), nullable=False)
+    platform = Column(String(100), nullable=True)  # HackTheBox, TryHackMe, VulnHub, etc.
+    difficulty = Column(String(50), nullable=True)  # easy, medium, hard, insane
+    os_type = Column(String(50), nullable=True)  # linux, windows, other
+    ip_address = Column(String(50), nullable=True)
+    
+    # Статус прохождения
+    status = Column(String(50), default="not_started")  # not_started, in_progress, pwned, retired
+    rank = Column(Integer, nullable=True)  # Место в рейтинге
+    points = Column(Integer, default=0)  # Очки за машину
+    
+    # Этапы взлома
+    user_flags = Column(JSON, nullable=True, default=list)  # Найденные пользовательские флаги
+    root_flags = Column(JSON, nullable=True, default=list)  # Найденные root флаги
+    user_methods = Column(Text, nullable=True)  # Методы получения user доступа
+    root_methods = Column(Text, nullable=True)  # Методы получения root доступа
+    
+    # Разведка
+    nmap_results = Column(Text, nullable=True)  # Результаты Nmap
+    services_found = Column(JSON, nullable=True, default=list)  # Найденные сервисы
+    vulnerabilities = Column(JSON, nullable=True, default=list)  # Найденные уязвимости
+    
+    # Заметки и writeup
+    notes = Column(Text, nullable=True)  # Заметки в процессе
+    writeup = Column(Text, nullable=True)  # Полный writeup
+    screenshots = Column(JSON, nullable=True, default=list)  # Ссылки на скриншоты
+    
+    # Временные метки
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Связи
+    project = relationship("Project", backref="ctf_machines")
+    
+    def to_dict(self):
+        """Преобразование в словарь."""
+        return {
+            "id": self.id,
+            "uuid": self.uuid,
+            "project_id": self.project_id,
+            "name": self.name,
+            "platform": self.platform,
+            "difficulty": self.difficulty,
+            "os_type": self.os_type,
+            "ip_address": self.ip_address,
+            "status": self.status,
+            "rank": self.rank,
+            "points": self.points,
+            "user_flags": self.user_flags,
+            "root_flags": self.root_flags,
+            "user_methods": self.user_methods,
+            "root_methods": self.root_methods,
+            "nmap_results": self.nmap_results,
+            "services_found": self.services_found,
+            "vulnerabilities": self.vulnerabilities,
+            "notes": self.notes,
+            "writeup": self.writeup,
+            "screenshots": self.screenshots,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class ProjectGitSync(Base):
+    """Модель для настройки Git синхронизации проекта."""
+    
+    __tablename__ = "project_git_sync"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(String(36), unique=True, nullable=False, index=True, default=lambda: str(uuid.uuid4()))
+    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True, unique=True)
+    
+    # Настройки Git
+    repo_url = Column(String(500), nullable=False)  # URL репозитория
+    branch = Column(String(100), default="main")  # Ветка
+    auth_type = Column(String(50), default="ssh")  # ssh, token, password
+    
+    # Аутентификация
+    ssh_key_path = Column(String(500), nullable=True)  # Путь к SSH ключу
+    token = Column(String(255), nullable=True)  # Токен доступа (encrypted)
+    username = Column(String(100), nullable=True)  # Имя пользователя
+    
+    # Пути в репозитории
+    reports_path = Column(String(255), default="reports")  # Путь для отчетов
+    artifacts_path = Column(String(255), default="artifacts")  # Путь для артефактов
+    ctf_path = Column(String(255), default="ctf")  # Путь для CTF writeups
+    
+    # Статус синхронизации
+    last_sync = Column(DateTime(timezone=True), nullable=True)
+    sync_status = Column(String(50), default="never")  # never, success, failed, syncing
+    last_error = Column(Text, nullable=True)
+    
+    # Настройки
+    auto_sync = Column(Boolean, default=False)  # Автосинхронизация
+    sync_on_save = Column(Boolean, default=True)  # Синхронизация при сохранении
+    
+    # Временные метки
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Связи
+    project = relationship("Project", backref="git_sync")
+    
+    def to_dict(self):
+        """Преобразование в словарь."""
+        return {
+            "id": self.id,
+            "uuid": self.uuid,
+            "project_id": self.project_id,
+            "repo_url": self.repo_url,
+            "branch": self.branch,
+            "auth_type": self.auth_type,
+            "ssh_key_path": self.ssh_key_path,
+            "token": "***" if self.token else None,  # Не показываем токен
+            "username": self.username,
+            "reports_path": self.reports_path,
+            "artifacts_path": self.artifacts_path,
+            "ctf_path": self.ctf_path,
+            "last_sync": self.last_sync.isoformat() if self.last_sync else None,
+            "sync_status": self.sync_status,
+            "last_error": self.last_error,
+            "auto_sync": self.auto_sync,
+            "sync_on_save": self.sync_on_save,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 # Добавим обратную связь в модель Group
 # Это будет сделано в models/group.py через back_populates
