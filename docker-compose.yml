@@ -6,12 +6,10 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - ./app/data:/app/data
-      - ./app/backend:/app/backend
-      - ./app/frontend/src:/app/frontend/src
+      - ./data:/workspace/data
+      - ./backend:/workspace/backend
     environment:
-      - FLASK_ENV=development
-      - NODE_ENV=development
+      - DATABASE_URL=sqlite+aiosqlite:///workspace/data/app.db
     restart: unless-stopped
 
   test:
@@ -19,6 +17,6 @@ services:
     profiles: ["test"]
     command: echo "Test container ready for headless testing"
     volumes:
-      - ./app/data:/app/data
+      - ./data:/workspace/data
     environment:
       - HEADLESS=true

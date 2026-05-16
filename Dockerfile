@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-WORKDIR /app
+WORKDIR /workspace
 
 # Install system dependencies including git
 RUN apt-get update && apt-get install -y \
@@ -9,29 +9,21 @@ RUN apt-get update && apt-get install -y \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Node.js
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
-
 # Copy backend requirements and install Python dependencies
-COPY app/backend/requirements.txt /app/backend/
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt
-
-# Copy frontend files and install dependencies
-COPY app/frontend/package*.json /app/frontend/
-WORKDIR /app/frontend
-RUN npm install
+COPY backend/requirements.txt /workspace/backend/
+RUN pip install --no-cache-dir -r /workspace/backend/requirements.txt
 
 # Copy application code
-WORKDIR /app
-COPY app/ /app/
+COPY backend/ /workspace/backend/
+COPY templates/ /workspace/templates/
+COPY static/ /workspace/static/
+COPY frontend/ /workspace/frontend/
 
 # Create data directory
-RUN mkdir -p /app/data/projects
+RUN mkdir -p /workspace/data/projects
 
-# Expose ports
-EXPOSE 5000 3000
+# Expose only port 5000
+EXPOSE 5000
 
-# Start both services
-CMD ["sh", "-c", "cd /app/backend && python app.py & cd /app/frontend && npm run dev"]
+# Start only the FastAPI backend
+CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "5000"]
