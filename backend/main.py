@@ -261,22 +261,22 @@ async def health_check():
 @app.get("/")
 async def root(request: Request):
     """Корневой эндпоинт - рендеринг главной страницы."""
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse("components/dashboard.html", {"request": request})
 
 @app.get("/dashboard")
 async def dashboard(request: Request):
     """Страница Dashboard."""
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse("components/dashboard.html", {"request": request})
 
 @app.get("/scans")
 async def scans_page(request: Request):
     """Страница сканирований."""
-    return templates.TemplateResponse("scans.html", {"request": request})
+    return templates.TemplateResponse("scans/scans.html", {"request": request})
 
 @app.get("/scan-history")
 async def scan_history_page(request: Request):
     """Страница истории сканирований."""
-    return templates.TemplateResponse("scan_history.html", {"request": request})
+    return templates.TemplateResponse("scans/scan_history.html", {"request": request})
 
 @app.get("/import-nmap")
 async def import_nmap_page(request: Request, db: AsyncSession = Depends(get_db)):
@@ -285,7 +285,7 @@ async def import_nmap_page(request: Request, db: AsyncSession = Depends(get_db))
     group_service = GroupService(db)
     groups = await group_service.get_all()
     
-    return templates.TemplateResponse("import_nmap.html", {
+    return templates.TemplateResponse("scans/import_nmap.html", {
         "request": request,
         "groups": groups
     })
@@ -304,7 +304,7 @@ async def asset_detail(request: Request, asset_id: int, db: AsyncSession = Depen
     # Загружаем историю изменений
     change_logs = await service.get_change_logs(asset_id, limit=50)
     
-    return templates.TemplateResponse("asset_detail.html", {
+    return templates.TemplateResponse("assets/asset_detail.html", {
         "request": request, 
         "asset": asset,
         "change_logs": change_logs
@@ -320,7 +320,7 @@ async def asset_view_page(request: Request, asset_id: int, db: AsyncSession = De
     if not asset:
         raise HTTPException(status_code=404, detail="Актив не найден")
     
-    return templates.TemplateResponse("asset_detail.html", {
+    return templates.TemplateResponse("assets/asset_detail.html", {
         "request": request,
         "asset": asset
     })
@@ -328,27 +328,27 @@ async def asset_view_page(request: Request, asset_id: int, db: AsyncSession = De
 @app.get("/assets/{asset_id}/history")
 async def asset_history(request: Request, asset_id: int):
     """Страница истории актива."""
-    return templates.TemplateResponse("asset_history.html", {"request": request, "asset_id": asset_id})
+    return templates.TemplateResponse("assets/asset_history.html", {"request": request, "asset_id": asset_id})
 
 @app.get("/utilities")
 async def utilities(request: Request):
     """Страница утилит."""
-    return templates.TemplateResponse("utilities.html", {"request": request})
+    return templates.TemplateResponse("scans/utilities.html", {"request": request})
 
 @app.get("/taxonomy")
 async def asset_taxonomy(request: Request):
     """Страница таксономии активов."""
-    return templates.TemplateResponse("asset_taxonomy.html", {"request": request})
+    return templates.TemplateResponse("assets/asset_taxonomy.html", {"request": request})
 
 @app.get("/ui-kit")
 async def ui_kit(request: Request):
     """Страница UI Kit для демонстрации компонентов."""
-    return templates.TemplateResponse("ui_kit.html", {"request": request})
+    return templates.TemplateResponse("components/ui_kit.html", {"request": request})
 
 @app.get("/settings")
 async def settings_page(request: Request):
     """Страница настроек приложения."""
-    return templates.TemplateResponse("settings.html", {"request": request})
+    return templates.TemplateResponse("components/settings.html", {"request": request})
 
 
 # ============================================================================
@@ -358,13 +358,13 @@ async def settings_page(request: Request):
 @app.get("/projects")
 async def projects_page(request: Request):
     """Страница управления проектами."""
-    return templates.TemplateResponse("projects.html", {"request": request})
+    return templates.TemplateResponse("projects/projects.html", {"request": request})
 
 
 @app.get("/projects/{project_id}")
 async def project_detail_page(request: Request, project_id: int):
     """Страница деталей проекта."""
-    return templates.TemplateResponse("project_detail.html", {
+    return templates.TemplateResponse("projects/project_detail.html", {
         "request": request,
         "project_id": project_id
     })
@@ -377,36 +377,36 @@ async def project_detail_page(request: Request, project_id: int):
 @app.get("/integrations/redcheck")
 async def redcheck_integration_page(request: Request):
     """Страница настройки интеграции с RedCheck."""
-    return templates.TemplateResponse("redcheck_integration.html", {"request": request})
+    return templates.TemplateResponse("redcheck/redcheck_integration.html", {"request": request})
 
 @app.get("/integrations/redcheck/scans")
 async def redcheck_scans_page(request: Request):
     """Страница сканирований RedCheck."""
-    return templates.TemplateResponse("redcheck_scans.html", {"request": request})
+    return templates.TemplateResponse("redcheck/redcheck_scans.html", {"request": request})
 
 @app.get("/integrations/redcheck/hosts")
 async def redcheck_hosts_page(request: Request):
     """Страница хостов (активов) RedCheck."""
-    return templates.TemplateResponse("redcheck_hosts.html", {"request": request})
+    return templates.TemplateResponse("redcheck/redcheck_hosts.html", {"request": request})
 
 
 @app.get("/assets-manager")
 async def assets_manager_page(request: Request):
     """Единая страница управления активами и группами."""
-    return templates.TemplateResponse("assets.html", {"request": request})
+    return templates.TemplateResponse("assets/assets.html", {"request": request})
 
 # Альтернативные представления активов
 @app.get("/assets-cards")
 async def assets_cards_page(request: Request):
     """Представление активов в виде карточек."""
-    return templates.TemplateResponse("assets_cards.html", {"request": request})
+    return templates.TemplateResponse("assets/assets_cards.html", {"request": request})
 
 @app.get("/assets-table")
 async def assets_table_page(request: Request):
     """Представление активов в виде таблицы."""
-    return templates.TemplateResponse("assets_table.html", {"request": request})
+    return templates.TemplateResponse("assets/assets_table.html", {"request": request})
 
 @app.get("/groups-manager")
 async def groups_manager_page(request: Request):
     """Страница управления группами."""
-    return templates.TemplateResponse("groups_manager.html", {"request": request})
+    return templates.TemplateResponse("groups/groups_manager.html", {"request": request})
