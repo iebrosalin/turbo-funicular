@@ -9,7 +9,7 @@ from typing import Dict, Optional, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from backend.scanner import NmapScanner, RustscanScanner, DigScanner
+from backend.scanner import NmapScanner, RustscanScanner, DigScanner, FpingScanner
 from backend.db.session import async_session_maker
 
 logger = logging.getLogger(__name__)
@@ -167,7 +167,7 @@ class ScanQueueManager:
         
         # Определяем тип очереди на основе типа сканирования
         # Nmap - эксклюзивная задача (только одна одновременно)
-        # Rustscan и Dig - параллельные задачи (могут выполняться несколько)
+        # Rustscan, Dig и Fping - параллельные задачи (могут выполняться несколько)
         is_exclusive = scan_type == 'nmap'
         
         # Формируем параметры для передачи в фоновую задачу
@@ -261,6 +261,18 @@ class ScanQueueManager:
                             record_types=record_types
                         )
                         logger.info(f"[DEBUG] Создан DigScanner")
+                    elif scan_type == 'fping':
+                        count = parameters.get('count', 3)
+                        interval = parameters.get('interval', 1000)
+                        timeout = parameters.get('timeout', 500)
+                        scanner = FpingScanner(
+                            job_id=scan_job_id, 
+                            target=target,
+                            count=count,
+                            interval=interval,
+                            timeout=timeout
+                        )
+                        logger.info(f"[DEBUG] Создан FpingScanner")
                     
                     if not scanner:
                         raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
@@ -278,6 +290,10 @@ class ScanQueueManager:
                             logger.info(f"[DEBUG] Запуск DigScanner.scan для {target}, record_type={parameters.get('record_types', 'ALL')}")
                             result_data = await scanner.scan()
                             logger.info(f"[DEBUG] DigScanner.scan вернул: {result_data}")
+                        elif scan_type == 'fping':
+                            logger.info(f"[DEBUG] Запуск FpingScanner.scan для {target}, count={parameters.get('count', 3)}")
+                            result_data = await scanner.scan()
+                            logger.info(f"[DEBUG] FpingScanner.scan вернул: {result_data}")
                         else:
                             raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
                         
