@@ -1334,13 +1334,19 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
     from sqlalchemy.orm import selectinload
     import json
     
+    logger.info("=" * 80)
+    logger.info(f"[DOWNLOAD] Запрос на скачивание: job_id={job_id}, format={format}")
+    
     # Получаем задачу сканирования
     job_query = select(ScanJob).where(ScanJob.id == job_id).options(selectinload(ScanJob.scan))
     job_result = await db.execute(job_query)
     job = job_result.scalar_one_or_none()
     
     if not job:
+        logger.error(f"[DOWNLOAD] Задача сканирования {job_id} не найдена")
         raise HTTPException(status_code=404, detail="Задача сканирования не найдена")
+    
+    logger.info(f"[DOWNLOAD] Задача найдена: job_id={job_id}, scan_id={job.scan_id}, status={job.status}")
     
     # Получаем результаты сканирования для этой задачи
     results_query = select(ScanResult).where(ScanResult.scan_job_id == job_id)
@@ -1349,17 +1355,21 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
     
     if not results:
         # Пробуем получить результаты по scan_id если нет по job_id
+        logger.warning(f"[DOWNLOAD] Нет результатов для job_id={job_id}, пробуем по scan_id={job.scan_id}")
         results_query = select(ScanResult).where(ScanResult.scan_id == job.scan_id)
         results_result = await db.execute(results_query)
         results = results_result.scalars().all()
     
     if not results:
+        logger.error(f"[DOWNLOAD] Результаты сканирования не найдены для job_id={job_id}, scan_id={job.scan_id}")
         raise HTTPException(status_code=404, detail="Результаты сканирования не найдены")
+    
+    logger.info(f"[DOWNLOAD] Найдено результатов: {len(results)}")
     
     # Определяем тип сканирования
     scan_type = job.job_type or (job.scan.scan_type if job.scan else None)
     
-    logger.info(f"[DOWNLOAD_DEBUG] Запрос формата {format} для job_id={job_id}, scan_type={scan_type}")
+    logger.info(f"[DOWNLOAD] Тип сканирования: {scan_type}, запрошенный формат: {format}")
     
     if format == "raw":
         # Сырой вывод всех результатов (используем output_normal для nmap или raw_output)

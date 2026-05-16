@@ -223,3 +223,158 @@ class ProjectScanSessionResponse(ProjectScanSessionBase):
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     created_at: datetime
+
+
+# ===== CTFMachine Schemas =====
+
+class CTFMachineStatus(str, Enum):
+    """Статусы прохождения CTF машины."""
+    NOT_STARTED = "not_started"
+    IN_PROGRESS = "in_progress"
+    PWNED = "pwned"
+    RETIRED = "retired"
+
+
+class CTFMachineDifficulty(str, Enum):
+    """Уровни сложности CTF машин."""
+    EASY = "easy"
+    MEDIUM = "medium"
+    HARD = "hard"
+    INSANE = "insane"
+
+
+class CTFMachineOS(str, Enum):
+    """Типы ОС CTF машин."""
+    LINUX = "linux"
+    WINDOWS = "windows"
+    OTHER = "other"
+
+
+class CTFMachineBase(BaseModel):
+    """Базовая схема CTF машины."""
+    name: str = Field(..., min_length=1, max_length=255, description="Название машины")
+    platform: Optional[str] = Field(None, max_length=100, description="Платформа (HackTheBox, TryHackMe, etc.)")
+    difficulty: Optional[CTFMachineDifficulty] = Field(None, description="Уровень сложности")
+    os_type: Optional[CTFMachineOS] = Field(None, description="Тип ОС")
+    ip_address: Optional[str] = Field(None, max_length=50, description="IP адрес")
+    status: Optional[CTFMachineStatus] = Field(CTFMachineStatus.NOT_STARTED, description="Статус прохождения")
+    rank: Optional[int] = Field(None, description="Место в рейтинге")
+    points: Optional[int] = Field(0, description="Очки за машину")
+    user_flags: Optional[List[str]] = Field(None, description="Пользовательские флаги")
+    root_flags: Optional[List[str]] = Field(None, description="Root флаги")
+    user_methods: Optional[str] = Field(None, description="Методы получения user доступа")
+    root_methods: Optional[str] = Field(None, description="Методы получения root доступа")
+    nmap_results: Optional[str] = Field(None, description="Результаты Nmap")
+    services_found: Optional[List[Dict[str, Any]]] = Field(None, description="Найденные сервисы")
+    vulnerabilities: Optional[List[Dict[str, Any]]] = Field(None, description="Найденные уязвимости")
+    notes: Optional[str] = Field(None, description="Заметки")
+    writeup: Optional[str] = Field(None, description="Полный writeup")
+    screenshots: Optional[List[str]] = Field(None, description="Ссылки на скриншоты")
+
+
+class CTFMachineCreate(CTFMachineBase):
+    """Схема для создания CTF машины."""
+    project_id: int
+
+
+class CTFMachineUpdate(BaseModel):
+    """Схема для обновления CTF машины."""
+    name: Optional[str] = None
+    platform: Optional[str] = None
+    difficulty: Optional[CTFMachineDifficulty] = None
+    os_type: Optional[CTFMachineOS] = None
+    ip_address: Optional[str] = None
+    status: Optional[CTFMachineStatus] = None
+    rank: Optional[int] = None
+    points: Optional[int] = None
+    user_flags: Optional[List[str]] = None
+    root_flags: Optional[List[str]] = None
+    user_methods: Optional[str] = None
+    root_methods: Optional[str] = None
+    nmap_results: Optional[str] = None
+    services_found: Optional[List[Dict[str, Any]]] = None
+    vulnerabilities: Optional[List[Dict[str, Any]]] = None
+    notes: Optional[str] = None
+    writeup: Optional[str] = None
+    screenshots: Optional[List[str]] = None
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+
+class CTFMachineResponse(CTFMachineBase):
+    """Схема ответа CTF машины."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    uuid: str
+    project_id: int
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+# ===== ProjectGitSync Schemas =====
+
+class GitAuthType(str, Enum):
+    """Типы аутентификации Git."""
+    SSH = "ssh"
+    TOKEN = "token"
+    PASSWORD = "password"
+
+
+class SyncStatus(str, Enum):
+    """Статусы синхронизации Git."""
+    NEVER = "never"
+    SUCCESS = "success"
+    FAILED = "failed"
+    SYNCING = "syncing"
+
+
+class ProjectGitSyncBase(BaseModel):
+    """Базовая схема Git синхронизации проекта."""
+    repo_url: str = Field(..., max_length=500, description="URL репозитория")
+    branch: Optional[str] = Field("main", max_length=100, description="Ветка")
+    auth_type: Optional[GitAuthType] = Field(GitAuthType.SSH, description="Тип аутентификации")
+    ssh_key_path: Optional[str] = Field(None, max_length=500, description="Путь к SSH ключу")
+    username: Optional[str] = Field(None, max_length=100, description="Имя пользователя")
+    reports_path: Optional[str] = Field("reports", max_length=255, description="Путь для отчетов")
+    artifacts_path: Optional[str] = Field("artifacts", max_length=255, description="Путь для артефактов")
+    ctf_path: Optional[str] = Field("ctf", max_length=255, description="Путь для CTF writeups")
+    auto_sync: Optional[bool] = Field(False, description="Автосинхронизация")
+    sync_on_save: Optional[bool] = Field(True, description="Синхронизация при сохранении")
+
+
+class ProjectGitSyncCreate(ProjectGitSyncBase):
+    """Схема для создания Git синхронизации."""
+    project_id: int
+    token: Optional[str] = Field(None, max_length=255, description="Токен доступа")
+
+
+class ProjectGitSyncUpdate(BaseModel):
+    """Схема для обновления Git синхронизации."""
+    repo_url: Optional[str] = None
+    branch: Optional[str] = None
+    auth_type: Optional[GitAuthType] = None
+    ssh_key_path: Optional[str] = None
+    token: Optional[str] = None
+    username: Optional[str] = None
+    reports_path: Optional[str] = None
+    artifacts_path: Optional[str] = None
+    ctf_path: Optional[str] = None
+    auto_sync: Optional[bool] = None
+    sync_on_save: Optional[bool] = None
+
+
+class ProjectGitSyncResponse(ProjectGitSyncBase):
+    """Схема ответа Git синхронизации."""
+    model_config = ConfigDict(from_attributes=True)
+    
+    id: int
+    uuid: str
+    project_id: int
+    last_sync: Optional[datetime] = None
+    sync_status: SyncStatus = SyncStatus.NEVER
+    last_error: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None

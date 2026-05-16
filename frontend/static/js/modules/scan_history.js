@@ -144,6 +144,10 @@ class ScanHistoryManager {
         if (['completed', 'failed', 'stopped', 'cancelled'].includes(scan.status)) {
             actions += `<button class="btn btn-sm btn-outline-primary btn-retry-job" data-job-id="${scan.id}"><i class="bi bi-arrow-clockwise"></i></button> `;
         }
+        // Кнопка просмотра результатов для всех завершённых сканирований
+        if (['completed', 'failed', 'stopped', 'cancelled'].includes(scan.status)) {
+            actions += `<button class="btn btn-sm btn-outline-info btn-view-results" data-scan-id="${scan.id}"><i class="bi bi-eye"></i></button> `;
+        }
         if (scan.status === 'completed') {
             let downloadLinks = `<li><a class="dropdown-item" href="/api/scans/${scan.id}/download/raw">Raw</a></li>`;
             if (scan.scan_type === 'nmap') {
@@ -177,6 +181,8 @@ class ScanHistoryManager {
         if (deleteBtn) deleteBtn.addEventListener('click', () => this.deleteScan(scan.id));
         const removeBtn = tr.querySelector('.btn-remove-job');
         if (removeBtn) removeBtn.addEventListener('click', () => this.removeJob(scan.id));
+        const viewResultsBtn = tr.querySelector('.btn-view-results');
+        if (viewResultsBtn) viewResultsBtn.addEventListener('click', () => this.viewScanResults(scan.id));
 
         return tr;
     }
