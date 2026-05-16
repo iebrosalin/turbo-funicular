@@ -1,31 +1,48 @@
 import asyncio
 import logging
 import os
-import tempfile
-import shutil
-import json
-from typing import Dict, Any, List, Optional
-from ..base import BaseScanner
+from typing import Dict, Any, List, Optional, Union
+from ..base import BaseScanner, ScanResult
+from backend.models.target import Target
 
 logger = logging.getLogger(__name__)
 
 class DigScanner(BaseScanner):
-    def __init__(self, job_id: int, target: str, record_types: Optional[List[str]] = None, 
-                 output_dir: Optional[str] = None):
-        # Используем переменную окружения или значение по умолчанию
-        if output_dir is None:
-            output_dir = os.getenv('SCANNER_OUTPUT_DIR', '/app/scanner_output')
-        super().__init__(job_id, output_dir)
-        self.target = target
+    """Сканер на основе dig для DNS-запросов"""
+    
+    SCANNER_NAME = "dig"
+    SUPPORTS_MULTIPLE_TARGETS = False  # Только один домен за раз
+    DEFAULT_TIMEOUT = 60
+    
+    def __init__(
+        self, 
+        job_id: int, 
+        target: Union[str, Target], 
+        record_types: Optional[List[str]] = None,
+        output_dir: Optional[str] = None
+    ):
+        """
+        Инициализация сканера Dig.
+        
+        Args:
+            job_id: ID задачи сканирования
+            target: Доменное имя для запроса
+            record_types: Типы DNS записей для запроса
+            output_dir: Директория для временных файлов
+        """
+        super().__init__(job_id, target, output_dir)
         # Default types if not specified
         self.record_types = record_types or ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA"]
-        # Создаем временную директорию для файлов результатов
-        self.temp_dir = None
 
-    async def scan(self) -> Dict[str, Any]:
-        # Создаем временную директорию для хранения файлов результатов
-        self.temp_dir = tempfile.mkdtemp(prefix=f"dig_job_{self.job_id}_")
-        logger.info(f"[DigScanner] Создана временная директория: {self.temp_dir}")
+    async def scan(self) -> ScanResult:
+        """
+        Выполняет DNS-запросы через dig.
+        
+        Returns:
+            ScanResult: Результаты с DNS записями
+        """
+        # Создаем временную директорию через базовый класс
+        self._create_temp_dir(prefix=f"dig_job_{self.job_id}_")
         
         # Пути к временным файлам
         stdout_file = os.path.join(self.temp_dir, "stdout.txt")
@@ -42,7 +59,7 @@ class DigScanner(BaseScanner):
         cmd.append("+authority")
         cmd.append("+additional")
         
-        logger.info(f"[DigScanner] Запуск команды: {' '.join(cmd)}")
+        logger.info(f"[{self.__class__.__name__}] Запуск команды: {' '.join(cmd)}")
         
         # Открываем файл для записи stdout
         with open(stdout_file, 'w', encoding='utf-8') as stdout_f:
@@ -52,7 +69,7 @@ class DigScanner(BaseScanner):
                 stderr=asyncio.subprocess.PIPE
             )
         
-        logger.info(f"[DigScanner] Запущен процесс Dig для задачи {self.job_id}, PID: {process.pid}")
+        logger.info(f"[{self.__class__.__name__}] Запущен процесс Dig для задачи {self.job_id}, PID: {process.pid}")
         
         stderr = await process.stderr.read()
         stderr_str = stderr.decode('utf-8', errors='ignore') if stderr else ""
@@ -61,36 +78,34 @@ class DigScanner(BaseScanner):
             for line in stderr_str.splitlines():
                 logger.debug(f"[Dig] {line}")
                 
-        logger.info(f"[DigScanner] Процесс Dig завершен с кодом {process.returncode}")
+        logger.info(f"[{self.__class__.__name__}] Процесс Dig завершен с кодом {process.returncode}")
         
-        # Читаем stdout из временного файла
-        stdout_str = ""
-        try:
-            if os.path.exists(stdout_file):
-                with open(stdout_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    stdout_str = f.read()
-                logger.info(f"[DigScanner] Прочитан stdout файл, размер: {len(stdout_str)} байт")
-        except Exception as e:
-            logger.error(f"[DigScanner] Ошибка чтения stdout файла: {e}", exc_info=True)
+        # Читаем stdout из временного файла через базовый класс
+        stdout_str = self._read_file_content(stdout_file, "stdout")
         
         result = self._parse_output(stdout_str)
         
         # Очищаем временную директорию
-        try:
-            shutil.rmtree(self.temp_dir)
-            logger.info(f"[DigScanner] Временная директория удалена: {self.temp_dir}")
-        except Exception as e:
-            logger.warning(f"[DigScanner] Не удалось удалить временную директорию: {e}")
+        self._cleanup_temp_dir()
         
         return {
             "hostname": self.target,
             "ip": "",  # Dig doesn't necessarily resolve the IP of the target itself in the same way
             "ports": [],
             "dns_records": result.get("records", []),
-            "raw_output": stdout_str + "\n" + stderr_str  # raw из временного файла
+            "raw_output": stdout_str + "\n" + stderr_str
         }
 
-    def _parse_output(self, output: str) -> Dict[str, Any]:
+    def _parse_output(self, output: str) -> ScanResult:
+        """
+        Парсит вывод dig.
+        
+        Args:
+            output: Вывод утилиты dig
+            
+        Returns:
+            ScanResult: Распарсенные DNS записи
+        """
         records = []
         lines = output.strip().split('\n')
         

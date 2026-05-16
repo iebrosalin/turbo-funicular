@@ -1,11 +1,10 @@
 import asyncio
 import logging
 import os
-import tempfile
-import shutil
 import re
-from typing import Dict, Any, List, Optional
-from ..base import BaseScanner
+from typing import Dict, Any, List, Optional, Union
+from ..base import BaseScanner, ScanResult
+from backend.models.target import Target
 
 logger = logging.getLogger(__name__)
 
@@ -16,20 +15,28 @@ class FpingScanner(BaseScanner):
     Поддерживает все флаги fping.
     """
     
-    def __init__(self, job_id: int, target: str, 
-                 count: int = 1,
-                 timeout: int = 500,
-                 retries: int = 2,
-                 interval: int = 10,
-                 alive_only: bool = True,
-                 unreachable: bool = False,
-                 quiet: bool = True,
-                 verbose: bool = False,
-                 resolve: bool = True,
-                 reverse: bool = False,
-                 show_stats: bool = False,
-                 extra_args: Optional[List[str]] = None,
-                 output_dir: Optional[str] = None):
+    SCANNER_NAME = "fping"
+    SUPPORTS_MULTIPLE_TARGETS = True  # Поддерживает списки через -f
+    DEFAULT_TIMEOUT = 30
+    
+    def __init__(
+        self, 
+        job_id: int, 
+        target: Union[str, Target],
+        count: int = 1,
+        timeout: int = 500,
+        retries: int = 2,
+        interval: int = 10,
+        alive_only: bool = True,
+        unreachable: bool = False,
+        quiet: bool = True,
+        verbose: bool = False,
+        resolve: bool = True,
+        reverse: bool = False,
+        show_stats: bool = False,
+        extra_args: Optional[List[str]] = None,
+        output_dir: Optional[str] = None
+    ):
         """
         Инициализация сканера fping.
         
@@ -50,10 +57,7 @@ class FpingScanner(BaseScanner):
             extra_args: Дополнительные аргументы командной строки
             output_dir: Директория для вывода (не используется, но требуется для совместимости)
         """
-        if output_dir is None:
-            output_dir = os.getenv('SCANNER_OUTPUT_DIR', '/app/scanner_output')
-        super().__init__(job_id, output_dir)
-        self.target = target
+        super().__init__(job_id, target, output_dir)
         self.count = count
         self.timeout = timeout
         self.retries = retries
@@ -66,12 +70,16 @@ class FpingScanner(BaseScanner):
         self.reverse = reverse
         self.show_stats = show_stats
         self.extra_args = extra_args or []
-        self.temp_dir = None
 
-    async def scan(self) -> Dict[str, Any]:
-        # Создаем временную директорию для хранения файлов результатов
-        self.temp_dir = tempfile.mkdtemp(prefix=f"fping_job_{self.job_id}_")
-        logger.info(f"[FpingScanner] Создана временная директория: {self.temp_dir}")
+    async def scan(self) -> ScanResult:
+        """
+        Выполняет ICMP-сканирование через fping.
+        
+        Returns:
+            ScanResult: Результаты с живыми/недоступными хостами и статистикой
+        """
+        # Создаем временную директорию через базовый класс
+        self._create_temp_dir(prefix=f"fping_job_{self.job_id}_")
         
         # Пути к временным файлам
         stdout_file = os.path.join(self.temp_dir, "stdout.txt")
@@ -111,7 +119,7 @@ class FpingScanner(BaseScanner):
         # Добавляем цель
         cmd.append(self.target)
         
-        logger.info(f"[FpingScanner] Запуск команды: {' '.join(cmd)}")
+        logger.info(f"[{self.__class__.__name__}] Запуск команды: {' '.join(cmd)}")
         
         # Открываем файлы для записи stdout и stderr
         with open(stdout_file, 'w', encoding='utf-8') as stdout_f, \
@@ -122,39 +130,22 @@ class FpingScanner(BaseScanner):
                 stderr=stderr_f
             )
         
-        logger.info(f"[FpingScanner] Запущен процесс fping для задачи {self.job_id}, PID: {process.pid}")
+        logger.info(f"[{self.__class__.__name__}] Запущен процесс fping для задачи {self.job_id}, PID: {process.pid}")
         
         # Ждем завершения процесса
         await process.wait()
         
-        logger.info(f"[FpingScanner] Процесс fping завершен с кодом {process.returncode}")
+        logger.info(f"[{self.__class__.__name__}] Процесс fping завершен с кодом {process.returncode}")
         
-        # Читаем результаты из временных файлов
-        stdout_str = ""
-        stderr_str = ""
-        
-        try:
-            if os.path.exists(stdout_file):
-                with open(stdout_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    stdout_str = f.read()
-                logger.info(f"[FpingScanner] Прочитан stdout файл, размер: {len(stdout_str)} байт")
-            
-            if os.path.exists(stderr_file):
-                with open(stderr_file, 'r', encoding='utf-8', errors='ignore') as f:
-                    stderr_str = f.read()
-                logger.info(f"[FpingScanner] Прочитан stderr файл, размер: {len(stderr_str)} байт")
-        except Exception as e:
-            logger.error(f"[FpingScanner] Ошибка чтения файлов результатов: {e}", exc_info=True)
+        # Читаем результаты из временных файлов через базовый класс
+        stdout_str = self._read_file_content(stdout_file, "stdout")
+        stderr_str = self._read_file_content(stderr_file, "stderr")
         
         # Парсим вывод для извлечения данных
         result = self._parse_output(stdout_str, stderr_str)
         
         # Очищаем временную директорию
-        try:
-            shutil.rmtree(self.temp_dir)
-            logger.info(f"[FpingScanner] Временная директория удалена: {self.temp_dir}")
-        except Exception as e:
-            logger.warning(f"[FpingScanner] Не удалось удалить временную директорию: {e}")
+        self._cleanup_temp_dir()
         
         # Формируем результат
         return {
@@ -166,7 +157,7 @@ class FpingScanner(BaseScanner):
             "raw_output": stdout_str + "\n" + stderr_str
         }
 
-    def _parse_output(self, stdout: str, stderr: str) -> Dict[str, Any]:
+    def _parse_output(self, stdout: str, stderr: str) -> ScanResult:
         """
         Парсинг вывода fping.
         
@@ -174,8 +165,15 @@ class FpingScanner(BaseScanner):
         <IP> is alive
         
         При использовании -q выводится статистика в конце.
+        
+        Args:
+            stdout: Вывод stdout утилиты
+            stderr: Вывод stderr утилиты
+            
+        Returns:
+            ScanResult: Распарсенные данные (alive_hosts, unreachable_hosts, stats)
         """
-        result = {
+        result: ScanResult = {
             "hostname": "",
             "ip": "",
             "alive_hosts": [],

@@ -4,7 +4,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from typing import List, Optional, Dict, AsyncGenerator
+from typing import List, Optional, Dict, AsyncGenerator, Any
 import asyncio
 import json
 import logging
@@ -68,6 +68,31 @@ class DigScanRequest(BaseModel):
     record_types: Optional[str] = 'ALL'
     save_assets: bool = True
     group_ids: Optional[List[int]] = None
+
+
+class FpingScanRequest(BaseModel):
+    target: str
+    args: Optional[str] = None
+    custom_args: Optional[str] = None
+    save_assets: bool = True
+    group_ids: Optional[List[int]] = None
+
+
+class CsvScanRequest(BaseModel):
+    """Запрос на сканирование списка целей из CSV"""
+    csv_text: Optional[str] = None
+    scan_type: str  # nmap, rustscan, dig, fping
+    parameters: Optional[Dict[str, Any]] = None
+    save_assets: bool = True
+    group_ids: Optional[List[int]] = None
+
+
+class GroupScanRequest(BaseModel):
+    """Запрос на сканирование активов из групп"""
+    group_ids: List[int]
+    scan_type: str  # nmap, rustscan, dig, fping
+    parameters: Optional[Dict[str, Any]] = None
+    save_assets: bool = True
 
 
 class XmlImportRequest(BaseModel):
@@ -1569,3 +1594,334 @@ async def delete_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
 async def scan_history_page(request: Request):
     """Страница истории сканирований."""
     return templates.TemplateResponse("scan_history.html", {"request": request})
+
+
+# ==========================================
+# Новые маршруты для CSV и групп активов
+# ==========================================
+
+@router.post("/from-csv")
+async def run_scan_from_csv(
+    request_data: CsvScanRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Запустить сканирование списка целей из CSV текста."""
+    from backend.models.scan import Scan, ScanJob
+    from backend.services.scan_queue_manager import scan_queue_manager
+    from backend.utils.csv_parser import CSVParser
+    from datetime import datetime, timezone
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    csv_text = request_data.csv_text
+    scan_type = request_data.scan_type
+    parameters = request_data.parameters or {}
+    save_assets = request_data.save_assets
+    group_ids = request_data.group_ids
+    
+    if not csv_text or not csv_text.strip():
+        raise HTTPException(status_code=400, detail="CSV текст не предоставлен")
+    
+    # Парсим CSV
+    targets, errors = CSVParser.parse_text(csv_text)
+    
+    if not targets:
+        error_msg = "Не найдено валидных целей в CSV"
+        if errors:
+            error_msg += f": {', '.join(errors[:5])}"
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # Получаем уникальные цели
+    targets = CSVParser.deduplicate(targets)
+    target_values = [t.value for t in targets]
+    
+    logger.info(f"Запуск сканирования {scan_type} для {len(target_values)} целей из CSV")
+    
+    try:
+        # Создаём запись сканирования
+        new_scan = Scan(
+            name=f"{scan_type.upper()} scan: CSV import ({len(target_values)} targets)",
+            target=f"csv:{len(target_values)}_targets",
+            scan_type=scan_type,
+            status="queued",
+            progress=0,
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_scan)
+        await db.commit()
+        await db.refresh(new_scan)
+        
+        # Создаём задачу сканирования
+        new_job = ScanJob(
+            scan_id=new_scan.id,
+            job_type=scan_type,
+            status="queued",
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_job)
+        await db.commit()
+        await db.refresh(new_job)
+        
+        # Добавляем параметры
+        parameters["save_assets"] = save_assets
+        parameters["group_ids"] = group_ids
+        
+        # Добавляем задачу в очередь
+        await scan_queue_manager.add_scan(
+            db=db,
+            scan_job_id=new_job.id,
+            scan_type=scan_type,
+            targets=target_values,
+            parameters=parameters
+        )
+        
+        stats = CSVParser.get_statistics(targets)
+        return {
+            "message": f"Сканирование запущено для {len(target_values)} целей",
+            "status": "queued",
+            "job_id": new_job.id,
+            "scan_id": new_scan.id,
+            "targets_count": len(target_values),
+            "statistics": stats
+        }
+    
+    except Exception as e:
+        logger.error(f"Ошибка при запуске сканирования из CSV: {e}", exc_info=True)
+        try:
+            if 'new_job' in locals():
+                new_job.status = "failed"
+                new_job.error_message = str(e)
+                await db.commit()
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Ошибка запуска сканирования: {str(e)}")
+
+
+@router.post("/from-csv/file")
+async def run_scan_from_csv_file(
+    file: UploadFile = File(...),
+    scan_type: str = Form(...),
+    parameters: Optional[str] = Form(None),
+    save_assets: bool = Form(True),
+    group_ids: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db)
+):
+    """Запустить сканирование списка целей из загруженного CSV файла."""
+    from backend.models.scan import Scan, ScanJob
+    from backend.services.scan_queue_manager import scan_queue_manager
+    from backend.utils.csv_parser import CSVParser
+    from datetime import datetime, timezone
+    import logging
+    import json
+    
+    logger = logging.getLogger(__name__)
+    
+    # Парсим параметры
+    params_dict = {}
+    if parameters:
+        try:
+            params_dict = json.loads(parameters)
+        except json.JSONDecodeError:
+            pass
+    
+    # Парсим group_ids
+    parsed_group_ids = None
+    if group_ids:
+        try:
+            parsed_group_ids = [int(x.strip()) for x in group_ids.split(',') if x.strip()]
+        except ValueError:
+            pass
+    
+    # Читаем файл
+    content = await file.read()
+    csv_text = content.decode('utf-8')
+    
+    if not csv_text or not csv_text.strip():
+        raise HTTPException(status_code=400, detail="Файл пуст или не содержит данных")
+    
+    # Парсим CSV
+    targets, errors = CSVParser.parse_text(csv_text)
+    
+    if not targets:
+        error_msg = "Не найдено валидных целей в файле"
+        if errors:
+            error_msg += f": {', '.join(errors[:5])}"
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # Получаем уникальные цели
+    targets = CSVParser.deduplicate(targets)
+    target_values = [t.value for t in targets]
+    
+    logger.info(f"Запуск сканирования {scan_type} для {len(target_values)} целей из файла {file.filename}")
+    
+    try:
+        # Создаём запись сканирования
+        new_scan = Scan(
+            name=f"{scan_type.upper()} scan: {file.filename} ({len(target_values)} targets)",
+            target=f"file:{file.filename}",
+            scan_type=scan_type,
+            status="queued",
+            progress=0,
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_scan)
+        await db.commit()
+        await db.refresh(new_scan)
+        
+        # Создаём задачу сканирования
+        new_job = ScanJob(
+            scan_id=new_scan.id,
+            job_type=scan_type,
+            status="queued",
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_job)
+        await db.commit()
+        await db.refresh(new_job)
+        
+        # Добавляем параметры
+        params_dict["save_assets"] = save_assets
+        params_dict["group_ids"] = parsed_group_ids
+        
+        # Добавляем задачу в очередь
+        await scan_queue_manager.add_scan(
+            db=db,
+            scan_job_id=new_job.id,
+            scan_type=scan_type,
+            targets=target_values,
+            parameters=params_dict
+        )
+        
+        stats = CSVParser.get_statistics(targets)
+        return {
+            "message": f"Сканирование запущено для {len(target_values)} целей из файла {file.filename}",
+            "status": "queued",
+            "job_id": new_job.id,
+            "scan_id": new_scan.id,
+            "filename": file.filename,
+            "targets_count": len(target_values),
+            "statistics": stats
+        }
+    
+    except Exception as e:
+        logger.error(f"Ошибка при запуске сканирования из файла: {e}", exc_info=True)
+        try:
+            if 'new_job' in locals():
+                new_job.status = "failed"
+                new_job.error_message = str(e)
+                await db.commit()
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Ошибка запуска сканирования: {str(e)}")
+
+
+@router.post("/from-groups")
+async def run_scan_from_groups(
+    request_data: GroupScanRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """Запустить сканирование активов из указанных групп."""
+    from backend.models.scan import Scan, ScanJob
+    from backend.services.scan_queue_manager import scan_queue_manager
+    from backend.services.asset_service import AssetService
+    from datetime import datetime, timezone
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    
+    group_ids = request_data.group_ids
+    scan_type = request_data.scan_type
+    parameters = request_data.parameters or {}
+    save_assets = request_data.save_assets
+    
+    if not group_ids:
+        raise HTTPException(status_code=400, detail="Список group_ids не может быть пустым")
+    
+    # Получаем активы из групп
+    asset_service = AssetService(db)
+    assets = await asset_service.get_assets_from_groups(group_ids)
+    
+    if not assets:
+        raise HTTPException(status_code=404, detail="Активы в указанных группах не найдены")
+    
+    # Извлекаем IP адреса и hostname из активов
+    target_values = []
+    for asset in assets:
+        if asset.ip_address:
+            target_values.append(asset.ip_address)
+        if asset.hostname and asset.hostname != asset.ip_address:
+            target_values.append(asset.hostname)
+    
+    # Удаляем дубликаты
+    target_values = list(set(target_values))
+    
+    if not target_values:
+        raise HTTPException(status_code=400, detail="Не удалось извлечь цели из активов")
+    
+    logger.info(f"Запуск сканирования {scan_type} для {len(target_values)} целей из {len(group_ids)} групп")
+    
+    try:
+        # Создаём запись сканирования
+        new_scan = Scan(
+            name=f"{scan_type.upper()} scan: Groups {group_ids} ({len(target_values)} targets)",
+            target=f"groups:{','.join(map(str, group_ids))}",
+            scan_type=scan_type,
+            status="queued",
+            progress=0,
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_scan)
+        await db.commit()
+        await db.refresh(new_scan)
+        
+        # Создаём задачу сканирования
+        new_job = ScanJob(
+            scan_id=new_scan.id,
+            job_type=scan_type,
+            status="queued",
+            created_at=datetime.now(timezone.utc)
+        )
+        
+        db.add(new_job)
+        await db.commit()
+        await db.refresh(new_job)
+        
+        # Добавляем параметры
+        parameters["save_assets"] = save_assets
+        parameters["group_ids"] = group_ids
+        
+        # Добавляем задачу в очередь
+        await scan_queue_manager.add_scan(
+            db=db,
+            scan_job_id=new_job.id,
+            scan_type=scan_type,
+            targets=target_values,
+            parameters=parameters
+        )
+        
+        return {
+            "message": f"Сканирование запущено для {len(target_values)} целей из {len(group_ids)} групп",
+            "status": "queued",
+            "job_id": new_job.id,
+            "scan_id": new_scan.id,
+            "groups_count": len(group_ids),
+            "assets_count": len(assets),
+            "targets_count": len(target_values)
+        }
+    
+    except Exception as e:
+        logger.error(f"Ошибка при запуске сканирования из групп: {e}", exc_info=True)
+        try:
+            if 'new_job' in locals():
+                new_job.status = "failed"
+                new_job.error_message = str(e)
+                await db.commit()
+        except Exception:
+            pass
+        raise HTTPException(status_code=500, detail=f"Ошибка запуска сканирования: {str(e)}")
