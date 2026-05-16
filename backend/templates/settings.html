@@ -33,13 +33,24 @@
                         </div>
                     </div>
 
-                    <!-- Настройки отображения (заготовка) -->
+                    <!-- Настройки отображения -->
                     <div class="mb-4">
                         <h6 class="border-bottom pb-2 mb-3">
                             <i class="bi bi-list-ul me-2"></i>Отображение данных
                         </h6>
-                        <div class="alert alert-info py-2 small">
-                            <i class="bi bi-tools me-2"></i>Раздел в разработке
+                        
+                        <div class="form-group">
+                            <label class="form-label fw-bold">Уведомления</label>
+                            <div class="form-check form-switch mb-2">
+                                <input class="form-check-input" type="checkbox" id="notificationsSwitch" role="switch" checked>
+                                <label class="form-check-label" for="notificationsSwitch">
+                                    <span id="notificationsLabel">Включены</span>
+                                </label>
+                            </div>
+                            <small class="text-muted d-block">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Управление показом всплывающих уведомлений в интерфейсе.
+                            </small>
                         </div>
                     </div>
 
@@ -66,9 +77,11 @@
 document.addEventListener('DOMContentLoaded', function() {
     const themeSwitch = document.getElementById('themeSwitch');
     const themeLabel = document.getElementById('themeLabel');
+    const notificationsSwitch = document.getElementById('notificationsSwitch');
+    const notificationsLabel = document.getElementById('notificationsLabel');
     const saveBtn = document.getElementById('btn-save-settings');
     
-    // Инициализация состояния переключателя
+    // Инициализация состояния переключателя темы
     const currentTheme = localStorage.getItem('theme') || 'dark';
     if (currentTheme === 'light') {
         themeSwitch.checked = true;
@@ -78,7 +91,17 @@ document.addEventListener('DOMContentLoaded', function() {
         themeLabel.textContent = 'Тёмная тема';
     }
 
-    // Обработка изменения переключателя
+    // Инициализация состояния переключателя уведомлений
+    const notificationsEnabled = localStorage.getItem('notifications_enabled');
+    if (notificationsEnabled === 'false') {
+        notificationsSwitch.checked = false;
+        notificationsLabel.textContent = 'Отключены';
+    } else {
+        notificationsSwitch.checked = true;
+        notificationsLabel.textContent = 'Включены';
+    }
+
+    // Обработка изменения переключателя темы
     themeSwitch.addEventListener('change', function() {
         if (this.checked) {
             themeLabel.textContent = 'Светлая тема';
@@ -89,10 +112,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // Обработка изменения переключателя уведомлений
+    notificationsSwitch.addEventListener('change', function() {
+        if (this.checked) {
+            notificationsLabel.textContent = 'Включены';
+        } else {
+            notificationsLabel.textContent = 'Отключены';
+        }
+    });
+
     // Сохранение настроек
     saveBtn.addEventListener('click', function() {
         const newTheme = themeSwitch.checked ? 'light' : 'dark';
+        const notificationsEnabled = notificationsSwitch.checked;
+        
         localStorage.setItem('theme', newTheme);
+        localStorage.setItem('notifications_enabled', notificationsEnabled.toString());
         
         // Визуальное подтверждение
         const originalText = saveBtn.innerHTML;
