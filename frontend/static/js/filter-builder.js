@@ -172,6 +172,7 @@ export class FilterBuilder {
         if (!this.rulesContainer) return;
         
         const field = ruleData.field || '';
+        // Поддержка обоих форматов: operation и op
         const op = ruleData.operation || ruleData.op || 'eq';
         const value = ruleData.value || '';
         

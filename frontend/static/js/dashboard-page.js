@@ -19,6 +19,7 @@ export class DashboardController {
     this.visibleColumns = ['ip_address', 'hostname', 'os_name', 'status', 'device_type', 'open_ports', 'source'];
     this.searchQuery = '';
     this.dashboardFilterBuilder = null;
+    this.filterRules = [];
     
     this.assetManager = new AssetManager('table-body');
     this.filterAutocomplete = new FilterAutocompleteManager();
@@ -30,6 +31,9 @@ export class DashboardController {
   async #init() {
     this.#loadStateFromURL();
     this.#setupEventListeners();
+    
+    // Инициализация конструктора фильтров ДО загрузки дерева
+    await this.#initFilterBuilder();
     
     // Инициализация дерева групп и загрузка данных
     await refreshGroupTree();
