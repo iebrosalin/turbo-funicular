@@ -1,0 +1,171 @@
+<!-- templates/projects.html -->
+{% extends "base.html" %}
+
+{% block title %}Проекты - Asset Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1"><i class="bi bi-folder2-open me-2"></i>Проекты</h2>
+            <p class="text-muted mb-0 small">Управление проектами пентеста и отчётами</p>
+        </div>
+        <button class="btn btn-primary" id="btn-create-project">
+            <i class="bi bi-plus-lg me-2"></i>Новый проект
+        </button>
+    </div>
+
+    <!-- Filters -->
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body p-3">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label small text-muted">Статус</label>
+                    <select class="form-select form-select-sm" id="filter-status">
+                        <option value="">Все статусы</option>
+                        <option value="planning">Планирование</option>
+                        <option value="active">Активный</option>
+                        <option value="paused">На паузе</option>
+                        <option value="completed">Завершён</option>
+                        <option value="archived">Архив</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small text-muted">Приоритет</label>
+                    <select class="form-select form-select-sm" id="filter-priority">
+                        <option value="">Все приоритеты</option>
+                        <option value="low">Низкий</option>
+                        <option value="medium">Средний</option>
+                        <option value="high">Высокий</option>
+                        <option value="critical">Критический</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small text-muted">Поиск</label>
+                    <input type="text" class="form-control form-control-sm" id="search-projects" placeholder="Название, заказчик...">
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-outline-secondary btn-sm w-100" id="btn-apply-filters">
+                        <i class="bi bi-funnel me-1"></i>Применить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Projects List -->
+    <div class="row g-4" id="projects-container">
+        <!-- Projects will be loaded here -->
+        <div class="col-12">
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Загрузка...</span>
+                </div>
+                <p class="text-muted mt-2">Загрузка проектов...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="empty-state" class="text-center py-5 d-none">
+        <i class="bi bi-folder-x display-1 text-muted"></i>
+        <h4 class="mt-3 text-muted">Нет проектов</h4>
+        <p class="text-muted">Создайте первый проект для начала работы</p>
+        <button class="btn btn-primary mt-2" id="btn-create-project-empty">
+            <i class="bi bi-plus-lg me-2"></i>Создать проект
+        </button>
+    </div>
+</div>
+
+<!-- Create/Edit Project Modal -->
+<div class="modal fade" id="projectModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="projectModalLabel">Новый проект</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="project-form">
+                    <input type="hidden" id="project-id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Название проекта <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="project-name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Описание</label>
+                        <textarea class="form-control" id="project-description" rows="3"></textarea>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Заказчик</label>
+                            <input type="text" class="form-control" id="project-customer">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Тип проекта</label>
+                            <select class="form-select" id="project-type">
+                                <option value="pentest">Пентест</option>
+                                <option value="audit">Аудит</option>
+                                <option value="research">Исследование</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Статус</label>
+                            <select class="form-select" id="project-status">
+                                <option value="planning">Планирование</option>
+                                <option value="active">Активный</option>
+                                <option value="paused">На паузе</option>
+                                <option value="completed">Завершён</option>
+                                <option value="archived">Архив</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Приоритет</label>
+                            <select class="form-select" id="project-priority">
+                                <option value="low">Низкий</option>
+                                <option value="medium" selected>Средний</option>
+                                <option value="high">Высокий</option>
+                                <option value="critical">Критический</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Дата начала</label>
+                            <input type="datetime-local" class="form-control" id="project-start-date">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Дата окончания</label>
+                            <input type="datetime-local" class="form-control" id="project-end-date">
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Группы активов</label>
+                        <select class="form-select" id="project-groups" multiple size="5">
+                            <!-- Groups will be loaded here -->
+                        </select>
+                        <small class="text-muted">Ctrl+Click для выбора нескольких групп</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="btn-save-project">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="/static/js/modules/projects.js"></script>
+{% endblock %}

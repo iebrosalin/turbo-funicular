@@ -1,52 +1,22 @@
 version: '3.8'
 
 services:
-  web:
+  app:
     build: .
-    container_name: asset_management
     ports:
       - "5000:5000"
-    environment:
-      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
-      - DATABASE_URL=${DATABASE_URL:-sqlite+aiosqlite:////app/instance/app.db}
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - UVICORN_RELOAD=${UVICORN_RELOAD:-false}
     volumes:
-      - ./backend:/app/backend
-      - ./frontend:/app/frontend
-      - app_data:/app/instance
-      - ./tests:/app/tests
-    working_dir: /app
-    command: >
-      sh -c "uvicorn backend.main:app --host 0.0.0.0 --port 5000"
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
+      - ./data:/workspace/data
+      - ./backend:/workspace/backend
+    environment:
+      - DATABASE_URL=sqlite+aiosqlite:///workspace/data/app.db
+    restart: unless-stopped
 
-  # Сервис для запуска интеграционных тестов с Playwright (закомментирован для ускорения сборки)
-  # e2e-tests:
-  #   image: mcr.microsoft.com/playwright/python:v1.49.0-jammy
-  #   container_name: asset_management_e2e
-  #   depends_on:
-  #     - web
-  #   environment:
-  #     - BASE_URL=http://web:5000
-  #     - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-  #   volumes:
-  #     - ./tests:/app/tests
-  #     - playwright-cache:/ms-playwright
-  #   working_dir: /app
-  #   command: sh -c "pip install pytest requests && cd /app && pytest tests/integration -v --tb=short"
-  #   profiles:
-  #     - e2e
-  #   cap_add:
-  #     - SYS_ADMIN
-  #   shm_size: '2gb'
-
-volumes:
-  app_data:
-    driver: local
-  # playwright-cache:
-  #   driver: local
+  test:
+    build: .
+    profiles: ["test"]
+    command: echo "Test container ready for headless testing"
+    volumes:
+      - ./data:/workspace/data
+    environment:
+      - HEADLESS=true

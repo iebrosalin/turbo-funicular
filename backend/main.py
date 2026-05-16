@@ -245,6 +245,14 @@ try:
 except ImportError as e:
     logger.warning(f"⚠️ RedCheck integration router не подключён: {e}")
 
+# Projects Router
+try:
+    from backend.routes import projects
+    app.include_router(projects.router, tags=["Projects"])
+    logger.info("✅ Projects router подключён")
+except ImportError as e:
+    logger.warning(f"⚠️ Projects router не подключён: {e}")
+
 @app.get("/health")
 async def health_check():
     """Эндпоинт для проверки статуса сервиса (Health Check)."""
@@ -341,6 +349,25 @@ async def ui_kit(request: Request):
 async def settings_page(request: Request):
     """Страница настроек приложения."""
     return templates.TemplateResponse("settings.html", {"request": request})
+
+
+# ============================================================================
+# Projects Pages
+# ============================================================================
+
+@app.get("/projects")
+async def projects_page(request: Request):
+    """Страница управления проектами."""
+    return templates.TemplateResponse("projects.html", {"request": request})
+
+
+@app.get("/projects/{project_id}")
+async def project_detail_page(request: Request, project_id: int):
+    """Страница деталей проекта."""
+    return templates.TemplateResponse("project_detail.html", {
+        "request": request,
+        "project_id": project_id
+    })
 
 
 # ============================================================================
