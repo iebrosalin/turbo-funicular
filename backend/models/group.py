@@ -28,6 +28,8 @@ class Group(Base):
     assets = relationship("Asset", secondary="asset_groups", back_populates="groups")
     # Many-to-many связь с RedCheck хостами через таблицу redcheck_host_groups
     redcheck_hosts = relationship("RedCheckHost", secondary="redcheck_host_groups", back_populates="groups")
+    # Many-to-many связь с проектами через таблицу project_groups
+    projects = relationship("Project", secondary="project_groups", back_populates="groups")
     scans = relationship("Scan", back_populates="group", cascade="all, delete-orphan")
     
     def to_dict(self):
