@@ -1336,40 +1336,46 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
     
     logger.info("=" * 80)
     logger.info(f"[DOWNLOAD] Запрос на скачивание: job_id={job_id}, format={format}")
+    logger.info(f"[DOWNLOAD] Headers: Content-Type=application/json")
     
-    # Получаем задачу сканирования
-    job_query = select(ScanJob).where(ScanJob.id == job_id).options(selectinload(ScanJob.scan))
-    job_result = await db.execute(job_query)
-    job = job_result.scalar_one_or_none()
-    
-    if not job:
-        logger.error(f"[DOWNLOAD] Задача сканирования {job_id} не найдена")
-        raise HTTPException(status_code=404, detail="Задача сканирования не найдена")
-    
-    logger.info(f"[DOWNLOAD] Задача найдена: job_id={job_id}, scan_id={job.scan_id}, status={job.status}")
-    
-    # Получаем результаты сканирования для этой задачи
-    results_query = select(ScanResult).where(ScanResult.scan_job_id == job_id)
-    results_result = await db.execute(results_query)
-    results = results_result.scalars().all()
-    
-    if not results:
-        # Пробуем получить результаты по scan_id если нет по job_id
-        logger.warning(f"[DOWNLOAD] Нет результатов для job_id={job_id}, пробуем по scan_id={job.scan_id}")
-        results_query = select(ScanResult).where(ScanResult.scan_id == job.scan_id)
+    try:
+        # Получаем задачу сканирования
+        job_query = select(ScanJob).where(ScanJob.id == job_id).options(selectinload(ScanJob.scan))
+        job_result = await db.execute(job_query)
+        job = job_result.scalar_one_or_none()
+        
+        if not job:
+            logger.error(f"[DOWNLOAD] Задача сканирования {job_id} не найдена в БД")
+            raise HTTPException(status_code=404, detail="Задача сканирования не найдена")
+        
+        logger.info(f"[DOWNLOAD] Задача найдена: job_id={job_id}, scan_id={job.scan_id}, status={job.status}, job_type={job.job_type}")
+        
+        # Получаем результаты сканирования для этой задачи
+        results_query = select(ScanResult).where(ScanResult.scan_job_id == job_id)
         results_result = await db.execute(results_query)
         results = results_result.scalars().all()
-    
-    if not results:
-        logger.error(f"[DOWNLOAD] Результаты сканирования не найдены для job_id={job_id}, scan_id={job.scan_id}")
-        raise HTTPException(status_code=404, detail="Результаты сканирования не найдены")
-    
-    logger.info(f"[DOWNLOAD] Найдено результатов: {len(results)}")
-    
-    # Определяем тип сканирования
-    scan_type = job.job_type or (job.scan.scan_type if job.scan else None)
-    
-    logger.info(f"[DOWNLOAD] Тип сканирования: {scan_type}, запрошенный формат: {format}")
+        
+        if not results:
+            # Пробуем получить результаты по scan_id если нет по job_id
+            logger.warning(f"[DOWNLOAD] Нет результатов для job_id={job_id}, пробуем по scan_id={job.scan_id}")
+            results_query = select(ScanResult).where(ScanResult.scan_id == job.scan_id)
+            results_result = await db.execute(results_query)
+            results = results_result.scalars().all()
+        
+        if not results:
+            logger.error(f"[DOWNLOAD] Результаты сканирования не найдены для job_id={job_id}, scan_id={job.scan_id}")
+            logger.error(f"[DOWNLOAD] Проверьте таблицу scan_results - возможно данные не были сохранены")
+            raise HTTPException(status_code=404, detail="Результаты сканирования не найдены")
+        
+        logger.info(f"[DOWNLOAD] Найдено результатов: {len(results)}")
+        for idx, res in enumerate(results):
+            logger.info(f"[DOWNLOAD] Результат {idx+1}: IP={res.ip_address}, hostname={res.hostname}, ports_count={len(res.ports) if res.ports else 0}")
+        
+        # Определяем тип сканирования
+        scan_type = job.job_type or (job.scan.scan_type if job.scan else None)
+        
+        logger.info(f"[DOWNLOAD] Тип сканирования: {scan_type}, запрошенный формат: {format}")
+        logger.info(f"[DOWNLOAD] Форматируем результат...")
     
     if format == "raw":
         # Сырой вывод всех результатов (используем output_normal для nmap или raw_output)
@@ -1493,8 +1499,8 @@ async def download_scan_job_result(job_id: int, format: str, db: AsyncSession = 
         )
     
     else:
+        logger.error(f"[DOWNLOAD] Неподдерживаемый формат: {format}")
         raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, xml, gnmap, normal, json")
-
 
 
 @router.get("/scan/{scan_id}/download/{format}")
@@ -1505,21 +1511,38 @@ async def download_scan_result(scan_id: int, format: str, db: AsyncSession = Dep
     from sqlalchemy.orm import selectinload
     import json
     
-    # Получаем сканирование
-    scan_query = select(Scan).where(Scan.id == scan_id).options(selectinload(Scan.jobs))
-    scan_result = await db.execute(scan_query)
-    scan = scan_result.scalar_one_or_none()
+    logger.info("=" * 80)
+    logger.info(f"[DOWNLOAD] Запрос на скачивание: scan_id={scan_id}, format={format}")
+    logger.info(f"[DOWNLOAD] Headers: Content-Type=application/json")
     
-    if not scan:
-        raise HTTPException(status_code=404, detail="Сканирование не найдено")
-    
-    # Получаем все результаты для этого сканирования
-    results_query = select(ScanResult).where(ScanResult.scan_id == scan_id)
-    results_result = await db.execute(results_query)
-    results = results_result.scalars().all()
-    
-    if not results:
-        raise HTTPException(status_code=404, detail="Результаты сканирования не найдены")
+    try:
+        # Получаем сканирование
+        scan_query = select(Scan).where(Scan.id == scan_id).options(selectinload(Scan.jobs))
+        scan_result = await db.execute(scan_query)
+        scan = scan_result.scalar_one_or_none()
+        
+        if not scan:
+            logger.error(f"[DOWNLOAD] Сканирование {scan_id} не найдено в БД")
+            raise HTTPException(status_code=404, detail="Сканирование не найдено")
+        
+        logger.info(f"[DOWNLOAD] Сканирование найдено: scan_id={scan_id}, name={scan.name}, status={scan.status}, type={scan.scan_type}")
+        
+        # Получаем все результаты для этого сканирования
+        results_query = select(ScanResult).where(ScanResult.scan_id == scan_id)
+        results_result = await db.execute(results_query)
+        results = results_result.scalars().all()
+        
+        if not results:
+            logger.error(f"[DOWNLOAD] Результаты сканирования не найдены для scan_id={scan_id}")
+            logger.error(f"[DOWNLOAD] Проверьте таблицу scan_results - возможно данные не были сохранены")
+            raise HTTPException(status_code=404, detail="Результаты сканирования не найдены")
+        
+        logger.info(f"[DOWNLOAD] Найдено результатов: {len(results)}")
+        for idx, res in enumerate(results):
+            logger.info(f"[DOWNLOAD] Результат {idx+1}: IP={res.ip_address}, hostname={res.hostname}, ports_count={len(res.ports) if res.ports else 0}")
+        
+        logger.info(f"[DOWNLOAD] Тип сканирования: {scan.scan_type}, запрошенный формат: {format}")
+        logger.info(f"[DOWNLOAD] Форматируем результат...")
     
     # Форматируем результат в зависимости от запрошенного формата
     
@@ -1643,6 +1666,7 @@ async def download_scan_result(scan_id: int, format: str, db: AsyncSession = Dep
         )
     
     else:
+        logger.error(f"[DOWNLOAD] Неподдерживаемый формат: {format}")
         raise HTTPException(status_code=400, detail=f"Неподдерживаемый формат: {format}. Доступные: raw, xml, gnmap, normal, json")
 
 
