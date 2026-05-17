@@ -33,12 +33,13 @@ class Settings(BaseSettings):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        # Создаем директорию для БД если не существует
-        os.makedirs(DATA_DIR, exist_ok=True)
         # Устанавливаем DATABASE_URL по умолчанию если не задан
         if not self.DATABASE_URL:
             db_path = os.path.join(DATA_DIR, 'app.db')
             self.DATABASE_URL = f"sqlite+aiosqlite:///{db_path}"
 
+
+# Создаем директорию для БД если не существует ДО создания экземпляра settings
+os.makedirs(DATA_DIR, exist_ok=True)
 
 settings = Settings()
