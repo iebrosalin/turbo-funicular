@@ -7,7 +7,6 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 
 # Единая директория для всех баз данных
 DATA_DIR = "/workspace/data"
-os.makedirs(DATA_DIR, exist_ok=True)
 
 
 class Settings(BaseSettings):
@@ -34,6 +33,8 @@ class Settings(BaseSettings):
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        # Создаем директорию для БД если не существует
+        os.makedirs(DATA_DIR, exist_ok=True)
         # Устанавливаем DATABASE_URL по умолчанию если не задан
         if not self.DATABASE_URL:
             db_path = os.path.join(DATA_DIR, 'app.db')
