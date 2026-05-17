@@ -35,7 +35,11 @@ class Settings(BaseSettings):
         super().__init__(**kwargs)
         # Устанавливаем DATABASE_URL по умолчанию если не задан
         if not self.DATABASE_URL:
+            # Для SQLite используем абсолютный путь с aiosqlite драйвером
             db_path = os.path.join(DATA_DIR, 'app.db')
+            # Убедимся, что путь абсолютный
+            if not os.path.isabs(db_path):
+                db_path = os.path.abspath(db_path)
             self.DATABASE_URL = f"sqlite+aiosqlite:///{db_path}"
 
 
