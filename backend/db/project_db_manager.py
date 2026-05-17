@@ -21,7 +21,7 @@ class ProjectDatabaseManager:
     """Менеджер баз данных проектов."""
     
     def __init__(self):
-        self.projects_dir = Path(settings.INSTANCE_DIR) / "projects"
+        self.projects_dir = Path(settings.DATA_DIR) / "projects"
         self.projects_dir.mkdir(parents=True, exist_ok=True)
         
         # Кэш подключений к БД проектов

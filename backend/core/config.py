@@ -5,9 +5,9 @@ from pathlib import Path
 # Определяем базовую директорию проекта (корень репозитория)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Директория instance в корне проекта для хранения SQLite базы
-INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
-os.makedirs(INSTANCE_DIR, exist_ok=True)
+# Единая директория для всех баз данных
+DATA_DIR = "/workspace/data"
+os.makedirs(DATA_DIR, exist_ok=True)
 
 
 class Settings(BaseSettings):
@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     # База данных - по умолчанию SQLite для локального запуска
     DATABASE_URL: str = ""
     
-    # Путь к директории instance
-    INSTANCE_DIR: str = INSTANCE_DIR
+    # Путь к директории с базами данных
+    DATA_DIR: str = DATA_DIR
 
     # Приложение
     PROJECT_NAME: str = "Network Inventory"
@@ -36,7 +36,8 @@ class Settings(BaseSettings):
         super().__init__(**kwargs)
         # Устанавливаем DATABASE_URL по умолчанию если не задан
         if not self.DATABASE_URL:
-            self.DATABASE_URL = f"sqlite+aiosqlite:///{os.path.join(self.INSTANCE_DIR, 'app.db')}"
+            db_path = os.path.join(DATA_DIR, 'app.db')
+            self.DATABASE_URL = f"sqlite+aiosqlite:///{db_path}"
 
 
 settings = Settings()
