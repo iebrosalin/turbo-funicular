@@ -7,7 +7,12 @@ services:
       - "5000:5000"
     volumes:
       - ./data:/workspace/data
-      - ./backend:/workspace/backend
+      - ./backend/main.py:/workspace/backend/main.py
+      - ./backend/core:/workspace/backend/core
+      - ./backend/db:/workspace/backend/db
+      - ./backend/routes:/workspace/backend/routes
+      - ./backend/utils:/workspace/backend/utils
+      - ./backend/redcheck_integration:/workspace/backend/redcheck_integration
     environment:
       - DATABASE_URL=sqlite+aiosqlite:///workspace/data/app.db
     restart: unless-stopped
