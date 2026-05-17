@@ -21,11 +21,12 @@ COPY templates/ /workspace/templates/
 COPY static/ /workspace/static/
 COPY frontend/ /workspace/frontend/
 
-# Create data directory and set permissions
+# Create data directory and set permissions (will be overridden by volume mount)
+# The actual directory creation happens at runtime via entrypoint or init script
 RUN mkdir -p /workspace/data/projects && chmod -R 777 /workspace/data
 
 # Expose only port 5000
 EXPOSE 5000
 
-# Run the application directly
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "5000"]
+# Create data directory at runtime if it doesn't exist and start the application
+CMD ["sh", "-c", "mkdir -p /workspace/data && chmod -R 777 /workspace/data && uvicorn backend.main:app --host 0.0.0.0 --port 5000"]
