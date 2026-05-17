@@ -15,9 +15,11 @@ RUN pip install --no-cache-dir -r /workspace/backend/requirements.txt
 
 # Copy application code
 COPY backend/ /workspace/backend/
-COPY templates/ /workspace/templates/ 2>/dev/null || true
-COPY static/ /workspace/static/ 2>/dev/null || true
-COPY frontend/ /workspace/frontend/ 2>/dev/null || true
+
+# Copy frontend directories if they exist
+RUN if [ -d "templates" ]; then cp -r templates /workspace/templates/; fi && \
+    if [ -d "static" ]; then cp -r static /workspace/static/; fi && \
+    if [ -d "frontend" ]; then cp -r frontend /workspace/frontend/; fi
 
 # Create data directory and set permissions
 RUN mkdir -p /workspace/data/projects && chmod -R 777 /workspace/data
