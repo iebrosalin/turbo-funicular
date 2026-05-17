@@ -19,11 +19,11 @@ COPY templates/ /workspace/templates/ 2>/dev/null || true
 COPY static/ /workspace/static/ 2>/dev/null || true
 COPY frontend/ /workspace/frontend/ 2>/dev/null || true
 
-# Create data directory with proper permissions
+# Create data directory and set permissions
 RUN mkdir -p /workspace/data/projects && chmod -R 777 /workspace/data
 
 # Expose only port 5000
 EXPOSE 5000
 
-# Start only the FastAPI backend
-CMD ["python", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "5000"]
+# Run the application directly
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "5000"]
