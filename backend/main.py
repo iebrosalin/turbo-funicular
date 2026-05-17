@@ -397,7 +397,7 @@ async def redcheck_hosts_page(request: Request):
 @app.get("/assets-manager")
 async def assets_manager_page(request: Request):
     """Единая страница управления активами и группами."""
-    return templates.TemplateResponse("assets/assets.html", {"request": request})
+    return templates.TemplateResponse("assets/assets_table.html", {"request": request})
 
 # Альтернативные представления активов
 @app.get("/assets-cards")
