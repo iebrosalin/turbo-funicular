@@ -120,6 +120,10 @@ async def lifespan(app: FastAPI):
                 logger.info("✅ Колонка source успешно добавлена.")
     except Exception as e:
         logger.error(f"❌ Ошибка инициализации БД: {e}")
+        logger.error(f"🔍 DATABASE_URL: {settings.DATABASE_URL}")
+        logger.error(f"🔍 Тип ошибки: {type(e).__name__}")
+        import traceback
+        logger.error(f"🔍 Полный traceback:\n{traceback.format_exc()}")
         raise
     
     # Проверка подключения
