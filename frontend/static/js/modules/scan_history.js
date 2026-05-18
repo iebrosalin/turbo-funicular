@@ -191,6 +191,13 @@ class ScanHistoryManager {
      * Просмотр результатов сканирования
      */
     async viewScanResults(scanId) {
+        // Проверяем, что scanId существует и не пустой
+        if (!scanId && scanId !== 0) {
+            console.error('[scan_history.js] viewScanResults: пустой scanId');
+            this.showNotification('Ошибка: идентификатор сканирования не указан', 'danger');
+            return;
+        }
+        
         const modalEl = document.getElementById('scanResultModal');
         const modal = new bootstrap.Modal(modalEl);
         
@@ -210,7 +217,14 @@ class ScanHistoryManager {
 
         try {
             const response = await fetch(`/api/scans/${scanId}`);
-            if (!response.ok) throw new Error('Не найдено');
+            if (!response.ok) {
+                if (response.status === 404) {
+                    throw new Error('Сканирование не найдено');
+                } else if (response.status === 400) {
+                    throw new Error(`Неверный идентификатор сканирования: ${scanId}`);
+                }
+                throw new Error(`Ошибка сервера: ${response.status}`);
+            }
             const scan = await response.json();
 
             let html = `<div class="mb-3"><strong>Цель:</strong> ${scan.target || '-'} | <strong>Тип:</strong> ${scan.scan_type || '-'} | <strong>Статус:</strong> <span class="badge ${this.getStatusClass(scan.status)}">${scan.status}</span></div>`;
