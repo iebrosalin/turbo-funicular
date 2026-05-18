@@ -21,7 +21,7 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 RUN cargo install rustscan
 
 # Copy backend requirements and install Python dependencies
-COPY app/backend/requirements.txt /workspace/backend/requirements.txt
+COPY backend/requirements.txt /workspace/backend/requirements.txt
 RUN pip install --no-cache-dir -r /workspace/backend/requirements.txt
 
 # Copy application code
