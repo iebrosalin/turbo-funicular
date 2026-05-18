@@ -14,3 +14,35 @@
 2026-05-18 07:29:05,285 | INFO     | backend.main:85 | <module> | 📁 Логи записываются в: /workspace/logs
 2026-05-18 07:29:05,645 | INFO     | backend.main:304 | <module> | ✅ RedCheck integration router подключён
 2026-05-18 07:29:05,866 | INFO     | backend.main:312 | <module> | ✅ Projects router подключён
+2026-05-18 07:38:16,867 | INFO     | backend.main:86 | <module> | 🔧 Система логирования инициализирована
+2026-05-18 07:38:16,868 | INFO     | backend.main:87 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-18 07:38:17,220 | INFO     | backend.main:307 | <module> | ✅ RedCheck integration router подключён
+2026-05-18 07:38:17,468 | INFO     | backend.main:315 | <module> | ✅ Projects router подключён
+2026-05-18 07:38:17,667 | INFO     | backend.main:111 | lifespan | ✅ База данных проверена и инициализирована.
+2026-05-18 07:38:17,679 | INFO     | backend.main:116 | lifespan | ✅ Таблица asset_change_logs создана/проверена.
+2026-05-18 07:38:17,682 | INFO     | backend.main:182 | lifespan | ✅ Подключение к базе данных установлено.
+2026-05-18 07:38:17,682 | INFO     | backend.main:187 | lifespan | 🚀 Приложение успешно запущено.
+2026-05-18 07:38:17,682 | INFO     | backend.services.scan_queue_manager:40 | start | ScanQueueManager запущен
+2026-05-18 07:38:29,239 | ERROR    | backend.core.exceptions:37 | validation_exception_handler | ================================================================================
+2026-05-18 07:38:29,240 | ERROR    | backend.core.exceptions:38 | validation_exception_handler | 🚨 Validation Error | Status: 422
+2026-05-18 07:38:29,240 | ERROR    | backend.core.exceptions:39 | validation_exception_handler |    URL: GET http://localhost:8000/api/assets/list
+2026-05-18 07:38:29,240 | ERROR    | backend.core.exceptions:40 | validation_exception_handler |    Client: 127.0.0.1
+2026-05-18 07:38:29,240 | ERROR    | backend.core.exceptions:41 | validation_exception_handler |    Errors: [
+  {
+    "type": "int_parsing",
+    "loc": [
+      "path",
+      "asset_id"
+    ],
+    "msg": "Input should be a valid integer, unable to parse string as an integer",
+    "input": "list"
+  }
+]
+2026-05-18 07:38:29,240 | ERROR    | backend.core.exceptions:57 | validation_exception_handler |    Request Body: empty
+2026-05-18 07:38:29,240 | ERROR    | backend.core.exceptions:58 | validation_exception_handler | ================================================================================
+2026-05-18 07:39:32,381 | ERROR    | backend.core.exceptions:84 | http_exception_handler | ================================================================================
+2026-05-18 07:39:32,381 | ERROR    | backend.core.exceptions:85 | http_exception_handler | 🚨 HTTPException | Status: 400
+2026-05-18 07:39:32,381 | ERROR    | backend.core.exceptions:86 | http_exception_handler |    URL: GET http://localhost:8000/api/scans/
+2026-05-18 07:39:32,381 | ERROR    | backend.core.exceptions:87 | http_exception_handler |    Client: 127.0.0.1
+2026-05-18 07:39:32,381 | ERROR    | backend.core.exceptions:88 | http_exception_handler |    Detail: Неверный формат scan_id: . Ожидается целое число.
+2026-05-18 07:39:32,381 | ERROR    | backend.core.exceptions:89 | http_exception_handler | ================================================================================

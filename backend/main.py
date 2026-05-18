@@ -215,6 +215,7 @@ app.add_middleware(
 app.add_exception_handler(AppException, global_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 
 # Обработчики HTTP ошибок 404 и 500 для рендеринга страниц
