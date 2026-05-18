@@ -8,6 +8,9 @@ from typing import List, Optional, Any, Dict
 from pydantic import BaseModel
 import json
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 from backend.db.session import get_db
 from backend.services.asset_service import AssetService

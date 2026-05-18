@@ -1,7 +1,11 @@
 import logging
 import os
+import sys
+import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
+from logging.handlers import RotatingFileHandler
+from datetime import datetime
 
 from backend.routes import assets, groups
 from fastapi import FastAPI, Request, Depends
@@ -30,16 +34,59 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine, select, func
 from backend.services.scan_queue_manager import scan_queue_manager
 
-# Настройка логирования
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()]
+# ============================================================================
+# Расширенная настройка логирования
+# ============================================================================
+
+# Создаем директорию для логов
+LOG_DIR = Path("/workspace/logs")
+LOG_DIR.mkdir(exist_ok=True)
+
+# Формат детального логирования
+DETAILED_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s:%(lineno)d | %(funcName)s | %(message)s"
+
+# Настраиваем корневой logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.DEBUG)
+
+# Очищаем существующие handlers
+root_logger.handlers.clear()
+
+# Handler для вывода в консоль (INFO уровень и выше)
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(logging.Formatter(DETAILED_FORMAT))
+root_logger.addHandler(console_handler)
+
+# Handler для записи в файл (DEBUG уровень и выше) с ротацией
+file_handler = RotatingFileHandler(
+    LOG_DIR / "app.log",
+    maxBytes=10*1024*1024,  # 10 MB
+    backupCount=5,
+    encoding='utf-8'
 )
+file_handler.setLevel(logging.DEBUG)
+file_handler.setFormatter(logging.Formatter(DETAILED_FORMAT))
+root_logger.addHandler(file_handler)
+
+# Handler для ошибок (ERROR и CRITICAL) в отдельный файл
+error_handler = RotatingFileHandler(
+    LOG_DIR / "error.log",
+    maxBytes=10*1024*1024,  # 10 MB
+    backupCount=5,
+    encoding='utf-8'
+)
+error_handler.setLevel(logging.ERROR)
+error_handler.setFormatter(logging.Formatter(DETAILED_FORMAT))
+root_logger.addHandler(error_handler)
+
 logger = logging.getLogger(__name__)
+logger.info("🔧 Система логирования инициализирована")
+logger.info(f"📁 Логи записываются в: {LOG_DIR}")
 
 # Подавляем излишне подробные логи aiosqlite, чтобы видеть только важные сообщения
 logging.getLogger('aiosqlite').setLevel(logging.WARNING)
+logging.getLogger('sqlalchemy.engine').setLevel(logging.WARNING)
 
 
 @asynccontextmanager

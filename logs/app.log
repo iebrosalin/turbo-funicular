@@ -1,0 +1,8 @@
+2026-05-18 06:30:51,141 | INFO     | backend.main:84 | <module> | 🔧 Система логирования инициализирована
+2026-05-18 06:30:51,141 | INFO     | backend.main:85 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-18 06:30:51,397 | INFO     | backend.main:295 | <module> | ✅ RedCheck integration router подключён
+2026-05-18 06:30:51,556 | INFO     | backend.main:303 | <module> | ✅ Projects router подключён
+2026-05-18 06:40:31,836 | INFO     | backend.main:84 | <module> | 🔧 Система логирования инициализирована
+2026-05-18 06:40:31,836 | INFO     | backend.main:85 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-18 06:40:32,022 | INFO     | backend.main:295 | <module> | ✅ RedCheck integration router подключён
+2026-05-18 06:40:32,182 | INFO     | backend.main:303 | <module> | ✅ Projects router подключён
