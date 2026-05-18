@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     nmap \
     dnsutils \
+    fping \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Rust via rustup
