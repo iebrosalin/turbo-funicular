@@ -2,12 +2,23 @@ FROM python:3.11-slim
 
 WORKDIR /workspace
 
-# Install system dependencies including git
+# Install system dependencies including git and scanning utilities
 RUN apt-get update && apt-get install -y \
     git \
     curl \
     gnupg \
+    build-essential \
+    nmap \
+    dnsutils \
+    fping \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Rust via rustup
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+# Install RustScan via cargo
+ENV PATH="/root/.cargo/bin:${PATH}"
+RUN cargo install rustscan
 
 # Copy backend requirements and install Python dependencies
 COPY app/backend/requirements.txt /workspace/backend/requirements.txt
