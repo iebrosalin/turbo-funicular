@@ -19,9 +19,11 @@ from backend.core.exceptions import (
     global_exception_handler,
     validation_exception_handler,
     sqlalchemy_exception_handler,
+    http_exception_handler,
     generic_exception_handler
 )
 from fastapi.exceptions import RequestValidationError
+from fastapi import HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from backend.db.session import engine
 from backend.routes import scans
@@ -221,7 +223,16 @@ async def http_404_handler(request: Request, exc):
     return templates.TemplateResponse("404.html", {"request": request}, status_code=404)
 
 @app.exception_handler(500)
-async def http_500_handler(request: Request, exc):
+async def http_500_handler(request: Request, exc: Exception):
+    """Обработчик HTTP 500 ошибок с логированием."""
+    logger.error("=" * 80)
+    logger.error(f"🚨 HTTP 500 Error | Status: 500")
+    logger.error(f"   URL: {request.method} {request.url}")
+    logger.error(f"   Client: {request.client.host if request.client else 'unknown'}")
+    logger.error(f"   Exception Type: {type(exc).__name__}")
+    logger.error(f"   Message: {str(exc)}")
+    logger.error(f"   Full Traceback:\n{traceback.format_exc()}")
+    logger.error("=" * 80)
     return templates.TemplateResponse("500.html", {"request": request}, status_code=500)
 
 # Middleware для логирования запросов к сканированиям (для отладки)

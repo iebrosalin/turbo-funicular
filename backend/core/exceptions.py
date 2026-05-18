@@ -1,4 +1,4 @@
-from fastapi import Request, status
+from fastapi import Request, status, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
@@ -76,6 +76,20 @@ async def sqlalchemy_exception_handler(request: Request, exc: SQLAlchemyError):
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "Внутренняя ошибка сервера (База данных)"},
+    )
+
+
+async def http_exception_handler(request: Request, exc: HTTPException):
+    """Обработчик HTTP исключений (включая 500)."""
+    logger.error("=" * 80)
+    logger.error(f"🚨 HTTPException | Status: {exc.status_code}")
+    logger.error(f"   URL: {request.method} {request.url}")
+    logger.error(f"   Client: {request.client.host if request.client else 'unknown'}")
+    logger.error(f"   Detail: {exc.detail}")
+    logger.error("=" * 80)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
     )
 
 
