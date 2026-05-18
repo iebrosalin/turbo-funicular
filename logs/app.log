@@ -6,3 +6,11 @@
 2026-05-18 06:40:31,836 | INFO     | backend.main:85 | <module> | 📁 Логи записываются в: /workspace/logs
 2026-05-18 06:40:32,022 | INFO     | backend.main:295 | <module> | ✅ RedCheck integration router подключён
 2026-05-18 06:40:32,182 | INFO     | backend.main:303 | <module> | ✅ Projects router подключён
+2026-05-18 07:28:48,168 | INFO     | backend.main:86 | <module> | 🔧 Система логирования инициализирована
+2026-05-18 07:28:48,168 | INFO     | backend.main:87 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-18 07:28:48,541 | INFO     | backend.main:310 | <module> | ✅ RedCheck integration router подключён
+2026-05-18 07:28:48,786 | INFO     | backend.main:318 | <module> | ✅ Projects router подключён
+2026-05-18 07:29:05,285 | INFO     | backend.main:84 | <module> | 🔧 Система логирования инициализирована
+2026-05-18 07:29:05,285 | INFO     | backend.main:85 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-18 07:29:05,645 | INFO     | backend.main:304 | <module> | ✅ RedCheck integration router подключён
+2026-05-18 07:29:05,866 | INFO     | backend.main:312 | <module> | ✅ Projects router подключён
