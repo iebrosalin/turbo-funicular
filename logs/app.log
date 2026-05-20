@@ -116,3 +116,29 @@
 2026-05-20 13:23:53,042 | INFO     | backend.main:320 | <module> | ✅ Projects router подключён
 2026-05-20 13:23:53,064 | DEBUG    | asyncio:64 | __init__ | Using selector: EpollSelector
 2026-05-20 13:23:53,503 | INFO     | httpx:1025 | _send_single_request | HTTP Request: GET http://testserver/assets/1 "HTTP/1.1 404 Not Found"
+2026-05-20 14:27:18,094 | INFO     | backend.main:86 | <module> | 🔧 Система логирования инициализирована
+2026-05-20 14:27:18,094 | INFO     | backend.main:87 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-20 14:27:18,359 | INFO     | backend.main:312 | <module> | ✅ RedCheck integration router подключён
+2026-05-20 14:27:18,514 | INFO     | backend.main:320 | <module> | ✅ Projects router подключён
+2026-05-20 14:27:18,555 | INFO     | __main__:40 | <module> | ============================================================
+2026-05-20 14:27:18,555 | INFO     | __main__:41 | <module> | 🚀 Starting Network Asset Manager...
+2026-05-20 14:27:18,555 | INFO     | __main__:42 | <module> | ============================================================
+2026-05-20 14:27:18,555 | INFO     | __main__:43 | <module> | Database: SQLite (/workspace/data/app.db)
+2026-05-20 14:27:18,555 | INFO     | __main__:44 | <module> | 
+2026-05-20 14:27:18,556 | INFO     | __main__:45 | <module> | 🌐 Доступные интерфейсы для подключения:
+2026-05-20 14:27:18,556 | INFO     | __main__:46 | <module> |    ➤ http://127.0.0.1:5000
+2026-05-20 14:27:18,556 | INFO     | __main__:47 | <module> | 
+2026-05-20 14:27:18,556 | INFO     | __main__:48 | <module> | 📚 API Documentation: http://127.0.0.1:5000/docs
+2026-05-20 14:27:18,556 | INFO     | __main__:49 | <module> | 🏠 Web Interface:     http://127.0.0.1:5000/
+2026-05-20 14:27:18,556 | INFO     | __main__:50 | <module> | ============================================================
+2026-05-20 14:27:18,673 | INFO     | backend.main:111 | lifespan | ✅ База данных проверена и инициализирована.
+2026-05-20 14:27:18,673 | INFO     | backend.main:116 | lifespan | ✅ Таблица asset_change_logs создана/проверена.
+2026-05-20 14:27:18,675 | INFO     | backend.main:182 | lifespan | ✅ Подключение к базе данных установлено.
+2026-05-20 14:27:18,675 | INFO     | backend.main:187 | lifespan | 🚀 Приложение успешно запущено.
+2026-05-20 14:27:18,675 | INFO     | backend.services.scan_queue_manager:40 | start | ScanQueueManager запущен
+2026-05-20 14:28:58,348 | INFO     | backend.main:193 | lifespan | 🛑 Остановка приложения...
+2026-05-20 14:28:58,348 | INFO     | backend.services.scan_queue_manager:62 | stop | ScanQueueManager остановлен
+2026-05-20 14:30:46,234 | INFO     | backend.main:86 | <module> | 🔧 Система логирования инициализирована
+2026-05-20 14:30:46,234 | INFO     | backend.main:87 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-20 14:30:46,441 | INFO     | backend.main:312 | <module> | ✅ RedCheck integration router подключён
+2026-05-20 14:30:46,592 | INFO     | backend.main:320 | <module> | ✅ Projects router подключён
