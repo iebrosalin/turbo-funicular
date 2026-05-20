@@ -4,6 +4,10 @@ services:
     ports:
       - "5000:5000"
     volumes:
+      - ./backend:/workspace/backend
+      - ./frontend:/workspace/frontend
+      - ./static:/workspace/static
+      - ./templates:/workspace/templates
       - ./data:/workspace/data
     environment:
       - DATABASE_URL=sqlite+aiosqlite:///workspace/data/app.db
@@ -14,6 +18,10 @@ services:
     profiles: ["test"]
     command: echo "Test container ready for headless testing"
     volumes:
+      - ./backend:/workspace/backend
+      - ./frontend:/workspace/frontend
+      - ./static:/workspace/static
+      - ./templates:/workspace/templates
       - ./data:/workspace/data
     environment:
       - HEADLESS=true
