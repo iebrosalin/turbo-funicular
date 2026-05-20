@@ -46,3 +46,25 @@
 2026-05-18 07:39:32,381 | ERROR    | backend.core.exceptions:87 | http_exception_handler |    Client: 127.0.0.1
 2026-05-18 07:39:32,381 | ERROR    | backend.core.exceptions:88 | http_exception_handler |    Detail: Неверный формат scan_id: . Ожидается целое число.
 2026-05-18 07:39:32,381 | ERROR    | backend.core.exceptions:89 | http_exception_handler | ================================================================================
+2026-05-18 14:56:28,604 | INFO     | backend.main:86 | <module> | 🔧 Система логирования инициализирована
+2026-05-18 14:56:28,604 | INFO     | backend.main:87 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-18 14:56:28,980 | INFO     | backend.main:307 | <module> | ✅ RedCheck integration router подключён
+2026-05-18 14:56:29,256 | INFO     | backend.main:315 | <module> | ✅ Projects router подключён
+2026-05-18 14:56:29,299 | INFO     | __main__:40 | <module> | ============================================================
+2026-05-18 14:56:29,299 | INFO     | __main__:41 | <module> | 🚀 Starting Network Asset Manager...
+2026-05-18 14:56:29,299 | INFO     | __main__:42 | <module> | ============================================================
+2026-05-18 14:56:29,299 | INFO     | __main__:43 | <module> | Database: SQLite (/workspace/data/app.db)
+2026-05-18 14:56:29,299 | INFO     | __main__:44 | <module> | 
+2026-05-18 14:56:29,299 | INFO     | __main__:45 | <module> | 🌐 Доступные интерфейсы для подключения:
+2026-05-18 14:56:29,299 | INFO     | __main__:46 | <module> |    ➤ http://127.0.0.1:5000
+2026-05-18 14:56:29,299 | INFO     | __main__:47 | <module> | 
+2026-05-18 14:56:29,299 | INFO     | __main__:48 | <module> | 📚 API Documentation: http://127.0.0.1:5000/docs
+2026-05-18 14:56:29,300 | INFO     | __main__:49 | <module> | 🏠 Web Interface:     http://127.0.0.1:5000/
+2026-05-18 14:56:29,300 | INFO     | __main__:50 | <module> | ============================================================
+2026-05-18 14:56:29,498 | INFO     | backend.main:111 | lifespan | ✅ База данных проверена и инициализирована.
+2026-05-18 14:56:29,498 | INFO     | backend.main:116 | lifespan | ✅ Таблица asset_change_logs создана/проверена.
+2026-05-18 14:56:29,501 | INFO     | backend.main:182 | lifespan | ✅ Подключение к базе данных установлено.
+2026-05-18 14:56:29,501 | INFO     | backend.main:187 | lifespan | 🚀 Приложение успешно запущено.
+2026-05-18 14:56:29,502 | INFO     | backend.services.scan_queue_manager:40 | start | ScanQueueManager запущен
+2026-05-18 14:58:03,982 | INFO     | backend.main:193 | lifespan | 🛑 Остановка приложения...
+2026-05-18 14:58:03,982 | INFO     | backend.services.scan_queue_manager:62 | stop | ScanQueueManager остановлен
