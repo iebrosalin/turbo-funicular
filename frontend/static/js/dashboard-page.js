@@ -68,6 +68,23 @@ export class DashboardController {
   }
   
   /**
+   * Инициализация конструктора фильтров
+   */
+  async #initFilterBuilder() {
+    const filterContainer = document.getElementById('dashboard-filter-container');
+    if (!filterContainer) return;
+    
+    this.dashboardFilterBuilder = new FilterBuilder('dashboard-filter-container', {
+      mode: 'dashboard',
+      onApply: (rules) => {
+        this.filterRules = rules;
+        this.applyFilters();
+      },
+      initialRules: this.filterRules
+    });
+  }
+  
+  /**
    * Загрузка схемы активов для заполнения опций группировки
    */
   async #loadAssetSchema() {
