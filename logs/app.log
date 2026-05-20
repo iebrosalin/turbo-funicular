@@ -94,3 +94,25 @@
 2026-05-20 13:16:32,539 | INFO     | backend.main:87 | <module> | 📁 Логи записываются в: /workspace/logs
 2026-05-20 13:16:32,940 | INFO     | backend.main:312 | <module> | ✅ RedCheck integration router подключён
 2026-05-20 13:16:33,298 | INFO     | backend.main:320 | <module> | ✅ Projects router подключён
+2026-05-20 13:23:25,714 | INFO     | backend.main:86 | <module> | 🔧 Система логирования инициализирована
+2026-05-20 13:23:25,715 | INFO     | backend.main:87 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-20 13:23:26,260 | INFO     | backend.main:312 | <module> | ✅ RedCheck integration router подключён
+2026-05-20 13:23:26,660 | INFO     | backend.main:320 | <module> | ✅ Projects router подключён
+2026-05-20 13:23:35,282 | INFO     | backend.main:86 | <module> | 🔧 Система логирования инициализирована
+2026-05-20 13:23:35,283 | INFO     | backend.main:87 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-20 13:23:35,783 | INFO     | backend.main:312 | <module> | ✅ RedCheck integration router подключён
+2026-05-20 13:23:36,116 | INFO     | backend.main:320 | <module> | ✅ Projects router подключён
+2026-05-20 13:23:36,140 | DEBUG    | asyncio:64 | __init__ | Using selector: EpollSelector
+2026-05-20 13:23:36,199 | INFO     | httpx:1025 | _send_single_request | HTTP Request: GET http://testserver/nonexistent-route-xyz "HTTP/1.1 404 Not Found"
+2026-05-20 13:23:43,719 | INFO     | backend.main:86 | <module> | 🔧 Система логирования инициализирована
+2026-05-20 13:23:43,719 | INFO     | backend.main:87 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-20 13:23:44,140 | INFO     | backend.main:312 | <module> | ✅ RedCheck integration router подключён
+2026-05-20 13:23:44,495 | INFO     | backend.main:320 | <module> | ✅ Projects router подключён
+2026-05-20 13:23:44,519 | DEBUG    | asyncio:64 | __init__ | Using selector: EpollSelector
+2026-05-20 13:23:44,579 | INFO     | httpx:1025 | _send_single_request | HTTP Request: GET http://testserver/ "HTTP/1.1 200 OK"
+2026-05-20 13:23:52,324 | INFO     | backend.main:86 | <module> | 🔧 Система логирования инициализирована
+2026-05-20 13:23:52,324 | INFO     | backend.main:87 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-20 13:23:52,743 | INFO     | backend.main:312 | <module> | ✅ RedCheck integration router подключён
+2026-05-20 13:23:53,042 | INFO     | backend.main:320 | <module> | ✅ Projects router подключён
+2026-05-20 13:23:53,064 | DEBUG    | asyncio:64 | __init__ | Using selector: EpollSelector
+2026-05-20 13:23:53,503 | INFO     | httpx:1025 | _send_single_request | HTTP Request: GET http://testserver/assets/1 "HTTP/1.1 404 Not Found"
