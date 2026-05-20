@@ -293,7 +293,12 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR), check_dir=False), na
 
 # Настройка Jinja2 шаблонов с кастомным фильтром tojson
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-templates.env.policies['json.dumps_function'] = lambda obj, **kw: json.dumps(obj, cls=CustomJSONEncoder, **kw)
+
+def tojson_filter(obj, **kwargs):
+    """Кастомный фильтр tojson для обработки datetime и других специальных типов."""
+    return json.dumps(obj, cls=CustomJSONEncoder, **kwargs)
+
+templates.env.filters['tojson'] = tojson_filter
 
 # Подключение маршрутов (Roouters)
 app.include_router(assets.router, prefix="/api/assets", tags=["Assets"])
