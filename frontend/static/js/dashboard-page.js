@@ -203,6 +203,27 @@ export class DashboardController {
         store.toggleAssetSelection(checkbox.value);
       }
     });
+    
+    // Обработчик чекбокса "Выделить все" (делегирование через thead)
+    document.querySelector('#assets-table thead')?.addEventListener('change', (e) => {
+      const selectAll = e.target.closest('#select-all');
+      if (selectAll) {
+        const isChecked = selectAll.checked;
+        const allCheckboxes = document.querySelectorAll('input[type="checkbox"].asset-checkbox');
+        const ids = Array.from(allCheckboxes).map(cb => cb.value);
+        
+        store.toggleAllAssets(ids, isChecked);
+        
+        allCheckboxes.forEach(cb => {
+          cb.checked = isChecked;
+          const row = cb.closest('tr');
+          if (isChecked) row.classList.add('selected');
+          else row.classList.remove('selected');
+        });
+        
+        this.#updateSelectAllState();
+      }
+    });
   }
 
   applyFilters() {
@@ -319,7 +340,7 @@ export class DashboardController {
    */
   #updateSelectAllState() {
     const allCheckboxes = document.querySelectorAll('input[type="checkbox"].asset-checkbox');
-    const selectAllCheckbox = document.getElementById('select-all-assets');
+    const selectAllCheckbox = document.getElementById('select-all');
     
     if (!selectAllCheckbox || allCheckboxes.length === 0) return;
 

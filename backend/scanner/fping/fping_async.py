@@ -369,6 +369,45 @@ class FpingScanner(BaseScanner):
                 result["ip"] = host_data["ip"]
                 result["hostname"] = host_data["hostname"]
         
+        # ============================================
+        # ПАТТЕРН 4: Режим с обратным DNS (-D флаг)
+        # Формат: "<timestamp> <IP> (<hostname>) is alive" или "<timestamp> <IP> is alive"
+        # Извлекаем DNS-имя из скобок если оно есть
+        # ============================================
+        dns_pattern = r"^\[\d+\]\s+([\d\.]+)\s+(?:\(([^)]+)\)\s+)?is\s+alive"
+        dns_matches = re.findall(dns_pattern, combined_output, re.IGNORECASE | re.MULTILINE)
+        
+        logger.info(f"[FpingScanner] Найдено хостов с timestamp и DNS: {len(dns_matches)}")
+        
+        for match in dns_matches:
+            ip = match[0].strip()
+            hostname = match[1].strip() if len(match) > 1 and match[1] else ""
+            
+            # Пропускаем уже добавленные хосты
+            existing_ips = [h["ip"] for h in result["alive_hosts"]]
+            existing_hostnames = [h["hostname"] for h in result["alive_hosts"]]
+            
+            if ip in existing_ips:
+                # Если IP уже есть, но есть новое DNS-имя, обновляем hostname
+                if hostname and hostname not in existing_hostnames:
+                    for h in result["alive_hosts"]:
+                        if h["ip"] == ip:
+                            h["hostname"] = hostname
+                            break
+                continue
+            
+            host_data = {
+                "ip": ip,
+                "hostname": hostname,
+                "stats": {}
+            }
+            
+            result["alive_hosts"].append(host_data)
+            
+            if not result["ip"]:
+                result["ip"] = ip
+                result["hostname"] = hostname
+        
         # Паттерн для поиска недоступных хостов: "<IP> is unreachable" или таймауты
         unreachable_pattern = r"^([^\s]+)\s+(?:is\s+unreachable|timed\s*out)\s*$"
         unreachable_matches = re.findall(unreachable_pattern, combined_output, re.IGNORECASE | re.MULTILINE)

@@ -468,11 +468,14 @@ class AssetService:
                 return None
         return value
     
-    async def get_change_logs(self, asset_id: int, limit: int = 100) -> List[dict]:
-        """Получить историю изменений актива."""
+    async def get_change_logs(self, asset_id: int, limit: Optional[int] = None) -> List[dict]:
+        """Получить историю изменений актива (без ограничений по умолчанию)."""
         query = select(asset_change_logs_table).where(
             asset_change_logs_table.c.asset_id == asset_id
-        ).order_by(asset_change_logs_table.c.id.desc()).limit(limit)
+        ).order_by(asset_change_logs_table.c.id.desc())
+        
+        if limit is not None:
+            query = query.limit(limit)
         
         result = await self.db.execute(query)
         rows = result.fetchall()

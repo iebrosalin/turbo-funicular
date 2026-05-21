@@ -118,7 +118,7 @@ export class GroupManager {
               if (rules && rules.length > 0) {
                 params.set('rules', JSON.stringify(rules));
               }
-              const res = await fetch(`/api/assets?${params.toString()}&size=1`);
+              const res = await fetch(`/api/assets?${params.toString()}`);
               const data = await res.json();
               const count = data.total || 0;
               Utils.showFlashMessage('info', `Найдено активов: ${count}`);

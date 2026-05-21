@@ -1,6 +1,7 @@
 import logging
 import json
 import xml.etree.ElementTree as ET
+import ipaddress
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -348,12 +349,20 @@ class ScanProcessor:
             # Всё равно обновляем last_fping для целевого IP если он указан
             target_ip = job_params.get('ip') or job_params.get('target')
             if target_ip and isinstance(target_ip, str) and '.' in target_ip:
-                # Обновляем last_fping даже если хост не ответил (чтобы фиксировать факт сканирования)
-                await self._upsert_asset(target_ip, {
-                    "group_id": job.scan.group_id,
-                    "scan_type": "fping",
-                    "is_alive": False  # Хост не ответил на ping
-                })
+                # Проверяем, что это не CIDR-нотация
+                try:
+                    if '/' in target_ip:
+                        # Это CIDR, не создаем актив
+                        logger.warning(f"fping: Пропущен CIDR адрес {target_ip} - активы не могут иметь CIDR")
+                        return
+                    # Обновляем last_fping даже если хост не ответил (чтобы фиксировать факт сканирования)
+                    await self._upsert_asset(target_ip, {
+                        "group_id": job.scan.group_id,
+                        "scan_type": "fping",
+                        "is_alive": False  # Хост не ответил на ping
+                    })
+                except ValueError:
+                    logger.warning(f"fping: Невалидный IP адрес {target_ip}")
             return
         
         hosts_count = 0
@@ -363,6 +372,17 @@ class ScanProcessor:
             
             if not ip:
                 logger.warning(f"fping: Пропущен хост без IP: {host_data}")
+                continue
+            
+            # Проверяем, что IP не является CIDR-нотацией
+            try:
+                if '/' in ip:
+                    logger.warning(f"fping: Пропущен CIDR адрес {ip} - активы не могут иметь CIDR")
+                    continue
+                # Валидируем IP адрес
+                ipaddress.ip_address(ip)
+            except ValueError:
+                logger.warning(f"fping: Невалидный IP адрес {ip}, пропущен")
                 continue
             
             # Создаем/обновляем актив с флагом активности

@@ -935,11 +935,11 @@ export class ScanResultsController {
   }
 
   async #initScanAutocomplete(input, scanType) {
-    // Автодополнение на основе известных активов
+    // Автодополнение на основе известных активов (лимит увеличен)
     let cachedAssets = [];
     
     try {
-      const response = await fetch('/api/assets?limit=100');
+      const response = await fetch('/api/assets?limit=10000');
       if (response.ok) {
         const data = await response.json();
         // API возвращает объект с пагинацией, извлекаем массив items

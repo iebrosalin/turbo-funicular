@@ -24,8 +24,8 @@ class BaseRepository(ABC, Generic[T]):
         pass
     
     @abstractmethod
-    async def get_all(self, limit: int = 100, offset: int = 0) -> List[T]:
-        """Получение всех записей с пагинацией."""
+    async def get_all(self, limit: int = 100000, offset: int = 0) -> List[T]:
+        """Получение всех записей с пагинацией (лимит увеличен для поддержки больших выборок)."""
         pass
     
     @abstractmethod
