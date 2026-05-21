@@ -203,8 +203,12 @@ async def get_assets(
         }
     
     # Конвертируем все активы в словари пока сессия активна
+    items = []
+    for asset in paginated_assets:
+        items.append(service._asset_to_dict(asset))
+    
     return {
-        "items": [service._asset_to_dict(asset) for asset in paginated_assets],
+        "items": items,
         "total": total,
         "page": page,
         "size": size,
