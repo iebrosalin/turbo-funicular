@@ -50,7 +50,7 @@ export class DashboardController {
     // Начальная загрузка данных (если еще не загружены в Store)
     if (!store.getState('assets')?.length) {
       try {
-        // Загружаем активы с таксономией для экспорта
+        // Загружаем ВСЕ активы с таксономией для экспорта (без пагинации)
         const response = await Utils.apiRequest('/api/assets?include_taxonomy=true');
         // API возвращает объект с пагинацией, извлекаем массив items
         const assets = response.items || response;
