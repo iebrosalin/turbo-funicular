@@ -51,7 +51,9 @@ export class DashboardController {
     if (!store.getState('assets')?.length) {
       try {
         // Загружаем активы с таксономией для экспорта
-        const assets = await Utils.apiRequest('/api/assets?include_taxonomy=true');
+        const response = await Utils.apiRequest('/api/assets?include_taxonomy=true');
+        // API возвращает объект с пагинацией, извлекаем массив items
+        const assets = response.items || response;
         store.setState('assets', assets);
         // Явно вызываем applyFilters после загрузки
         this.allAssets = assets;
@@ -437,7 +439,9 @@ export class DashboardController {
 
   async #reloadData() {
     try {
-      const assets = await Utils.apiRequest('/api/assets');
+      const response = await Utils.apiRequest('/api/assets');
+      // API возвращает объект с пагинацией, извлекаем массив items
+      const assets = response.items || response;
       store.setState('assets', assets);
       // Обновление дерева групп (без автоматической перезагрузки активов)
       await refreshGroupTree();

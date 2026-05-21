@@ -614,7 +614,9 @@ export class ScanManager {
   async #refreshAllData() {
     try {
       // Обновляем активы в Store
-      const assets = await Utils.apiRequest('/api/assets');
+      const response = await Utils.apiRequest('/api/assets');
+      // API возвращает объект с пагинацией, извлекаем массив items
+      const assets = response.items || response;
       store.setState('assets', assets);
       
       // Обновляем дерево групп с новыми счетчиками

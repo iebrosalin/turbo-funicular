@@ -589,9 +589,9 @@ export class TreeManager {
     const url = `/api/assets${queryString ? '?' + queryString : ''}`;
     try {
       const response = await Utils.apiRequest(url);
-      const data = response;
-      const assets = Array.isArray(data) ? data : (data.assets || []);
-
+      // API возвращает объект с пагинацией, извлекаем массив items
+      const assets = response.items || response.assets || response;
+      
       // Обновляем Store для синхронизации с dashboard-page.js
       store.setState('assets', assets);
 
