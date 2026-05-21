@@ -319,6 +319,30 @@ class ScanProcessor:
         """
         alive_hosts = job_params.get('alive_hosts', [])
         
+        # Если alive_hosts пуст, пробуем распарсить raw_output для извлечения живых хостов
+        if not alive_hosts:
+            raw_output = job_params.get('raw_output', '')
+            if raw_output:
+                import re
+                # Паттерн для статистики fping: IP : xmt/rcv/%loss = X/Y/Z%, ...
+                # Хост живой, если rcv > 0 (второе число после /)
+                pattern = r"([\d\.]+)\s*:\s*xmt/rcv/%loss\s*=\s*(\d+)/(\d+)/(\d+)%"
+                matches = re.findall(pattern, raw_output)
+                
+                for match in matches:
+                    ip, xmt, rcv, loss = match
+                    if int(rcv) > 0:
+                        alive_hosts.append({
+                            'ip': ip,
+                            'hostname': '',
+                            'stats': {
+                                'transmitted': int(xmt),
+                                'received': int(rcv),
+                                'loss_percent': int(loss)
+                            }
+                        })
+                logger.info(f"[DEBUG _process_fping] Распарсено {len(alive_hosts)} живых хостов из raw_output")
+        
         if not alive_hosts:
             logger.warning(f"fping: Не найдено живых хостов для задачи {job.id}")
             # Всё равно обновляем last_fping для целевого IP если он указан
