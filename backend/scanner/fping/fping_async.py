@@ -318,6 +318,57 @@ class FpingScanner(BaseScanner):
                 result["ip"] = host_data["ip"]
                 result["hostname"] = host_data["hostname"]
         
+        # ============================================
+        # ПАТТЕРН 3: Режим -c (count) со статистикой
+        # Формат: "<IP> : xmt/rcv/%loss = X/Y/Z%"
+        # Хост жив, если received > 0
+        # ============================================
+        # Упрощенный паттерн - не требуем min/avg/max в той же строке
+        stats_pattern = r"^([\d\.]+|[a-zA-Z0-9\.\-_]+)\s*:\s*xmt/rcv/%loss\s*=\s*(\d+)/(\d+)/([\d\.]+)%"
+        stats_matches = re.findall(stats_pattern, combined_output, re.IGNORECASE | re.MULTILINE)
+        
+        logger.info(f"[FpingScanner] Найдено хостов по паттерну статистики: {len(stats_matches)}")
+        
+        for match in stats_matches:
+            ip_or_host = match[0].strip()
+            transmitted = int(match[1])
+            received = int(match[2])
+            loss_percent = float(match[3])
+            
+            # Хост жив, если получен хотя бы один ответ
+            if received == 0:
+                continue
+            
+            # Пропускаем уже добавленные хосты
+            existing_ips = [h["ip"] for h in result["alive_hosts"]]
+            existing_hostnames = [h["hostname"] for h in result["alive_hosts"]]
+            
+            if ip_or_host in existing_ips or ip_or_host in existing_hostnames:
+                continue
+            
+            host_data = {
+                "ip": "",
+                "hostname": "",
+                "stats": {
+                    "transmitted": transmitted,
+                    "received": received,
+                    "loss_percent": loss_percent
+                }
+            }
+            
+            if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip_or_host):
+                host_data["ip"] = ip_or_host
+                host_data["hostname"] = ""
+            else:
+                host_data["hostname"] = ip_or_host
+                host_data["ip"] = ip_or_host
+            
+            result["alive_hosts"].append(host_data)
+            
+            if not result["ip"] and host_data["ip"]:
+                result["ip"] = host_data["ip"]
+                result["hostname"] = host_data["hostname"]
+        
         # Паттерн для поиска недоступных хостов: "<IP> is unreachable" или таймауты
         unreachable_pattern = r"^([^\s]+)\s+(?:is\s+unreachable|timed\s*out)\s*$"
         unreachable_matches = re.findall(unreachable_pattern, combined_output, re.IGNORECASE | re.MULTILINE)
