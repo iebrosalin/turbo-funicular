@@ -13,8 +13,8 @@ class ScanService:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def get_all(self, limit: int = 100, offset: int = 0) -> List[Scan]:
-        """Получить все сканирования с результатами (с пагинацией)."""
+    async def get_all(self, limit: int = 100000, offset: int = 0) -> List[Scan]:
+        """Получить все сканирования с результатами (с пагинацией, лимит увеличен)."""
         query = select(Scan).options(
             selectinload(Scan.group),
             selectinload(Scan.results)

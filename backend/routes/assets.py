@@ -134,11 +134,9 @@ async def get_assets(
     ungrouped: Optional[bool] = Query(None),
     source: Optional[str] = Query(None),
     rules: Optional[str] = Query(None),  # JSON строка с правилами фильтрации
-    include_taxonomy: Optional[bool] = Query(False),  # Включить таксономию в ответ
-    page: Optional[int] = Query(1, ge=1),  # Номер страницы
-    size: Optional[int] = Query(50, ge=1, le=500)  # Размер страницы
+    include_taxonomy: Optional[bool] = Query(False)  # Включить таксономию в ответ
 ):
-    """Получить список активов с фильтрацией и пагинацией."""
+    """Получить список активов с фильтрацией (без пагинации)."""
     service = AssetService(db)
     
     # Преобразуем group_id в int или None
@@ -177,16 +175,13 @@ async def get_assets(
         include_services=include_taxonomy  # Загружаем сервисы если нужна таксономия
     )
     
-    # Применяем пагинацию
+    # Возвращаем все активы без пагинации
     total = len(all_assets)
-    start_idx = (page - 1) * size
-    end_idx = start_idx + size
-    paginated_assets = all_assets[start_idx:end_idx]
     
     # Если запрошена таксономия, добавляем её к каждому активу
     if include_taxonomy:
         result = []
-        for asset in paginated_assets:
+        for asset in all_assets:
             # Сначала генерируем таксономию пока asset ещё ORM-объект
             taxonomy = generate_asset_taxonomy(asset)
             # Затем конвертируем ORM-объект в словарь
@@ -196,23 +191,17 @@ async def get_assets(
         
         return {
             "items": result,
-            "total": total,
-            "page": page,
-            "size": size,
-            "pages": (total + size - 1) // size if size > 0 else 1
+            "total": total
         }
     
     # Конвертируем все активы в словари пока сессия активна
     items = []
-    for asset in paginated_assets:
+    for asset in all_assets:
         items.append(service._asset_to_dict(asset))
     
     return {
         "items": items,
-        "total": total,
-        "page": page,
-        "size": size,
-        "pages": (total + size - 1) // size if size > 0 else 1
+        "total": total
     }
 
 
@@ -246,9 +235,9 @@ async def get_asset_page(request: Request, asset_id: int, db: AsyncSession = Dep
             content={"detail": "Актив не найден", "code": "ASSET_NOT_FOUND"}
         )
     
-    # Получаем историю изменений
+    # Получаем историю изменений (без ограничений)
     service = AssetService(db)
-    change_logs = await service.get_change_logs(asset_id, limit=50)
+    change_logs = await service.get_change_logs(asset_id)
     
     return templates.TemplateResponse("assets/asset_detail.html", {
         "request": request,

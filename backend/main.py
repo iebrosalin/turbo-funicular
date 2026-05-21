@@ -368,8 +368,8 @@ async def asset_detail(request: Request, asset_id: int, db: AsyncSession = Depen
     if not asset:
         raise HTTPException(status_code=404, detail="Актив не найден")
     
-    # Загружаем историю изменений
-    change_logs = await service.get_change_logs(asset_id, limit=50)
+    # Загружаем историю изменений (без ограничений)
+    change_logs = await service.get_change_logs(asset_id)
     
     return templates.TemplateResponse(request, "assets/asset_detail.html", {
         "asset": asset,

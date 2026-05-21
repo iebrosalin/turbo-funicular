@@ -51,11 +51,11 @@ def get_artifact_storage_path() -> str:
 @router.get("", response_model=List[ProjectResponse])
 async def get_projects(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 10000,
     status_filter: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Получить список всех проектов."""
+    """Получить список всех проектов (лимит увеличен)."""
     query = select(Project).options(
         selectinload(Project.groups),
         selectinload(Project.reports),

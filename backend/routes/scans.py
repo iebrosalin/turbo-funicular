@@ -162,10 +162,10 @@ async def get_scans_status(db: AsyncSession = Depends(get_db)):
     from backend.models.scan import ScanJob, Scan
     from sqlalchemy.orm import selectinload
     
-    # Получаем все задачи сканирования
+    # Получаем все задачи сканирования (лимит увеличен для отображения всех заданий)
     jobs_query = select(ScanJob).options(
         selectinload(ScanJob.scan)
-    ).order_by(ScanJob.created_at.desc()).limit(50)
+    ).order_by(ScanJob.created_at.desc()).limit(10000)
     
     jobs_result = await db.execute(jobs_query)
     jobs = list(jobs_result.scalars().all())
@@ -343,7 +343,7 @@ async def get_active_scans(db: AsyncSession = Depends(get_db)):
 
 @router.get("/history")
 async def get_scan_history(
-    limit: int = Query(default=100, ge=1, le=1000),
+    limit: int = Query(default=10000, ge=1, le=100000),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db)
 ):
