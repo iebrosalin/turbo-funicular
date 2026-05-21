@@ -285,7 +285,9 @@ class App {
     if (!sidebarContainer) return;
 
     try {
-      const assets = await Utils.apiRequest('/api/assets?limit=100');
+      const response = await Utils.apiRequest('/api/assets?limit=100');
+      // API возвращает объект с пагинацией, извлекаем массив items
+      const assets = response.items || response;
       
       if (!assets || assets.length === 0) {
         sidebarContainer.innerHTML = `

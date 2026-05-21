@@ -941,7 +941,9 @@ export class ScanResultsController {
     try {
       const response = await fetch('/api/assets?limit=100');
       if (response.ok) {
-        cachedAssets = await response.json();
+        const data = await response.json();
+        // API возвращает объект с пагинацией, извлекаем массив items
+        cachedAssets = data.items || data.assets || data;
       }
     } catch (e) {
       console.warn('Не удалось загрузить активы для автодополнения:', e);
