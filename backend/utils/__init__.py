@@ -51,10 +51,20 @@ async def create_asset_if_not_exists(
         groups: Список ID групп (опционально)
     
     Returns:
-        Экземпляр модели Asset
+        Экземпляр модели Asset или None если IP является CIDR
     """
     from backend.models.asset import Asset
     from backend.models.group import AssetGroup
+    import ipaddress
+    
+    # Проверяем, что IP не является CIDR-нотацией
+    try:
+        if '/' in ip_address:
+            ipaddress.ip_network(ip_address, strict=False)
+            logger.warning(f"[AssetManager] Попытка создания актива с CIDR: {ip_address} - пропущено")
+            return None
+    except ValueError:
+        pass  # Это не CIDR, продолжаем
     
     # Проверяем существование с явной загрузкой связей
     query = select(Asset).options(selectinload(Asset.groups)).where(Asset.ip_address == ip_address)
