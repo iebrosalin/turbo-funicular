@@ -5,6 +5,7 @@ import re
 from typing import Dict, Any, List, Optional, Union
 from ..base import BaseScanner, ScanResult
 from backend.models.target import Target
+import ipaddress
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,8 @@ class FpingScanner(BaseScanner):
         reverse: bool = False,
         show_stats: bool = False,
         extra_args: Optional[List[str]] = None,
-        output_dir: Optional[str] = None
+        output_dir: Optional[str] = None,
+        use_cidr_expand: bool = True  # Новый параметр для автоматического расширения CIDR
     ):
         """
         Инициализация сканера fping.
@@ -56,6 +58,7 @@ class FpingScanner(BaseScanner):
             show_stats: Показать статистику (-s флаг)
             extra_args: Дополнительные аргументы командной строки
             output_dir: Директория для вывода (не используется, но требуется для совместимости)
+            use_cidr_expand: Автоматически расширять CIDR в список IP с флагом -g (по умолчанию True)
         """
         super().__init__(job_id, target, output_dir)
         self.count = count
@@ -70,6 +73,49 @@ class FpingScanner(BaseScanner):
         self.reverse = reverse
         self.show_stats = show_stats
         self.extra_args = extra_args or []
+        self.use_cidr_expand = use_cidr_expand
+        
+        # Проверяем, является ли цель CIDR-нотацией
+        self._is_cidr = self._check_if_cidr(self.target)
+
+    def _check_if_cidr(self, target: str) -> bool:
+        """
+        Проверяет, является ли строка CIDR-нотацией (например, 192.168.1.0/24).
+        
+        Args:
+            target: Строка для проверки
+            
+        Returns:
+            bool: True если это CIDR-нотация
+        """
+        if '/' not in target:
+            return False
+        
+        try:
+            ipaddress.ip_network(target, strict=False)
+            return True
+        except ValueError:
+            return False
+
+    def _expand_cidr_to_ips(self, cidr: str) -> List[str]:
+        """
+        Расширяет CIDR-нотацию в список IP-адресов.
+        
+        Args:
+            cidr: CIDR-нотация (например, "192.168.1.0/24")
+            
+        Returns:
+            List[str]: Список IP-адресов
+        """
+        try:
+            network = ipaddress.ip_network(cidr, strict=False)
+            # Исключаем сетевой и широковещательный адреса для IPv4
+            ips = [str(ip) for ip in network.hosts()]
+            logger.info(f"[FpingScanner] CIDR {cidr} расширен в {len(ips)} IP-адресов")
+            return ips
+        except Exception as e:
+            logger.warning(f"[FpingScanner] Ошибка расширения CIDR {cidr}: {e}")
+            return [cidr]  # Возвращаем как есть при ошибке
 
     async def scan(self) -> ScanResult:
         """
@@ -116,8 +162,15 @@ class FpingScanner(BaseScanner):
         # Дополнительные аргументы
         cmd.extend(self.extra_args)
         
-        # Добавляем цель
-        cmd.append(self.target)
+        # Обработка CIDR-нотации: используем флаг -g для передачи диапазона
+        if self._is_cidr and self.use_cidr_expand:
+            # fping поддерживает CIDR напрямую с флагом -g
+            cmd.append("-g")
+            cmd.append(self.target)
+            logger.info(f"[{self.__class__.__name__}] CIDR-цель {self.target} будет обработана с флагом -g")
+        else:
+            # Добавляем цель как есть (одиночный хост или уже расширенный список)
+            cmd.append(self.target)
         
         logger.info(f"[{self.__class__.__name__}] Запуск команды: {' '.join(cmd)}")
         
