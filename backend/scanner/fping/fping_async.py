@@ -134,12 +134,18 @@ class FpingScanner(BaseScanner):
         # Формируем команду
         cmd = ["fping"]
         
+        # Для CIDR всегда используем режим без -q, чтобы получить список живых хостов
+        # Флаг -q подавляет вывод "is alive", который нам нужен для парсинга
+        is_cidr_scan = self._is_cidr and self.use_cidr_expand
+        
         # Добавляем флаги
-        if self.alive_only:
+        if self.alive_only and not is_cidr_scan:
+            # Для CIDR не используем -a, так как fping сам фильтрует с -g
             cmd.append("-a")
         if self.unreachable:
             cmd.append("-u")
-        if self.quiet:
+        # Не используем -q при сканировании CIDR, чтобы получить список живых хостов
+        if self.quiet and not is_cidr_scan:
             cmd.append("-q")
         if self.verbose:
             cmd.append("-v")
@@ -163,7 +169,7 @@ class FpingScanner(BaseScanner):
         cmd.extend(self.extra_args)
         
         # Обработка CIDR-нотации: используем флаг -g для передачи диапазона
-        if self._is_cidr and self.use_cidr_expand:
+        if is_cidr_scan:
             # fping поддерживает CIDR напрямую с флагом -g
             cmd.append("-g")
             cmd.append(self.target)
@@ -217,6 +223,11 @@ class FpingScanner(BaseScanner):
         fping выводит информацию о живых хостах в stderr в формате:
         <IP> is alive
         
+        При сканировании CIDR с флагом -g вывод может быть в формате:
+        <IP> is alive
+        <IP> is alive
+        ...
+        
         При использовании -q выводится статистика в конце.
         
         Args:
@@ -235,25 +246,65 @@ class FpingScanner(BaseScanner):
         }
         
         # Объединяем stdout и stderr для парсинга
-        # fping обычно пишет "is alive" в stderr
+        # fping обычно пишет "is alive" в stderr, но при CIDR-сканировании может быть и в stdout
         combined_output = stderr + "\n" + stdout
         
-        # Паттерн для поиска живых хостов: "<IP> is alive" или "<IP> (<hostname>) is alive"
-        alive_pattern = r"([\d\.]+|[a-zA-Z0-9\.\-_]+)\s*(?:\(([^)]+)\))?\s*is alive"
-        matches = re.findall(alive_pattern, combined_output, re.IGNORECASE)
+        logger.debug(f"[FpingScanner] Комбинированный вывод для парсинга:\n{combined_output[:500]}...")
         
-        logger.info(f"[FpingScanner] Найдено живых хостов: {len(matches)}")
+        # Паттерн для поиска живых хостов: "<IP> is alive" или "<hostname> is alive"
+        # Поддерживаем различные форматы вывода fping
+        alive_pattern = r"^([^\s]+)\s+is\s+alive\s*$"
+        matches = re.findall(alive_pattern, combined_output, re.IGNORECASE | re.MULTILINE)
+        
+        logger.info(f"[FpingScanner] Найдено живых хостов по основному паттерну: {len(matches)}")
         
         for match in matches:
-            ip_or_host = match[0]
-            hostname = match[1] if len(match) > 1 and match[1] else ""
-            
+            ip_or_host = match.strip()
+            if not ip_or_host:
+                continue
+                
             host_data = {
                 "ip": "",
                 "hostname": ""
             }
             
             # Проверяем, является ли строка IP-адресом
+            if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip_or_host):
+                host_data["ip"] = ip_or_host
+                host_data["hostname"] = ""
+            else:
+                host_data["hostname"] = ip_or_host
+                host_data["ip"] = ip_or_host  # Если не IP, используем как есть
+            
+            result["alive_hosts"].append(host_data)
+            
+            # Устанавливаем первый найденный хост как основной
+            if not result["ip"] and host_data["ip"]:
+                result["ip"] = host_data["ip"]
+                result["hostname"] = host_data["hostname"]
+        
+        # Дополнительный паттерн для случаев с обратным DNS: "<IP> (<hostname>) is alive"
+        alive_pattern_dns = r"([\d\.]+|[a-zA-Z0-9\.\-_]+)\s*\(([^)]+)\)\s*is\s+alive"
+        matches_dns = re.findall(alive_pattern_dns, combined_output, re.IGNORECASE)
+        
+        logger.info(f"[FpingScanner] Найдено живых хостов с DNS: {len(matches_dns)}")
+        
+        for match in matches_dns:
+            ip_or_host = match[0].strip()
+            hostname = match[1].strip() if len(match) > 1 else ""
+            
+            # Пропускаем уже добавленные хосты
+            existing_ips = [h["ip"] for h in result["alive_hosts"]]
+            existing_hostnames = [h["hostname"] for h in result["alive_hosts"]]
+            
+            if ip_or_host in existing_ips or hostname in existing_hostnames:
+                continue
+            
+            host_data = {
+                "ip": "",
+                "hostname": ""
+            }
+            
             if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip_or_host):
                 host_data["ip"] = ip_or_host
                 host_data["hostname"] = hostname
@@ -263,19 +314,21 @@ class FpingScanner(BaseScanner):
             
             result["alive_hosts"].append(host_data)
             
-            # Устанавливаем первый найденный хост как основной
-            if not result["ip"]:
+            if not result["ip"] and host_data["ip"]:
                 result["ip"] = host_data["ip"]
                 result["hostname"] = host_data["hostname"]
         
         # Паттерн для поиска недоступных хостов: "<IP> is unreachable" или таймауты
-        unreachable_pattern = r"([\d\.]+|[a-zA-Z0-9\.\-_]+)\s*(?:\(([^)]+)\))?\s*(?:is unreachable|timed out)"
-        unreachable_matches = re.findall(unreachable_pattern, combined_output, re.IGNORECASE)
+        unreachable_pattern = r"^([^\s]+)\s+(?:is\s+unreachable|timed\s*out)\s*$"
+        unreachable_matches = re.findall(unreachable_pattern, combined_output, re.IGNORECASE | re.MULTILINE)
+        
+        logger.info(f"[FpingScanner] Найдено недоступных хостов: {len(unreachable_matches)}")
         
         for match in unreachable_matches:
-            ip_or_host = match[0]
-            hostname = match[1] if len(match) > 1 and match[1] else ""
-            
+            ip_or_host = match.strip()
+            if not ip_or_host:
+                continue
+                
             host_data = {
                 "ip": "",
                 "hostname": ""
@@ -283,10 +336,10 @@ class FpingScanner(BaseScanner):
             
             if re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip_or_host):
                 host_data["ip"] = ip_or_host
-                host_data["hostname"] = hostname
+                host_data["hostname"] = ""
             else:
                 host_data["hostname"] = ip_or_host
-                host_data["ip"] = hostname if hostname else ip_or_host
+                host_data["ip"] = ip_or_host
             
             result["unreachable_hosts"].append(host_data)
         
@@ -324,6 +377,6 @@ class FpingScanner(BaseScanner):
         if loss_match:
             result["stats"]["packet_loss_percent"] = float(loss_match.group(1))
         
-        logger.info(f"[FpingScanner] Статистика: {result['stats']}")
+        logger.info(f"[FpingScanner] Итого живых хостов: {len(result['alive_hosts'])}, статистика: {result['stats']}")
         
         return result
