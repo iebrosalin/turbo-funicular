@@ -3,6 +3,7 @@
 Управление фоновыми задачами Nmap, Rustscan, Dig.
 """
 import asyncio
+import ipaddress
 import logging
 from datetime import datetime
 from typing import Dict, Optional, Any, List
@@ -227,6 +228,15 @@ class ScanQueueManager:
                         logger.warning(f"[DEBUG] Сканирование {scan_job_id} прервано на цели {idx+1}/{len(targets)}")
                         break
                     
+                    # Пропускаем CIDR-нотации - они будут обработаны через alive_hosts из raw_output
+                    try:
+                        if '/' in target:
+                            ipaddress.ip_network(target, strict=False)
+                            logger.info(f"[DEBUG] Пропуск CIDR цели {target} - будет обработана через fping -g")
+                            continue
+                    except ValueError:
+                        pass  # Это не CIDR, продолжаем обработку
+                    
                     # Обновление прогресса
                     self._progress[scan_job_id]["current"] = idx + 1
                     logger.info(f"[DEBUG] Обработка цели {idx+1}/{len(targets)}: {target}")
@@ -358,6 +368,15 @@ class ScanQueueManager:
                                 stmt = select(ScanJob.scan_id).where(ScanJob.id == scan_job_id)
                                 res = await db.execute(stmt)
                                 current_scan_id = res.scalar_one_or_none()
+                            
+                            # Пропускаем создание актива для CIDR-нотаций
+                            try:
+                                if '/' in target:
+                                    ipaddress.ip_network(target, strict=False)
+                                    logger.info(f"[AssetManager] Пропуск создания актива для CIDR: {target}")
+                                    continue  # Переходим к следующей цели
+                            except ValueError:
+                                pass  # Это не CIDR, продолжаем создание актива
                             
                             # Создаем или получаем актив
                             from backend.utils import create_asset_if_not_exists
