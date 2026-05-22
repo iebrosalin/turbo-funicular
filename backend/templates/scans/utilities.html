@@ -27,6 +27,15 @@
                     </div>
                 </div>
             </div>
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100" data-bs-toggle="modal" data-bs-target="#importCsvScanModal" style="cursor: pointer;">
+                    <div class="card-body text-center p-4">
+                        <i class="bi bi-file-earmark-spreadsheet display-4 text-success mb-3"></i>
+                        <h5>Импорт CSV для сканирования</h5>
+                        <p class="text-muted">Загрузка списка адресов/FQDN из CSV</p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -73,6 +82,45 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                     <button type="submit" class="btn btn-primary"><i class="bi bi-download"></i> Скачать</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal для импорта CSV -->
+<div class="modal fade" id="importCsvScanModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form id="importCsvScanForm">
+                <div class="modal-header">
+                    <h5>Импорт CSV для сканирования</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">CSV файл со списком адресов/FQDN</label>
+                        <input type="file" name="file" class="form-control" accept=".csv,.txt" required>
+                        <div class="form-text">Формат: одна колонка с IP-адресами, доменными именами или CIDR (например, 192.168.1.1 или example.com)</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Тип сканирования</label>
+                        <select name="scan_type" class="form-select" required>
+                            <option value="nmap">Nmap (сканирование портов)</option>
+                            <option value="fping">FPing (проверка доступности)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Группа назначения (опционально)</label>
+                        <select name="group_id" class="form-select">
+                            <option value="">-- Без группы --</option>
+                        </select>
+                    </div>
+                    <div id="importCsvScanResult" class="mt-3"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-play"></i> Запустить сканирование</button>
                 </div>
             </form>
         </div>
@@ -160,5 +208,89 @@
     
     handleUploadJson('nmapRustscanForm', 'nmapRustscanResult', '/utilities/nmap-to-rustscan');
     handleUploadJson('extractPortsForm', 'extractPortsResult', '/utilities/extract-ports');
+
+    // Обработка импорта CSV для сканирования
+    async function loadGroupsForSelect(selectElement) {
+        try {
+            const res = await fetch('/api/groups/tree');
+            if (!res.ok) return;
+            const groups = await res.json();
+            
+            selectElement.innerHTML = '<option value="">-- Без группы --</option>';
+            
+            function addGroupOptions(groupList, level = 0) {
+                groupList.forEach(g => {
+                    const option = document.createElement('option');
+                    option.value = g.id;
+                    option.textContent = '  '.repeat(level) + (g.name || g.title);
+                    selectElement.appendChild(option);
+                    if (g.children && g.children.length > 0) {
+                        addGroupOptions(g.children, level + 1);
+                    }
+                });
+            }
+            
+            addGroupOptions(groups);
+        } catch (err) {
+            console.error('Ошибка загрузки групп:', err);
+        }
+    }
+
+    document.getElementById('importCsvScanModal').addEventListener('shown.bs.modal', () => {
+        const select = document.querySelector('#importCsvScanModal select[name="group_id"]');
+        loadGroupsForSelect(select);
+    });
+
+    document.getElementById('importCsvScanForm').addEventListener('submit', async e => {
+        e.preventDefault();
+        const form = document.getElementById('importCsvScanForm');
+        const fileInput = form.querySelector('input[type="file"]');
+        const scanType = form.querySelector('select[name="scan_type"]').value;
+        const groupId = form.querySelector('select[name="group_id"]').value;
+        const resultDiv = document.getElementById('importCsvScanResult');
+        
+        if (!fileInput.files.length) {
+            resultDiv.innerHTML = '<div class="alert alert-warning">Выберите файл</div>';
+            return;
+        }
+        
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('scan_type', scanType);
+        if (groupId) {
+            formData.append('group_id', groupId);
+        }
+        
+        resultDiv.innerHTML = '<div class="text-center"><div class="spinner-border"></div><div class="mt-2">Загрузка и запуск сканирования...</div></div>';
+        
+        try {
+            const res = await fetch('/api/scans/from-csv/file', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (res.ok) {
+                const data = await res.json();
+                resultDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <strong>Сканирование запущено!</strong><br>
+                        ID задачи: ${data.job_id}<br>
+                        Целей: ${data.targets_count}
+                    </div>
+                `;
+                setTimeout(() => {
+                    bootstrap.Modal.getInstance(document.getElementById('importCsvScanModal')).hide();
+                    resultDiv.innerHTML = '';
+                    form.reset();
+                }, 3000);
+            } else {
+                const err = await res.json();
+                resultDiv.innerHTML = `<div class="alert alert-danger">${err.error || err.detail}</div>`;
+            }
+        } catch (err) {
+            resultDiv.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+        }
+    });
 </script>
 {% endblock %}

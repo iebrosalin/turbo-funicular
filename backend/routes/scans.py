@@ -1874,7 +1874,7 @@ async def run_scan_from_csv_file(
     scan_type: str = Form(...),
     parameters: Optional[str] = Form(None),
     save_assets: bool = Form(True),
-    group_ids: Optional[str] = Form(None),
+    group_id: Optional[str] = Form(None),  # Изменено с group_ids на group_id для одиночного выбора
     db: AsyncSession = Depends(get_db)
 ):
     """Запустить сканирование списка целей из загруженного CSV файла."""
@@ -1897,9 +1897,9 @@ async def run_scan_from_csv_file(
     
     # Парсим group_ids
     parsed_group_ids = None
-    if group_ids:
+    if group_id:
         try:
-            parsed_group_ids = [int(x.strip()) for x in group_ids.split(',') if x.strip()]
+            parsed_group_ids = [int(group_id.strip())]  # Преобразуем в список из одного элемента
         except ValueError:
             pass
     

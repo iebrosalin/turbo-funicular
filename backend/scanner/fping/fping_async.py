@@ -191,14 +191,23 @@ class FpingScanner(BaseScanner):
         
         logger.info(f"[{self.__class__.__name__}] Запущен процесс fping для задачи {self.job_id}, PID: {process.pid}")
         
-        # Ждем завершения процесса
-        await process.wait()
+        # Ждем завершения процесса с таймаутом
+        try:
+            await asyncio.wait_for(process.wait(), timeout=300)  # 5 минут максимум
+        except asyncio.TimeoutError:
+            logger.error(f"[{self.__class__.__name__}] Процесс fping превысил таймаут, принудительно завершаем")
+            process.kill()
+            await process.wait()
         
         logger.info(f"[{self.__class__.__name__}] Процесс fping завершен с кодом {process.returncode}")
         
         # Читаем результаты из временных файлов через базовый класс
         stdout_str = self._read_file_content(stdout_file, "stdout")
         stderr_str = self._read_file_content(stderr_file, "stderr")
+        
+        # Логируем вывод для отладки
+        logger.info(f"[{self.__class__.__name__}] STDOUT ({len(stdout_str)} bytes): {stdout_str[:500] if stdout_str else 'ПУСТО'}")
+        logger.info(f"[{self.__class__.__name__}] STDERR ({len(stderr_str)} bytes): {stderr_str[:500] if stderr_str else 'ПУСТО'}")
         
         # Парсим вывод для извлечения данных
         result = self._parse_output(stdout_str, stderr_str)
@@ -213,7 +222,8 @@ class FpingScanner(BaseScanner):
             "alive_hosts": result.get("alive_hosts", []),
             "unreachable_hosts": result.get("unreachable_hosts", []),
             "stats": result.get("stats", {}),
-            "raw_output": stdout_str + "\n" + stderr_str
+            "raw_output": stdout_str + "\n" + stderr_str,
+            "output_xml": ""  # fping не генерирует XML
         }
 
     def _parse_output(self, stdout: str, stderr: str) -> ScanResult:
