@@ -228,14 +228,19 @@ class ScanQueueManager:
                         logger.warning(f"[DEBUG] Сканирование {scan_job_id} прервано на цели {idx+1}/{len(targets)}")
                         break
                     
-                    # Пропускаем CIDR-нотации - они будут обработаны через alive_hosts из raw_output
+                    # Для fping пропускаем проверку CIDR - fping сам обработает CIDR через флаг -g
+                    # Для остальных сканеров пропускаем CIDR-нотации
+                    is_cidr = False
                     try:
-                        if '/' in target:
+                        if '/' in target and scan_type != 'fping':
                             ipaddress.ip_network(target, strict=False)
-                            logger.info(f"[DEBUG] Пропуск CIDR цели {target} - будет обработана через fping -g")
-                            continue
+                            is_cidr = True
+                            logger.info(f"[DEBUG] Пропуск CIDR цели {target} для {scan_type} - CIDR не поддерживается")
                     except ValueError:
                         pass  # Это не CIDR, продолжаем обработку
+                    
+                    if is_cidr:
+                        continue
                     
                     # Обновление прогресса
                     self._progress[scan_job_id]["current"] = idx + 1
