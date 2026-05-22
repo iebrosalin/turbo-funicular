@@ -18,6 +18,9 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" data-bs-toggle="tab" data-bs-target="#rustscan-scan-tab">Rustscan</button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#csv-scan-tab">CSV импорт</button>
+                    </li>
                 </ul>
                 
                 <div class="tab-content">
@@ -77,11 +80,51 @@
                             </div>
                         </form>
                     </div>
+                    
+                    <!-- CSV импорт -->
+                    <div class="tab-pane fade" id="csv-scan-tab">
+                        <p class="text-muted small">Загрузите CSV файл со списком адресов или FQDN (одна колонка, один адрес в строке).</p>
+                        <form id="csvScanForm">
+                            <div class="mb-3">
+                                <label class="form-label">CSV файл</label>
+                                <input type="file" id="csv-file-input" class="form-control" accept=".csv,.txt" required>
+                                <div class="form-text">Формат: одна колонка с IP адресами или доменными именами</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Или вставьте CSV текст</label>
+                                <textarea id="csv-text-input" class="form-control" rows="5" placeholder="192.168.1.1&#10;192.168.1.2&#10;example.com"></textarea>
+                                <div class="form-text">Можно использовать вместо загрузки файла</div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Тип сканирования</label>
+                                <select id="csv-scan-type" class="form-select">
+                                    <option value="nmap" selected>Nmap</option>
+                                    <option value="fping">FPing (ICMP)</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Группа назначения</label>
+                                <select id="csv-scan-group-id" class="form-select hierarchy-select">
+                                    <option value="">Без группы</option>
+                                    {% if all_groups %}
+                                        {% for g in all_groups %}
+                                            <option value="{{ g.id }}">{% if g.depth > 0 %}{{ '    ' * g.depth }}└─ {% endif %}{{ g.name }}</option>
+                                        {% endfor %}
+                                    {% endif %}
+                                </select>
+                            </div>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" id="csv-save-assets" class="form-check-input" checked>
+                                <label class="form-check-label" for="csv-save-assets">Сохранять активы</label>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
                 <button type="button" class="btn btn-primary" id="startSimpleScanBtn"><i class="bi bi-play-fill"></i> Запустить</button>
+                <button type="button" class="btn btn-primary" id="startCsvScanBtn" style="display:none;"><i class="bi bi-play-fill"></i> Запустить сканирование из CSV</button>
             </div>
         </div>
     </div>

@@ -329,6 +329,9 @@ class ScanQueueManager:
                             
                             raw_output_value = result_data.get('raw_output', '')
                             output_xml_value = result_data.get('output_xml', '')
+                            alive_hosts_value = result_data.get('alive_hosts', [])
+
+                            logger.info(f"[DEBUG] Запись alive_hosts в job.parameters: количество={len(alive_hosts_value)}")
                             
                             logger.info(f"[DEBUG] Запись raw_output в job.parameters: длина={len(raw_output_value)}, первые 100 символов: {raw_output_value[:100] if raw_output_value else 'ПУСТО'}")
                             
@@ -338,6 +341,18 @@ class ScanQueueManager:
                             else:
                                 job.parameters['raw_output'] = raw_output_value
                             
+
+                            # Для alive_hosts (fping) - объединяем списки для нескольких целей
+                            if scan_type == "fping" and alive_hosts_value:
+                                if "alive_hosts" not in job.parameters or not job.parameters["alive_hosts"]:
+                                    job.parameters["alive_hosts"] = alive_hosts_value
+                                else:
+                                    # Объединяем списки живых хостов, избегая дубликатов по IP
+                                    existing_ips = {h.get("ip") for h in job.parameters["alive_hosts"] if h.get("ip")}
+                                    for host in alive_hosts_value:
+                                        if host.get("ip") and host.get("ip") not in existing_ips:
+                                            job.parameters["alive_hosts"].append(host)
+                                            existing_ips.add(host.get("ip"))
                             # Для XML от nmap - объединяем все хосты в один XML документ
                             if scan_type == 'nmap' and output_xml_value:
                                 if 'output_xml' not in job.parameters or not job.parameters['output_xml']:

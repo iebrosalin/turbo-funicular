@@ -460,6 +460,27 @@ export class ScanResultsController {
     // Кнопка запуска простого сканирования из модального окна
     document.getElementById('startSimpleScanBtn')?.addEventListener('click', () => this.#handleSimpleScan());
     
+    // Кнопка запуска сканирования из CSV
+    document.getElementById('startCsvScanBtn')?.addEventListener('click', () => this.#handleCsvScan());
+    
+    // Переключение видимости кнопок в зависимости от активной вкладки
+    const tabButtons = document.querySelectorAll('#newScanModal .nav-link[data-bs-toggle="tab"]');
+    tabButtons.forEach(btn => {
+      btn.addEventListener('shown.bs.tab', (e) => {
+        const csvTab = document.getElementById('csv-scan-tab');
+        const csvBtn = document.getElementById('startCsvScanBtn');
+        const simpleBtn = document.getElementById('startSimpleScanBtn');
+        
+        if (e.target.getAttribute('data-bs-target') === '#csv-scan-tab') {
+          csvBtn.style.display = 'inline-block';
+          simpleBtn.style.display = 'none';
+        } else {
+          csvBtn.style.display = 'none';
+          simpleBtn.style.display = 'inline-block';
+        }
+      });
+    });
+    
     // Импорт XML
     document.getElementById('import-xml-btn')?.addEventListener('click', () => this.#handleXmlImport());
 
@@ -1052,6 +1073,83 @@ export class ScanResultsController {
     };
     
     reader.readAsDataURL(file);
+  }
+
+  async #handleCsvScan() {
+    const fileInput = document.getElementById('csv-file-input');
+    const textInput = document.getElementById('csv-text-input');
+    const scanTypeSelect = document.getElementById('csv-scan-type');
+    const groupSelect = document.getElementById('csv-scan-group-id');
+    const saveAssetsCheckbox = document.getElementById('csv-save-assets');
+    
+    // Проверяем что выбрано: файл или текст
+    let csvText = '';
+    let file = null;
+    
+    if (fileInput.files.length > 0) {
+      file = fileInput.files[0];
+      try {
+        csvText = await this.#readFileAsText(file);
+      } catch (error) {
+        alert('Ошибка чтения файла: ' + error.message);
+        return;
+      }
+    } else if (textInput.value.trim()) {
+      csvText = textInput.value.trim();
+    } else {
+      alert('Выберите CSV файл или вставьте список адресов в текстовое поле');
+      return;
+    }
+    
+    if (!csvText || !csvText.trim()) {
+      alert('CSV содержимое пустое');
+      return;
+    }
+    
+    const scanType = scanTypeSelect?.value || 'nmap';
+    const groupId = groupSelect?.value ? parseInt(groupSelect.value) : null;
+    const saveAssets = saveAssetsCheckbox?.checked ?? true;
+    
+    try {
+      // Используем FormData для отправки файла или текста
+      const formData = new FormData();
+      if (file) {
+        formData.append('file', file);
+      }
+      formData.append('scan_type', scanType);
+      formData.append('save_assets', saveAssets.toString());
+      if (groupId) {
+        formData.append('group_ids', groupId.toString());
+      }
+      
+      const response = await fetch('/api/scans/from-csv/file', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Ошибка запуска сканирования');
+      }
+      
+      const result = await response.json();
+      alert(`Сканирование из CSV запущено! Целей: ${result.targets_count}, ID задачи: ${result.job_id}`);
+      
+      // Закрываем модальное окно
+      const modal = bootstrap.Modal.getInstance(document.getElementById('newScanModal'));
+      if (modal) modal.hide();
+      
+      // Очищаем форму
+      if (fileInput) fileInput.value = '';
+      if (textInput) textInput.value = '';
+      
+      // Обновляем список задач
+      await Promise.all([this.loadJobs(), this.updateQueueStatus()]);
+      
+    } catch (error) {
+      console.error('Ошибка запуска сканирования из CSV:', error);
+      alert(`Ошибка: ${error.message}`);
+    }
   }
 
   async #handleSimpleScan() {
