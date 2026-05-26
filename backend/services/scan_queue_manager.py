@@ -474,6 +474,10 @@ class ScanQueueManager:
                             # Для nmap с несколькими хостами (all_hosts) - обрабатываем каждый хост отдельно
                             if scan_type == 'nmap' and 'all_hosts' in job.parameters and job.parameters['all_hosts']:
                                 logger.info(f"[AssetManager] Обработка {len(job.parameters['all_hosts'])} хостов из all_hosts для nmap")
+                                
+                                # Импортируем функцию создания актива
+                                from backend.utils import create_asset_if_not_exists
+                                
                                 for host_result in job.parameters['all_hosts']:
                                     host_ip = host_result.get('ip', '')
                                     host_hostname = host_result.get('hostname', '')

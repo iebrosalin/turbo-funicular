@@ -212,9 +212,15 @@ export class ScanResultsController {
         // Обрезаем длинную цель для отображения в таблице
         let targetDisplay = job.target || '-';
         let targetTitle = '';
-        if (targetDisplay.length > 50) {
+        if (targetDisplay && targetDisplay.length > 50) {
           targetTitle = targetDisplay; // Полный текст для tooltip
-          targetDisplay = targetDisplay.substring(0, 50) + '...';
+          // Разбиваем по запятой и берём первые несколько элементов
+          const targets = targetDisplay.split(',');
+          if (targets.length > 3) {
+            targetDisplay = targets.slice(0, 3).join(',') + ',... (' + targets.length + ' всего)';
+          } else {
+            targetDisplay = targetDisplay.substring(0, 50) + '...';
+          }
         }
         
         tr.innerHTML = `
@@ -279,8 +285,14 @@ export class ScanResultsController {
           nmapQ.queued_jobs.forEach(job => { 
             // Обрезаем длинные цели в списке очереди
             let targetDisplay = job.target || '';
-            if (targetDisplay.length > 40) {
-              targetDisplay = targetDisplay.substring(0, 40) + '...';
+            if (targetDisplay && targetDisplay.length > 40) {
+              // Разбиваем по запятой и берём первые несколько элементов
+              const targets = targetDisplay.split(',');
+              if (targets.length > 2) {
+                targetDisplay = targets.slice(0, 2).join(',') + ',... (' + targets.length + ')';
+              } else {
+                targetDisplay = targetDisplay.substring(0, 40) + '...';
+              }
             }
             html += `<div class="text-truncate" title="${job.target || ''}">#${job.job_id} (${job.scan_type}) - ${targetDisplay}</div>`; 
           });
@@ -305,8 +317,14 @@ export class ScanResultsController {
           rustscanQ.queued_jobs.forEach(job => { 
             // Обрезаем длинные цели в списке очереди
             let targetDisplay = job.target || '';
-            if (targetDisplay.length > 40) {
-              targetDisplay = targetDisplay.substring(0, 40) + '...';
+            if (targetDisplay && targetDisplay.length > 40) {
+              // Разбиваем по запятой и берём первые несколько элементов
+              const targets = targetDisplay.split(',');
+              if (targets.length > 2) {
+                targetDisplay = targets.slice(0, 2).join(',') + ',... (' + targets.length + ')';
+              } else {
+                targetDisplay = targetDisplay.substring(0, 40) + '...';
+              }
             }
             html += `<div class="text-truncate" title="${job.target || ''}">#${job.job_id} (${job.scan_type}) - ${targetDisplay}</div>`; 
           });
@@ -582,9 +600,15 @@ export class ScanResultsController {
         // Обрезаем длинную цель для отображения в таблице
         let targetDisplay = job.target || '-';
         let targetTitle = '';
-        if (targetDisplay.length > 50) {
+        if (targetDisplay && targetDisplay.length > 50) {
           targetTitle = targetDisplay;
-          targetDisplay = targetDisplay.substring(0, 50) + '...';
+          // Разбиваем по запятой и берём первые несколько элементов
+          const targets = targetDisplay.split(',');
+          if (targets.length > 3) {
+            targetDisplay = targets.slice(0, 3).join(',') + ',... (' + targets.length + ' всего)';
+          } else {
+            targetDisplay = targetDisplay.substring(0, 50) + '...';
+          }
         }
 
         tr.innerHTML = `<td>${job.id}</td><td><span class="badge bg-info">${job.scan_type}</span></td><td class="text-truncate" style="max-width: 200px;" title="${targetTitle}">${targetDisplay}</td><td><span class="badge ${statusClass}">${job.status}</span></td><td><div class="progress" style="height:10px;width:100px;"><div class="progress-bar" style="width:${job.progress}%"></div></div>${job.progress}%</td><td>${new Date(job.created_at).toLocaleString('ru-RU')}</td><td>${actions}</td>`;
@@ -617,8 +641,14 @@ export class ScanResultsController {
           nmapQ.queued_jobs.forEach(job => { 
             // Обрезаем длинные цели в списке очереди
             let targetDisplay = job.target || '';
-            if (targetDisplay.length > 40) {
-              targetDisplay = targetDisplay.substring(0, 40) + '...';
+            if (targetDisplay && targetDisplay.length > 40) {
+              // Разбиваем по запятой и берём первые несколько элементов
+              const targets = targetDisplay.split(',');
+              if (targets.length > 2) {
+                targetDisplay = targets.slice(0, 2).join(',') + ',... (' + targets.length + ')';
+              } else {
+                targetDisplay = targetDisplay.substring(0, 40) + '...';
+              }
             }
             html += `<div class="text-truncate" title="${job.target || ''}">#${job.job_id} (${job.scan_type}) - ${targetDisplay}</div>`; 
           });
@@ -642,8 +672,14 @@ export class ScanResultsController {
           rustscanQ.queued_jobs.forEach(job => { 
             // Обрезаем длинные цели в списке очереди
             let targetDisplay = job.target || '';
-            if (targetDisplay.length > 40) {
-              targetDisplay = targetDisplay.substring(0, 40) + '...';
+            if (targetDisplay && targetDisplay.length > 40) {
+              // Разбиваем по запятой и берём первые несколько элементов
+              const targets = targetDisplay.split(',');
+              if (targets.length > 2) {
+                targetDisplay = targets.slice(0, 2).join(',') + ',... (' + targets.length + ')';
+              } else {
+                targetDisplay = targetDisplay.substring(0, 40) + '...';
+              }
             }
             html += `<div class="text-truncate" title="${job.target || ''}">#${job.job_id} (${job.scan_type}) - ${targetDisplay}</div>`; 
           });
