@@ -230,16 +230,16 @@ class ScanQueueManager:
                     
                     # Для fping пропускаем проверку CIDR - fping сам обработает CIDR через флаг -g
                     # Для остальных сканеров пропускаем CIDR-нотации
-                    is_cidr = False
+                    skip_target = False
                     try:
                         if '/' in target and scan_type != 'fping':
                             ipaddress.ip_network(target, strict=False)
-                            is_cidr = True
+                            skip_target = True
                             logger.info(f"[DEBUG] Пропуск CIDR цели {target} для {scan_type} - CIDR не поддерживается")
                     except ValueError:
                         pass  # Это не CIDR, продолжаем обработку
                     
-                    if is_cidr:
+                    if skip_target:
                         continue
                     
                     # Обновление прогресса
@@ -389,14 +389,25 @@ class ScanQueueManager:
                                 res = await db.execute(stmt)
                                 current_scan_id = res.scalar_one_or_none()
                             
-                            # Пропускаем создание актива для CIDR-нотаций
+                            # Пропускаем создание актива для CIDR-нотаций (активы должны быть конкретными IP)
+                            # Но для fping с CIDR мы уже получили список живых хостов, которые будут обработаны через alive_hosts
+                            is_target_cidr = False
                             try:
                                 if '/' in target:
                                     ipaddress.ip_network(target, strict=False)
-                                    logger.info(f"[AssetManager] Пропуск создания актива для CIDR: {target}")
-                                    continue  # Переходим к следующей цели
+                                    is_target_cidr = True
+                                    logger.info(f"[AssetManager] Цель является CIDR: {target}")
                             except ValueError:
                                 pass  # Это не CIDR, продолжаем создание актива
+                            
+                            if is_target_cidr and scan_type != 'fping':
+                                logger.info(f"[AssetManager] Пропуск создания актива для CIDR (не fping): {target}")
+                                continue  # Переходим к следующей цели для не-fping сканеров
+                            
+                            # Для fping с CIDR - создаём активы только если это конкретный IP (не CIDR)
+                            if scan_type == 'fping' and is_target_cidr:
+                                logger.info(f"[AssetManager] Пропуск создания актива для CIDR в fping (живые хосты будут обработаны отдельно): {target}")
+                                continue  # Переходим к следующей цели, живые хосты будут обработаны через alive_hosts
                             
                             # Создаем или получаем актив
                             from backend.utils import create_asset_if_not_exists

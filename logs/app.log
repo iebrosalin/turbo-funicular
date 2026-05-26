@@ -208,3 +208,217 @@
 2026-05-22 10:10:37,284 | INFO     | backend.services.scan_queue_manager:41 | start | ScanQueueManager запущен
 2026-05-22 10:12:12,868 | INFO     | backend.main:193 | lifespan | 🛑 Остановка приложения...
 2026-05-22 10:12:12,868 | INFO     | backend.services.scan_queue_manager:63 | stop | ScanQueueManager остановлен
+2026-05-25 07:08:40,092 | INFO     | backend.main:86 | <module> | 🔧 Система логирования инициализирована
+2026-05-25 07:08:40,092 | INFO     | backend.main:87 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-25 07:08:40,525 | INFO     | backend.main:312 | <module> | ✅ RedCheck integration router подключён
+2026-05-25 07:08:40,812 | INFO     | backend.main:320 | <module> | ✅ Projects router подключён
+2026-05-25 07:08:40,868 | INFO     | __main__:40 | <module> | ============================================================
+2026-05-25 07:08:40,868 | INFO     | __main__:41 | <module> | 🚀 Starting Network Asset Manager...
+2026-05-25 07:08:40,868 | INFO     | __main__:42 | <module> | ============================================================
+2026-05-25 07:08:40,869 | INFO     | __main__:43 | <module> | Database: SQLite (/workspace/data/app.db)
+2026-05-25 07:08:40,869 | INFO     | __main__:44 | <module> | 
+2026-05-25 07:08:40,869 | INFO     | __main__:45 | <module> | 🌐 Доступные интерфейсы для подключения:
+2026-05-25 07:08:40,869 | INFO     | __main__:46 | <module> |    ➤ http://127.0.0.1:5000
+2026-05-25 07:08:40,869 | INFO     | __main__:47 | <module> | 
+2026-05-25 07:08:40,869 | INFO     | __main__:48 | <module> | 📚 API Documentation: http://127.0.0.1:5000/docs
+2026-05-25 07:08:40,869 | INFO     | __main__:49 | <module> | 🏠 Web Interface:     http://127.0.0.1:5000/
+2026-05-25 07:08:40,869 | INFO     | __main__:50 | <module> | ============================================================
+2026-05-25 07:08:41,088 | INFO     | backend.main:111 | lifespan | ✅ База данных проверена и инициализирована.
+2026-05-25 07:08:41,089 | INFO     | backend.main:116 | lifespan | ✅ Таблица asset_change_logs создана/проверена.
+2026-05-25 07:08:41,092 | INFO     | backend.main:182 | lifespan | ✅ Подключение к базе данных установлено.
+2026-05-25 07:08:41,092 | INFO     | backend.main:187 | lifespan | 🚀 Приложение успешно запущено.
+2026-05-25 07:08:41,092 | INFO     | backend.services.scan_queue_manager:41 | start | ScanQueueManager запущен
+2026-05-25 07:10:23,898 | INFO     | backend.main:193 | lifespan | 🛑 Остановка приложения...
+2026-05-25 07:10:23,899 | INFO     | backend.services.scan_queue_manager:63 | stop | ScanQueueManager остановлен
+2026-05-25 07:11:56,290 | INFO     | backend.main:86 | <module> | 🔧 Система логирования инициализирована
+2026-05-25 07:11:56,290 | INFO     | backend.main:87 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-25 07:11:56,608 | INFO     | backend.main:312 | <module> | ✅ RedCheck integration router подключён
+2026-05-25 07:11:56,972 | INFO     | backend.main:320 | <module> | ✅ Projects router подключён
+2026-05-25 07:11:56,992 | INFO     | backend.main:111 | lifespan | ✅ База данных проверена и инициализирована.
+2026-05-25 07:11:56,993 | INFO     | backend.main:116 | lifespan | ✅ Таблица asset_change_logs создана/проверена.
+2026-05-25 07:11:57,006 | INFO     | backend.main:182 | lifespan | ✅ Подключение к базе данных установлено.
+2026-05-25 07:11:57,006 | INFO     | backend.main:187 | lifespan | 🚀 Приложение успешно запущено.
+2026-05-25 07:11:57,006 | INFO     | backend.services.scan_queue_manager:41 | start | ScanQueueManager запущен
+2026-05-25 07:12:04,208 | INFO     | backend.main:244 | log_scan_requests_middleware | ================================================================================
+2026-05-25 07:12:04,208 | INFO     | backend.main:245 | log_scan_requests_middleware | 📥 ВХОДЯЩИЙ ЗАПРОС: POST /api/scans/fping
+2026-05-25 07:12:04,208 | INFO     | backend.main:246 | log_scan_requests_middleware |    Client: 127.0.0.1:52994
+2026-05-25 07:12:04,208 | INFO     | backend.main:247 | log_scan_requests_middleware |    Headers: {'host': 'localhost:8000', 'user-agent': 'curl/7.88.1', 'accept': '*/*', 'content-type': 'application/json', 'content-length': '73'}
+2026-05-25 07:12:04,209 | INFO     | backend.main:250 | log_scan_requests_middleware |    Body: {"target": "10.240.68.0/24", "count": 2, "interval": 500, "timeout": 300}
+2026-05-25 07:12:04,209 | INFO     | backend.main:253 | log_scan_requests_middleware | ================================================================================
+2026-05-25 07:12:04,229 | INFO     | backend.routes.scans:858 | run_fping_scan | ============================================================
+2026-05-25 07:12:04,229 | INFO     | backend.routes.scans:859 | run_fping_scan | === ПОЛУЧЕН ЗАПРОС НА FPING СКАНИРОВАНИЕ (JSON) ===
+2026-05-25 07:12:04,229 | INFO     | backend.routes.scans:860 | run_fping_scan | ============================================================
+2026-05-25 07:12:04,229 | INFO     | backend.routes.scans:861 | run_fping_scan | Входящие данные запроса:
+2026-05-25 07:12:04,229 | INFO     | backend.routes.scans:862 | run_fping_scan |   - target: 10.240.68.0/24
+2026-05-25 07:12:04,229 | INFO     | backend.routes.scans:863 | run_fping_scan |   - args: None
+2026-05-25 07:12:04,229 | INFO     | backend.routes.scans:864 | run_fping_scan |   - custom_args: None
+2026-05-25 07:12:04,229 | INFO     | backend.routes.scans:865 | run_fping_scan |   - count: 2
+2026-05-25 07:12:04,229 | INFO     | backend.routes.scans:866 | run_fping_scan |   - interval: 500
+2026-05-25 07:12:04,229 | INFO     | backend.routes.scans:867 | run_fping_scan |   - timeout: 300
+2026-05-25 07:12:04,229 | INFO     | backend.routes.scans:868 | run_fping_scan |   - save_assets: True
+2026-05-25 07:12:04,229 | INFO     | backend.routes.scans:869 | run_fping_scan |   - group_ids: None
+2026-05-25 07:12:04,229 | INFO     | backend.routes.scans:873 | run_fping_scan | 
+[Шаг 1/4] Создание записи сканирования в БД...
+2026-05-25 07:12:04,465 | INFO     | backend.routes.scans:886 | run_fping_scan | ✓ Запись сканирования создана: ID=1, target=10.240.68.0/24
+2026-05-25 07:12:04,465 | INFO     | backend.routes.scans:889 | run_fping_scan | 
+[Шаг 2/4] Создание задачи сканирования (ScanJob)...
+2026-05-25 07:12:04,471 | INFO     | backend.routes.scans:900 | run_fping_scan | ✓ Задача сканирования создана: ID=1, scan_id=1
+2026-05-25 07:12:04,471 | INFO     | backend.routes.scans:903 | run_fping_scan | 
+[Шаг 3/4] Подготовка параметров для очереди...
+2026-05-25 07:12:04,471 | INFO     | backend.routes.scans:915 | run_fping_scan |   - targets_list: ['10.240.68.0/24']
+2026-05-25 07:12:04,471 | INFO     | backend.routes.scans:916 | run_fping_scan |   - parameters: {'args': None, 'custom_args': None, 'count': 2, 'interval': 500, 'timeout': 300, 'save_assets': True, 'group_ids': None, 'target': '10.240.68.0/24'}
+2026-05-25 07:12:04,471 | INFO     | backend.routes.scans:918 | run_fping_scan | 
+[Шаг 4/4] Добавление задачи в ScanQueueManager...
+2026-05-25 07:12:04,471 | INFO     | backend.services.scan_queue_manager:159 | add_scan | Добавление задачи сканирования 1 (fping)
+2026-05-25 07:12:04,484 | INFO     | backend.services.scan_queue_manager:181 | add_scan | Задача 1 добавлена в параллельную очередь
+2026-05-25 07:12:04,484 | INFO     | backend.routes.scans:926 | run_fping_scan | ✓ Задача 1 успешно добавлена в очередь ScanQueueManager
+2026-05-25 07:12:04,484 | INFO     | backend.routes.scans:928 | run_fping_scan | 
+============================================================
+2026-05-25 07:12:04,484 | INFO     | backend.routes.scans:929 | run_fping_scan | === FPING СКАНИРОВАНИЕ УСПЕШНО ЗАПУЩЕНО ===
+2026-05-25 07:12:04,484 | INFO     | backend.routes.scans:930 | run_fping_scan | Job ID: 1
+2026-05-25 07:12:04,484 | INFO     | backend.routes.scans:931 | run_fping_scan | Scan ID: 1
+2026-05-25 07:12:04,484 | INFO     | backend.routes.scans:932 | run_fping_scan | ============================================================
+2026-05-25 07:12:04,512 | INFO     | backend.services.scan_queue_manager:132 | _process_queues | Запуск параллельной задачи 1 (fping), текущих: 0/3
+2026-05-25 07:12:04,512 | INFO     | backend.services.scan_queue_manager:205 | _run_scan | [DEBUG] _run_scan вызван для job_id=1, scan_type=fping, targets=['10.240.68.0/24']
+2026-05-25 07:12:04,512 | INFO     | backend.services.scan_queue_manager:210 | _run_scan | [DEBUG] Попытка получения задачи 1 из БД
+2026-05-25 07:12:04,515 | INFO     | backend.services.scan_queue_manager:217 | _run_scan | [DEBUG] Задача 1 найдена, текущий статус: queued
+2026-05-25 07:12:04,517 | INFO     | backend.services.scan_queue_manager:221 | _run_scan | [DEBUG] Статус задачи 1 обновлён на 'running'
+2026-05-25 07:12:04,517 | INFO     | backend.services.scan_queue_manager:223 | _run_scan | Начало сканирования 1: fping для 1 целей
+2026-05-25 07:12:04,517 | INFO     | backend.services.scan_queue_manager:247 | _run_scan | [DEBUG] Обработка цели 1/1: 10.240.68.0/24
+2026-05-25 07:12:04,517 | INFO     | backend.services.scan_queue_manager:290 | _run_scan | [DEBUG] Создан FpingScanner
+2026-05-25 07:12:04,517 | INFO     | backend.services.scan_queue_manager:309 | _run_scan | [DEBUG] Запуск FpingScanner.scan для 10.240.68.0/24, count=2
+2026-05-25 07:12:04,524 | INFO     | backend.scanner.base:199 | _create_temp_dir | [FpingScanner] Создана временная директория: /tmp/fping_job_1_lkk3t1rm
+2026-05-25 07:12:04,524 | INFO     | backend.scanner.fping.fping_async:176 | scan | [FpingScanner] CIDR-цель 10.240.68.0/24 будет обработана с флагом -g
+2026-05-25 07:12:04,524 | INFO     | backend.scanner.fping.fping_async:181 | scan | [FpingScanner] Запуск команды: fping -n -c 2 -t 300 -r 2 -i 500 -g 10.240.68.0/24
+2026-05-25 07:12:04,530 | ERROR    | backend.services.scan_queue_manager:520 | _run_scan | Ошибка сканирования 10.240.68.0/24: [Errno 2] No such file or directory
+Traceback (most recent call last):
+  File "/workspace/backend/services/scan_queue_manager.py", line 310, in _run_scan
+    result_data = await scanner.scan()
+                  ^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/backend/scanner/fping/fping_async.py", line 186, in scan
+    process = await asyncio.create_subprocess_exec(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/subprocess.py", line 224, in create_subprocess_exec
+    transport, protocol = await loop.subprocess_exec(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 2841, in subprocess_exec
+  File "uvloop/loop.pyx", line 2799, in __subprocess_run
+  File "uvloop/handles/process.pyx", line 611, in uvloop.loop.UVProcessTransport.new
+  File "uvloop/handles/process.pyx", line 112, in uvloop.loop.UVProcess._init
+FileNotFoundError: [Errno 2] No such file or directory
+2026-05-25 07:12:04,634 | INFO     | backend.services.scan_queue_manager:543 | _run_scan | [DEBUG] Перед ScanProcessor: job.parameters содержит ключи: dict_keys(['args', 'custom_args', 'count', 'interval', 'timeout', 'save_assets', 'group_ids', 'target'])
+2026-05-25 07:12:04,634 | INFO     | backend.services.scan_queue_manager:544 | _run_scan | [DEBUG] Перед ScanProcessor: raw_output длина=0, первые 100 символов: ПУСТО
+2026-05-25 07:12:04,635 | INFO     | backend.services.scan_queue_manager:548 | _run_scan | [ScanProcessor] Запуск обработки результатов для задачи 1
+2026-05-25 07:12:04,645 | INFO     | backend.services.scan_processor:41 | process | Начало обработки результатов для задачи 1 (тип: fping)
+2026-05-25 07:12:04,645 | INFO     | backend.services.scan_processor:48 | process | [DEBUG ScanProcessor] job.parameters содержит ключи: dict_keys(['args', 'custom_args', 'count', 'interval', 'timeout', 'save_assets', 'group_ids', 'target'])
+2026-05-25 07:12:04,645 | INFO     | backend.services.scan_processor:50 | process | [DEBUG ScanProcessor] raw_output длина=0, первые 100 символов: ПУСТО
+2026-05-25 07:12:04,645 | WARNING  | backend.services.scan_processor:348 | _process_fping | fping: Не найдено живых хостов для задачи 1
+2026-05-25 07:12:04,645 | WARNING  | backend.services.scan_processor:356 | _process_fping | fping: Пропущен CIDR адрес 10.240.68.0/24 - активы не могут иметь CIDR
+2026-05-25 07:12:04,647 | INFO     | backend.services.scan_processor:67 | process | Задача 1 успешно обработана и помечена как завершенная.
+2026-05-25 07:12:04,648 | INFO     | backend.services.scan_queue_manager:551 | _run_scan | [ScanProcessor] Обработка результатов задачи 1 завершена
+2026-05-25 07:12:04,665 | INFO     | backend.services.scan_queue_manager:570 | _run_scan | [DEBUG] Сканирование 1 завершено успешно
+2026-05-25 07:12:04,665 | INFO     | backend.services.scan_queue_manager:571 | _run_scan | Сканирование 1 завершено
+2026-05-25 07:12:04,665 | INFO     | backend.services.scan_queue_manager:600 | _run_scan | [DEBUG] Очистка задач из _tasks и _progress для 1
+2026-05-25 07:13:10,005 | INFO     | backend.main:244 | log_scan_requests_middleware | ================================================================================
+2026-05-25 07:13:10,005 | INFO     | backend.main:245 | log_scan_requests_middleware | 📥 ВХОДЯЩИЙ ЗАПРОС: POST /api/scans/fping
+2026-05-25 07:13:10,006 | INFO     | backend.main:246 | log_scan_requests_middleware |    Client: 127.0.0.1:53004
+2026-05-25 07:13:10,006 | INFO     | backend.main:247 | log_scan_requests_middleware |    Headers: {'host': 'localhost:8000', 'user-agent': 'curl/7.88.1', 'accept': '*/*', 'content-type': 'application/json', 'content-length': '71'}
+2026-05-25 07:13:10,006 | INFO     | backend.main:250 | log_scan_requests_middleware |    Body: {"target": "127.0.0.1/32", "count": 1, "interval": 100, "timeout": 100}
+2026-05-25 07:13:10,006 | INFO     | backend.main:253 | log_scan_requests_middleware | ================================================================================
+2026-05-25 07:13:10,007 | INFO     | backend.routes.scans:858 | run_fping_scan | ============================================================
+2026-05-25 07:13:10,007 | INFO     | backend.routes.scans:859 | run_fping_scan | === ПОЛУЧЕН ЗАПРОС НА FPING СКАНИРОВАНИЕ (JSON) ===
+2026-05-25 07:13:10,007 | INFO     | backend.routes.scans:860 | run_fping_scan | ============================================================
+2026-05-25 07:13:10,007 | INFO     | backend.routes.scans:861 | run_fping_scan | Входящие данные запроса:
+2026-05-25 07:13:10,007 | INFO     | backend.routes.scans:862 | run_fping_scan |   - target: 127.0.0.1/32
+2026-05-25 07:13:10,007 | INFO     | backend.routes.scans:863 | run_fping_scan |   - args: None
+2026-05-25 07:13:10,007 | INFO     | backend.routes.scans:864 | run_fping_scan |   - custom_args: None
+2026-05-25 07:13:10,007 | INFO     | backend.routes.scans:865 | run_fping_scan |   - count: 1
+2026-05-25 07:13:10,007 | INFO     | backend.routes.scans:866 | run_fping_scan |   - interval: 100
+2026-05-25 07:13:10,007 | INFO     | backend.routes.scans:867 | run_fping_scan |   - timeout: 100
+2026-05-25 07:13:10,007 | INFO     | backend.routes.scans:868 | run_fping_scan |   - save_assets: True
+2026-05-25 07:13:10,007 | INFO     | backend.routes.scans:869 | run_fping_scan |   - group_ids: None
+2026-05-25 07:13:10,007 | INFO     | backend.routes.scans:873 | run_fping_scan | 
+[Шаг 1/4] Создание записи сканирования в БД...
+2026-05-25 07:13:10,026 | INFO     | backend.routes.scans:886 | run_fping_scan | ✓ Запись сканирования создана: ID=2, target=127.0.0.1/32
+2026-05-25 07:13:10,026 | INFO     | backend.routes.scans:889 | run_fping_scan | 
+[Шаг 2/4] Создание задачи сканирования (ScanJob)...
+2026-05-25 07:13:10,028 | INFO     | backend.routes.scans:900 | run_fping_scan | ✓ Задача сканирования создана: ID=2, scan_id=2
+2026-05-25 07:13:10,028 | INFO     | backend.routes.scans:903 | run_fping_scan | 
+[Шаг 3/4] Подготовка параметров для очереди...
+2026-05-25 07:13:10,028 | INFO     | backend.routes.scans:915 | run_fping_scan |   - targets_list: ['127.0.0.1/32']
+2026-05-25 07:13:10,028 | INFO     | backend.routes.scans:916 | run_fping_scan |   - parameters: {'args': None, 'custom_args': None, 'count': 1, 'interval': 100, 'timeout': 100, 'save_assets': True, 'group_ids': None, 'target': '127.0.0.1/32'}
+2026-05-25 07:13:10,028 | INFO     | backend.routes.scans:918 | run_fping_scan | 
+[Шаг 4/4] Добавление задачи в ScanQueueManager...
+2026-05-25 07:13:10,045 | INFO     | backend.services.scan_queue_manager:159 | add_scan | Добавление задачи сканирования 2 (fping)
+2026-05-25 07:13:10,047 | INFO     | backend.services.scan_queue_manager:181 | add_scan | Задача 2 добавлена в параллельную очередь
+2026-05-25 07:13:10,047 | INFO     | backend.routes.scans:926 | run_fping_scan | ✓ Задача 2 успешно добавлена в очередь ScanQueueManager
+2026-05-25 07:13:10,047 | INFO     | backend.routes.scans:928 | run_fping_scan | 
+============================================================
+2026-05-25 07:13:10,047 | INFO     | backend.routes.scans:929 | run_fping_scan | === FPING СКАНИРОВАНИЕ УСПЕШНО ЗАПУЩЕНО ===
+2026-05-25 07:13:10,047 | INFO     | backend.routes.scans:930 | run_fping_scan | Job ID: 2
+2026-05-25 07:13:10,047 | INFO     | backend.routes.scans:931 | run_fping_scan | Scan ID: 2
+2026-05-25 07:13:10,047 | INFO     | backend.routes.scans:932 | run_fping_scan | ============================================================
+2026-05-25 07:13:10,084 | INFO     | backend.services.scan_queue_manager:132 | _process_queues | Запуск параллельной задачи 2 (fping), текущих: 1/3
+2026-05-25 07:13:10,084 | INFO     | backend.services.scan_queue_manager:205 | _run_scan | [DEBUG] _run_scan вызван для job_id=2, scan_type=fping, targets=['127.0.0.1/32']
+2026-05-25 07:13:10,084 | INFO     | backend.services.scan_queue_manager:210 | _run_scan | [DEBUG] Попытка получения задачи 2 из БД
+2026-05-25 07:13:10,086 | INFO     | backend.services.scan_queue_manager:217 | _run_scan | [DEBUG] Задача 2 найдена, текущий статус: queued
+2026-05-25 07:13:10,087 | INFO     | backend.services.scan_queue_manager:221 | _run_scan | [DEBUG] Статус задачи 2 обновлён на 'running'
+2026-05-25 07:13:10,087 | INFO     | backend.services.scan_queue_manager:223 | _run_scan | Начало сканирования 2: fping для 1 целей
+2026-05-25 07:13:10,087 | INFO     | backend.services.scan_queue_manager:247 | _run_scan | [DEBUG] Обработка цели 1/1: 127.0.0.1/32
+2026-05-25 07:13:10,088 | INFO     | backend.services.scan_queue_manager:290 | _run_scan | [DEBUG] Создан FpingScanner
+2026-05-25 07:13:10,088 | INFO     | backend.services.scan_queue_manager:309 | _run_scan | [DEBUG] Запуск FpingScanner.scan для 127.0.0.1/32, count=1
+2026-05-25 07:13:10,088 | INFO     | backend.scanner.base:199 | _create_temp_dir | [FpingScanner] Создана временная директория: /tmp/fping_job_2_5jxz1y6a
+2026-05-25 07:13:10,088 | INFO     | backend.scanner.fping.fping_async:176 | scan | [FpingScanner] CIDR-цель 127.0.0.1/32 будет обработана с флагом -g
+2026-05-25 07:13:10,088 | INFO     | backend.scanner.fping.fping_async:181 | scan | [FpingScanner] Запуск команды: fping -n -c 1 -t 100 -r 2 -i 100 -g 127.0.0.1/32
+2026-05-25 07:13:10,129 | INFO     | backend.scanner.fping.fping_async:192 | scan | [FpingScanner] Запущен процесс fping для задачи 2, PID: 1159
+2026-05-25 07:13:10,146 | INFO     | backend.scanner.fping.fping_async:202 | scan | [FpingScanner] Процесс fping завершен с кодом 0
+2026-05-25 07:13:10,146 | INFO     | backend.scanner.base:231 | _read_file_content | [FpingScanner] Прочитан stdout, размер: 57 байт
+2026-05-25 07:13:10,146 | INFO     | backend.scanner.base:231 | _read_file_content | [FpingScanner] Прочитан stderr, размер: 69 байт
+2026-05-25 07:13:10,146 | INFO     | backend.scanner.fping.fping_async:209 | scan | [FpingScanner] STDOUT (57 bytes): localhost : [0], 64 bytes, 0.070 ms (0.070 avg, 0% loss)
+
+2026-05-25 07:13:10,146 | INFO     | backend.scanner.fping.fping_async:210 | scan | [FpingScanner] STDERR (69 bytes): 
+localhost : xmt/rcv/%loss = 1/1/0%, min/avg/max = 0.070/0.070/0.070
+
+2026-05-25 07:13:10,146 | DEBUG    | backend.scanner.fping.fping_async:262 | _parse_output | [FpingScanner] Комбинированный вывод для парсинга:
+
+localhost : xmt/rcv/%loss = 1/1/0%, min/avg/max = 0.070/0.070/0.070
+
+localhost : [0], 64 bytes, 0.070 ms (0.070 avg, 0% loss)
+...
+2026-05-25 07:13:10,147 | INFO     | backend.scanner.fping.fping_async:269 | _parse_output | [FpingScanner] Найдено живых хостов по основному паттерну: 0
+2026-05-25 07:13:10,147 | INFO     | backend.scanner.fping.fping_async:300 | _parse_output | [FpingScanner] Найдено живых хостов с DNS: 0
+2026-05-25 07:13:10,148 | INFO     | backend.scanner.fping.fping_async:340 | _parse_output | [FpingScanner] Найдено хостов по паттерну статистики: 1
+2026-05-25 07:13:10,148 | INFO     | backend.scanner.fping.fping_async:390 | _parse_output | [FpingScanner] Найдено хостов с timestamp и DNS: 0
+2026-05-25 07:13:10,148 | INFO     | backend.scanner.fping.fping_async:425 | _parse_output | [FpingScanner] Найдено недоступных хостов: 0
+2026-05-25 07:13:10,149 | INFO     | backend.scanner.fping.fping_async:480 | _parse_output | [FpingScanner] Итого живых хостов: 1, статистика: {}
+2026-05-25 07:13:10,164 | INFO     | backend.scanner.base:207 | _cleanup_temp_dir | [FpingScanner] Временная директория удалена: /tmp/fping_job_2_5jxz1y6a
+2026-05-25 07:13:10,164 | INFO     | backend.services.scan_queue_manager:311 | _run_scan | [DEBUG] FpingScanner.scan вернул: {'hostname': 'localhost', 'ip': 'localhost', 'alive_hosts': [{'ip': 'localhost', 'hostname': 'localhost', 'stats': {'transmitted': 1, 'received': 1, 'loss_percent': 0.0}}], 'unreachable_hosts': [], 'stats': {}, 'raw_output': 'localhost : [0], 64 bytes, 0.070 ms (0.070 avg, 0% loss)\n\n\nlocalhost : xmt/rcv/%loss = 1/1/0%, min/avg/max = 0.070/0.070/0.070\n', 'output_xml': ''}
+2026-05-25 07:13:10,165 | INFO     | backend.services.scan_queue_manager:318 | _run_scan | [DEBUG] Результат сканирования получен: {'hostname': 'localhost', 'ip': 'localhost', 'alive_hosts': [{'ip': 'localhost', 'hostname': 'localhost', 'stats': {'transmitted': 1, 'received': 1, 'loss_percent': 0.0}}], 'unreachable_hosts': [], 'stats': {}, 'raw_output': 'localhost : [0], 64 bytes, 0.070 ms (0.070 avg, 0% loss)\n\n\nlocalhost : xmt/rcv/%loss = 1/1/0%, min/avg/max = 0.070/0.070/0.070\n', 'output_xml': ''}
+2026-05-25 07:13:10,165 | INFO     | backend.services.scan_queue_manager:334 | _run_scan | [DEBUG] Запись alive_hosts в job.parameters: количество=1
+2026-05-25 07:13:10,165 | INFO     | backend.services.scan_queue_manager:336 | _run_scan | [DEBUG] Запись raw_output в job.parameters: длина=127, первые 100 символов: localhost : [0], 64 bytes, 0.070 ms (0.070 avg, 0% loss)
+
+
+localhost : xmt/rcv/%loss = 1/1/0%, min/a
+2026-05-25 07:13:10,165 | INFO     | backend.services.scan_queue_manager:379 | _run_scan | [DEBUG] job.parameters перед коммитом: dict_keys(['args', 'custom_args', 'count', 'interval', 'timeout', 'save_assets', 'group_ids', 'target', 'raw_output', 'alive_hosts', 'output_xml', 'ports', 'hostname', 'ip', 'os', 'dns_records'])
+2026-05-25 07:13:10,166 | INFO     | backend.services.scan_queue_manager:381 | _run_scan | [DEBUG] job.parameters закоммичены в БД
+2026-05-25 07:13:10,166 | INFO     | backend.services.scan_queue_manager:399 | _run_scan | [AssetManager] Цель является CIDR: 127.0.0.1/32
+2026-05-25 07:13:10,166 | INFO     | backend.services.scan_queue_manager:409 | _run_scan | [AssetManager] Пропуск создания актива для CIDR в fping (живые хосты будут обработаны отдельно): 127.0.0.1/32
+2026-05-25 07:13:10,167 | INFO     | backend.services.scan_queue_manager:543 | _run_scan | [DEBUG] Перед ScanProcessor: job.parameters содержит ключи: dict_keys(['args', 'custom_args', 'count', 'interval', 'timeout', 'save_assets', 'group_ids', 'target', 'raw_output', 'alive_hosts', 'output_xml', 'ports', 'hostname', 'ip', 'os', 'dns_records'])
+2026-05-25 07:13:10,167 | INFO     | backend.services.scan_queue_manager:544 | _run_scan | [DEBUG] Перед ScanProcessor: raw_output длина=127, первые 100 символов: localhost : [0], 64 bytes, 0.070 ms (0.070 avg, 0% loss)
+
+
+localhost : xmt/rcv/%loss = 1/1/0%, min/a
+2026-05-25 07:13:10,167 | INFO     | backend.services.scan_queue_manager:548 | _run_scan | [ScanProcessor] Запуск обработки результатов для задачи 2
+2026-05-25 07:13:10,186 | INFO     | backend.services.scan_processor:41 | process | Начало обработки результатов для задачи 2 (тип: fping)
+2026-05-25 07:13:10,186 | INFO     | backend.services.scan_processor:48 | process | [DEBUG ScanProcessor] job.parameters содержит ключи: dict_keys(['args', 'custom_args', 'count', 'interval', 'timeout', 'save_assets', 'group_ids', 'target', 'raw_output', 'alive_hosts', 'output_xml', 'ports', 'hostname', 'ip', 'os', 'dns_records'])
+2026-05-25 07:13:10,186 | INFO     | backend.services.scan_processor:50 | process | [DEBUG ScanProcessor] raw_output длина=127, первые 100 символов: localhost : [0], 64 bytes, 0.070 ms (0.070 avg, 0% loss)
+
+
+localhost : xmt/rcv/%loss = 1/1/0%, min/a
+2026-05-25 07:13:10,186 | WARNING  | backend.services.scan_processor:385 | _process_fping | fping: Невалидный IP адрес localhost, пропущен
+2026-05-25 07:13:10,186 | INFO     | backend.services.scan_processor:397 | _process_fping | fping: Обработано 0 живых хостов.
+2026-05-25 07:13:10,188 | INFO     | backend.services.scan_processor:67 | process | Задача 2 успешно обработана и помечена как завершенная.
+2026-05-25 07:13:10,188 | INFO     | backend.services.scan_queue_manager:551 | _run_scan | [ScanProcessor] Обработка результатов задачи 2 завершена
+2026-05-25 07:13:10,204 | INFO     | backend.services.scan_queue_manager:570 | _run_scan | [DEBUG] Сканирование 2 завершено успешно
+2026-05-25 07:13:10,205 | INFO     | backend.services.scan_queue_manager:571 | _run_scan | Сканирование 2 завершено
+2026-05-25 07:13:10,205 | INFO     | backend.services.scan_queue_manager:600 | _run_scan | [DEBUG] Очистка задач из _tasks и _progress для 2

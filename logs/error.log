@@ -21,3 +21,19 @@
 2026-05-18 07:39:32,381 | ERROR    | backend.core.exceptions:87 | http_exception_handler |    Client: 127.0.0.1
 2026-05-18 07:39:32,381 | ERROR    | backend.core.exceptions:88 | http_exception_handler |    Detail: Неверный формат scan_id: . Ожидается целое число.
 2026-05-18 07:39:32,381 | ERROR    | backend.core.exceptions:89 | http_exception_handler | ================================================================================
+2026-05-25 07:12:04,530 | ERROR    | backend.services.scan_queue_manager:520 | _run_scan | Ошибка сканирования 10.240.68.0/24: [Errno 2] No such file or directory
+Traceback (most recent call last):
+  File "/workspace/backend/services/scan_queue_manager.py", line 310, in _run_scan
+    result_data = await scanner.scan()
+                  ^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/backend/scanner/fping/fping_async.py", line 186, in scan
+    process = await asyncio.create_subprocess_exec(
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/asyncio/subprocess.py", line 224, in create_subprocess_exec
+    transport, protocol = await loop.subprocess_exec(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "uvloop/loop.pyx", line 2841, in subprocess_exec
+  File "uvloop/loop.pyx", line 2799, in __subprocess_run
+  File "uvloop/handles/process.pyx", line 611, in uvloop.loop.UVProcessTransport.new
+  File "uvloop/handles/process.pyx", line 112, in uvloop.loop.UVProcess._init
+FileNotFoundError: [Errno 2] No such file or directory
