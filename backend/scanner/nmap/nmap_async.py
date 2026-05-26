@@ -116,46 +116,66 @@ class NmapScanner(BaseScanner):
         gnmap_output = self._read_file_content(gnmap_file, "Grepable")
         normal_output = self._read_file_content(normal_file, "Normal")
         
-        # Парсим XML для извлечения данных
-        result = self._parse_output(xml_output)
+        # Парсим XML для извлечения данных - теперь получаем список результатов для всех хостов
+        all_results = self._parse_output(xml_output)
         
         # Очищаем временную директорию
         self._cleanup_temp_dir()
         
-        return {
-            "hostname": result.get("hostname", self.target),
-            "ip": result.get("ip", self.target),
-            "ports": result.get("ports", []),
-            "os": result.get("os", ""),
-            "raw_output": normal_output,
-            "output_xml": xml_output,
-            "output_gnmap": gnmap_output,
-            "output_normal": normal_output
-        }
+        # Возвращаем первый результат как основной (для обратной совместимости)
+        # Но также добавляем список всех результатов для обработки в scan_queue_manager
+        if all_results:
+            first_result = all_results[0]
+            return {
+                "hostname": first_result.get("hostname", self.target),
+                "ip": first_result.get("ip", self.target),
+                "ports": first_result.get("ports", []),
+                "os": first_result.get("os", ""),
+                "raw_output": normal_output,
+                "output_xml": xml_output,
+                "output_gnmap": gnmap_output,
+                "output_normal": normal_output,
+                "all_hosts": all_results  # Добавляем все хосты для последующей обработки
+            }
+        else:
+            return {
+                "hostname": self.target,
+                "ip": self.target,
+                "ports": [],
+                "os": "",
+                "raw_output": normal_output,
+                "output_xml": xml_output,
+                "output_gnmap": gnmap_output,
+                "output_normal": normal_output,
+                "all_hosts": []
+            }
 
-    def _parse_output(self, xml_str: str) -> ScanResult:
+    def _parse_output(self, xml_str: str) -> List[ScanResult]:
         """
-        Парсит XML вывод Nmap.
+        Парсит XML вывод Nmap для всех хостов.
         
         Args:
             xml_str: XML строка с результатами сканирования
             
         Returns:
-            ScanResult: Распарсенные данные (hostname, ip, ports, os)
+            Список ScanResult: Распарсенные данные для каждого хоста (hostname, ip, ports, os)
         """
-        result: ScanResult = {
-            "hostname": "",
-            "ip": "",
-            "ports": [],
-            "os": ""
-        }
+        results: List[ScanResult] = []
         
         # Parse XML from string
         try:
             root = ET.fromstring(xml_str)
             
-            host = root.find('host')
-            if host is not None:
+            # Находим все элементы host
+            hosts = root.findall('host')
+            for host in hosts:
+                result: ScanResult = {
+                    "hostname": "",
+                    "ip": "",
+                    "ports": [],
+                    "os": ""
+                }
+                
                 # Get IP and Hostname
                 addr = host.find('address')
                 if addr is not None:
@@ -222,8 +242,12 @@ class NmapScanner(BaseScanner):
                 osmatch = host.find('os/osmatch')
                 if osmatch is not None:
                     result["os"] = osmatch.get('name', '')
+                
+                # Добавляем результат только если найден IP
+                if result["ip"]:
+                    results.append(result)
                         
         except Exception as e:
             logger.error(f"[NmapScanner] Ошибка парсинга XML: {e}")
         
-        return result
+        return results
