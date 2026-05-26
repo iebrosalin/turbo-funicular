@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from backend.scanner import NmapScanner, RustscanScanner, DigScanner, FpingScanner
 from backend.db.session import async_session_maker
+from backend.models.target import Target
 
 logger = logging.getLogger(__name__)
 
@@ -243,25 +244,30 @@ class ScanQueueManager:
                 supports_cidr = scan_type in ('nmap', 'rustscan', 'fping')
                 
                 expanded_targets = []
-                for target in targets:
+                for target_str in targets:
                     try:
-                        if '/' in target:
-                            network = ipaddress.ip_network(target, strict=False)
+                        # Создаем Target объект для определения типа
+                        target_obj = Target.from_string(target_str)
+                        
+                        if target_obj.is_cidr():
                             if supports_cidr:
                                 # Передаем CIDR напрямую сканерам, которые его поддерживают
-                                expanded_targets.append(target)
-                                logger.info(f"[DEBUG] CIDR {target} будет передан напрямую сканеру {scan_type}")
+                                expanded_targets.append(target_str)
+                                logger.info(f"[DEBUG] CIDR {target_str} будет передан напрямую сканеру {scan_type}")
                             else:
                                 # Разворачиваем CIDR в список IP для сканеров без поддержки CIDR
+                                network = ipaddress.ip_network(target_str, strict=False)
                                 hosts = list(network.hosts())
                                 host_strs = [str(h) for h in hosts]
                                 expanded_targets.extend(host_strs)
-                                logger.info(f"[DEBUG] CIDR {target} развернут в {len(host_strs)} IP адресов для {scan_type}")
+                                logger.info(f"[DEBUG] CIDR {target_str} развернут в {len(host_strs)} IP адресов для {scan_type}")
                         else:
-                            expanded_targets.append(target)
-                    except ValueError:
-                        # Это не CIDR, добавляем как есть
-                        expanded_targets.append(target)
+                            # Это не CIDR (IP, домен), добавляем как есть
+                            expanded_targets.append(target_str)
+                    except ValueError as e:
+                        # Ошибка парсинга, добавляем как есть (сканер сам обработает ошибку)
+                        logger.warning(f"[DEBUG] Ошибка парсинга цели {target_str}: {e}")
+                        expanded_targets.append(target_str)
                 
                 logger.info(f"[DEBUG] После обработки CIDR: {len(expanded_targets)} целей")
                 
@@ -432,9 +438,11 @@ class ScanQueueManager:
                             except ValueError:
                                 pass  # Это не CIDR, продолжаем создание актива
                             
-                            if is_target_cidr and scan_type != 'fping':
-                                logger.info(f"[AssetManager] Пропуск создания актива для CIDR (не fping): {target}")
-                                continue  # Переходим к следующей цели для не-fping сканеров
+                            # Для nmap и rustscan с CIDR - пропускаем создание актива для самого CIDR,
+                            # так как активы создаются для каждого хоста внутри диапазона после сканирования
+                            if is_target_cidr and scan_type in ('nmap', 'rustscan'):
+                                logger.info(f"[AssetManager] Пропуск создания актива для CIDR ({scan_type}): {target}")
+                                continue  # Переходим к следующей цели
                             
                             # Для fping с CIDR - создаём активы только если это конкретный IP (не CIDR)
                             if scan_type == 'fping' and is_target_cidr:

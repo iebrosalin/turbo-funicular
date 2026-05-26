@@ -527,7 +527,11 @@ async def run_nmap_scan(
         
         # Добавляем задачу в очередь выполнения
         logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
-        targets_list = [target] if target else []
+        # Разделяем цели по запятой если они перечислены через запятую
+        if target:
+            targets_list = [t.strip() for t in target.split(',') if t.strip()]
+        else:
+            targets_list = []
         parameters = {
             "ports": ports,
             "scripts": scripts,
@@ -659,7 +663,11 @@ async def run_rustscan(
         
         # Добавляем задачу в очередь выполнения
         logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
-        targets_list = [target] if target else []
+        # Разделяем цели по запятой если они перечислены через запятую
+        if target:
+            targets_list = [t.strip() for t in target.split(',') if t.strip()]
+        else:
+            targets_list = []
         parameters = {
             "ports": ports,
             "custom_args": custom_args,
@@ -779,7 +787,11 @@ async def run_dig_scan(
         
         # Добавляем задачу в очередь выполнения
         logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
-        targets_list = [target.strip()] if target.strip() else []
+        # Разделяем цели по запятой если они перечислены через запятую
+        if target:
+            targets_list = [t.strip() for t in target.split(',') if t.strip()]
+        else:
+            targets_list = []
         parameters = {
             "args": args,
             "dns_server": dns_server,
@@ -901,7 +913,11 @@ async def run_fping_scan(
         
         # Добавляем задачу в очередь выполнения
         logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
-        targets_list = [target.strip()] if target.strip() else []
+        # Разделяем цели по запятой если они перечислены через запятую
+        if target:
+            targets_list = [t.strip() for t in target.split(',') if t.strip()]
+        else:
+            targets_list = []
         parameters = {
             "args": args,
             "custom_args": custom_args,

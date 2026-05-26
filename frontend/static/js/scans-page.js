@@ -1407,43 +1407,71 @@ export class ScanResultsController {
     const targets = [];
 
     for (const line of lines) {
+      // Для формата одной колонки - просто берем всю строку как цель
+      // Также поддерживаем старый формат с разделителями (запятая, табуляция, точка с запятой)
       const parts = line.split(/[,\t;]/).map(p => p.trim()).filter(p => p);
       if (parts.length === 0) continue;
 
-      // Определяем IP/хост (первый элемент или ищем по формату)
+      // Если одна колонка - берем первое значение как цель (IP, hostname или CIDR)
+      // Если несколько колонок - первая всё равно считается целью
       let ip = parts[0];
-      let port = parts[1] || null;
-      let protocol = parts[2] || 'tcp';
-
+      
       // Пропускаем строку заголовка
-      if (ip.toLowerCase() === 'ip' || ip.toLowerCase() === 'host') continue;
-      if (port && port.toLowerCase() === 'port') continue;
+      if (ip.toLowerCase() === 'ip' || ip.toLowerCase() === 'host' || ip.toLowerCase() === 'target') continue;
 
-      // Базовая валидация IP или hostname
-      if (!this.#isValidIpOrHost(ip)) {
-        throw new Error(`Неверный формат IP/хоста: ${ip}`);
+      // Базовая валидация IP, CIDR или hostname
+      if (!this.#isValidIpOrHostOrCidr(ip)) {
+        throw new Error(`Неверный формат IP/хоста/CIDR: ${ip}`);
       }
 
-      targets.push({ ip, port, protocol });
+      // Для nmap важна только цель (IP/hostname/CIDR), порты указываются отдельно в параметрах сканирования
+      targets.push({ ip, port: null, protocol: null });
     }
 
     return targets;
   }
 
   /**
-   * Проверка на валидный IP или hostname
+   * Проверка на валидный IP, CIDR или hostname
    */
-  #isValidIpOrHost(str) {
+  #isValidIpOrHostOrCidr(str) {
     if (!str) return false;
-    
+
+    // CIDR IPv4 (например, 192.168.1.0/24) - ПРОВЕРЯЕМ ПЕРЕД IPv4
+    const cidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
+    if (cidrRegex.test(str)) {
+      const parts = str.split('/');
+      const ipParts = parts[0].split('.').map(Number);
+      const mask = parseInt(parts[1]);
+      return ipParts.every(p => p >= 0 && p <= 255) && mask >= 0 && mask <= 32;
+    }
+
     // IPv4
     const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
     if (ipv4Regex.test(str)) {
       const parts = str.split('.').map(Number);
       return parts.every(p => p >= 0 && p <= 255);
     }
+
+    // IPv6 или CIDR IPv6 (упрощенно)
+    if (str.includes(':')) return true;
+
+    // Hostname
+    const hostRegex = /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/;
+    return hostRegex.test(str);
+  }
+}
     
-    // IPv6 (упрощенно)
+    // CIDR IPv4 (например, 192.168.1.0/24)
+    const cidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
+    if (cidrRegex.test(str)) {
+      const parts = str.split('/');
+      const ipParts = parts[0].split('.').map(Number);
+      const mask = parseInt(parts[1]);
+      return ipParts.every(p => p >= 0 && p <= 255) && mask >= 0 && mask <= 32;
+    }
+    
+    // IPv4
     if (str.includes(':')) return true;
     
     // Hostname
