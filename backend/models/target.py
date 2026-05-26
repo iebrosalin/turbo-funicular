@@ -12,6 +12,8 @@ class TargetType(Enum):
     """Типы целевых объектов"""
     IPV4 = "ipv4"
     IPV6 = "ipv6"
+    IPV4_NETWORK = "ipv4_network"  # CIDR для IPv4
+    IPV6_NETWORK = "ipv6_network"  # CIDR для IPv6
     DOMAIN = "domain"
     UNKNOWN = "unknown"
 
@@ -44,18 +46,26 @@ class Target:
         """Определяет тип цели на основе значения"""
         value = self.value.strip()
         
-        # Проверка на IPv4
+        # Проверка на IPv4 сеть (CIDR)
         try:
-            ipaddress.IPv4Address(value)
+            network = ipaddress.IPv4Network(value, strict=False)
+            # Если это сеть с маской (не одиночный хост)
+            if network.prefixlen < 32:
+                return TargetType.IPV4_NETWORK
+            # Если /32 - это обычный IP
             return TargetType.IPV4
-        except ipaddress.AddressValueError:
+        except (ipaddress.AddressValueError, ipaddress.NetmaskValueError, ValueError):
             pass
         
-        # Проверка на IPv6
+        # Проверка на IPv6 сеть (CIDR)
         try:
-            ipaddress.IPv6Address(value)
+            network = ipaddress.IPv6Network(value, strict=False)
+            # Если это сеть с маской (не одиночный хост)
+            if network.prefixlen < 128:
+                return TargetType.IPV6_NETWORK
+            # Если /128 - это обычный IP
             return TargetType.IPV6
-        except ipaddress.AddressValueError:
+        except (ipaddress.AddressValueError, ipaddress.NetmaskValueError, ValueError):
             pass
         
         # Проверка на домен (базовая валидация)
@@ -104,15 +114,19 @@ class Target:
         return True
     
     def is_ip(self) -> bool:
-        """Проверяет, является ли цель IP-адресом"""
-        return self.type in (TargetType.IPV4, TargetType.IPV6)
+        """Проверяет, является ли цель IP-адресом (включая CIDR сети)"""
+        return self.type in (TargetType.IPV4, TargetType.IPV6, TargetType.IPV4_NETWORK, TargetType.IPV6_NETWORK)
+    
+    def is_cidr(self) -> bool:
+        """Проверяет, является ли цель CIDR сетью"""
+        return self.type in (TargetType.IPV4_NETWORK, TargetType.IPV6_NETWORK)
     
     def is_domain(self) -> bool:
         """Проверяет, является ли цель доменным именем"""
         return self.type == TargetType.DOMAIN
     
     def is_valid(self) -> bool:
-        """Проверяет валидность цели"""
+        """Проверяет валидность цели (UNKNOWN считается невалидным)"""
         return self.type != TargetType.UNKNOWN
     
     def __str__(self) -> str:

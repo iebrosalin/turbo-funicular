@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from backend.scanner import NmapScanner, RustscanScanner, DigScanner, FpingScanner
 from backend.db.session import async_session_maker
+from backend.models.target import Target
 
 logger = logging.getLogger(__name__)
 
@@ -181,8 +182,23 @@ class ScanQueueManager:
             logger.info(f"Задача {scan_job_id} добавлена в параллельную очередь")
             await self._parallel_queue.put(scan_params)
         
+        # Разворачиваем CIDR для корректного подсчета прогресса
+        expanded_count = 0
+        for target in targets:
+            try:
+                if '/' in target:
+                    network = ipaddress.ip_network(target, strict=False)
+                    if scan_type == 'fping':
+                        expanded_count += 1  # fping обрабатывает CIDR как одну цель
+                    else:
+                        expanded_count += len(list(network.hosts()))
+                else:
+                    expanded_count += 1
+            except ValueError:
+                expanded_count += 1
+        
         self._progress[scan_job_id] = {
-            "total": len(targets),
+            "total": expanded_count,
             "current": 0,
             "started_at": datetime.utcnow(),
             "status": "queued"
@@ -222,29 +238,51 @@ class ScanQueueManager:
                 
                 logger.info(f"Начало сканирования {scan_job_id}: {scan_type} для {len(targets)} целей")
                 
+                # Определяем, какие сканеры поддерживают CIDR напрямую
+                # Nmap, Rustscan и Fping поддерживают CIDR нотацию напрямую
+                # Dig работает только с отдельными доменами/IP
+                supports_cidr = scan_type in ('nmap', 'rustscan', 'fping')
+                
+                expanded_targets = []
+                for target_str in targets:
+                    try:
+                        # Создаем Target объект для определения типа
+                        target_obj = Target.from_string(target_str)
+                        
+                        if target_obj.is_cidr():
+                            if supports_cidr:
+                                # Передаем CIDR напрямую сканерам, которые его поддерживают
+                                expanded_targets.append(target_str)
+                                logger.info(f"[DEBUG] CIDR {target_str} будет передан напрямую сканеру {scan_type}")
+                            else:
+                                # Разворачиваем CIDR в список IP для сканеров без поддержки CIDR
+                                network = ipaddress.ip_network(target_str, strict=False)
+                                hosts = list(network.hosts())
+                                host_strs = [str(h) for h in hosts]
+                                expanded_targets.extend(host_strs)
+                                logger.info(f"[DEBUG] CIDR {target_str} развернут в {len(host_strs)} IP адресов для {scan_type}")
+                        else:
+                            # Это не CIDR (IP, домен), добавляем как есть
+                            expanded_targets.append(target_str)
+                    except ValueError as e:
+                        # Ошибка парсинга, добавляем как есть (сканер сам обработает ошибку)
+                        logger.warning(f"[DEBUG] Ошибка парсинга цели {target_str}: {e}")
+                        expanded_targets.append(target_str)
+                
+                logger.info(f"[DEBUG] После обработки CIDR: {len(expanded_targets)} целей")
+                
                 # Выполняем сканирование для каждой цели
-                for idx, target in enumerate(targets):
+                # Для сканеров поддерживающих CIDR (nmap, rustscan, fping) цикл будет выполнен один раз с CIDR
+                # Для сканеров не поддерживающих CIDR (dig) цикл будет выполнен для каждого IP из развёрнутого списка
+                for idx, target in enumerate(expanded_targets):
                     if not self._running or scan_job_id not in self._tasks:
-                        logger.warning(f"[DEBUG] Сканирование {scan_job_id} прервано на цели {idx+1}/{len(targets)}")
+                        logger.warning(f"[DEBUG] Сканирование {scan_job_id} прервано на цели {idx+1}/{len(expanded_targets)}")
                         break
                     
-                    # Для fping пропускаем проверку CIDR - fping сам обработает CIDR через флаг -g
-                    # Для остальных сканеров пропускаем CIDR-нотации
-                    is_cidr = False
-                    try:
-                        if '/' in target and scan_type != 'fping':
-                            ipaddress.ip_network(target, strict=False)
-                            is_cidr = True
-                            logger.info(f"[DEBUG] Пропуск CIDR цели {target} для {scan_type} - CIDR не поддерживается")
-                    except ValueError:
-                        pass  # Это не CIDR, продолжаем обработку
-                    
-                    if is_cidr:
-                        continue
-                    
+                    # CIDR уже развернуты, проверка больше не нужна
                     # Обновление прогресса
                     self._progress[scan_job_id]["current"] = idx + 1
-                    logger.info(f"[DEBUG] Обработка цели {idx+1}/{len(targets)}: {target}")
+                    logger.info(f"[DEBUG] Обработка цели {idx+1}/{len(expanded_targets)}: {target}")
                     
                     # Выбираем сканер для каждой цели и передаем параметры
                     scanner = None
@@ -389,14 +427,27 @@ class ScanQueueManager:
                                 res = await db.execute(stmt)
                                 current_scan_id = res.scalar_one_or_none()
                             
-                            # Пропускаем создание актива для CIDR-нотаций
+                            # Пропускаем создание актива для CIDR-нотаций (активы должны быть конкретными IP)
+                            # Но для fping с CIDR мы уже получили список живых хостов, которые будут обработаны через alive_hosts
+                            is_target_cidr = False
                             try:
                                 if '/' in target:
                                     ipaddress.ip_network(target, strict=False)
-                                    logger.info(f"[AssetManager] Пропуск создания актива для CIDR: {target}")
-                                    continue  # Переходим к следующей цели
+                                    is_target_cidr = True
+                                    logger.info(f"[AssetManager] Цель является CIDR: {target}")
                             except ValueError:
                                 pass  # Это не CIDR, продолжаем создание актива
+                            
+                            # Для nmap и rustscan с CIDR - пропускаем создание актива для самого CIDR,
+                            # так как активы создаются для каждого хоста внутри диапазона после сканирования
+                            if is_target_cidr and scan_type in ('nmap', 'rustscan'):
+                                logger.info(f"[AssetManager] Пропуск создания актива для CIDR ({scan_type}): {target}")
+                                continue  # Переходим к следующей цели
+                            
+                            # Для fping с CIDR - создаём активы только если это конкретный IP (не CIDR)
+                            if scan_type == 'fping' and is_target_cidr:
+                                logger.info(f"[AssetManager] Пропуск создания актива для CIDR в fping (живые хосты будут обработаны отдельно): {target}")
+                                continue  # Переходим к следующей цели, живые хосты будут обработаны через alive_hosts
                             
                             # Создаем или получаем актив
                             from backend.utils import create_asset_if_not_exists

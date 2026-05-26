@@ -197,8 +197,8 @@
                                     <p>Перетащите CSV файл сюда или нажмите для выбора</p>
                                 </div>
                                 <input type="file" id="nmapCsvFile" accept=".csv,.txt" class="d-none">
-                                <textarea class="form-control font-monospace" id="nmapCsvTextarea" rows="4" placeholder="Или вставьте CSV данные здесь&#10;Формат: ip,port,protocol&#10;Пример: 192.168.1.1,80,tcp&#10;192.168.1.2,443,tcp"></textarea>
-                                <div class="form-text mt-2">Поддерживается формат: IP,порт,протокол (заголовок необязателен)</div>
+                                <textarea class="form-control font-monospace" id="nmapCsvTextarea" rows="4" placeholder="Или вставьте CSV данные здесь&#10;Формат: одна колонка с целями (IP, FQDN, CIDR)&#10;Пример:&#10;192.168.1.1&#10;192.168.1.2&#10;example.com&#10;10.240.68.0/24"></textarea>
+                                <div class="form-text mt-2">Поддерживается формат: одна колонка с IP, доменами или CIDR (заголовок необязателен)</div>
                                 <div id="nmapCsvPreview" class="mt-2 small text-success d-none"></div>
                                 <div id="nmapCsvError" class="mt-2 small text-danger d-none"></div>
                             </div>

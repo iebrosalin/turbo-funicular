@@ -92,7 +92,7 @@ class CSVParser:
                     if part and not part.startswith('#'):
                         target = Target.from_string(
                             part,
-                            original_input=line,
+                            original_input=part,  # Важно: используем часть как original_input
                             metadata={'line': line_num}
                         )
                         if target.is_valid() or not skip_invalid:
@@ -282,6 +282,8 @@ class CSVParser:
             'total': len(targets),
             'ipv4': 0,
             'ipv6': 0,
+            'ipv4_network': 0,  # CIDR IPv4
+            'ipv6_network': 0,  # CIDR IPv6
             'domain': 0,
             'unknown': 0,
             'valid': 0,
@@ -293,6 +295,10 @@ class CSVParser:
                 stats['ipv4'] += 1
             elif target.type == TargetType.IPV6:
                 stats['ipv6'] += 1
+            elif target.type == TargetType.IPV4_NETWORK:
+                stats['ipv4_network'] += 1
+            elif target.type == TargetType.IPV6_NETWORK:
+                stats['ipv6_network'] += 1
             elif target.type == TargetType.DOMAIN:
                 stats['domain'] += 1
             else:
