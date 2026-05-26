@@ -40,7 +40,7 @@ scans_router = router  # Алиас для совместимости импор
 
 
 class NmapScanRequest(BaseModel):
-    target: str
+    target: Optional[str] = None  # Теперь опционально, можно использовать только CSV
     ports: Optional[str] = None
     scripts: Optional[str] = ""  # По умолчанию пустая строка, а не None
     custom_args: Optional[str] = None

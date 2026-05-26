@@ -78,7 +78,14 @@ class NmapScanner(BaseScanner):
         # Output to separate files in different formats
         cmd.extend(["-oX", xml_file, "-oG", gnmap_file, "-oN", normal_file])
         
-        cmd.append(self.target)
+        # Добавляем цели: если target содержит запятые, разделяем их на отдельные аргументы
+        # Это позволяет nmap корректно обрабатывать список хостов/IP/CIDR
+        if ',' in self.target:
+            # Разделяем по запятой и добавляем каждый как отдельный аргумент
+            targets = [t.strip() for t in self.target.split(',') if t.strip()]
+            cmd.extend(targets)
+        else:
+            cmd.append(self.target)
         
         logger.info(f"[{self.__class__.__name__}] Запуск команды: {' '.join(cmd)}")
         

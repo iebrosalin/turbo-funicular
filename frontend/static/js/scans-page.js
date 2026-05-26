@@ -711,7 +711,11 @@ export class ScanResultsController {
     }
 
     if (!target && !knownOnly && csvTargets.length === 0) { 
-      // Utils.showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
+      const errorDiv = document.getElementById('nmapCsvError');
+      if (errorDiv) {
+        errorDiv.textContent = 'Укажите цель сканирования или загрузите CSV файл со списком целей';
+        errorDiv.classList.remove('d-none');
+      }
       return; 
     }
     if (knownOnly && groupIds.length === 0) { 
