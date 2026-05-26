@@ -209,10 +209,18 @@ export class ScanResultsController {
           ? Math.round((new Date(job.completed_at) - new Date(job.started_at)) / 1000) + ' сек'
           : '-';
         
+        // Обрезаем длинную цель для отображения в таблице
+        let targetDisplay = job.target || '-';
+        let targetTitle = '';
+        if (targetDisplay.length > 50) {
+          targetTitle = targetDisplay; // Полный текст для tooltip
+          targetDisplay = targetDisplay.substring(0, 50) + '...';
+        }
+        
         tr.innerHTML = `
           <td>${job.id}</td>
           <td><span class="badge bg-info">${job.scan_type}</span></td>
-          <td>${job.target || '-'}</td>
+          <td class="text-truncate" style="max-width: 200px;" title="${targetTitle}">${targetDisplay}</td>
           <td><span class="badge ${statusClass}">${job.status}</span></td>
           <td>${duration}</td>
           <td>${job.completed_at ? new Date(job.completed_at).toLocaleString('ru-RU') : '-'}</td>
@@ -269,7 +277,12 @@ export class ScanResultsController {
         let html = '';
         if (Array.isArray(nmapQ.queued_jobs)) {
           nmapQ.queued_jobs.forEach(job => { 
-            html += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`; 
+            // Обрезаем длинные цели в списке очереди
+            let targetDisplay = job.target || '';
+            if (targetDisplay.length > 40) {
+              targetDisplay = targetDisplay.substring(0, 40) + '...';
+            }
+            html += `<div class="text-truncate" title="${job.target || ''}">#${job.job_id} (${job.scan_type}) - ${targetDisplay}</div>`; 
           });
         }
         if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
@@ -290,7 +303,12 @@ export class ScanResultsController {
         let html = '';
         if (Array.isArray(rustscanQ.queued_jobs)) {
           rustscanQ.queued_jobs.forEach(job => { 
-            html += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`; 
+            // Обрезаем длинные цели в списке очереди
+            let targetDisplay = job.target || '';
+            if (targetDisplay.length > 40) {
+              targetDisplay = targetDisplay.substring(0, 40) + '...';
+            }
+            html += `<div class="text-truncate" title="${job.target || ''}">#${job.job_id} (${job.scan_type}) - ${targetDisplay}</div>`; 
           });
         }
         if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
@@ -561,7 +579,15 @@ export class ScanResultsController {
           actions += `<button class="btn btn-sm btn-outline-danger btn-delete-job" data-job-id="${job.id}"><i class="bi bi-trash"></i></button> `;
         }
 
-        tr.innerHTML = `<td>${job.id}</td><td><span class="badge bg-info">${job.scan_type}</span></td><td>${job.target}</td><td><span class="badge ${statusClass}">${job.status}</span></td><td><div class="progress" style="height:10px;width:100px;"><div class="progress-bar" style="width:${job.progress}%"></div></div>${job.progress}%</td><td>${new Date(job.created_at).toLocaleString('ru-RU')}</td><td>${actions}</td>`;
+        // Обрезаем длинную цель для отображения в таблице
+        let targetDisplay = job.target || '-';
+        let targetTitle = '';
+        if (targetDisplay.length > 50) {
+          targetTitle = targetDisplay;
+          targetDisplay = targetDisplay.substring(0, 50) + '...';
+        }
+
+        tr.innerHTML = `<td>${job.id}</td><td><span class="badge bg-info">${job.scan_type}</span></td><td class="text-truncate" style="max-width: 200px;" title="${targetTitle}">${targetDisplay}</td><td><span class="badge ${statusClass}">${job.status}</span></td><td><div class="progress" style="height:10px;width:100px;"><div class="progress-bar" style="width:${job.progress}%"></div></div>${job.progress}%</td><td>${new Date(job.created_at).toLocaleString('ru-RU')}</td><td>${actions}</td>`;
         tbody.appendChild(tr);
       });
     } catch (e) {
@@ -589,7 +615,12 @@ export class ScanResultsController {
         let html = '';
         if (Array.isArray(nmapQ.queued_jobs)) {
           nmapQ.queued_jobs.forEach(job => { 
-            html += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`; 
+            // Обрезаем длинные цели в списке очереди
+            let targetDisplay = job.target || '';
+            if (targetDisplay.length > 40) {
+              targetDisplay = targetDisplay.substring(0, 40) + '...';
+            }
+            html += `<div class="text-truncate" title="${job.target || ''}">#${job.job_id} (${job.scan_type}) - ${targetDisplay}</div>`; 
           });
         }
         if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
@@ -609,7 +640,12 @@ export class ScanResultsController {
         let html = '';
         if (Array.isArray(rustscanQ.queued_jobs)) {
           rustscanQ.queued_jobs.forEach(job => { 
-            html += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`; 
+            // Обрезаем длинные цели в списке очереди
+            let targetDisplay = job.target || '';
+            if (targetDisplay.length > 40) {
+              targetDisplay = targetDisplay.substring(0, 40) + '...';
+            }
+            html += `<div class="text-truncate" title="${job.target || ''}">#${job.job_id} (${job.scan_type}) - ${targetDisplay}</div>`; 
           });
         }
         if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
