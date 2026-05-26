@@ -181,8 +181,23 @@ class ScanQueueManager:
             logger.info(f"Задача {scan_job_id} добавлена в параллельную очередь")
             await self._parallel_queue.put(scan_params)
         
+        # Разворачиваем CIDR для корректного подсчета прогресса
+        expanded_count = 0
+        for target in targets:
+            try:
+                if '/' in target:
+                    network = ipaddress.ip_network(target, strict=False)
+                    if scan_type == 'fping':
+                        expanded_count += 1  # fping обрабатывает CIDR как одну цель
+                    else:
+                        expanded_count += len(list(network.hosts()))
+                else:
+                    expanded_count += 1
+            except ValueError:
+                expanded_count += 1
+        
         self._progress[scan_job_id] = {
-            "total": len(targets),
+            "total": expanded_count,
             "current": 0,
             "started_at": datetime.utcnow(),
             "status": "queued"
@@ -222,29 +237,46 @@ class ScanQueueManager:
                 
                 logger.info(f"Начало сканирования {scan_job_id}: {scan_type} для {len(targets)} целей")
                 
+                # Определяем, какие сканеры поддерживают CIDR напрямую
+                # Nmap, Rustscan и Fping поддерживают CIDR нотацию напрямую
+                # Dig работает только с отдельными доменами/IP
+                supports_cidr = scan_type in ('nmap', 'rustscan', 'fping')
+                
+                expanded_targets = []
+                for target in targets:
+                    try:
+                        if '/' in target:
+                            network = ipaddress.ip_network(target, strict=False)
+                            if supports_cidr:
+                                # Передаем CIDR напрямую сканерам, которые его поддерживают
+                                expanded_targets.append(target)
+                                logger.info(f"[DEBUG] CIDR {target} будет передан напрямую сканеру {scan_type}")
+                            else:
+                                # Разворачиваем CIDR в список IP для сканеров без поддержки CIDR
+                                hosts = list(network.hosts())
+                                host_strs = [str(h) for h in hosts]
+                                expanded_targets.extend(host_strs)
+                                logger.info(f"[DEBUG] CIDR {target} развернут в {len(host_strs)} IP адресов для {scan_type}")
+                        else:
+                            expanded_targets.append(target)
+                    except ValueError:
+                        # Это не CIDR, добавляем как есть
+                        expanded_targets.append(target)
+                
+                logger.info(f"[DEBUG] После обработки CIDR: {len(expanded_targets)} целей")
+                
                 # Выполняем сканирование для каждой цели
-                for idx, target in enumerate(targets):
+                # Для сканеров поддерживающих CIDR (nmap, rustscan, fping) цикл будет выполнен один раз с CIDR
+                # Для сканеров не поддерживающих CIDR (dig) цикл будет выполнен для каждого IP из развёрнутого списка
+                for idx, target in enumerate(expanded_targets):
                     if not self._running or scan_job_id not in self._tasks:
-                        logger.warning(f"[DEBUG] Сканирование {scan_job_id} прервано на цели {idx+1}/{len(targets)}")
+                        logger.warning(f"[DEBUG] Сканирование {scan_job_id} прервано на цели {idx+1}/{len(expanded_targets)}")
                         break
                     
-                    # Для fping пропускаем проверку CIDR - fping сам обработает CIDR через флаг -g
-                    # Для остальных сканеров пропускаем CIDR-нотации
-                    skip_target = False
-                    try:
-                        if '/' in target and scan_type != 'fping':
-                            ipaddress.ip_network(target, strict=False)
-                            skip_target = True
-                            logger.info(f"[DEBUG] Пропуск CIDR цели {target} для {scan_type} - CIDR не поддерживается")
-                    except ValueError:
-                        pass  # Это не CIDR, продолжаем обработку
-                    
-                    if skip_target:
-                        continue
-                    
+                    # CIDR уже развернуты, проверка больше не нужна
                     # Обновление прогресса
                     self._progress[scan_job_id]["current"] = idx + 1
-                    logger.info(f"[DEBUG] Обработка цели {idx+1}/{len(targets)}: {target}")
+                    logger.info(f"[DEBUG] Обработка цели {idx+1}/{len(expanded_targets)}: {target}")
                     
                     # Выбираем сканер для каждой цели и передаем параметры
                     scanner = None
