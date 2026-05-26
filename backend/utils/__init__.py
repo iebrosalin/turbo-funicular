@@ -38,7 +38,8 @@ async def create_asset_if_not_exists(
     ip_address: str,
     hostname: Optional[str] = None,
     mac_address: Optional[str] = None,
-    groups: Optional[List[int]] = None
+    groups: Optional[List[int]] = None,
+    fqdn: Optional[str] = None
 ) -> Any:
     """
     Создать актив если он не существует, иначе вернуть существующий.
@@ -49,6 +50,7 @@ async def create_asset_if_not_exists(
         hostname: Имя хоста (опционально)
         mac_address: MAC адрес (опционально)
         groups: Список ID групп (опционально)
+        fqdn: Полное доменное имя (опционально)
     
     Returns:
         Экземпляр модели Asset или None если IP является CIDR
@@ -80,6 +82,7 @@ async def create_asset_if_not_exists(
     asset = Asset(
         ip_address=ip_address,
         hostname=hostname,
+        fqdn=fqdn if fqdn else (hostname if hostname else None),
         mac_address=mac_address
     )
     db.add(asset)
@@ -98,7 +101,7 @@ async def create_asset_if_not_exists(
                 logger.warning(f"[AssetManager] Группа с ID {gid} не найдена, пропускаем")
     
     await db.refresh(asset)
-    logger.info(f"[AssetManager] Успешно создан актив {asset.id} для IP: {ip_address} (hostname: {hostname})")
+    logger.info(f"[AssetManager] Успешно создан актив {asset.id} для IP: {ip_address} (hostname: {hostname}, fqdn: {fqdn})")
     return asset
 
 

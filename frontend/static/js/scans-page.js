@@ -774,6 +774,9 @@ export class ScanResultsController {
         finalTarget = finalTarget ? `${finalTarget},${csvTargetStr}` : csvTargetStr;
       }
       
+      // Получаем CSV текст если есть
+      const csvText = document.getElementById('nmapCsvTextarea')?.value.trim() || '';
+      
       await Utils.apiRequest('/api/scans/nmap', {
         method: 'POST',
         body: JSON.stringify({
@@ -783,7 +786,8 @@ export class ScanResultsController {
           custom_args: document.getElementById('nmapCustomArgs')?.value || '', 
           known_ports_only: knownOnly, 
           group_ids: groupIds,
-          save_assets: document.getElementById('nmapSaveAssets')?.checked ?? true
+          save_assets: document.getElementById('nmapSaveAssets')?.checked ?? true,
+          csv_text: csvText || null  // Передаем CSV текст если есть
         })
       });
       
@@ -1149,6 +1153,7 @@ export class ScanResultsController {
     const scanType = scanTypeSelect?.value || 'nmap';
     const groupId = groupSelect?.value ? parseInt(groupSelect.value) : null;
     const saveAssets = saveAssetsCheckbox?.checked ?? true;
+    const customArgs = document.getElementById('csv-custom-args')?.value || '';
     
     try {
       // Используем FormData для отправки файла или текста
@@ -1160,6 +1165,11 @@ export class ScanResultsController {
       formData.append('save_assets', saveAssets.toString());
       if (groupId) {
         formData.append('group_ids', groupId.toString());
+      }
+      if (customArgs) {
+        // Передаем кастомные аргументы как JSON строку в parameters
+        const parameters = { custom_args: customArgs };
+        formData.append('parameters', JSON.stringify(parameters));
       }
       
       const response = await fetch('/api/scans/from-csv/file', {

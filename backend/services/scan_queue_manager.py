@@ -291,17 +291,19 @@ class ScanQueueManager:
                             job_id=scan_job_id, 
                             target=target,
                             ports=parameters.get('ports', ''),
-                            scripts=parameters.get('scripts', '')
+                            scripts=parameters.get('scripts', ''),
+                            custom_args=parameters.get('custom_args', '')
                         )
-                        logger.info(f"[DEBUG] Создан NmapScanner")
+                        logger.info(f"[DEBUG] Создан NmapScanner с custom_args: {parameters.get('custom_args', '')}")
                     elif scan_type == 'rustscan':
                         scanner = RustscanScanner(
                             job_id=scan_job_id, 
                             target=target,
                             ports=parameters.get('ports', ''),
-                            nmap_scripts=parameters.get('nmap_scripts', '')
+                            nmap_scripts=parameters.get('nmap_scripts', ''),
+                            custom_args=parameters.get('custom_args', '')
                         )
-                        logger.info(f"[DEBUG] Создан RustscanScanner")
+                        logger.info(f"[DEBUG] Создан RustscanScanner с custom_args: {parameters.get('custom_args', '')}")
                     elif scan_type == 'dig':
                         record_types = parameters.get('record_types', 'ALL')
                         if isinstance(record_types, str) and record_types != 'ALL':
@@ -311,21 +313,26 @@ class ScanQueueManager:
                         scanner = DigScanner(
                             job_id=scan_job_id, 
                             target=target,
-                            record_types=record_types
+                            record_types=record_types,
+                            custom_args=parameters.get('custom_args', '')
                         )
-                        logger.info(f"[DEBUG] Создан DigScanner")
+                        logger.info(f"[DEBUG] Создан DigScanner с custom_args: {parameters.get('custom_args', '')}")
                     elif scan_type == 'fping':
                         count = parameters.get('count', 3)
                         interval = parameters.get('interval', 1000)
                         timeout = parameters.get('timeout', 500)
+                        custom_args = parameters.get('custom_args', '')
+                        # Преобразуем строку кастомных аргументов в список
+                        extra_args = custom_args.split() if custom_args and custom_args.strip() else []
                         scanner = FpingScanner(
                             job_id=scan_job_id, 
                             target=target,
                             count=count,
                             interval=interval,
-                            timeout=timeout
+                            timeout=timeout,
+                            extra_args=extra_args
                         )
-                        logger.info(f"[DEBUG] Создан FpingScanner")
+                        logger.info(f"[DEBUG] Создан FpingScanner с custom_args: {custom_args}")
                     
                     if not scanner:
                         raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
@@ -475,11 +482,17 @@ class ScanQueueManager:
                                         logger.warning(f"[AssetManager] Пропуск хоста без IP: {host_result}")
                                         continue
                                     
+                                    # Определяем FQDN для хоста
+                                    host_fqdn = None
+                                    if host_hostname and host_hostname != host_ip:
+                                        host_fqdn = host_hostname
+                                    
                                     # Создаем или получаем актив для каждого хоста
                                     asset = await create_asset_if_not_exists(
                                         db=db,
                                         ip_address=host_ip,
-                                        hostname=host_hostname if host_hostname and host_hostname != host_ip else None
+                                        hostname=host_hostname if host_hostname and host_hostname != host_ip else None,
+                                        fqdn=host_fqdn
                                     )
                                     
                                     if asset:
@@ -553,10 +566,19 @@ class ScanQueueManager:
                             # Иначе используем target как IP (если это уже IP-адрес)
                             asset_ip = ip_from_scan if ip_from_scan and ip_from_scan != target else target
                             
+                            # Определяем FQDN: если target был DNS-именем, используем его как FQDN
+                            asset_fqdn = None
+                            if target != asset_ip:
+                                # Target был DNS-именем, сохраняем его как FQDN
+                                asset_fqdn = target
+                            elif hostname and hostname != asset_ip:
+                                asset_fqdn = hostname
+                            
                             asset = await create_asset_if_not_exists(
                                 db=db,
                                 ip_address=asset_ip,
-                                hostname=hostname if hostname != asset_ip else None
+                                hostname=hostname if hostname != asset_ip else None,
+                                fqdn=asset_fqdn
                             )
                             
                             # Обновляем информацию об активе на основе результатов сканирования

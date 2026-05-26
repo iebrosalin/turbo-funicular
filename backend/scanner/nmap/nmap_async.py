@@ -22,7 +22,8 @@ class NmapScanner(BaseScanner):
         ports: Optional[str] = None,
         scripts: Optional[str] = None, 
         version_detect: bool = True,
-        os_detect: bool = True, 
+        os_detect: bool = True,
+        custom_args: Optional[str] = None,
         output_dir: Optional[str] = None
     ):
         """
@@ -35,6 +36,7 @@ class NmapScanner(BaseScanner):
             scripts: NSE скрипты для выполнения
             version_detect: Определять версии сервисов (-sV)
             os_detect: Определять ОС (-O)
+            custom_args: Дополнительные аргументы командной строки
             output_dir: Директория для временных файлов
         """
         super().__init__(job_id, target, output_dir)
@@ -42,6 +44,7 @@ class NmapScanner(BaseScanner):
         self.scripts = scripts
         self.version_detect = version_detect
         self.os_detect = os_detect
+        self.custom_args = custom_args
 
     async def scan(self) -> ScanResult:
         """
@@ -74,6 +77,13 @@ class NmapScanner(BaseScanner):
             cmd.append("-sV")
         if self.os_detect:
             cmd.append("-O")
+        
+        # Добавляем кастомные аргументы если указаны
+        if self.custom_args and self.custom_args.strip():
+            # Разбиваем аргументы по пробелам и добавляем каждый отдельно
+            custom_args_list = self.custom_args.strip().split()
+            cmd.extend(custom_args_list)
+            logger.info(f"[{self.__class__.__name__}] Добавлены кастомные аргументы: {self.custom_args}")
             
         # Output to separate files in different formats
         cmd.extend(["-oX", xml_file, "-oG", gnmap_file, "-oN", normal_file])

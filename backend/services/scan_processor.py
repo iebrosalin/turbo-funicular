@@ -19,6 +19,14 @@ logger = logging.getLogger(__name__)
 class ScanProcessor:
     def __init__(self, db: AsyncSession):
         self.db = db
+    
+    def _is_ip_address(self, value: str) -> bool:
+        """Проверяет, является ли строка IP-адресом (IPv4 или IPv6)."""
+        try:
+            ipaddress.ip_address(value)
+            return True
+        except ValueError:
+            return False
 
     async def process(self, job_id: int, parameters: Optional[Dict[str, Any]] = None):
         """Основной метод обработки результатов сканирования.
@@ -87,6 +95,9 @@ class ScanProcessor:
             logger.error(f"[ScanProcessor] Первые 500 символов XML: {xml_str[:500]}")
             raise ValueError(f"Некорректный формат XML в задаче {job.id}: {e}")
         
+        # Получаем оригинальный target (может быть DNS именем) для сохранения в fqdn
+        original_target = job_params.get('target', '')
+        
         hosts_count = 0
         for host in root.findall('host'):
             status_elem = host.find('status')
@@ -102,7 +113,7 @@ class ScanProcessor:
                 continue
             ip_addr = addr_elem.get('addr')
             
-            # Извлечение hostname
+            # Извлечение hostname из XML
             hostname = ""
             hostnames_elem = host.find('hostnames')
             if hostnames_elem is not None:
@@ -110,6 +121,11 @@ class ScanProcessor:
                 if hn_elem is not None:
                     hostname = hn_elem.get('name', "")
 
+            # Если original_target был DNS именем (не IP), используем его как fqdn
+            fqdn = ""
+            if original_target and not self._is_ip_address(original_target):
+                fqdn = original_target
+            
             # Извлечение портов и сервисов
             open_ports = []
             services = []
@@ -172,6 +188,7 @@ class ScanProcessor:
             # Обновление или создание актива (без services)
             await self._upsert_asset(ip_addr, {
                 "hostname": hostname,
+                "fqdn": fqdn,
                 "open_ports": open_ports,
                 "os_family": os_family,
                 "group_id": job.scan.group_id,
@@ -358,8 +375,7 @@ class ScanProcessor:
                     # Обновляем last_fping даже если хост не ответил (чтобы фиксировать факт сканирования)
                     await self._upsert_asset(target_ip, {
                         "group_id": job.scan.group_id,
-                        "scan_type": "fping",
-                        "is_alive": False  # Хост не ответил на ping
+                        "scan_type": "fping"
                     })
                 except ValueError:
                     logger.warning(f"fping: Невалидный IP адрес {target_ip}")
@@ -385,12 +401,11 @@ class ScanProcessor:
                 logger.warning(f"fping: Невалидный IP адрес {ip}, пропущен")
                 continue
             
-            # Создаем/обновляем актив с флагом активности
+            # Создаем/обновляем актив (статус будет определён по наличию открытых портов)
             await self._upsert_asset(ip, {
                 "hostname": hostname if hostname else None,
                 "group_id": job.scan.group_id,
-                "scan_type": "fping",
-                "is_alive": True  # Хост ответил на ping
+                "scan_type": "fping"
             })
             hosts_count += 1
         
@@ -483,6 +498,11 @@ class ScanProcessor:
                         asset.hostname = value
                         logger.debug(f"  - Установлен hostname: {value}")
                         logger.info(f"[DEBUG _upsert_asset] {ip}: hostname установлен в '{value}'")
+                elif key == 'fqdn' and value:
+                    if not asset.fqdn:
+                        asset.fqdn = value
+                        logger.debug(f"  - Установлен fqdn: {value}")
+                        logger.info(f"[DEBUG _upsert_asset] {ip}: fqdn установлен в '{value}'")
                 else:
                     setattr(asset, key, value)
                     logger.info(f"[DEBUG _upsert_asset] {ip}: поле '{key}' изменено с {old_value} на {value}")
@@ -514,27 +534,18 @@ class ScanProcessor:
         # Обновляем last_seen для любого типа сканирования
         asset.last_seen = now
         
-        # Обновляем статус актива на основе наличия открытых портов
-        # Только активы с открытыми портами считаются active
+        # Обновляем статус актива ТОЛЬКО на основе наличия открытых портов
+        # Активность актива подтверждается только наличием открытых портов!
         # При сканировании dig не обновляем статус, т.к. оно только обновляет DNS/PTR
-        # При сканировании fping обновляем статус на основе факта ответа на ping
-        if scan_type == 'fping':
-            is_alive = updates.get('is_alive', False)
-            if is_alive:
-                if asset.status != 'active':
-                    logger.debug(f"  - Статус изменён на 'active' (хост ответил на ping)")
-                asset.status = 'active'
-            else:
-                if asset.status != 'inactive':
-                    logger.debug(f"  - Статус изменён на 'inactive' (хост не ответил на ping)")
-                asset.status = 'inactive'
-        elif scan_type != 'dig':
+        # При сканировании fping также проверяем только порты (не факт ответа на ping)
+        if scan_type != 'dig':
             current_open_ports = asset.open_ports or []
             if len(current_open_ports) > 0:
                 if asset.status != 'active':
                     logger.debug(f"  - Статус изменён на 'active' (порты: {current_open_ports})")
                 asset.status = 'active'
             else:
+                # Если портов нет, ставим inactive (даже если хост ответил на ping)
                 if asset.status != 'inactive':
                     logger.debug(f"  - Статус изменён на 'inactive' (нет открытых портов)")
                 asset.status = 'inactive'

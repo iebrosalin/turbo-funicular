@@ -47,6 +47,7 @@ class NmapScanRequest(BaseModel):
     known_ports_only: bool = False
     save_assets: bool = True
     group_ids: Optional[List[int]] = None
+    csv_text: Optional[str] = None  # Поддержка CSV текста для импорта целей
 
 
 class RustscanRequest(BaseModel):
@@ -528,10 +529,25 @@ async def run_nmap_scan(
         # Добавляем задачу в очередь выполнения
         logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
         # Разделяем цели по запятой если они перечислены через запятую
+        # Каждая цель должна обрабатываться отдельно для создания отдельных активов
         if target:
             targets_list = [t.strip() for t in target.split(',') if t.strip()]
         else:
             targets_list = []
+        
+        # Если есть CSV текст, добавляем цели из него
+        csv_targets = []
+        if hasattr(request_data, 'csv_text') and request_data.csv_text:
+            from backend.utils.csv_parser import CSVParser
+            parsed_csv_targets, csv_errors = CSVParser.parse_text(request_data.csv_text)
+            csv_targets = [t.value for t in CSVParser.deduplicate(parsed_csv_targets)]
+            logger.info(f"  - Найдено {len(csv_targets)} целей из CSV")
+        
+        # Объединяем цели из target и CSV
+        all_targets = targets_list + csv_targets
+        if not all_targets:
+            raise HTTPException(status_code=400, detail="Не указаны цели сканирования (ни target, ни CSV)")
+        
         parameters = {
             "ports": ports,
             "scripts": scripts,
@@ -541,7 +557,9 @@ async def run_nmap_scan(
             "group_ids": parsed_group_ids,
             "target": target
         }
-        logger.info(f"  - targets_list: {targets_list}")
+        logger.info(f"  - Цели из target: {targets_list}")
+        logger.info(f"  - Цели из CSV: {csv_targets}")
+        logger.info(f"  - Всего целей: {len(all_targets)}")
         logger.info(f"  - parameters: {parameters}")
         
         logger.info(f"\n[Шаг 4/4] Добавление задачи в ScanQueueManager...")
@@ -549,7 +567,7 @@ async def run_nmap_scan(
             db=db,
             scan_job_id=new_job.id,
             scan_type="nmap",
-            targets=targets_list,
+            targets=all_targets,  # Передаем все цели как список
             parameters=parameters
         )
         logger.info(f"✓ Задача {new_job.id} успешно добавлена в очередь ScanQueueManager")
