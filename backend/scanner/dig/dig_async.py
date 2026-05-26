@@ -19,6 +19,7 @@ class DigScanner(BaseScanner):
         job_id: int, 
         target: Union[str, Target], 
         record_types: Optional[List[str]] = None,
+        custom_args: Optional[str] = None,
         output_dir: Optional[str] = None
     ):
         """
@@ -28,11 +29,13 @@ class DigScanner(BaseScanner):
             job_id: ID задачи сканирования
             target: Доменное имя для запроса
             record_types: Типы DNS записей для запроса
+            custom_args: Дополнительные аргументы командной строки
             output_dir: Директория для временных файлов
         """
         super().__init__(job_id, target, output_dir)
         # Default types if not specified
         self.record_types = record_types or ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA"]
+        self.custom_args = custom_args
 
     async def scan(self) -> ScanResult:
         """
@@ -52,6 +55,12 @@ class DigScanner(BaseScanner):
         # Add record types
         for rtype in self.record_types:
             cmd.append(rtype)
+        
+        # Добавляем кастомные аргументы если указаны
+        if self.custom_args and self.custom_args.strip():
+            custom_args_list = self.custom_args.strip().split()
+            cmd.extend(custom_args_list)
+            logger.info(f"[{self.__class__.__name__}] Добавлены кастомные аргументы: {self.custom_args}")
             
         cmd.append(self.target)
         cmd.append("+noall")

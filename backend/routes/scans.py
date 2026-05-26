@@ -47,10 +47,11 @@ class NmapScanRequest(BaseModel):
     known_ports_only: bool = False
     save_assets: bool = True
     group_ids: Optional[List[int]] = None
+    csv_text: Optional[str] = None  # Поддержка CSV текста для импорта целей
 
 
 class RustscanRequest(BaseModel):
-    target: str
+    target: Optional[str] = None  # Теперь опционально, можно использовать только CSV
     ports: Optional[str] = None
     custom_args: Optional[str] = None
     run_nmap_after: bool = False
@@ -58,20 +59,22 @@ class RustscanRequest(BaseModel):
     nmap_scripts: Optional[str] = None
     save_assets: bool = True
     group_ids: Optional[List[int]] = None
+    csv_text: Optional[str] = None  # Поддержка CSV текста для импорта целей
 
 
 class DigScanRequest(BaseModel):
-    target: str
+    target: Optional[str] = None  # Теперь опционально, можно использовать только CSV
     args: Optional[str] = None
     dns_server: Optional[str] = None
     cli_args: Optional[str] = None
     record_types: Optional[str] = 'ALL'
     save_assets: bool = True
     group_ids: Optional[List[int]] = None
+    csv_text: Optional[str] = None  # Поддержка CSV текста для импорта целей
 
 
 class FpingScanRequest(BaseModel):
-    target: str
+    target: Optional[str] = None  # Теперь опционально, можно использовать только CSV
     args: Optional[str] = None
     custom_args: Optional[str] = None
     count: int = 3
@@ -79,6 +82,7 @@ class FpingScanRequest(BaseModel):
     timeout: int = 500
     save_assets: bool = True
     group_ids: Optional[List[int]] = None
+    csv_text: Optional[str] = None  # Поддержка CSV текста для импорта целей
 
 
 class CsvScanRequest(BaseModel):
@@ -528,10 +532,25 @@ async def run_nmap_scan(
         # Добавляем задачу в очередь выполнения
         logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
         # Разделяем цели по запятой если они перечислены через запятую
+        # Каждая цель должна обрабатываться отдельно для создания отдельных активов
         if target:
             targets_list = [t.strip() for t in target.split(',') if t.strip()]
         else:
             targets_list = []
+        
+        # Если есть CSV текст, добавляем цели из него
+        csv_targets = []
+        if hasattr(request_data, 'csv_text') and request_data.csv_text:
+            from backend.utils.csv_parser import CSVParser
+            parsed_csv_targets, csv_errors = CSVParser.parse_text(request_data.csv_text)
+            csv_targets = [t.value for t in CSVParser.deduplicate(parsed_csv_targets)]
+            logger.info(f"  - Найдено {len(csv_targets)} целей из CSV")
+        
+        # Объединяем цели из target и CSV
+        all_targets = targets_list + csv_targets
+        if not all_targets:
+            raise HTTPException(status_code=400, detail="Не указаны цели сканирования (ни target, ни CSV)")
+        
         parameters = {
             "ports": ports,
             "scripts": scripts,
@@ -541,7 +560,9 @@ async def run_nmap_scan(
             "group_ids": parsed_group_ids,
             "target": target
         }
-        logger.info(f"  - targets_list: {targets_list}")
+        logger.info(f"  - Цели из target: {targets_list}")
+        logger.info(f"  - Цели из CSV: {csv_targets}")
+        logger.info(f"  - Всего целей: {len(all_targets)}")
         logger.info(f"  - parameters: {parameters}")
         
         logger.info(f"\n[Шаг 4/4] Добавление задачи в ScanQueueManager...")
@@ -549,7 +570,7 @@ async def run_nmap_scan(
             db=db,
             scan_job_id=new_job.id,
             scan_type="nmap",
-            targets=targets_list,
+            targets=all_targets,  # Передаем все цели как список
             parameters=parameters
         )
         logger.info(f"✓ Задача {new_job.id} успешно добавлена в очередь ScanQueueManager")
@@ -617,8 +638,13 @@ async def run_rustscan(
     logger.info("=" * 60)
     logger.info("=== ПОЛУЧЕН ЗАПРОС НА RUSTSCAN (JSON) ===")
     logger.info("=" * 60)
+    
+    # Получаем csv_text из запроса
+    csv_text = request_data.csv_text
+    
     logger.info(f"Входящие данные запроса:")
     logger.info(f"  - target: {target}")
+    logger.info(f"  - csv_text: {csv_text[:100] if csv_text else None}...")
     logger.info(f"  - ports: {ports}")
     logger.info(f"  - custom_args: {custom_args}")
     logger.info(f"  - run_nmap_after: {run_nmap_after}")
@@ -627,15 +653,27 @@ async def run_rustscan(
     logger.info(f"  - save_assets: {save_assets}")
     logger.info(f"  - group_ids: {parsed_group_ids}")
     
-    if not target:
-        raise HTTPException(status_code=400, detail="Параметр 'target' обязателен")
+    # Объединяем цели из target и csv_text
+    targets_list = []
+    if target:
+        targets_list.extend([t.strip() for t in target.split(',') if t.strip()])
+    if csv_text:
+        from backend.utils.csv_parser import parse_csv_text
+        csv_targets = parse_csv_text(csv_text)
+        targets_list.extend(csv_targets)
+    
+    if not targets_list:
+        raise HTTPException(status_code=400, detail="Необходимо указать либо 'target', либо 'csv_text'")
+    
+    # Используем первый элемент или объединенный список для имени сканирования
+    scan_target_display = targets_list[0] if len(targets_list) == 1 else f"{len(targets_list)} целей из CSV/target"
     
     try:
         # Создаём запись сканирования
         logger.info(f"\n[Шаг 1/4] Создание записи сканирования в БД...")
         new_scan = Scan(
-            name=f"Rustscan: {target[:50]}",
-            target=target,
+            name=f"Rustscan: {scan_target_display[:50]}",
+            target=scan_target_display,
             scan_type="rustscan",
             status="queued",
             progress=0,
@@ -663,11 +701,6 @@ async def run_rustscan(
         
         # Добавляем задачу в очередь выполнения
         logger.info(f"\n[Шаг 3/4] Подготовка параметров для очереди...")
-        # Разделяем цели по запятой если они перечислены через запятую
-        if target:
-            targets_list = [t.strip() for t in target.split(',') if t.strip()]
-        else:
-            targets_list = []
         parameters = {
             "ports": ports,
             "custom_args": custom_args,
@@ -676,7 +709,7 @@ async def run_rustscan(
             "nmap_scripts": nmap_scripts,
             "save_assets": save_assets,
             "group_ids": parsed_group_ids,
-            "target": target
+            "target": scan_target_display
         }
         logger.info(f"  - targets_list: {targets_list}")
         logger.info(f"  - parameters: {parameters}")

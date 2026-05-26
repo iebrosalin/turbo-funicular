@@ -20,7 +20,8 @@ class RustscanScanner(BaseScanner):
         job_id: int, 
         target: Union[str, Target], 
         ports: Optional[str] = None,
-        nmap_scripts: Optional[str] = None, 
+        nmap_scripts: Optional[str] = None,
+        custom_args: Optional[str] = None, 
         output_dir: Optional[str] = None
     ):
         """
@@ -31,11 +32,13 @@ class RustscanScanner(BaseScanner):
             target: Цель сканирования (IP или домен)
             ports: Порты для сканирования
             nmap_scripts: NSE скрипты для выполнения после сканирования
+            custom_args: Дополнительные аргументы командной строки
             output_dir: Директория для временных файлов
         """
         super().__init__(job_id, target, output_dir)
         self.ports = ports
         self.nmap_scripts = nmap_scripts
+        self.custom_args = custom_args
 
     async def scan(self) -> ScanResult:
         """
@@ -54,6 +57,12 @@ class RustscanScanner(BaseScanner):
         
         if self.ports:
             cmd.extend(["-p", self.ports])
+        
+        # Добавляем кастомные аргументы если указаны
+        if self.custom_args and self.custom_args.strip():
+            custom_args_list = self.custom_args.strip().split()
+            cmd.extend(custom_args_list)
+            logger.info(f"[{self.__class__.__name__}] Добавлены кастомные аргументы: {self.custom_args}")
             
         # Add Nmap arguments if scripts are specified
         if self.nmap_scripts and self.nmap_scripts.strip() and self.nmap_scripts.lower() != "none":

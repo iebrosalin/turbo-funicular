@@ -209,10 +209,18 @@ export class ScanResultsController {
           ? Math.round((new Date(job.completed_at) - new Date(job.started_at)) / 1000) + ' сек'
           : '-';
         
+        // Обрезаем длинную цель для отображения в таблице
+        let targetDisplay = job.target || '-';
+        let targetTitle = '';
+        if (targetDisplay.length > 50) {
+          targetTitle = targetDisplay; // Полный текст для tooltip
+          targetDisplay = targetDisplay.substring(0, 50) + '...';
+        }
+        
         tr.innerHTML = `
           <td>${job.id}</td>
           <td><span class="badge bg-info">${job.scan_type}</span></td>
-          <td>${job.target || '-'}</td>
+          <td class="text-truncate" style="max-width: 200px;" title="${targetTitle}">${targetDisplay}</td>
           <td><span class="badge ${statusClass}">${job.status}</span></td>
           <td>${duration}</td>
           <td>${job.completed_at ? new Date(job.completed_at).toLocaleString('ru-RU') : '-'}</td>
@@ -269,7 +277,12 @@ export class ScanResultsController {
         let html = '';
         if (Array.isArray(nmapQ.queued_jobs)) {
           nmapQ.queued_jobs.forEach(job => { 
-            html += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`; 
+            // Обрезаем длинные цели в списке очереди
+            let targetDisplay = job.target || '';
+            if (targetDisplay.length > 40) {
+              targetDisplay = targetDisplay.substring(0, 40) + '...';
+            }
+            html += `<div class="text-truncate" title="${job.target || ''}">#${job.job_id} (${job.scan_type}) - ${targetDisplay}</div>`; 
           });
         }
         if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
@@ -290,7 +303,12 @@ export class ScanResultsController {
         let html = '';
         if (Array.isArray(rustscanQ.queued_jobs)) {
           rustscanQ.queued_jobs.forEach(job => { 
-            html += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`; 
+            // Обрезаем длинные цели в списке очереди
+            let targetDisplay = job.target || '';
+            if (targetDisplay.length > 40) {
+              targetDisplay = targetDisplay.substring(0, 40) + '...';
+            }
+            html += `<div class="text-truncate" title="${job.target || ''}">#${job.job_id} (${job.scan_type}) - ${targetDisplay}</div>`; 
           });
         }
         if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
@@ -561,7 +579,15 @@ export class ScanResultsController {
           actions += `<button class="btn btn-sm btn-outline-danger btn-delete-job" data-job-id="${job.id}"><i class="bi bi-trash"></i></button> `;
         }
 
-        tr.innerHTML = `<td>${job.id}</td><td><span class="badge bg-info">${job.scan_type}</span></td><td>${job.target}</td><td><span class="badge ${statusClass}">${job.status}</span></td><td><div class="progress" style="height:10px;width:100px;"><div class="progress-bar" style="width:${job.progress}%"></div></div>${job.progress}%</td><td>${new Date(job.created_at).toLocaleString('ru-RU')}</td><td>${actions}</td>`;
+        // Обрезаем длинную цель для отображения в таблице
+        let targetDisplay = job.target || '-';
+        let targetTitle = '';
+        if (targetDisplay.length > 50) {
+          targetTitle = targetDisplay;
+          targetDisplay = targetDisplay.substring(0, 50) + '...';
+        }
+
+        tr.innerHTML = `<td>${job.id}</td><td><span class="badge bg-info">${job.scan_type}</span></td><td class="text-truncate" style="max-width: 200px;" title="${targetTitle}">${targetDisplay}</td><td><span class="badge ${statusClass}">${job.status}</span></td><td><div class="progress" style="height:10px;width:100px;"><div class="progress-bar" style="width:${job.progress}%"></div></div>${job.progress}%</td><td>${new Date(job.created_at).toLocaleString('ru-RU')}</td><td>${actions}</td>`;
         tbody.appendChild(tr);
       });
     } catch (e) {
@@ -589,7 +615,12 @@ export class ScanResultsController {
         let html = '';
         if (Array.isArray(nmapQ.queued_jobs)) {
           nmapQ.queued_jobs.forEach(job => { 
-            html += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`; 
+            // Обрезаем длинные цели в списке очереди
+            let targetDisplay = job.target || '';
+            if (targetDisplay.length > 40) {
+              targetDisplay = targetDisplay.substring(0, 40) + '...';
+            }
+            html += `<div class="text-truncate" title="${job.target || ''}">#${job.job_id} (${job.scan_type}) - ${targetDisplay}</div>`; 
           });
         }
         if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
@@ -609,7 +640,12 @@ export class ScanResultsController {
         let html = '';
         if (Array.isArray(rustscanQ.queued_jobs)) {
           rustscanQ.queued_jobs.forEach(job => { 
-            html += `<div>#${job.job_id} (${job.scan_type}) - ${job.target}</div>`; 
+            // Обрезаем длинные цели в списке очереди
+            let targetDisplay = job.target || '';
+            if (targetDisplay.length > 40) {
+              targetDisplay = targetDisplay.substring(0, 40) + '...';
+            }
+            html += `<div class="text-truncate" title="${job.target || ''}">#${job.job_id} (${job.scan_type}) - ${targetDisplay}</div>`; 
           });
         }
         if (elList) elList.innerHTML = html || '<span class="text-muted">Пусто</span>';
@@ -738,6 +774,9 @@ export class ScanResultsController {
         finalTarget = finalTarget ? `${finalTarget},${csvTargetStr}` : csvTargetStr;
       }
       
+      // Получаем CSV текст если есть
+      const csvText = document.getElementById('nmapCsvTextarea')?.value.trim() || '';
+      
       await Utils.apiRequest('/api/scans/nmap', {
         method: 'POST',
         body: JSON.stringify({
@@ -747,7 +786,8 @@ export class ScanResultsController {
           custom_args: document.getElementById('nmapCustomArgs')?.value || '', 
           known_ports_only: knownOnly, 
           group_ids: groupIds,
-          save_assets: document.getElementById('nmapSaveAssets')?.checked ?? true
+          save_assets: document.getElementById('nmapSaveAssets')?.checked ?? true,
+          csv_text: csvText || null  // Передаем CSV текст если есть
         })
       });
       
@@ -768,6 +808,24 @@ export class ScanResultsController {
     const targetInput = document.getElementById('rustscanTarget');
     const target = targetInput?.value.trim() || '';
     
+    // Получаем CSV данные
+    const csvTextarea = document.getElementById('rustscanCsvTextarea');
+    const csvData = csvTextarea?.value.trim() || '';
+    let csvTargets = [];
+    
+    if (csvData) {
+      try {
+        csvTargets = this.#parseCsvData(csvData);
+        if (csvTargets.length === 0) {
+          alert('CSV файл пустой или имеет неверный формат');
+          return;
+        }
+      } catch (error) {
+        alert('Ошибка парсинга CSV: ' + error.message);
+        return;
+      }
+    }
+    
     // Проверяем, выбран ли режим "Только известные порты"
     const knownOnlyCheckbox = document.getElementById('rustscanKnownOnly');
     const knownOnly = knownOnlyCheckbox?.checked || false;
@@ -775,8 +833,8 @@ export class ScanResultsController {
     const groupSelect = document.getElementById('rustscanGroups');
     const groupIds = groupSelect ? Array.from(groupSelect.selectedOptions).map(opt => opt.value) : [];
 
-    if (!target && !knownOnly) { 
-      // Utils.showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
+    if (!target && !knownOnly && csvTargets.length === 0) { 
+      // Utils.showNotification('Укажите цель или выберите "Только известные порты" или загрузите CSV', 'warning'); 
       return; 
     }
     if (knownOnly && groupIds.length === 0) { 
@@ -785,11 +843,17 @@ export class ScanResultsController {
     }
 
     try {
+      // Объединяем цели из input и CSV
+      let finalTarget = target;
+      if (csvTargets.length > 0) {
+        const csvTargetStr = csvTargets.map(t => t.ip || t.target).join(',');
+        finalTarget = finalTarget ? `${finalTarget},${csvTargetStr}` : csvTargetStr;
+      }
       
       await Utils.apiRequest('/api/scans/rustscan', {
         method: 'POST',
         body: JSON.stringify({
-          target: target || null, 
+          target: finalTarget || null, 
           ports: document.getElementById('rustscanPortsRange')?.value || '',
           custom_args: document.getElementById('rustscanCustomArgs')?.value || '',
           run_nmap_after: document.getElementById('rustscanRunNmap')?.checked || false,
@@ -820,6 +884,24 @@ export class ScanResultsController {
     let targetsText = targetsInput ? targetsInput.value.trim() : '';
     const fileInput = document.getElementById('digFile');
 
+    // Получаем CSV данные из текстового поля
+    const csvTextarea = document.getElementById('digCsvTextarea');
+    const csvData = csvTextarea?.value.trim() || '';
+    let csvTargets = [];
+    
+    if (csvData) {
+      try {
+        csvTargets = this.#parseCsvData(csvData);
+        if (csvTargets.length === 0) {
+          alert('CSV файл пустой или имеет неверный формат');
+          return;
+        }
+      } catch (error) {
+        alert('Ошибка парсинга CSV: ' + error.message);
+        return;
+      }
+    }
+
     
     
 
@@ -836,6 +918,13 @@ export class ScanResultsController {
         // Utils.showNotification('Ошибка чтения файла: ' + error.message, 'danger'); 
         return; 
       }
+    }
+
+    
+    // Добавляем цели из CSV
+    if (csvTargets.length > 0) {
+      const csvDomains = csvTargets.map(t => t.ip || t.target).join('\n');
+      targetsText = targetsText ? `${targetsText}\n${csvDomains}` : csvDomains;
     }
 
     if (!targetsText) { 
@@ -896,6 +985,13 @@ export class ScanResultsController {
         // Utils.showNotification('Ошибка чтения файла: ' + error.message, 'danger'); 
         return; 
       }
+    }
+
+    
+    // Добавляем цели из CSV
+    if (csvTargets.length > 0) {
+      const csvDomains = csvTargets.map(t => t.ip || t.target).join('\n');
+      targetsText = targetsText ? `${targetsText}\n${csvDomains}` : csvDomains;
     }
 
     if (!targetsText) { 
@@ -1113,6 +1209,7 @@ export class ScanResultsController {
     const scanType = scanTypeSelect?.value || 'nmap';
     const groupId = groupSelect?.value ? parseInt(groupSelect.value) : null;
     const saveAssets = saveAssetsCheckbox?.checked ?? true;
+    const customArgs = document.getElementById('csv-custom-args')?.value || '';
     
     try {
       // Используем FormData для отправки файла или текста
@@ -1124,6 +1221,11 @@ export class ScanResultsController {
       formData.append('save_assets', saveAssets.toString());
       if (groupId) {
         formData.append('group_ids', groupId.toString());
+      }
+      if (customArgs) {
+        // Передаем кастомные аргументы как JSON строку в parameters
+        const parameters = { custom_args: customArgs };
+        formData.append('parameters', JSON.stringify(parameters));
       }
       
       const response = await fetch('/api/scans/from-csv/file', {

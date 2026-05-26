@@ -291,17 +291,19 @@ class ScanQueueManager:
                             job_id=scan_job_id, 
                             target=target,
                             ports=parameters.get('ports', ''),
-                            scripts=parameters.get('scripts', '')
+                            scripts=parameters.get('scripts', ''),
+                            custom_args=parameters.get('custom_args', '')
                         )
-                        logger.info(f"[DEBUG] Создан NmapScanner")
+                        logger.info(f"[DEBUG] Создан NmapScanner с custom_args: {parameters.get('custom_args', '')}")
                     elif scan_type == 'rustscan':
                         scanner = RustscanScanner(
                             job_id=scan_job_id, 
                             target=target,
                             ports=parameters.get('ports', ''),
-                            nmap_scripts=parameters.get('nmap_scripts', '')
+                            nmap_scripts=parameters.get('nmap_scripts', ''),
+                            custom_args=parameters.get('custom_args', '')
                         )
-                        logger.info(f"[DEBUG] Создан RustscanScanner")
+                        logger.info(f"[DEBUG] Создан RustscanScanner с custom_args: {parameters.get('custom_args', '')}")
                     elif scan_type == 'dig':
                         record_types = parameters.get('record_types', 'ALL')
                         if isinstance(record_types, str) and record_types != 'ALL':
@@ -311,21 +313,26 @@ class ScanQueueManager:
                         scanner = DigScanner(
                             job_id=scan_job_id, 
                             target=target,
-                            record_types=record_types
+                            record_types=record_types,
+                            custom_args=parameters.get('custom_args', '')
                         )
-                        logger.info(f"[DEBUG] Создан DigScanner")
+                        logger.info(f"[DEBUG] Создан DigScanner с custom_args: {parameters.get('custom_args', '')}")
                     elif scan_type == 'fping':
                         count = parameters.get('count', 3)
                         interval = parameters.get('interval', 1000)
                         timeout = parameters.get('timeout', 500)
+                        custom_args = parameters.get('custom_args', '')
+                        # Преобразуем строку кастомных аргументов в список
+                        extra_args = custom_args.split() if custom_args and custom_args.strip() else []
                         scanner = FpingScanner(
                             job_id=scan_job_id, 
                             target=target,
                             count=count,
                             interval=interval,
-                            timeout=timeout
+                            timeout=timeout,
+                            extra_args=extra_args
                         )
-                        logger.info(f"[DEBUG] Создан FpingScanner")
+                        logger.info(f"[DEBUG] Создан FpingScanner с custom_args: {custom_args}")
                     
                     if not scanner:
                         raise ValueError(f"Неизвестный тип сканирования: {scan_type}")
@@ -368,8 +375,10 @@ class ScanQueueManager:
                             raw_output_value = result_data.get('raw_output', '')
                             output_xml_value = result_data.get('output_xml', '')
                             alive_hosts_value = result_data.get('alive_hosts', [])
+                            all_hosts_value = result_data.get('all_hosts', [])  # Список всех хостов от nmap
 
                             logger.info(f"[DEBUG] Запись alive_hosts в job.parameters: количество={len(alive_hosts_value)}")
+                            logger.info(f"[DEBUG] Запись all_hosts в job.parameters: количество={len(all_hosts_value)}")
                             
                             logger.info(f"[DEBUG] Запись raw_output в job.parameters: длина={len(raw_output_value)}, первые 100 символов: {raw_output_value[:100] if raw_output_value else 'ПУСТО'}")
                             
@@ -391,6 +400,19 @@ class ScanQueueManager:
                                         if host.get("ip") and host.get("ip") not in existing_ips:
                                             job.parameters["alive_hosts"].append(host)
                                             existing_ips.add(host.get("ip"))
+                            
+                            # Для nmap с несколькими хостами - сохраняем список всех хостов
+                            if scan_type == 'nmap' and all_hosts_value:
+                                if "all_hosts" not in job.parameters or not job.parameters["all_hosts"]:
+                                    job.parameters["all_hosts"] = all_hosts_value
+                                else:
+                                    # Объединяем списки хостов, избегая дубликатов по IP
+                                    existing_ips = {h.get("ip") for h in job.parameters["all_hosts"] if h.get("ip")}
+                                    for host in all_hosts_value:
+                                        if host.get("ip") and host.get("ip") not in existing_ips:
+                                            job.parameters["all_hosts"].append(host)
+                                            existing_ips.add(host.get("ip"))
+                            
                             # Для XML от nmap - объединяем все хосты в один XML документ
                             if scan_type == 'nmap' and output_xml_value:
                                 if 'output_xml' not in job.parameters or not job.parameters['output_xml']:
@@ -449,13 +471,114 @@ class ScanQueueManager:
                                 logger.info(f"[AssetManager] Пропуск создания актива для CIDR в fping (живые хосты будут обработаны отдельно): {target}")
                                 continue  # Переходим к следующей цели, живые хосты будут обработаны через alive_hosts
                             
-                            # Создаем или получаем актив
+                            # Для nmap с несколькими хостами (all_hosts) - обрабатываем каждый хост отдельно
+                            if scan_type == 'nmap' and 'all_hosts' in job.parameters and job.parameters['all_hosts']:
+                                logger.info(f"[AssetManager] Обработка {len(job.parameters['all_hosts'])} хостов из all_hosts для nmap")
+                                for host_result in job.parameters['all_hosts']:
+                                    host_ip = host_result.get('ip', '')
+                                    host_hostname = host_result.get('hostname', '')
+                                    
+                                    if not host_ip:
+                                        logger.warning(f"[AssetManager] Пропуск хоста без IP: {host_result}")
+                                        continue
+                                    
+                                    # Определяем FQDN для хоста
+                                    host_fqdn = None
+                                    if host_hostname and host_hostname != host_ip:
+                                        host_fqdn = host_hostname
+                                    
+                                    # Создаем или получаем актив для каждого хоста
+                                    asset = await create_asset_if_not_exists(
+                                        db=db,
+                                        ip_address=host_ip,
+                                        hostname=host_hostname if host_hostname and host_hostname != host_ip else None,
+                                        fqdn=host_fqdn
+                                    )
+                                    
+                                    if asset:
+                                        # Обновляем информацию об активе на основе результатов сканирования
+                                        ports = host_result.get('ports', [])
+                                        if ports:
+                                            port_numbers = [p.get('port') for p in ports if isinstance(p, dict) and p.get('port')]
+                                            logger.info(f"[AssetManager] Найдены открытые порты для {host_ip}: {port_numbers}")
+                                            
+                                            from backend.services.asset_manager import update_asset_ports
+                                            update_asset_ports(asset, scan_type, port_numbers, scanner_name=scan_type)
+                                            
+                                            # Создаем сервисы с детальной информацией
+                                            from backend.services.asset_manager import upsert_service
+                                            for port_data in ports:
+                                                port_num = port_data.get('port')
+                                                if port_num:
+                                                    await upsert_service(
+                                                        db=db,
+                                                        asset=asset,
+                                                        port=port_num,
+                                                        protocol=port_data.get('protocol', 'tcp'),
+                                                        state=port_data.get('state', 'open'),
+                                                        service_name=port_data.get('service', 'unknown'),
+                                                        product=port_data.get('product', ''),
+                                                        version=port_data.get('version', ''),
+                                                        extra_info=port_data.get('extra_info', ''),
+                                                        script_output=port_data.get('script_output', ''),
+                                                        ssl_subject=port_data.get('ssl_subject'),
+                                                        ssl_issuer=port_data.get('ssl_issuer'),
+                                                        scanner_name='nmap'
+                                                    )
+                                        
+                                        # Определяем роль и теги
+                                        from backend.utils import detect_device_role_and_tags
+                                        role_info = detect_device_role_and_tags(asset)
+                                        if role_info['role'] != 'unknown':
+                                            asset.device_type = role_info['role']
+                                        if role_info['tags']:
+                                            current_tags = asset.tags or []
+                                            new_tags = list(set(current_tags + role_info['tags']))
+                                            asset.tags = new_tags
+                                        
+                                        # Сохраняем результат сканирования для этого актива
+                                        logger.info(f"[AssetManager] Сохранение результата сканирования для {host_ip} в базу данных")
+                                        result = ScanResult(
+                                            scan_id=current_scan_id,
+                                            ip_address=host_ip,
+                                            hostname=host_hostname,
+                                            ports=host_result.get('ports', []),
+                                            raw_output=host_result.get('raw_output', str(host_result)),
+                                            output_xml=host_result.get('output_xml'),
+                                            scanned_at=datetime.utcnow()
+                                        )
+                                        db.add(result)
+                                        await db.flush()  # Флешим чтобы получить ID перед коммитом
+                                
+                                # Коммитим все результаты после обработки всех хостов
+                                await db.commit()
+                                
+                                # После обработки всех хостов из all_hosts, пропускаем стандартную обработку target
+                                logger.info(f"[AssetManager] Завершена обработка всех хостов из all_hosts для задачи {job.id}")
+                                continue  # Переходим к следующей цели
+                            
+                            # Создаем или получаем актив (стандартная обработка для одного хоста)
                             from backend.utils import create_asset_if_not_exists
                             hostname = parsed.get('hostname', target)
+                            ip_from_scan = parsed.get('ip', target)  # Получаем реальный IP из результатов сканирования
+                            
+                            # Если сканирование вернуло IP (например, для DNS-имени), используем его
+                            # Иначе используем target как IP (если это уже IP-адрес)
+                            asset_ip = ip_from_scan if ip_from_scan and ip_from_scan != target else target
+                            
+                            # Определяем FQDN: если target был DNS-именем, используем его как FQDN
+                            asset_fqdn = None
+                            if target != asset_ip:
+                                # Target был DNS-именем, сохраняем его как FQDN
+                                asset_fqdn = target
+                            elif hostname and hostname != asset_ip:
+                                asset_fqdn = hostname
+                            
                             asset = await create_asset_if_not_exists(
                                 db=db,
-                                ip_address=target,
-                                hostname=hostname if hostname != target else None
+                                ip_address=asset_ip,
+                                hostname=hostname if hostname != asset_ip else None,
+                                fqdn=asset_fqdn
                             )
                             
                             # Обновляем информацию об активе на основе результатов сканирования
