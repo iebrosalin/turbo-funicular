@@ -808,6 +808,24 @@ export class ScanResultsController {
     const targetInput = document.getElementById('rustscanTarget');
     const target = targetInput?.value.trim() || '';
     
+    // Получаем CSV данные
+    const csvTextarea = document.getElementById('rustscanCsvTextarea');
+    const csvData = csvTextarea?.value.trim() || '';
+    let csvTargets = [];
+    
+    if (csvData) {
+      try {
+        csvTargets = this.#parseCsvData(csvData);
+        if (csvTargets.length === 0) {
+          alert('CSV файл пустой или имеет неверный формат');
+          return;
+        }
+      } catch (error) {
+        alert('Ошибка парсинга CSV: ' + error.message);
+        return;
+      }
+    }
+    
     // Проверяем, выбран ли режим "Только известные порты"
     const knownOnlyCheckbox = document.getElementById('rustscanKnownOnly');
     const knownOnly = knownOnlyCheckbox?.checked || false;
@@ -815,8 +833,8 @@ export class ScanResultsController {
     const groupSelect = document.getElementById('rustscanGroups');
     const groupIds = groupSelect ? Array.from(groupSelect.selectedOptions).map(opt => opt.value) : [];
 
-    if (!target && !knownOnly) { 
-      // Utils.showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
+    if (!target && !knownOnly && csvTargets.length === 0) { 
+      // Utils.showNotification('Укажите цель или выберите "Только известные порты" или загрузите CSV', 'warning'); 
       return; 
     }
     if (knownOnly && groupIds.length === 0) { 
@@ -825,11 +843,17 @@ export class ScanResultsController {
     }
 
     try {
+      // Объединяем цели из input и CSV
+      let finalTarget = target;
+      if (csvTargets.length > 0) {
+        const csvTargetStr = csvTargets.map(t => t.ip || t.target).join(',');
+        finalTarget = finalTarget ? `${finalTarget},${csvTargetStr}` : csvTargetStr;
+      }
       
       await Utils.apiRequest('/api/scans/rustscan', {
         method: 'POST',
         body: JSON.stringify({
-          target: target || null, 
+          target: finalTarget || null, 
           ports: document.getElementById('rustscanPortsRange')?.value || '',
           custom_args: document.getElementById('rustscanCustomArgs')?.value || '',
           run_nmap_after: document.getElementById('rustscanRunNmap')?.checked || false,
@@ -860,6 +884,24 @@ export class ScanResultsController {
     let targetsText = targetsInput ? targetsInput.value.trim() : '';
     const fileInput = document.getElementById('digFile');
 
+    // Получаем CSV данные из текстового поля
+    const csvTextarea = document.getElementById('digCsvTextarea');
+    const csvData = csvTextarea?.value.trim() || '';
+    let csvTargets = [];
+    
+    if (csvData) {
+      try {
+        csvTargets = this.#parseCsvData(csvData);
+        if (csvTargets.length === 0) {
+          alert('CSV файл пустой или имеет неверный формат');
+          return;
+        }
+      } catch (error) {
+        alert('Ошибка парсинга CSV: ' + error.message);
+        return;
+      }
+    }
+
     
     
 
@@ -876,6 +918,13 @@ export class ScanResultsController {
         // Utils.showNotification('Ошибка чтения файла: ' + error.message, 'danger'); 
         return; 
       }
+    }
+
+    
+    // Добавляем цели из CSV
+    if (csvTargets.length > 0) {
+      const csvDomains = csvTargets.map(t => t.ip || t.target).join('\n');
+      targetsText = targetsText ? `${targetsText}\n${csvDomains}` : csvDomains;
     }
 
     if (!targetsText) { 
@@ -936,6 +985,13 @@ export class ScanResultsController {
         // Utils.showNotification('Ошибка чтения файла: ' + error.message, 'danger'); 
         return; 
       }
+    }
+
+    
+    // Добавляем цели из CSV
+    if (csvTargets.length > 0) {
+      const csvDomains = csvTargets.map(t => t.ip || t.target).join('\n');
+      targetsText = targetsText ? `${targetsText}\n${csvDomains}` : csvDomains;
     }
 
     if (!targetsText) { 

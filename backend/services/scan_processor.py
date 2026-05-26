@@ -80,7 +80,11 @@ class ScanProcessor:
             await self.db.commit()
 
     async def _process_nmap(self, job: ScanJob, job_params: Dict[str, Any]):
-        """Обработка результатов Nmap из XML строки."""
+        """Обработка результатов Nmap из XML строки.
+        
+        Активность актива определяется ТОЛЬКО наличием открытых портов.
+        Если target был DNS-именем, он сохраняется в поле fqdn.
+        """
         # Сначала пробуем получить XML из output_xml, затем из raw_output для обратной совместимости
         xml_str = job_params.get('output_xml', '') or job_params.get('raw_output', '')
         
@@ -208,7 +212,12 @@ class ScanProcessor:
         logger.info(f"Nmap: Обработано {hosts_count} хостов.")
 
     async def _process_rustscan(self, job: ScanJob, job_params: Dict[str, Any]):
-        """Обработка результатов Rustscan из raw_output."""
+        """Обработка результатов Rustscan из raw_output.
+        
+        Активность актива определяется ТОЛЬКО наличием открытых портов.
+        Rustscan сканирует порты и создаёт активы с открытыми портами как 'active',
+        а без открытых портов - как 'inactive'.
+        """
         raw_output = job_params.get('raw_output', '')
         
         if not raw_output:
@@ -269,7 +278,12 @@ class ScanProcessor:
         logger.info(f"Rustscan: Обработано {hosts_count} хостов.")
 
     async def _process_dig(self, job: ScanJob, job_params: Dict[str, Any]):
-        """Обработка результатов Dig из данных задачи."""
+        """Обработка результатов Dig из данных задачи.
+        
+        Важно: DNS-записи НЕ делают актив активным!
+        Активность актива определяется ТОЛЬКО наличием открытых портов.
+        Dig только подтверждает существование DNS-записей и обновляет last_dns_scan.
+        """
         # Получаем DNS записи из параметров задачи
         dns_records = job_params.get('dns_records', [])
         
@@ -333,7 +347,9 @@ class ScanProcessor:
     async def _process_fping(self, job: ScanJob, job_params: Dict[str, Any]):
         """Обработка результатов fping из данных задачи.
         
-        Критерий активности: хост считается живым, если получен хотя бы один ICMP-ответ.
+        Важно: ответ на ICMP (ping) НЕ делает актив активным!
+        Активность актива определяется ТОЛЬКО наличием открытых портов.
+        Fping только подтверждает существование хоста и обновляет last_fping.
         """
         alive_hosts = job_params.get('alive_hosts', [])
         
@@ -538,7 +554,7 @@ class ScanProcessor:
         # Активность актива подтверждается только наличием открытых портов!
         # При сканировании dig не обновляем статус, т.к. оно только обновляет DNS/PTR
         # При сканировании fping также проверяем только порты (не факт ответа на ping)
-        if scan_type != 'dig':
+        if scan_type not in ['dig', 'fping']:
             current_open_ports = asset.open_ports or []
             if len(current_open_ports) > 0:
                 if asset.status != 'active':
