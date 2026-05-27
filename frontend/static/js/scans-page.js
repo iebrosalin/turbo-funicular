@@ -1603,24 +1603,6 @@ export class ScanResultsController {
     return hostRegex.test(str);
   }
 }
-    
-    // CIDR IPv4 (например, 192.168.1.0/24)
-    const cidrRegex = /^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/;
-    if (cidrRegex.test(str)) {
-      const parts = str.split('/');
-      const ipParts = parts[0].split('.').map(Number);
-      const mask = parseInt(parts[1]);
-      return ipParts.every(p => p >= 0 && p <= 255) && mask >= 0 && mask <= 32;
-    }
-    
-    // IPv4
-    if (str.includes(':')) return true;
-    
-    // Hostname
-    const hostRegex = /^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/;
-    return hostRegex.test(str);
-  }
-}
 
 // Инициализация контроллера после загрузки DOM
 // Используем setTimeout чтобы убедиться, что DOM полностью готов
