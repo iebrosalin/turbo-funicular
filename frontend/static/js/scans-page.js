@@ -588,6 +588,8 @@ export class ScanResultsController {
           actions += `<button class="btn btn-sm btn-outline-warning btn-stop-job" data-job-id="${job.id}"><i class="bi bi-stop-fill"></i></button> `;
         }
         if (['completed', 'failed', 'stopped', 'cancelled'].includes(job.status)) {
+          // Кнопка просмотра результатов
+          actions += `<button class="btn btn-sm btn-outline-primary me-1" onclick="window.scanResultsController.viewScanResults(${job.id})"><i class="bi bi-eye"></i></button>`;
           actions += `<button class="btn btn-sm btn-outline-primary btn-retry-job" data-job-id="${job.id}"><i class="bi bi-arrow-clockwise"></i></button> `;
         }
         if (job.status === 'completed') {

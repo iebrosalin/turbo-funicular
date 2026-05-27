@@ -5,7 +5,7 @@ import ipaddress
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
 
 from backend.models.asset import Asset
@@ -535,11 +535,19 @@ class ScanProcessor:
             # Обновляем rustscan_ports всегда (даже если пустой список)
             asset.rustscan_ports = new_open_ports
             logger.info(f"[DEBUG _upsert_asset] {ip}: last_rustscan установлен в {now}, rustscan_ports={new_open_ports}")
+            # Обновляем open_ports как объединение rustscan_ports и nmap_ports
+            all_ports = set(asset.rustscan_ports or []) | set(asset.nmap_ports or [])
+            asset.open_ports = sorted(list(all_ports))
+            logger.info(f"[DEBUG _upsert_asset] {ip}: open_ports обновлён до {asset.open_ports}")
         elif scan_type == 'nmap':
             asset.last_nmap = now
             # Обновляем nmap_ports всегда (даже если пустой список)
             asset.nmap_ports = new_open_ports
             logger.info(f"[DEBUG _upsert_asset] {ip}: last_nmap установлен в {now}, nmap_ports={new_open_ports}")
+            # Обновляем open_ports как объединение rustscan_ports и nmap_ports
+            all_ports = set(asset.rustscan_ports or []) | set(asset.nmap_ports or [])
+            asset.open_ports = sorted(list(all_ports))
+            logger.info(f"[DEBUG _upsert_asset] {ip}: open_ports обновлён до {asset.open_ports}")
         elif scan_type == 'dig':
             asset.last_dns_scan = now
             logger.info(f"[DEBUG _upsert_asset] {ip}: last_dns_scan установлен в {now}")
@@ -596,8 +604,10 @@ class ScanProcessor:
 
     async def _upsert_services(self, asset: Asset, services_data: List[Dict[str, Any]]):
         """Создает или обновляет сервисы для актива."""
-        # Удаляем старые сервисы для этого актива (полная замена)
-        asset.services.clear()
+        # Удаляем старые сервисы для этого актива через прямой запрос
+        await self.db.execute(
+            delete(ServiceInventory).where(ServiceInventory.asset_id == asset.id)
+        )
         await self.db.flush()  # Применяем удаление перед добавлением новых
         
         for svc in services_data:
