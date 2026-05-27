@@ -6,7 +6,7 @@ import { Utils } from './modules/utils.js';
  * Контроллер страницы управления сканированиями.
  * Обработка форм, обновление статуса очередей и управление историей заданий.
  */
-export class ScanResultsController {
+class ScanResultsController {
   constructor() {
     this.pollingInterval = null;
     this.assetsContainer = document.getElementById('assets-container');
