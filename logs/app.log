@@ -422,3 +422,25 @@ localhost : xmt/rcv/%loss = 1/1/0%, min/a
 2026-05-25 07:13:10,204 | INFO     | backend.services.scan_queue_manager:570 | _run_scan | [DEBUG] Сканирование 2 завершено успешно
 2026-05-25 07:13:10,205 | INFO     | backend.services.scan_queue_manager:571 | _run_scan | Сканирование 2 завершено
 2026-05-25 07:13:10,205 | INFO     | backend.services.scan_queue_manager:600 | _run_scan | [DEBUG] Очистка задач из _tasks и _progress для 2
+2026-05-27 06:50:33,154 | INFO     | backend.main:86 | <module> | 🔧 Система логирования инициализирована
+2026-05-27 06:50:33,155 | INFO     | backend.main:87 | <module> | 📁 Логи записываются в: /workspace/logs
+2026-05-27 06:50:33,519 | INFO     | backend.main:312 | <module> | ✅ RedCheck integration router подключён
+2026-05-27 06:50:33,776 | INFO     | backend.main:320 | <module> | ✅ Projects router подключён
+2026-05-27 06:50:33,820 | INFO     | __main__:40 | <module> | ============================================================
+2026-05-27 06:50:33,820 | INFO     | __main__:41 | <module> | 🚀 Starting Network Asset Manager...
+2026-05-27 06:50:33,820 | INFO     | __main__:42 | <module> | ============================================================
+2026-05-27 06:50:33,820 | INFO     | __main__:43 | <module> | Database: SQLite (/workspace/data/app.db)
+2026-05-27 06:50:33,820 | INFO     | __main__:44 | <module> | 
+2026-05-27 06:50:33,820 | INFO     | __main__:45 | <module> | 🌐 Доступные интерфейсы для подключения:
+2026-05-27 06:50:33,820 | INFO     | __main__:46 | <module> |    ➤ http://127.0.0.1:5000
+2026-05-27 06:50:33,820 | INFO     | __main__:47 | <module> | 
+2026-05-27 06:50:33,820 | INFO     | __main__:48 | <module> | 📚 API Documentation: http://127.0.0.1:5000/docs
+2026-05-27 06:50:33,820 | INFO     | __main__:49 | <module> | 🏠 Web Interface:     http://127.0.0.1:5000/
+2026-05-27 06:50:33,820 | INFO     | __main__:50 | <module> | ============================================================
+2026-05-27 06:50:34,036 | INFO     | backend.main:111 | lifespan | ✅ База данных проверена и инициализирована.
+2026-05-27 06:50:34,037 | INFO     | backend.main:116 | lifespan | ✅ Таблица asset_change_logs создана/проверена.
+2026-05-27 06:50:34,040 | INFO     | backend.main:182 | lifespan | ✅ Подключение к базе данных установлено.
+2026-05-27 06:50:34,040 | INFO     | backend.main:187 | lifespan | 🚀 Приложение успешно запущено.
+2026-05-27 06:50:34,040 | INFO     | backend.services.scan_queue_manager:42 | start | ScanQueueManager запущен
+2026-05-27 06:52:04,699 | INFO     | backend.main:193 | lifespan | 🛑 Остановка приложения...
+2026-05-27 06:52:04,699 | INFO     | backend.services.scan_queue_manager:64 | stop | ScanQueueManager остановлен
