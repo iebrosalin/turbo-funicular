@@ -784,10 +784,10 @@ export class ScanResultsController {
       }
     }
 
-    if (!target && !knownOnly && csvTargets.length === 0) { 
+    if (!target && !knownOnly) { 
       const errorDiv = document.getElementById('nmapCsvError');
       if (errorDiv) {
-        errorDiv.textContent = 'Укажите цель сканирования или загрузите CSV файл со списком целей';
+        errorDiv.textContent = 'Укажите цель сканирования';
         errorDiv.classList.remove('d-none');
       }
       return; 
@@ -871,8 +871,8 @@ export class ScanResultsController {
     const groupSelect = document.getElementById('rustscanGroups');
     const groupIds = groupSelect ? Array.from(groupSelect.selectedOptions).map(opt => opt.value) : [];
 
-    if (!target && !knownOnly && csvTargets.length === 0) { 
-      // Utils.showNotification('Укажите цель или выберите "Только известные порты" или загрузите CSV', 'warning'); 
+    if (!target && !knownOnly) { 
+      // Utils.showNotification('Укажите цель или выберите "Только известные порты"', 'warning'); 
       return; 
     }
     if (knownOnly && groupIds.length === 0) { 
@@ -966,7 +966,7 @@ export class ScanResultsController {
     }
 
     if (!targetsText) { 
-      // Utils.showNotification('Введите домен или загрузите файл', 'warning'); 
+      // Utils.showNotification('Введите домен', 'warning'); 
       return; 
     }
 
@@ -1234,14 +1234,11 @@ export class ScanResultsController {
       }
     } else if (textInput.value.trim()) {
       csvText = textInput.value.trim();
-    } else {
-      alert('Выберите CSV файл или вставьте список адресов в текстовое поле');
-      return;
     }
     
+    // CSV теперь полностью опционально - можно запустить без него
     if (!csvText || !csvText.trim()) {
-      alert('CSV содержимое пустое');
-      return;
+      csvText = null;
     }
     
     const scanType = scanTypeSelect?.value || 'nmap';
