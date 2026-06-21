@@ -185,27 +185,24 @@ class AssetService:
         
         # Предзагрузка связанных объектов services
         services_data = []
-        try:
-            if 'services' not in inspect(asset).unloaded:
-                for service in asset.services:
-                    services_data.append({
-                        'id': service.id,
-                        'port': service.port,
-                        'protocol': service.protocol,
-                        'state': service.state,
-                        'service_name': service.service_name,
-                        'product': service.product,
-                        'version': service.version,
-                        'extra_info': service.extra_info,
-                        'ssl_subject': service.ssl_cert_subject,
-                        'ssl_issuer': service.ssl_cert_issuer,
-                        'ssl_not_before': service.ssl_cert_not_before.isoformat() if service.ssl_cert_not_before else None,
-                        'ssl_not_after': service.ssl_cert_not_after.isoformat() if service.ssl_cert_not_after else None,
-                        'script_output': service.scripts,
-                        'scripts': service.scripts  # Добавлено для совместимости с шаблоном
-                    })
-        except Exception:
-            services_data = []
+        if 'services' in asset.__dict__:
+            for service in asset.services:
+                services_data.append({
+                    'id': service.id,
+                    'port': service.port,
+                    'protocol': service.protocol,
+                    'state': service.state,
+                    'service_name': service.service_name,
+                    'product': service.product,
+                    'version': service.version,
+                    'extra_info': service.extra_info,
+                    'ssl_subject': service.ssl_cert_subject,
+                    'ssl_issuer': service.ssl_cert_issuer,
+                    'ssl_not_before': service.ssl_cert_not_before.isoformat() if service.ssl_cert_not_before else None,
+                    'ssl_not_after': service.ssl_cert_not_after.isoformat() if service.ssl_cert_not_after else None,
+                    'script_output': service.scripts,
+                    'scripts': service.scripts  # Добавлено для совместимости с шаблоном
+                })
         
         # Предзагрузка групп
         groups_data = [{'id': g.id, 'name': g.name} for g in asset.groups]
