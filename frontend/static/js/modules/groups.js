@@ -187,12 +187,12 @@ export class GroupManager {
       const secCommon = document.getElementById('sectionCommon');
       
       // Загружаем данные корневой группы для отображения её названия
-      let rootGroupName = 'Организация';
+      let rootGroupName = 'Root';
       try {
         const res = await fetch('/api/groups/0');
         if (res.ok) {
           const data = await res.json();
-          rootGroupName = data.name || 'Организация';
+          rootGroupName = data.name || 'Root';
         }
       } catch (err) {
         console.warn('[showRenameModal] Не удалось загрузить название корневой группы:', err);
@@ -202,7 +202,7 @@ export class GroupManager {
       if (parentSelect) {
         parentSelect.disabled = true;
         // Устанавливаем опцию корня с названием группы
-        parentSelect.innerHTML = `<option value="">-- ${rootGroupName} (корневая) --</option>`;
+        parentSelect.innerHTML = `<option value="">-- ${rootGroupName} --</option>`;
         parentSelect.value = '';
       }
       

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Скрипт инициализации базы данных.
-Создает все таблицы если они не существуют и создает корневую группу "Организация".
+Создает все таблицы если они не существуют и создает корневую группу.
 """
 import asyncio
 import sys
@@ -52,7 +52,7 @@ async def init_db():
         print(f"✓ Создано таблиц: {len(tables)}")
         print(f"Таблицы: {', '.join(tables)}")
         
-        # Создаем корневую группу "Организация" если она не существует
+        # Создаем корневую группу если она не существует
         from sqlalchemy import select
         from backend.models.group import Group as AssetGroup
         
@@ -78,14 +78,14 @@ async def init_db():
                     insert_query,
                     {
                         "uuid": str(uuid.uuid4()),
-                        "name": "Организация",
+                        "name": "Root",
                         "description": "__root_organization__",
                         "parent_id": None,
                         "group_type": "manual",
                         "is_dynamic": False
                     }
                 )
-                print(f"✓ Создана корневая группа 'Организация' с ID 0")
+                print(f"✓ Создана корневая группа с ID 0")
             else:
                 # Обновляем существующую группу, устанавливая id=0 если нужно
                 if root_group_obj["id"] != 0:
@@ -93,9 +93,9 @@ async def init_db():
                     await conn.execute(update_query, {"old_id": root_group_obj["id"]})
                     print(f"✓ ID корневой группы обновлен на 0")
                 else:
-                    print(f"✓ Корневая группа 'Организация' уже существует (ID: {root_group_obj['id']})")
+                    print(f"✓ Корневая группа уже существует (ID: {root_group_obj['id']})")
         else:
-            print(f"✓ Корневая группа 'Организация' уже существует (ID: {root_group['id']})")
+            print(f"✓ Корневая группа уже существует (ID: {root_group['id']})")
 
 
 if __name__ == "__main__":

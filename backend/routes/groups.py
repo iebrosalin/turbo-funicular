@@ -80,7 +80,7 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     # Если корневой группы нет, создаём её
     if not root_group:
         root_group = AssetGroup(
-            name="Организация",
+            name="Root",
             description="__root_organization__",
             parent_id=None
         )
@@ -156,7 +156,7 @@ async def get_group(group_id: int, db: AsyncSession = Depends(get_db)):
                 # Создаем корневую группу если не существует
                 group = AssetGroup(
                     id=0,
-                    name="Организация",
+                    name="Root",
                     description="__root_organization__",
                     parent_id=None,
                     group_type="manual"
@@ -351,7 +351,7 @@ async def rename_root_group(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Переименовать корневую группу "Организация".
+    Переименовать корневую группу.
     """
     from sqlalchemy import select
     
@@ -391,7 +391,7 @@ async def rename_root_group(
 @router.get("/root")
 async def get_root_group(db: AsyncSession = Depends(get_db)):
     """
-    Получить корневую группу "Организация".
+    Получить корневую группу.
     """
     from sqlalchemy import select
     
@@ -402,7 +402,7 @@ async def get_root_group(db: AsyncSession = Depends(get_db)):
     if not root_group:
         # Создаем корневую группу если не существует
         root_group = AssetGroup(
-            name="Организация",
+            name="Root",
             description="__root_organization__",
             parent_id=None,
             group_type="manual"

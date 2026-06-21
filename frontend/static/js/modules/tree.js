@@ -36,7 +36,7 @@ export class TreeManager {
     }
 
     // Формируем полный HTML для рендеринга
-    const rootName = counts.root_name || 'Организация';
+    const rootName = counts.root_name || 'Root';
     
     // Отделяем корневую группу (id=0) от пользовательских групп
     let userGroups = [];
@@ -763,7 +763,7 @@ export class TreeManager {
       // Добавляем данные корневой группы в counts
       if (rootGroup) {
         counts.root_id = rootGroup.id;
-        counts.root_name = rootGroup.name || 'Организация';
+        counts.root_name = rootGroup.name || 'Root';
         // Считаем активы корневой группы как сумму всех активов в дереве
         let rootCount = counts.ungrouped || 0;
         groups.forEach(g => {
