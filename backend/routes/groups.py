@@ -72,19 +72,23 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     """Получить дерево групп с подсчётом активов."""
     from backend.models.asset import asset_groups, Asset
     
-    # Получаем корневую группу
-    root_query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
+    # Получаем корневую группу по id=0
+    root_query = select(AssetGroup).where(AssetGroup.id == 0)
     root_result = await db.execute(root_query)
     root_group = root_result.scalar_one_or_none()
     
     # Если корневой группы нет, создаём её
     if not root_group:
         root_group = AssetGroup(
+            id=0,
             name="Root",
-            description="__root_organization__",
             parent_id=None
         )
         db.add(root_group)
+        await db.commit()
+        await db.refresh(root_group)
+    elif root_group.name != "Root":
+        root_group.name = "Root"
         await db.commit()
         await db.refresh(root_group)
     
@@ -97,9 +101,7 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     root_group.direct_count = root_group.assets_count
     
     # Получаем все остальные группы (кроме корневой)
-    query = select(AssetGroup).where(
-        AssetGroup.description != "__root_organization__"
-    ).order_by(AssetGroup.name)
+    query = select(AssetGroup).where(AssetGroup.id != 0).order_by(AssetGroup.name)
     result = await db.execute(query)
     groups = list(result.scalars().all())
     
@@ -147,31 +149,16 @@ async def get_group(group_id: int, db: AsyncSession = Depends(get_db)):
         group = result.scalar_one_or_none()
         
         if not group:
-            # Пробуем найти по описанию для обратной совместимости
-            query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
-            result = await db.execute(query)
-            group = result.scalar_one_or_none()
-            
-            if not group:
-                # Создаем корневую группу если не существует
-                group = AssetGroup(
-                    id=0,
-                    name="Root",
-                    description="__root_organization__",
-                    parent_id=None,
-                    group_type="manual"
-                )
-                db.add(group)
-                await db.commit()
-                await db.refresh(group)
-            else:
-                # Обновляем ID существующей корневой группы на 0 и имя на Root
-                if group.id != 0:
-                    group.id = 0
-                if group.name != "Root":
-                    group.name = "Root"
-                await db.commit()
-                await db.refresh(group)
+            # Создаем корневую группу если не существует
+            group = AssetGroup(
+                id=0,
+                name="Root",
+                parent_id=None,
+                group_type="manual"
+            )
+            db.add(group)
+            await db.commit()
+            await db.refresh(group)
         else:
             # Обновляем имя если оно еще старое
             if group.name != "Root":
@@ -363,8 +350,8 @@ async def rename_root_group(
     """
     from sqlalchemy import select
     
-    # Находим корневую группу по специальному маркеру в описании
-    query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
+    # Находим корневую группу по id=0
+    query = select(AssetGroup).where(AssetGroup.id == 0)
     result = await db.execute(query)
     root_group = result.scalar_one_or_none()
     
@@ -372,8 +359,8 @@ async def rename_root_group(
         # Создаем корневую группу если не существует
         from backend.schemas.group import GroupCreate
         root_group = AssetGroup(
+            id=0,
             name=name,
-            description="__root_organization__",
             parent_id=None,
             group_type="manual"
         )
@@ -403,15 +390,15 @@ async def get_root_group(db: AsyncSession = Depends(get_db)):
     """
     from sqlalchemy import select
     
-    query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
+    query = select(AssetGroup).where(AssetGroup.id == 0)
     result = await db.execute(query)
     root_group = result.scalar_one_or_none()
     
     if not root_group:
         # Создаем корневую группу если не существует
         root_group = AssetGroup(
+            id=0,
             name="Root",
-            description="__root_organization__",
             parent_id=None,
             group_type="manual"
         )
@@ -419,11 +406,14 @@ async def get_root_group(db: AsyncSession = Depends(get_db)):
         await db.commit()
         await db.refresh(root_group)
     else:
-        # Обновляем имя если оно еще старое
+        if root_group.description == "__root_organization__":
+            root_group.description = None
         if root_group.name != "Root":
             root_group.name = "Root"
-            await db.commit()
-            await db.refresh(root_group)
+        if root_group.id != 0:
+            root_group.id = 0
+        await db.commit()
+        await db.refresh(root_group)
     
     return root_group
 

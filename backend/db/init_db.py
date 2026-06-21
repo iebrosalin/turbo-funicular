@@ -62,44 +62,25 @@ async def init_db():
         root_group = result.mappings().first()
         
         if not root_group:
-            # Проверяем группу по описанию (для обратной совместимости)
-            query = select(AssetGroup).where(AssetGroup.description == "__root_organization__")
-            result = await conn.execute(query)
-            root_group_obj = result.mappings().first()
-            
-            if not root_group_obj:
-                # Вставляем корневую группу с id=0
-                insert_query = text("""
-                    INSERT INTO groups (id, uuid, name, description, parent_id, group_type, is_dynamic, created_at)
-                    VALUES (0, :uuid, :name, :description, :parent_id, :group_type, :is_dynamic, datetime('now'))
-                """)
-                import uuid
-                await conn.execute(
-                    insert_query,
-                    {
-                        "uuid": str(uuid.uuid4()),
-                        "name": "Root",
-                        "description": "__root_organization__",
-                        "parent_id": None,
-                        "group_type": "manual",
-                        "is_dynamic": False
-                    }
-                )
-                print(f"✓ Создана корневая группа с ID 0")
-            else:
-                # Обновляем существующую группу, устанавливая id=0 если нужно
-                if root_group_obj["id"] != 0:
-                    update_query = text("UPDATE groups SET id = 0, name = :name WHERE id = :old_id")
-                    await conn.execute(update_query, {"old_id": root_group_obj["id"], "name": "Root"})
-                    print(f"✓ ID корневой группы обновлен на 0, имя изменено на Root")
-                else:
-                    # Обновляем имя если оно еще старое
-                    update_query = text("UPDATE groups SET name = :name WHERE id = 0 AND name != :name")
-                    await conn.execute(update_query, {"name": "Root"})
-                    print(f"✓ Корневая группа существует (ID: {root_group_obj['id']}), имя обновлено на Root")
+            # Вставляем корневую группу с id=0
+            insert_query = text("""
+                INSERT INTO groups (id, uuid, name, parent_id, group_type, is_dynamic, created_at)
+                VALUES (0, :uuid, :name, :parent_id, :group_type, :is_dynamic, datetime('now'))
+            """)
+            import uuid
+            await conn.execute(
+                insert_query,
+                {
+                    "uuid": str(uuid.uuid4()),
+                    "name": "Root",
+                    "parent_id": None,
+                    "group_type": "manual",
+                    "is_dynamic": False
+                }
+            )
+            print(f"✓ Создана корневая группа с ID 0")
         else:
-            # Обновляем имя если оно старое
-            update_query = text("UPDATE groups SET name = :name WHERE id = 0 AND name != :name")
+            update_query = text("UPDATE groups SET name = :name, description = NULL WHERE id = 0")
             await conn.execute(update_query, {"name": "Root"})
             print(f"✓ Корневая группа уже существует (ID: {root_group['id']}), имя обновлено на Root")
 
