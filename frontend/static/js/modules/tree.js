@@ -102,7 +102,7 @@ export class TreeManager {
     const node = document.createElement('div');
     node.className = 'tree-node';
     node.dataset.id = group.id;
-    node.style.paddingLeft = `${depth * 20}px`;
+    node.style.paddingLeft = `${depth * 5}px`;
 
     // Добавляем иконку сворачивания/разворачивания для групп с детьми
     const hasChildren = group.has_children || (group.children && group.children.length > 0);
@@ -747,17 +747,44 @@ export class TreeManager {
       let groups = [];
       let counts = {};
 
-      if (data.flat && Array.isArray(data.flat)) {
+      if (data.tree && Array.isArray(data.tree)) {
+        groups = data.tree;
+      } else if (data.flat && Array.isArray(data.flat)) {
         groups = data.flat;
-        groups.forEach(g => {
-          counts[g.id] = g.direct_count ?? g.count ?? g.asset_count ?? 0;
-        });
-        counts.ungrouped = data.ungrouped_count ?? 0;
       } else if (Array.isArray(data)) {
         groups = data;
       } else if (data.groups) {
         groups = data.groups;
         counts = data.counts ?? {};
+      }
+
+      if (data.flat && Array.isArray(data.flat)) {
+        data.flat.forEach(g => {
+          counts[g.id] = g.direct_count ?? g.count ?? g.asset_count ?? 0;
+        });
+        counts.ungrouped = data.ungrouped_count ?? 0;
+      }
+
+      // Если используем плоский массив вместо уже построенного дерева, пытаемся его сконвертировать
+      if (groups.length > 0 && groups[0] && groups[0].children === undefined && data.flat && Array.isArray(data.flat)) {
+        const groupById = new Map(data.flat.map(g => [String(g.id), { ...g, children: [] }]));
+        const tree = [];
+
+        data.flat.forEach(g => {
+          const listItem = groupById.get(String(g.id));
+          if (g.parent_id === null || g.parent_id === undefined || String(g.parent_id) === '0') {
+            tree.push(listItem);
+          } else {
+            const parent = groupById.get(String(g.parent_id));
+            if (parent) {
+              parent.children.push(listItem);
+            } else {
+              tree.push(listItem);
+            }
+          }
+        });
+
+        groups = tree;
       }
 
       // Добавляем данные корневой группы в counts
