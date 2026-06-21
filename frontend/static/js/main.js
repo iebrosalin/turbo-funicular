@@ -191,23 +191,8 @@ class App {
       });
     }
 
-    // Обработчик формы группы
-    const groupEditForm = document.getElementById('groupEditForm');
-    if (groupEditForm) {
-      groupEditForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        groupManager.saveGroup();
-      });
-    }
-
-    // Обработчик формы перемещения группы
-    const groupMoveForm = document.getElementById('groupMoveForm');
-    if (groupMoveForm) {
-      groupMoveForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        groupManager.moveGroup();
-      });
-    }
+    // Обработчики формы группы и перемещения подключаются в GroupManager.
+    // Дополнительные дублирующие слушатели здесь не нужны.
     
     // Обработчик формы актива удалён - ручное добавление активов отключено
 
