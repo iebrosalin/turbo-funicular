@@ -172,7 +172,7 @@ async def get_assets(
         ungrouped=ungrouped, 
         source=source,
         rules=filter_rules,
-        include_services=include_taxonomy  # Загружаем сервисы если нужна таксономия
+        include_services=True  # Всегда загружаем services, чтобы _asset_to_dict не вызывал lazy-load в async-сессии
     )
     
     # Возвращаем все активы без пагинации
