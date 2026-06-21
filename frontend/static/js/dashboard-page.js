@@ -4,7 +4,7 @@ import { Utils } from './modules/utils.js';
 import { AssetManager } from './modules/assets.js';
 import { FilterAutocompleteManager } from './filter-helpers.js';
 import { treeManager, refreshGroupTree } from './modules/tree.js';
-import { GroupManager } from './modules/groups.js';
+import { groupManager } from './modules/index.js';
 import { FilterBuilder } from './filter-builder.js';
 
 /**
@@ -23,7 +23,7 @@ export class DashboardController {
     
     this.assetManager = new AssetManager('table-body');
     this.filterAutocomplete = new FilterAutocompleteManager();
-    this.groupManager = new GroupManager();
+    this.groupManager = groupManager;
     
     this.#init();
   }
