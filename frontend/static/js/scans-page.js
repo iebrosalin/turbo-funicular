@@ -1026,6 +1026,23 @@ export class ScanResultsController {
     }
 
     
+    // Получаем CSV данные из текстового поля (если есть)
+    const csvTextarea = document.getElementById('fpingCsvTextarea');
+    const csvData = csvTextarea?.value.trim() || '';
+    let csvTargets = [];
+    if (csvData) {
+      try {
+        csvTargets = this.#parseCsvData(csvData);
+        if (csvTargets.length === 0) {
+          // Ничего не делать — CSV пустой
+        }
+      } catch (error) {
+        console.error('Ошибка парсинга CSV:', error);
+        // Показ ошибки пользователю можно добавить при необходимости
+        return;
+      }
+    }
+
     // Добавляем цели из CSV
     if (csvTargets.length > 0) {
       const csvDomains = csvTargets.map(t => t.ip || t.target).join('\n');
