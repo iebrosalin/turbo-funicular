@@ -165,11 +165,19 @@ async def get_group(group_id: int, db: AsyncSession = Depends(get_db)):
                 await db.commit()
                 await db.refresh(group)
             else:
-                # Обновляем ID существующей корневой группы на 0
+                # Обновляем ID существующей корневой группы на 0 и имя на Root
                 if group.id != 0:
                     group.id = 0
-                    await db.commit()
-                    await db.refresh(group)
+                if group.name != "Root":
+                    group.name = "Root"
+                await db.commit()
+                await db.refresh(group)
+        else:
+            # Обновляем имя если оно еще старое
+            if group.name != "Root":
+                group.name = "Root"
+                await db.commit()
+                await db.refresh(group)
     else:
         service = GroupService(db)
         group = await service.get_by_id(group_id)
@@ -410,6 +418,12 @@ async def get_root_group(db: AsyncSession = Depends(get_db)):
         db.add(root_group)
         await db.commit()
         await db.refresh(root_group)
+    else:
+        # Обновляем имя если оно еще старое
+        if root_group.name != "Root":
+            root_group.name = "Root"
+            await db.commit()
+            await db.refresh(root_group)
     
     return root_group
 

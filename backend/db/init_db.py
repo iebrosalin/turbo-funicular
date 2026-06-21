@@ -89,13 +89,19 @@ async def init_db():
             else:
                 # Обновляем существующую группу, устанавливая id=0 если нужно
                 if root_group_obj["id"] != 0:
-                    update_query = text("UPDATE groups SET id = 0 WHERE id = :old_id")
-                    await conn.execute(update_query, {"old_id": root_group_obj["id"]})
-                    print(f"✓ ID корневой группы обновлен на 0")
+                    update_query = text("UPDATE groups SET id = 0, name = :name WHERE id = :old_id")
+                    await conn.execute(update_query, {"old_id": root_group_obj["id"], "name": "Root"})
+                    print(f"✓ ID корневой группы обновлен на 0, имя изменено на Root")
                 else:
-                    print(f"✓ Корневая группа уже существует (ID: {root_group_obj['id']})")
+                    # Обновляем имя если оно еще старое
+                    update_query = text("UPDATE groups SET name = :name WHERE id = 0 AND name != :name")
+                    await conn.execute(update_query, {"name": "Root"})
+                    print(f"✓ Корневая группа существует (ID: {root_group_obj['id']}), имя обновлено на Root")
         else:
-            print(f"✓ Корневая группа уже существует (ID: {root_group['id']})")
+            # Обновляем имя если оно старое
+            update_query = text("UPDATE groups SET name = :name WHERE id = 0 AND name != :name")
+            await conn.execute(update_query, {"name": "Root"})
+            print(f"✓ Корневая группа уже существует (ID: {root_group['id']}), имя обновлено на Root")
 
 
 if __name__ == "__main__":
