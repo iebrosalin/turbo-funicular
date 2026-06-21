@@ -65,6 +65,7 @@ export class Utils {
         let options = '';
         nodes.forEach(node => {
           if (excludeIds.includes(String(node.id))) return;
+          if (node.id === 0) return; // root group отображаем только как базовую опцию
 
           // Используем символы тире для визуализации иерархии, так как CSS padding не работает в <option>
           const prefix = level > 0 ? '— '.repeat(level) : '';

@@ -763,7 +763,7 @@ export class TreeManager {
       // Добавляем данные корневой группы в counts
       if (rootGroup) {
         counts.root_id = rootGroup.id;
-        counts.root_name = rootGroup.name || 'Root';
+        counts.root_name = rootGroup.name && rootGroup.name !== 'Root' ? rootGroup.name : 'Корень';
         // Считаем активы корневой группы как сумму всех активов в дереве
         let rootCount = counts.ungrouped || 0;
         groups.forEach(g => {

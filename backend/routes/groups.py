@@ -81,14 +81,14 @@ async def get_group_tree(db: AsyncSession = Depends(get_db)):
     if not root_group:
         root_group = AssetGroup(
             id=0,
-            name="Root",
+            name="Корень",
             parent_id=None
         )
         db.add(root_group)
         await db.commit()
         await db.refresh(root_group)
-    elif root_group.name != "Root":
-        root_group.name = "Root"
+    elif root_group.name != "Корень":
+        root_group.name = "Корень"
         await db.commit()
         await db.refresh(root_group)
     
@@ -152,7 +152,7 @@ async def get_group(group_id: int, db: AsyncSession = Depends(get_db)):
             # Создаем корневую группу если не существует
             group = AssetGroup(
                 id=0,
-                name="Root",
+                name="Корень",
                 parent_id=None,
                 group_type="manual"
             )
@@ -161,8 +161,8 @@ async def get_group(group_id: int, db: AsyncSession = Depends(get_db)):
             await db.refresh(group)
         else:
             # Обновляем имя если оно еще старое
-            if group.name != "Root":
-                group.name = "Root"
+            if group.name != "Корень":
+                group.name = "Корень"
                 await db.commit()
                 await db.refresh(group)
     else:
@@ -398,7 +398,7 @@ async def get_root_group(db: AsyncSession = Depends(get_db)):
         # Создаем корневую группу если не существует
         root_group = AssetGroup(
             id=0,
-            name="Root",
+            name="Корень",
             parent_id=None,
             group_type="manual"
         )
@@ -408,8 +408,8 @@ async def get_root_group(db: AsyncSession = Depends(get_db)):
     else:
         if root_group.description == "__root_organization__":
             root_group.description = None
-        if root_group.name != "Root":
-            root_group.name = "Root"
+        if root_group.name != "Корень":
+            root_group.name = "Корень"
         if root_group.id != 0:
             root_group.id = 0
         await db.commit()

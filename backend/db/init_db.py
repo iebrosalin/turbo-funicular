@@ -72,7 +72,7 @@ async def init_db():
                 insert_query,
                 {
                     "uuid": str(uuid.uuid4()),
-                    "name": "Root",
+                    "name": "Корень",
                     "parent_id": None,
                     "group_type": "manual",
                     "is_dynamic": False
@@ -81,8 +81,8 @@ async def init_db():
             print(f"✓ Создана корневая группа с ID 0")
         else:
             update_query = text("UPDATE groups SET name = :name, description = NULL WHERE id = 0")
-            await conn.execute(update_query, {"name": "Root"})
-            print(f"✓ Корневая группа уже существует (ID: {root_group['id']}), имя обновлено на Root")
+            await conn.execute(update_query, {"name": "Корень"})
+            print(f"✓ Корневая группа уже существует (ID: {root_group['id']}), имя обновлено на Корень")
 
 
 if __name__ == "__main__":
